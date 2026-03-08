@@ -32,6 +32,8 @@ export default function Dashboard() {
     }
   }
 
+  // In a real application, you would fetch this data from an API based on the selected filters
+
   const stats = getStats()
 
   const formatCurrency = (amount) => {
