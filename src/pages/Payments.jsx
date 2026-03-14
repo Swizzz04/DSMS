@@ -1,511 +1,816 @@
-import { useState } from 'react'
-import { Search, DollarSign, Eye, Plus, Printer, Download, Receipt, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+  Search, DollarSign, Eye, Download, Receipt, Clock,
+  CheckCircle, AlertCircle, XCircle, ChevronRight,
+  MapPin, BookOpen, GraduationCap, ChevronDown, ChevronUp,
+  TrendingUp, Banknote, X, CreditCard
+} from 'lucide-react'
 import { mockPayments } from '../data/mockPayments'
 import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
-import { exportToExcel } from '../utils/exportToExcel'
+import { useCampusFilter } from '../context/CampusFilterContext'
+import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
+import { PageSkeleton, EmptyState, useToast, ToastContainer } from '../components/UIComponents'
+import GradeLevelSelect from '../components/GradeLevelSelect'
+import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 
-export default function Payments() {
-  const { user } = useAuth()
-  const { activeCampuses } = useAppConfig()
-  const [payments, setPayments] = useState(mockPayments)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [campusFilter, setCampusFilter] = useState('all')
-  const [selectedPayment, setSelectedPayment] = useState(null)
-  const [showModal, setShowModal] = useState(false)
+// ── helpers ────────────────────────────────────────────────────────
+const php = (n) =>
+  new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0 }).format(n ?? 0)
 
-  // Filter payments
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      payment.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      payment.studentId.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter
-    const matchesCampus = campusFilter === 'all' || payment.campus.includes(campusFilter)
-    
-    return matchesSearch && matchesStatus && matchesCampus
-  })
+function isBasicEd(g) {
+  return g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
+}
+function isCollege(g) {
+  return g && (g.includes('BS') || g.includes('Year'))
+}
 
-  // Stats
-  const stats = {
-    totalRevenue: filteredPayments.reduce((sum, p) => sum + p.amountPaid, 0),
-    outstanding: filteredPayments.reduce((sum, p) => sum + p.balance, 0),
-    paid: filteredPayments.filter(p => p.status === 'paid').length,
-    overdue: filteredPayments.filter(p => p.status === 'overdue').length
+const DEPT_STYLES = {
+  'Pre-Elementary':   { bg: 'bg-emerald-600', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300', bar: 'bg-emerald-500' },
+  'Elementary':       { bg: 'bg-blue-600',    light: 'bg-blue-50 dark:bg-blue-900/20',       border: 'border-blue-200 dark:border-blue-700',       text: 'text-blue-700 dark:text-blue-300',       bar: 'bg-blue-500'    },
+  'Junior High School':{ bg: 'bg-indigo-700', light: 'bg-indigo-50 dark:bg-indigo-900/20',   border: 'border-indigo-200 dark:border-indigo-700',   text: 'text-indigo-700 dark:text-indigo-300',   bar: 'bg-indigo-500'  },
+  'Senior High School':{ bg: 'bg-primary',    light: 'bg-red-50 dark:bg-red-900/20',         border: 'border-red-200 dark:border-red-700',         text: 'text-primary dark:text-red-300',         bar: 'bg-primary'     },
+}
+const PROG_COLORS = [
+  { bg: 'bg-primary',        light: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-700',       text: 'text-primary dark:text-red-300',        bar: 'bg-primary'         },
+  { bg: 'bg-secondary',      light: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-200 dark:border-indigo-700', text: 'text-indigo-700 dark:text-indigo-300',  bar: 'bg-secondary'       },
+  { bg: 'bg-light-secondary',light: 'bg-blue-50 dark:bg-blue-900/20',     border: 'border-blue-200 dark:border-blue-700',     text: 'text-blue-700 dark:text-blue-300',      bar: 'bg-light-secondary' },
+  { bg: 'bg-violet-600',     light: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-200 dark:border-violet-700', text: 'text-violet-700 dark:text-violet-300',  bar: 'bg-violet-500'      },
+]
+
+function StatusBadge({ status }) {
+  const map = {
+    paid:    { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',    Icon: CheckCircle },
+    partial: { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', Icon: Clock       },
+    overdue: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             Icon: AlertCircle },
+    pending: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',            Icon: XCircle     },
   }
+  const { cls, Icon } = map[status] || map.pending
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+      <Icon className="w-3 h-3" />{status.charAt(0).toUpperCase()+status.slice(1)}
+    </span>
+  )
+}
 
-  // Status badge
-  const StatusBadge = ({ status }) => {
-    const styles = {
-      paid: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      partial: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-      overdue: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-      pending: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-    }
-    
-    const icons = {
-      paid: <CheckCircle className="w-3 h-3" />,
-      partial: <Clock className="w-3 h-3" />,
-      overdue: <AlertCircle className="w-3 h-3" />,
-      pending: <XCircle className="w-3 h-3" />
-    }
-    
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
-        {icons[status]}
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    )
-  }
+// ── Grade-level row inside a card ─────────────────────────────────
+function GradeRow({ label, payments, maxRevenue }) {
+  const revenue     = payments.reduce((s, p) => s + p.amountPaid, 0)
+  const outstanding = payments.reduce((s, p) => s + p.balance, 0)
+  const totalFee    = payments.reduce((s, p) => s + p.totalFee, 0)
+  const paid        = payments.filter(p => p.status === 'paid').length
+  const partial     = payments.filter(p => p.status === 'partial').length
+  const overdue     = payments.filter(p => p.status === 'overdue').length
+  const pending     = payments.filter(p => p.status === 'pending').length
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP',
-      minimumFractionDigits: 0
-    }).format(amount)
-  }
+  return (
+    <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      {/* Grade label */}
+      <div className="w-32 flex-shrink-0">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
+        <p className="text-xs text-gray-400 dark:text-gray-500">{payments.length} student{payments.length !== 1 ? 's' : ''}</p>
+      </div>
 
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      {/* Revenue bar */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+            {totalFee > 0 ? (
+              <div className="h-full flex rounded-full overflow-hidden">
+                <div className="bg-green-500 h-full transition-all duration-500"
+                  style={{ width: `${(revenue / totalFee) * 100}%` }} />
+                <div className="bg-gray-300 dark:bg-gray-600 h-full transition-all duration-500"
+                  style={{ width: `${(outstanding / totalFee) * 100}%` }} />
+              </div>
+            ) : (
+              <div className="h-full w-full bg-gray-200 dark:bg-gray-600 rounded-full" />
+            )}
+          </div>
+          <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
+            {totalFee > 0 ? Math.round((revenue / totalFee) * 100) : 0}%
+          </span>
+        </div>
+      </div>
+
+      {/* Amounts */}
+      <div className="flex items-center gap-4 flex-shrink-0 sm:w-64 justify-between">
+        <div className="text-right">
+          <p className="text-xs text-gray-400">Collected</p>
+          <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(revenue)}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-400">Outstanding</p>
+          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}`}>{outstanding > 0 ? php(outstanding) : '—'}</p>
+        </div>
+      </div>
+
+      {/* Status mini-badges */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
+        {paid    > 0 && <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full" title="Paid">{paid} paid</span>}
+        {partial > 0 && <span className="text-xs font-semibold bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full" title="Partial">{partial} partial</span>}
+        {overdue > 0 && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full" title="Overdue">{overdue} overdue</span>}
+        {pending > 0 && <span className="text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full" title="No payment">{pending} unpaid</span>}
+      </div>
+    </div>
+  )
+}
+
+// ── Department card (Basic Ed) ────────────────────────────────────
+function DeptPaymentCard({ group, payments }) {
+  const [expanded, setExpanded] = useState(true)
+  const style = DEPT_STYLES[group.label] || DEPT_STYLES['Elementary']
+
+  const deptPayments  = payments.filter(p => group.options.includes(p.gradeLevel))
+  const deptRevenue   = deptPayments.reduce((s, p) => s + p.amountPaid, 0)
+  const deptOutstanding = deptPayments.reduce((s, p) => s + p.balance, 0)
+  const deptTotalFee  = deptPayments.reduce((s, p) => s + p.totalFee, 0)
+  const maxRevenue    = Math.max(...group.options.map(g => payments.filter(p => p.gradeLevel === g).reduce((s, p) => s + p.amountPaid, 0)), 1)
+
+  if (deptPayments.length === 0) return null
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+      <button onClick={() => setExpanded(e => !e)}
+        className={`w-full ${style.light} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+            <BookOpen className="w-4 h-4 text-white" />
+          </div>
+          <div className="text-left min-w-0">
+            <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{deptPayments.length} student{deptPayments.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:block text-right">
+            <p className="text-xs text-gray-400">Collected</p>
+            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
+          </div>
+          {deptOutstanding > 0 && (
+            <div className="hidden sm:block text-right">
+              <p className="text-xs text-gray-400">Outstanding</p>
+              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(deptOutstanding)}</p>
+            </div>
+          )}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {group.options.map(grade => {
+            const gradePayments = payments.filter(p => p.gradeLevel === grade)
+            if (gradePayments.length === 0) return null
+            return <GradeRow key={grade} label={grade} payments={gradePayments} maxRevenue={maxRevenue} />
+          })}
+
+          {/* Dept total */}
+          <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{group.label} Total</span>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Total Fees</p>
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(deptTotalFee)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Collected</p>
+                <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Outstanding</p>
+                <p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── College program card ───────────────────────────────────────────
+function ProgramPaymentCard({ program, colorIdx, payments }) {
+  const [expanded, setExpanded] = useState(true)
+  const style = PROG_COLORS[colorIdx % PROG_COLORS.length]
+
+  const progPayments    = payments.filter(p => p.gradeLevel.startsWith(program))
+  const progRevenue     = progPayments.reduce((s, p) => s + p.amountPaid, 0)
+  const progOutstanding = progPayments.reduce((s, p) => s + p.balance, 0)
+  const progTotalFee    = progPayments.reduce((s, p) => s + p.totalFee, 0)
+  const maxRevenue      = Math.max(...COLLEGE_YEAR_LEVELS.map(yr => payments.filter(p => p.gradeLevel === `${program} - ${yr}`).reduce((s, p) => s + p.amountPaid, 0)), 1)
+
+  if (progPayments.length === 0) return null
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+      <button onClick={() => setExpanded(e => !e)}
+        className={`w-full ${style.light} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+            <GraduationCap className="w-4 h-4 text-white" />
+          </div>
+          <div className="text-left min-w-0">
+            <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{progPayments.length} student{progPayments.length !== 1 ? 's' : ''}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:block text-right">
+            <p className="text-xs text-gray-400">Collected</p>
+            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
+          </div>
+          {progOutstanding > 0 && (
+            <div className="hidden sm:block text-right">
+              <p className="text-xs text-gray-400">Outstanding</p>
+              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(progOutstanding)}</p>
+            </div>
+          )}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {COLLEGE_YEAR_LEVELS.map(yr => {
+            const key = `${program} - ${yr}`
+            const yrPayments = payments.filter(p => p.gradeLevel === key)
+            if (yrPayments.length === 0) return null
+            return <GradeRow key={yr} label={yr} payments={yrPayments} maxRevenue={maxRevenue} />
+          })}
+
+          {/* Program total */}
+          <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
+            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{program} Total</span>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Total Fees</p>
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(progTotalFee)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Collected</p>
+                <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Outstanding</p>
+                <p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════
+// ADMIN PAYMENTS OVERVIEW
+// ════════════════════════════════════════════════════════════════════
+function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
+  const shownCampuses   = campusFilter !== 'all'
+    ? activeCampuses.filter(c => c.key === campusFilter)
+    : activeCampuses
+  const isSingleCampus  = shownCampuses.length === 1
+
+  const allShown        = shownCampuses.flatMap(c => payments.filter(p => p.campus === c.name))
+  const grandRevenue    = allShown.reduce((s, p) => s + p.amountPaid, 0)
+  const grandOutstanding= allShown.reduce((s, p) => s + p.balance, 0)
+  const grandTotalFee   = allShown.reduce((s, p) => s + p.totalFee, 0)
+  const grandPaid       = allShown.filter(p => p.status === 'paid').length
+  const grandOverdue    = allShown.filter(p => p.status === 'overdue').length
+
+  const handleExport = () => {
+    const sheets = shownCampuses.flatMap(campus => {
+      const campusPayments = payments.filter(p => p.campus === campus.name)
+      const result = []
+
+      if (campus.hasBasicEd) {
+        const rows = []
+        BASIC_ED_GROUPS.forEach(group => {
+          group.options.forEach(grade => {
+            const gp = campusPayments.filter(p => p.gradeLevel === grade)
+            if (gp.length > 0) rows.push({
+              Department: group.label, 'Grade Level': grade, Students: gp.length,
+              'Total Fees': gp.reduce((s, p) => s + p.totalFee, 0),
+              'Collected':  gp.reduce((s, p) => s + p.amountPaid, 0),
+              'Outstanding': gp.reduce((s, p) => s + p.balance, 0),
+              'Paid': gp.filter(p => p.status === 'paid').length,
+              'Partial': gp.filter(p => p.status === 'partial').length,
+              'Overdue': gp.filter(p => p.status === 'overdue').length,
+            })
+          })
+        })
+        if (rows.length) result.push({ data: rows, sheetName: `${campus.key}_BasicEd` })
+      }
+
+      if (campus.hasCollege && campus.collegePrograms?.length) {
+        const rows = []
+        campus.collegePrograms.forEach(prog => {
+          COLLEGE_YEAR_LEVELS.forEach(yr => {
+            const key = `${prog} - ${yr}`
+            const gp  = campusPayments.filter(p => p.gradeLevel === key)
+            if (gp.length > 0) rows.push({
+              Program: prog, 'Year Level': yr, Students: gp.length,
+              'Total Fees': gp.reduce((s, p) => s + p.totalFee, 0),
+              'Collected':  gp.reduce((s, p) => s + p.amountPaid, 0),
+              'Outstanding': gp.reduce((s, p) => s + p.balance, 0),
+              'Paid': gp.filter(p => p.status === 'paid').length,
+              'Partial': gp.filter(p => p.status === 'partial').length,
+              'Overdue': gp.filter(p => p.status === 'overdue').length,
+            })
+          })
+        })
+        if (rows.length) result.push({ data: rows, sheetName: `${campus.key}_College` })
+      }
+
+      return result
     })
-  }
 
-  const handleViewReceipt = (payment) => {
-    setSelectedPayment(payment)
-    setShowModal(true)
-  }
-
-  const handleRecordPayment = (payment) => {
-    alert(`Record payment for ${payment.studentName}`)
-    // TODO: Implement payment recording
-  }
-
-  const handlePrintReceipt = () => {
-    alert('Printing receipt...')
-    // TODO: Implement print functionality
+    if (sheets.length) {
+      exportMultipleSheets(sheets, `CSHC_Payments_${campusFilter !== 'all' ? campusFilter : 'All'}_${new Date().toISOString().split('T')[0]}`)
+      addToast('Payment summary exported!', 'success')
+    }
   }
 
   return (
-    <div>
+    <div className="animate-fade-in space-y-6">
+
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-          Payments
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Track and manage student payment records
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Payments</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {currentSchoolYear} · {isSingleCampus ? `${shownCampuses[0].name} payment overview` : 'School-wide income and payment overview'}
+          </p>
+        </div>
+        <button onClick={handleExport}
+          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+          <Download className="w-4 h-4" /> Export
+        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <DollarSign className="w-8 h-8 opacity-80" />
-            <CheckCircle className="w-5 h-5" />
-          </div>
-          <p className="text-sm opacity-90 mb-1">Total Revenue</p>
-          <p className="text-3xl font-bold">{formatCurrency(stats.totalRevenue)}</p>
-          <p className="text-xs opacity-75 mt-2">Collected payments</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-lg p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <Receipt className="w-8 h-8 opacity-80" />
-            <Clock className="w-5 h-5" />
-          </div>
-          <p className="text-sm opacity-90 mb-1">Outstanding Balance</p>
-          <p className="text-3xl font-bold">{formatCurrency(stats.outstanding)}</p>
-          <p className="text-xs opacity-75 mt-2">Pending collection</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <CheckCircle className="w-8 h-8 opacity-80" />
-          </div>
-          <p className="text-sm opacity-90 mb-1">Fully Paid</p>
-          <p className="text-3xl font-bold">{stats.paid}</p>
-          <p className="text-xs opacity-75 mt-2">Students</p>
-        </div>
-
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg p-6 shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <AlertCircle className="w-8 h-8 opacity-80" />
-          </div>
-          <p className="text-sm opacity-90 mb-1">Overdue</p>
-          <p className="text-3xl font-bold">{stats.overdue}</p>
-          <p className="text-xs opacity-75 mt-2">Requires follow-up</p>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 mb-6 shadow-sm border border-gray-100 dark:border-gray-700/50">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          
-          {/* Search */}
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-              Search
-            </label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Student name or ID..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-              />
+      {/* Grand stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[
+          { label: 'Total Revenue',     value: php(grandRevenue),    border: 'border-green-500',  icon: <TrendingUp className="w-5 h-5 text-green-500"/>, sub: `${grandTotalFee > 0 ? Math.round((grandRevenue/grandTotalFee)*100) : 0}% collected`, cls: 'text-green-600 dark:text-green-400' },
+          { label: 'Outstanding',       value: php(grandOutstanding),border: 'border-red-400',    icon: <Banknote className="w-5 h-5 text-red-400"/>,    sub: 'Pending collection', cls: 'text-red-500 dark:text-red-400' },
+          { label: 'Fully Paid',        value: grandPaid,            border: 'border-blue-500',   icon: <CheckCircle className="w-5 h-5 text-blue-500"/>, sub: `${allShown.length > 0 ? Math.round((grandPaid/allShown.length)*100) : 0}% of students`, cls: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Overdue Accounts',  value: grandOverdue,         border: 'border-orange-400', icon: <AlertCircle className="w-5 h-5 text-orange-400"/>,sub: 'Requires follow-up', cls: grandOverdue > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400' },
+        ].map(({ label, value, border, icon, sub, cls }) => (
+          <div key={label} className={`bg-white dark:bg-gray-800 rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+              {icon}
             </div>
+            <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">{value}</p>
+            <p className={`text-xs mt-1 font-medium ${cls}`}>{sub}</p>
           </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-              Status
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-            >
-              <option value="all">All Status</option>
-              <option value="paid">Fully Paid</option>
-              <option value="partial">Partial Payment</option>
-              <option value="overdue">Overdue</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
-
-          {/* Campus Filter */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-              Campus
-            </label>
-            <select
-              value={campusFilter}
-              onChange={(e) => setCampusFilter(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none"
-            >
-              <option value="all">All Campuses</option>
-              {activeCampuses.map(c => (
-                <option key={c.id} value={c.key}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Export Button */}
-        <div className="mt-4 flex justify-end">
-          <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Export Payment Records
-          </button>
-        </div>
+        ))}
       </div>
 
-      {/* Payments Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Student
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Campus
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Total Fee
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Paid
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Balance
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Last Payment
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-800 dark:text-white">
-                        {payment.studentName}
-                      </div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {payment.studentId} • {payment.gradeLevel}
-                      </div>
+      {/* Collection rate bar (only when showing all or single campus) */}
+      {grandTotalFee > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Collection Rate</h3>
+            <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
+              {Math.round((grandRevenue / grandTotalFee) * 100)}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+            <div className="bg-green-500 h-full rounded-full transition-all duration-700"
+              style={{ width: `${(grandRevenue / grandTotalFee) * 100}%` }} />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-gray-400">
+            <span>Collected: <span className="font-semibold text-green-600 dark:text-green-400">{php(grandRevenue)}</span></span>
+            <span>Total Expected: <span className="font-semibold text-gray-600 dark:text-gray-300">{php(grandTotalFee)}</span></span>
+          </div>
+
+          {/* Campus mini-bars */}
+          {!isSingleCampus && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 space-y-2">
+              {shownCampuses.map(campus => {
+                const cp  = payments.filter(p => p.campus === campus.name)
+                const cr  = cp.reduce((s, p) => s + p.amountPaid, 0)
+                const ctf = cp.reduce((s, p) => s + p.totalFee, 0)
+                const pct = ctf > 0 ? Math.round((cr / ctf) * 100) : 0
+                return (
+                  <div key={campus.key} className="flex items-center gap-3">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 w-36 flex-shrink-0 truncate">{campus.name}</span>
+                    <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                    {payment.campus}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-white">
-                    {formatCurrency(payment.totalFee)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 dark:text-green-400 font-medium">
-                    {formatCurrency(payment.amountPaid)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <span className={payment.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}>
-                      {formatCurrency(payment.balance)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <StatusBadge status={payment.status} />
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                    {formatDate(payment.lastPaymentDate)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleViewReceipt(payment)}
-                        className="text-primary hover:text-accent-burgundy font-medium flex items-center gap-1"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </button>
-                      {payment.balance > 0 && (
-                        <button
-                          onClick={() => handleRecordPayment(payment)}
-                          className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* No Results */}
-        {filteredPayments.length === 0 && (
-          <div className="text-center py-12">
-            <DollarSign className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">No payment records found</p>
-          </div>
-        )}
-      </div>
-
-{/* Payment Detail Modal - COMPLETE VERSION */}
-{showModal && selectedPayment && (
-  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-    <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full my-8">
-      
-      {/* Modal Header */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-            <DollarSign className="w-8 h-8 text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
-              Payment Details
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {selectedPayment.studentName}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handlePrintReceipt}
-            className="p-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors"
-            title="Print Receipt"
-          >
-            <Printer className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => setShowModal(false)}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <XCircle className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-
-      {/* Modal Content */}
-      <div className="p-6 space-y-6 max-h-[calc(100vh-250px)] overflow-y-auto">
-        
-        {/* Student Info & Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
-              Student Information
-            </h3>
-            <div className="space-y-2">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Student ID</p>
-                <p className="font-medium text-gray-800 dark:text-white">{selectedPayment.studentId}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Grade Level</p>
-                <p className="font-medium text-gray-800 dark:text-white">{selectedPayment.gradeLevel}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Campus</p>
-                <p className="font-medium text-gray-800 dark:text-white">{selectedPayment.campus}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
-              Payment Status
-            </h3>
-            <div className="space-y-2">
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
-                <StatusBadge status={selectedPayment.status} />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Due Date</p>
-                <p className="font-medium text-gray-800 dark:text-white">{formatDate(selectedPayment.dueDate)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Last Payment</p>
-                <p className="font-medium text-gray-800 dark:text-white">{formatDate(selectedPayment.lastPaymentDate)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Payment Summary */}
-        <div className="bg-gradient-to-br from-primary to-accent-burgundy text-white rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Payment Summary</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <p className="text-sm opacity-90 mb-1">Total Fee</p>
-              <p className="text-2xl font-bold">{formatCurrency(selectedPayment.totalFee)}</p>
-            </div>
-            <div>
-              <p className="text-sm opacity-90 mb-1">Amount Paid</p>
-              <p className="text-2xl font-bold">{formatCurrency(selectedPayment.amountPaid)}</p>
-            </div>
-            <div>
-              <p className="text-sm opacity-90 mb-1">Balance</p>
-              <p className="text-2xl font-bold">{formatCurrency(selectedPayment.balance)}</p>
-            </div>
-          </div>
-          
-          {/* Progress Bar */}
-          <div className="mt-4">
-            <div className="w-full bg-white/20 rounded-full h-2">
-              <div 
-                className="bg-white h-2 rounded-full transition-all duration-500"
-                style={{ width: `${(selectedPayment.amountPaid / selectedPayment.totalFee) * 100}%` }}
-              ></div>
-            </div>
-            <p className="text-xs opacity-75 mt-2">
-              {Math.round((selectedPayment.amountPaid / selectedPayment.totalFee) * 100)}% Paid
-            </p>
-          </div>
-        </div>
-
-        {/* Payment History */}
-        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-            <Receipt className="w-5 h-5" />
-            Payment History
-          </h3>
-          
-          {selectedPayment.paymentHistory.length > 0 ? (
-            <div className="space-y-3">
-              {selectedPayment.paymentHistory.map((history) => (
-                <div 
-                  key={history.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-gray-800 dark:text-white">
-                          {formatCurrency(history.amount)}
-                        </p>
-                        <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 px-2 py-0.5 rounded-full">
-                          {history.method}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {history.notes}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-gray-800 dark:text-white">
-                        {history.orNumber}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {formatDate(history.date)}
-                      </p>
-                    </div>
+                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 w-10 text-right">{pct}%</span>
+                    <span className="text-xs text-green-600 dark:text-green-400 w-28 text-right hidden sm:block">{php(cr)}</span>
                   </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+        <span className="font-medium">Bar legend:</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Collected</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600 inline-block" /> Outstanding</span>
+      </div>
+
+      {/* Per-campus sections */}
+      {shownCampuses.map(campus => {
+        const campusPayments  = payments.filter(p => p.campus === campus.name)
+        const campusRevenue   = campusPayments.reduce((s, p) => s + p.amountPaid, 0)
+        const campusTotalFee  = campusPayments.reduce((s, p) => s + p.totalFee, 0)
+        const basicPayments   = campusPayments.filter(p => isBasicEd(p.gradeLevel))
+        const collegePayments = campusPayments.filter(p => isCollege(p.gradeLevel))
+
+        return (
+          <div key={campus.key} className="space-y-4">
+            {/* Campus divider */}
+            {!isSingleCampus && (
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-700 rounded-full">
+                  <MapPin className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-gray-600 dark:text-gray-300">{campus.name}</span>
+                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">· {php(campusRevenue)} collected</span>
+                </div>
+                <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+              </div>
+            )}
+
+            {/* Campus income summary strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Total Expected', value: php(campusTotalFee),                                        cls: 'text-gray-700 dark:text-gray-200' },
+                { label: 'Collected',      value: php(campusRevenue),                                         cls: 'text-green-600 dark:text-green-400' },
+                { label: 'Outstanding',    value: php(campusPayments.reduce((s,p)=>s+p.balance,0)),           cls: 'text-red-500 dark:text-red-400' },
+                { label: 'Collection Rate',value: `${campusTotalFee>0?Math.round((campusRevenue/campusTotalFee)*100):0}%`, cls: 'text-blue-600 dark:text-blue-400' },
+              ].map(({ label, value, cls }) => (
+                <div key={label} className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm text-center">
+                  <p className="text-xs text-gray-400 mb-1">{label}</p>
+                  <p className={`text-base font-bold ${cls}`}>{value}</p>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-              <p className="text-gray-500 dark:text-gray-400 text-sm">No payment history yet</p>
-            </div>
-          )}
+
+            {/* Basic Education */}
+            {campus.hasBasicEd && basicPayments.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">Basic Education</h2>
+                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                    · {php(basicPayments.reduce((s,p)=>s+p.amountPaid,0))} collected
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {BASIC_ED_GROUPS.map(group => (
+                    <DeptPaymentCard key={group.label} group={group} payments={basicPayments} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* College */}
+            {campus.hasCollege && campus.collegePrograms?.length > 0 && collegePayments.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
+                    <GraduationCap className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                  <h2 className="text-sm font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">College</h2>
+                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                    · {php(collegePayments.reduce((s,p)=>s+p.amountPaid,0))} collected
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {campus.collegePrograms.map((prog, idx) => (
+                    <ProgramPaymentCard key={prog} program={prog} colorIdx={idx} payments={collegePayments} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {!campus.hasCollege && (
+              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl text-sm text-gray-400">
+                <GraduationCap className="w-4 h-4" /> No college department at this campus
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ════════════════════════════════════════════════════════════════════
+export default function Payments() {
+  const { user } = useAuth()
+  const { activeCampuses, currentSchoolYear } = useAppConfig()
+  const [payments]                          = useState(mockPayments)
+  const [searchQuery, setSearchQuery]       = useState('')
+  const [statusFilter, setStatusFilter]     = useState('all')
+  const [gradeLevelFilter, setGradeLevelFilter] = useState('all')
+  const [selectedPayment, setSelectedPayment] = useState(null)
+  const [showModal, setShowModal]           = useState(false)
+  const { campusFilter } = useCampusFilter()
+  const [loading, setLoading]               = useState(true)
+  const { toasts, addToast, removeToast }   = useToast()
+
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 700); return () => clearTimeout(t) }, [])
+  useEffect(() => {
+    setLoading(true); setGradeLevelFilter('all')
+    const t = setTimeout(() => setLoading(false), 400)
+    return () => clearTimeout(t)
+  }, [campusFilter])
+
+  if (loading) return <PageSkeleton title="Payments" />
+
+  // ── Admin: overview ────────────────────────────────────────────
+  if (user?.role === 'admin') {
+    return (
+      <>
+        <AdminPaymentsOverview
+          payments={payments}
+          campusFilter={campusFilter}
+          activeCampuses={activeCampuses}
+          currentSchoolYear={currentSchoolYear}
+          addToast={addToast}
+        />
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </>
+    )
+  }
+
+  // ── Accounting: detailed list view ─────────────────────────────
+  const filtered = payments.filter(p =>
+    (p.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     p.studentId.toLowerCase().includes(searchQuery.toLowerCase())) &&
+    (statusFilter === 'all' || p.status === statusFilter) &&
+    (campusFilter === 'all' || p.campus.includes(campusFilter)) &&
+    (gradeLevelFilter === 'all' || p.gradeLevel === gradeLevelFilter || p.gradeLevel.startsWith(gradeLevelFilter + ' -'))
+  )
+
+  const stats = {
+    revenue:     filtered.reduce((s, p) => s + p.amountPaid, 0),
+    outstanding: filtered.reduce((s, p) => s + p.balance, 0),
+    paid:        filtered.filter(p => p.status === 'paid').length,
+    overdue:     filtered.filter(p => p.status === 'overdue').length,
+  }
+
+  const handleExport = () => {
+    const data = filtered.map(p => ({
+      'Student ID': p.studentId, 'Student Name': p.studentName,
+      'Campus': p.campus, 'Grade / Program': p.gradeLevel,
+      'Total Fee': p.totalFee, 'Amount Paid': p.amountPaid, 'Balance': p.balance,
+      'Status': p.status.toUpperCase(), 'Payment Method': p.paymentMethod || '—',
+      'Last Payment': p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString() : '—',
+      'Due Date': new Date(p.dueDate).toLocaleDateString(),
+    }))
+    exportToExcel(data, `Payments_${new Date().toISOString().split('T')[0]}`, 'Payments')
+    addToast(`Exported ${data.length} records!`, 'success')
+  }
+
+  return (
+    <div className="animate-fade-in space-y-5">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Payments</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track and manage student payment records</p>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {[
+          { label:'Total Revenue',    value:php(stats.revenue),     bg:'bg-green-600',   icon:<DollarSign className="w-5 h-5"/>, sub:'Collected payments' },
+          { label:'Outstanding',      value:php(stats.outstanding), bg:'bg-yellow-500',  icon:<Clock className="w-5 h-5"/>,     sub:'Pending collection' },
+          { label:'Fully Paid',       value:stats.paid,             bg:'bg-blue-600',    icon:<CheckCircle className="w-5 h-5"/>,sub:'Students' },
+          { label:'Overdue',          value:stats.overdue,          bg:'bg-red-600',     icon:<AlertCircle className="w-5 h-5"/>,sub:'Requires follow-up' },
+        ].map(({ label, value, bg, icon, sub }) => (
+          <div key={label} className={`${bg} rounded-xl p-4 text-white shadow-sm`}>
+            <div className="flex items-center justify-between mb-2 opacity-80">{icon}<CheckCircle className="w-4 h-4 opacity-50" /></div>
+            <p className="text-xs opacity-80 mb-1">{label}</p>
+            <p className="text-xl font-bold">{value}</p>
+            <p className="text-xs opacity-70 mt-1">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input type="text" placeholder="Search student name or ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none transition" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none">
+            <option value="all">All Status</option>
+            <option value="paid">Paid</option>
+            <option value="partial">Partial</option>
+            <option value="overdue">Overdue</option>
+            <option value="pending">Pending</option>
+          </select>
+          <div>
+            <GradeLevelSelect value={gradeLevelFilter} onChange={setGradeLevelFilter} campusFilter={campusFilter} userRole={user?.role} />
+          </div>
+          <div className="col-span-2 flex justify-end">
+            <button onClick={handleExport}
+              className="px-4 py-2.5 text-sm bg-primary text-white rounded-lg hover:bg-accent-burgundy transition flex items-center gap-1.5 font-medium">
+              <Download className="w-4 h-4" /> Export Records
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Modal Footer */}
-      <div className="flex items-center justify-between p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-        <button
-          onClick={() => setShowModal(false)}
-          className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-        >
-          Close
-        </button>
-        
-        <div className="flex gap-3">
-          {selectedPayment.balance > 0 && (
-            <button
-              onClick={() => handleRecordPayment(selectedPayment)}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Record Payment
-            </button>
-          )}
-          <button
-            onClick={handlePrintReceipt}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 font-medium"
-          >
-            <Printer className="w-5 h-5" />
-            Print Receipt
-          </button>
-        </div>
+      {/* Payment list */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
+        {filtered.length === 0 ? <EmptyState type="search" /> : (
+          <>
+            {/* Mobile cards */}
+            <ul className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+              {filtered.map(p => (
+                <li key={p.id}>
+                  <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
+                    className="w-full text-left px-4 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition flex items-start gap-3">
+                    <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Receipt className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-gray-800 dark:text-white truncate">{p.studentName}</span>
+                        <StatusBadge status={p.status} />
+                      </div>
+                      <p className="text-xs font-mono text-primary dark:text-red-400">{p.studentId}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{p.gradeLevel}</span>
+                        <span className="text-sm font-bold text-green-600 dark:text-green-400">{php(p.amountPaid)}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    {['Student','Campus','Grade / Program','Total Fee','Paid','Balance','Status','Last Payment','Actions'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {filtered.map(p => (
+                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="text-sm font-medium text-gray-800 dark:text-white">{p.studentName}</p>
+                        <p className="text-xs font-mono text-primary dark:text-red-400">{p.studentId}</p>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{p.campus}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">{p.gradeLevel}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 whitespace-nowrap font-medium">{php(p.totalFee)}</td>
+                      <td className="px-4 py-3 text-sm text-green-600 dark:text-green-400 whitespace-nowrap font-semibold">{php(p.amountPaid)}</td>
+                      <td className="px-4 py-3 text-sm whitespace-nowrap font-semibold">
+                        <span className={p.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={p.status} /></td>
+                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
+                          className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                          <Eye className="w-4 h-4" /> View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
+              Showing {filtered.length} of {payments.length} records
+            </div>
+          </>
+        )}
       </div>
-    </div>
-  </div>
-)}
+
+      {/* Payment detail modal */}
+      {showModal && selectedPayment && (
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[92vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Receipt className="w-5 h-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-gray-800 dark:text-white truncate">{selectedPayment.studentName}</h2>
+                  <p className="text-xs font-mono text-primary dark:text-red-400">{selectedPayment.studentId}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={selectedPayment.status} />
+                <span className="text-xs text-gray-500 dark:text-gray-400">{selectedPayment.campus} · {selectedPayment.gradeLevel}</span>
+              </div>
+
+              {/* Fee summary */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Total Fee',    value: php(selectedPayment.totalFee),    cls: 'text-gray-800 dark:text-white'        },
+                  { label: 'Amount Paid',  value: php(selectedPayment.amountPaid),  cls: 'text-green-600 dark:text-green-400'   },
+                  { label: 'Balance',      value: php(selectedPayment.balance),     cls: selectedPayment.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400' },
+                ].map(({ label, value, cls }) => (
+                  <div key={label} className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-400 mb-1">{label}</p>
+                    <p className={`text-base font-bold ${cls}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Progress */}
+              {selectedPayment.totalFee > 0 && (
+                <div>
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    <span>Payment Progress</span>
+                    <span>{Math.round((selectedPayment.amountPaid / selectedPayment.totalFee) * 100)}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div className="bg-green-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${(selectedPayment.amountPaid / selectedPayment.totalFee) * 100}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Payment details */}
+              <div className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" /> Payment Details
+                </h3>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  {[
+                    ['Payment Method', selectedPayment.paymentMethod || '—'],
+                    ['Due Date', selectedPayment.dueDate ? new Date(selectedPayment.dueDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—'],
+                    ['Last Payment', selectedPayment.lastPaymentDate ? new Date(selectedPayment.lastPaymentDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—'],
+                    ['Installments', selectedPayment.paymentHistory.length],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                      <p className="font-medium text-gray-800 dark:text-white">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment history */}
+              {selectedPayment.paymentHistory.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-2">
+                    <Receipt className="w-4 h-4" /> Payment History
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedPayment.paymentHistory.map(h => (
+                      <div key={h.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-600 last:border-0">
+                        <div>
+                          <p className="text-xs font-mono text-primary dark:text-red-400">{h.orNumber}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{h.method} · {new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
+                          {h.notes && <p className="text-xs text-gray-400 italic mt-0.5">{h.notes}</p>}
+                        </div>
+                        <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(h.amount)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex-shrink-0">
+              <button onClick={() => setShowModal(false)}
+                className="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition font-medium">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   )
 }

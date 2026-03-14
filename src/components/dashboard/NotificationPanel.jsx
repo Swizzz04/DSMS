@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Clock, AlertCircle, CheckCircle, DollarSign, X } from 'lucide-react'
 import { mockEnrollments } from '../../data/mockEnrollments'
@@ -111,16 +111,6 @@ export default function NotificationPanel({ onClose }) {
   const panelRef = useRef(null)
   const notifications = generateNotifications(user)
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (panelRef.current && !panelRef.current.contains(e.target)) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [onClose])
-
   const handleNotificationClick = (link) => {
     navigate(link)
     onClose()
@@ -131,7 +121,7 @@ export default function NotificationPanel({ onClose }) {
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-[9999]"
+      className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700"
       style={{ top: '100%' }}
     >
       {/* Header */}

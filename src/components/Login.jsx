@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 
-export default function Login({ onLoginSuccess, error }) {
+export default function Login({ onLoginSuccess, error, loading = false }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -130,7 +130,7 @@ return (
 
             {/* Login Button */}
             <button
-              type="submit"
+              type="submit" disabled={loading}
               className="w-full bg-gradient-to-r from-primary to-accent-burgundy hover:from-accent-burgundy hover:to-primary text-white py-3 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
             >
               <LogIn className="w-5 h-5" />
