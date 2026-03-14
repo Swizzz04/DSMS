@@ -1,29 +1,24 @@
-import { useState } from 'react'
-import { 
-  Settings as SettingsIcon, 
-  Calendar, 
-  DollarSign, 
-  Building2, 
-  GraduationCap, 
-  Users,
-  Plus,
-  Edit,
-  Trash2,
-  Palette,
-  Moon,
-  Sun,
-  Check,
-  Save,
-  RotateCcw
+import { useState, useEffect } from 'react'
+import {
+  Calendar, DollarSign, Building2, GraduationCap,
+  Users, Plus, Edit, Palette, Moon, Sun, Check, Save
 } from 'lucide-react'
+import { PageSkeleton } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 
 export default function Settings() {
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 600)
+    return () => clearTimeout(t)
+  }, [])
+
   const [activeTab, setActiveTab] = useState('appearance')
   const { theme, toggleTheme } = useTheme()
   const {
-    schoolYears, campuses, feeStructure, systemUsers,
+    schoolYears, campuses, feeStructure, systemUsers, basicEdGroups,
     updateConfig, resetSection, activeCampuses, currentSchoolYear
   } = useAppConfig()
 
@@ -75,12 +70,13 @@ export default function Settings() {
 
   const handleColorChange = (colorId) => {
     setSelectedColor(colorId)
-    // TODO: Apply color theme to entire app
     alert(`Color theme "${colorThemes.find(c => c.id === colorId).name}" selected! (This will be implemented globally)`)
   }
 
+  if (loading) return <PageSkeleton title="Settings" />
+
   return (
-    <div>
+    <div className="animate-fade-in">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
@@ -426,7 +422,7 @@ export default function Settings() {
                     {campus.email}
                   </p>
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {campus.levels.map((level, idx) => (
+                    {(campus.departments || campus.levels || []).map((level, idx) => (
                       <span
                         key={idx}
                         className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs rounded"
@@ -468,29 +464,33 @@ export default function Settings() {
             </div>
 
             <div className="space-y-4">
-              {basicEdGroups.map((grade) => (
+              {basicEdGroups.map((group) => (
                 <div
-                  key={grade.id}
+                  key={group.label}
                   className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-primary transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-3">
                         <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                          {grade.level}
+                          {group.label}
                         </h3>
                         <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs font-medium rounded-full">
-                          {grade.department}
+                          {group.options.length} grade{group.options.length !== 1 ? 's' : ''}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                        Sections: {grade.sections.join(', ')}
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Max Students per Section: {grade.maxStudentsPerSection}
-                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {group.options.map((grade) => (
+                          <span
+                            key={grade}
+                            className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm rounded-full"
+                          >
+                            {grade}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                    <button className="text-primary hover:text-accent-burgundy">
+                    <button className="text-primary hover:text-accent-burgundy ml-4 flex-shrink-0">
                       <Edit className="w-4 h-4" />
                     </button>
                   </div>

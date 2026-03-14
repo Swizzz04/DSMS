@@ -5,7 +5,6 @@ import Dashboard from './pages/Dashboard'
 import ProtectedRoute from './components/ProtectedRoute'
 import Enrollments from './pages/Enrollments'
 import Students from './pages/Students'
-import Reports from './pages/Reports'
 import Payments from './pages/Payments'
 import Settings from './pages/Settings'
 
@@ -51,17 +50,6 @@ function App() {
         />
         
         <Route
-          path="/reports"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout>
-                <Reports />
-              </DashboardLayout>
-            </ProtectedRoute>
-         }
-        />
-
-        <Route
           path="/payments"
           element={
             <ProtectedRoute>
@@ -86,9 +74,6 @@ function App() {
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
-
-    
-    
   )
 }
 

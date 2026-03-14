@@ -6,37 +6,38 @@ import Login from '../components/Login'
 export default function LoginPage() {
   const navigate = useNavigate()
   const { login, isAuthenticated } = useAuth()
-  const [error, setError] = useState('')
+  const [error,   setError]   = useState('')
+  const [loading, setLoading] = useState(false)
 
-  // Redirect if already logged in
+  // Show session-expired message if auto-logout occurred
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard', { replace: true })
+    if (sessionStorage.getItem('cshc_expired')) {
+      setError('Your session has expired. Please sign in again.')
+      sessionStorage.removeItem('cshc_expired')
     }
+  }, [])
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) navigate('/dashboard', { replace: true })
   }, [isAuthenticated, navigate])
 
-  const handleLoginSuccess = (email, password) => {
+  const handleLoginSuccess = async (email, password) => {
     setError('')
-    
-    const result = login(email, password)
-    
-    if (result.success) {
-      console.log('Login successful!', result.user)
-      // Navigation will happen automatically via useEffect
-    } else {
-      setError(result.error)
-    }
+    setLoading(true)
+    const result = await login(email, password)
+    setLoading(false)
+    if (!result.success) setError(result.error)
+    // on success, useEffect above handles redirect
   }
 
-  // Don't render login if already authenticated
-  if (isAuthenticated) {
-    return null
-  }
+  if (isAuthenticated) return null
 
   return (
-    <Login 
+    <Login
       onLoginSuccess={handleLoginSuccess}
       error={error}
+      loading={loading}
     />
   )
 }

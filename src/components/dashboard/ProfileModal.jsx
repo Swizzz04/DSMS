@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import {
   X, Camera, User, Mail, Phone, Lock, Eye, EyeOff,
   CheckCircle, AlertCircle, Shield, Save, ChevronRight, ArrowLeft
@@ -12,6 +12,7 @@ const ROLE_LABELS = {
   registrar_basic: 'Basic Ed Registrar',
   registrar_college: 'College Registrar',
   accounting: 'Accounting Officer',
+  principal_basic: 'Basic Ed Principal',
 }
 
 const ROLE_COLORS = {
@@ -157,7 +158,9 @@ export default function ProfileModal({ onClose }) {
     registrar_basic: 'registrar123',
     registrar_college: 'registrar123',
     accounting: 'accounting123',
+    principal_basic: 'principal123',
   }
+  // (All registrar accounts use 'registrar123' as default password)
 
   const pwStrength = (pw) => {
     if (!pw) return null

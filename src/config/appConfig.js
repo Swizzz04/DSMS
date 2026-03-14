@@ -67,21 +67,20 @@ export const SCHOOL_YEARS = [
 
 // ─────────────────────────────────────────────────────────────────────
 // CAMPUSES
-// Each campus declares which departments it offers and which
-// college programs (if any) are available there.
 // ─────────────────────────────────────────────────────────────────────
 export const CAMPUSES = [
   {
     id: 1,
-    key: 'Talisay',                       // short key used in dropdowns/filters
+    key: 'Talisay',
     name: 'Talisay City Campus',
     address: 'Talisay City, Cebu',
     contactNumber: '032-123-4567',
     email: 'talisay@cshc.edu.ph',
     isActive: true,
     departments: ['Basic Education', 'Senior High School', 'College'],
-    // ↓ Add or remove programs here — Enrollments/Students update automatically
-    collegePrograms: ['BS Nursing', 'BS Tourism', 'BS HRM'],
+    hasBasicEd: true,
+    hasCollege: true,
+    collegePrograms: ['BS Nursing', 'BS HRM', 'BS Tourism'],
   },
   {
     id: 2,
@@ -92,6 +91,8 @@ export const CAMPUSES = [
     email: 'carcar@cshc.edu.ph',
     isActive: true,
     departments: ['Basic Education', 'Senior High School', 'College'],
+    hasBasicEd: true,
+    hasCollege: true,
     collegePrograms: ['BS Criminology'],
   },
   {
@@ -103,19 +104,19 @@ export const CAMPUSES = [
     email: 'bohol@cshc.edu.ph',
     isActive: true,
     departments: ['Basic Education', 'Senior High School'],
-    collegePrograms: [],                   // no college at this campus
+    hasBasicEd: true,
+    hasCollege: false,
+    collegePrograms: [],
   },
 ]
 
 // ─────────────────────────────────────────────────────────────────────
 // COLLEGE YEAR LEVELS
-// Applied to every college program automatically
 // ─────────────────────────────────────────────────────────────────────
 export const COLLEGE_YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
 // ─────────────────────────────────────────────────────────────────────
 // BASIC EDUCATION GRADE GROUPS
-// Add/remove grades or groups here — all dropdowns update everywhere
 // ─────────────────────────────────────────────────────────────────────
 export const BASIC_ED_GROUPS = [
   {
@@ -138,7 +139,6 @@ export const BASIC_ED_GROUPS = [
 
 // ─────────────────────────────────────────────────────────────────────
 // GRADE LEVEL SECTIONS
-// Sections per grade level — used in student records & enrollment forms
 // ─────────────────────────────────────────────────────────────────────
 export const GRADE_SECTIONS = {
   'Grade 7':  ['St. Francis', 'St. John', 'St. Peter'],
@@ -147,12 +147,10 @@ export const GRADE_SECTIONS = {
   'Grade 10': ['St. Francis', 'St. John', 'St. Peter'],
   'Grade 11': ['STEM', 'ABM', 'HUMSS'],
   'Grade 12': ['STEM', 'ABM', 'HUMSS'],
-  // College sections follow program — e.g. 'Nursing 1-A', 'Nursing 1-B'
 }
 
 // ─────────────────────────────────────────────────────────────────────
 // FEE STRUCTURE
-// campus: 'all' means the fee applies to all campuses
 // ─────────────────────────────────────────────────────────────────────
 export const FEE_STRUCTURE = [
   // Basic Education
@@ -196,7 +194,7 @@ export const ROLE_DEFINITIONS = {
   },
   registrar_college: {
     label: 'College Registrar',
-    description: 'Manages College-level enrollments only',
+    description: 'Manages college enrollments for their assigned campus only',
     color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
     permissions: ['dashboard','enrollments','students','reports'],
   },
@@ -206,6 +204,12 @@ export const ROLE_DEFINITIONS = {
     color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
     permissions: ['dashboard','payments','reports'],
   },
+  principal_basic: {
+    label: 'Basic Ed Principal',
+    description: 'Oversees Basic Education dept',
+    color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+    permissions: ['dashboard','students'],
+  },
 }
 
 export const SYSTEM_USERS = [
@@ -213,29 +217,69 @@ export const SYSTEM_USERS = [
     id: 1,
     name: 'Admin User',
     email: 'admin@cshc.edu.ph',
-    password: 'admin123',
+    passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9',
     role: 'admin',
     campus: 'all',
     status: 'active',
     lastLogin: '2026-03-05T10:30:00',
   },
   {
+    // Talisay Basic Ed Registrar — Pre-Elem through SHS at Talisay City Campus
     id: 2,
-    name: 'Basic Ed Registrar',
+    name: 'Talisay Basic Ed Registrar',
     email: 'registrar.basic@cshc.edu.ph',
-    password: 'registrar123',
+    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_basic',
     campus: 'Talisay City Campus',
+    campusKey: 'Talisay',
     status: 'active',
     lastLogin: '2026-03-05T09:15:00',
   },
   {
+    // Carcar Basic Ed Registrar — Pre-Elem through SHS at Carcar City Campus
+    id: 7,
+    name: 'Carcar Basic Ed Registrar',
+    email: 'registrar.basic.carcar@cshc.edu.ph',
+    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
+    role: 'registrar_basic',
+    campus: 'Carcar City Campus',
+    campusKey: 'Carcar',
+    status: 'active',
+    lastLogin: '2026-03-04T08:30:00',
+  },
+  {
+    // Bohol Basic Ed Registrar — Pre-Elem through SHS at Bohol Campus
+    id: 8,
+    name: 'Bohol Basic Ed Registrar',
+    email: 'registrar.basic.bohol@cshc.edu.ph',
+    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
+    role: 'registrar_basic',
+    campus: 'Bohol Campus',
+    campusKey: 'Bohol',
+    status: 'active',
+    lastLogin: '2026-03-03T07:45:00',
+  },
+  {
+    // Talisay College Registrar — manages BS Nursing, BS HRM, BS Tourism
     id: 3,
-    name: 'College Registrar',
+    name: 'Talisay College Registrar',
+    email: 'registrar.college.talisay@cshc.edu.ph',
+    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
+    role: 'registrar_college',
+    campus: 'Talisay City Campus',
+    campusKey: 'Talisay',
+    status: 'active',
+    lastLogin: '2026-03-04T14:20:00',
+  },
+  {
+    // Carcar College Registrar — manages BS Criminology only
+    id: 6,
+    name: 'Carcar College Registrar',
     email: 'registrar.college@cshc.edu.ph',
-    password: 'registrar123',
+    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_college',
     campus: 'Carcar City Campus',
+    campusKey: 'Carcar',
     status: 'active',
     lastLogin: '2026-03-04T14:20:00',
   },
@@ -243,21 +287,28 @@ export const SYSTEM_USERS = [
     id: 4,
     name: 'Accounting Officer',
     email: 'accounting@cshc.edu.ph',
-    password: 'accounting123',
+    passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
     role: 'accounting',
     campus: 'all',
     status: 'active',
     lastLogin: '2026-03-05T08:00:00',
   },
+  {
+    id: 5,
+    name: 'Basic Ed Principal',
+    email: 'principal.basic@cshc.edu.ph',
+    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
+    role: 'principal_basic',
+    campus: 'all',
+    status: 'active',
+    lastLogin: null,
+  },
 ]
 
 // ─────────────────────────────────────────────────────────────────────
-// DERIVED HELPERS  (computed from the config above — don't edit these)
+// DERIVED HELPERS
 // ─────────────────────────────────────────────────────────────────────
 
-/** Returns all college grade strings for a campus key, e.g. 'Talisay'
- *  → ['BS Nursing - 1st Year', 'BS Nursing - 2nd Year', ...]
- */
 export function getCampusCollegeGrades(campusKey, campusesOverride) {
   const list = campusesOverride || CAMPUSES
   const campus = list.find(c => c.key === campusKey)
@@ -267,22 +318,18 @@ export function getCampusCollegeGrades(campusKey, campusesOverride) {
   )
 }
 
-/** All basic-ed grade options as a flat array */
 export function getAllBasicEdGrades(groupsOverride) {
   const groups = groupsOverride || BASIC_ED_GROUPS
   return groups.flatMap(g => g.options)
 }
 
-/** Get the active school year string */
 export function getCurrentSchoolYear(yearsOverride) {
   const years = yearsOverride || SCHOOL_YEARS
   return (years.find(y => y.isCurrent) || years[0])?.year || '2026-2027'
 }
 
-/** Get total fee for a grade level and campus */
 export function getTotalFee(gradeLevel, campusName, feesOverride) {
   const fees = feesOverride || FEE_STRUCTURE
-  // Match by program name (without year level suffix)
   const programBase = gradeLevel.split(' - ')[0]
   const fee = fees.find(f =>
     (f.gradeLevel === gradeLevel || f.gradeLevel === programBase) &&

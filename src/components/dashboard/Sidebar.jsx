@@ -1,13 +1,4 @@
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Users, 
-  DollarSign, 
-  Settings,
-  X,
-  BarChart3,
-  GraduationCap
-} from 'lucide-react'
+import { LayoutDashboard, FileText, Users, DollarSign, Settings, X, GraduationCap } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
@@ -23,7 +14,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         label: 'Dashboard',
         icon: LayoutDashboard,
         path: '/dashboard',
-        roles: ['admin', 'registrar_basic', 'registrar_college', 'accounting']
+        roles: ['admin', 'registrar_basic', 'registrar_college', 'accounting', 'principal_basic']
       }
     ]
 
@@ -48,13 +39,6 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           label: 'Payments',
           icon: DollarSign,
           path: '/payments',
-          roles: ['admin']
-        },
-        {
-          id: 'reports',
-          label: 'Reports',
-          icon: BarChart3,
-          path: '/reports',
           roles: ['admin']
         },
         {
@@ -105,13 +89,16 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           path: '/payments',
           roles: ['accounting']
         },
+      ],
+      principal_basic: [
         {
-          id: 'reports',
-          label: 'Financial Reports',
-          icon: BarChart3,
-          path: '/reports',
-          roles: ['accounting']
-        }
+          id: 'students',
+          label: 'Students',
+          icon: GraduationCap,
+          path: '/students',
+          roles: ['principal_basic']
+        },
+        // TODO: Subject Loads + Grade Deliberation pages coming soon
       ]
     }
 
@@ -131,7 +118,8 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       admin: 'Admin Portal',
       registrar_basic: 'Basic Ed Registrar',
       registrar_college: 'College Registrar',
-      accounting: 'Accounting Portal'
+      accounting: 'Accounting Portal',
+      principal_basic: 'Basic Ed Principal'
     }
     return roleNames[user?.role] || 'Portal'
   }

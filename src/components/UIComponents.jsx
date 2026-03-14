@@ -123,6 +123,52 @@ export function PageSkeleton({ title = '' }) {
   )
 }
 
+
+// Chart placeholder skeleton
+export function SkeletonChart({ height = '300px' }) {
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow animate-fade-in">
+      <SkeletonLine width="w-40" height="h-5" className="mb-4" />
+      <div className="skeleton rounded-lg w-full" style={{ height }} />
+    </div>
+  )
+}
+
+// Dashboard-specific skeleton (stat cards + charts)
+export function SkeletonDashboard() {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Page title */}
+      <div>
+        <SkeletonLine width="w-56" height="h-8" className="mb-2" />
+        <SkeletonLine width="w-80" height="h-4" />
+      </div>
+      {/* Stat cards */}
+      <SkeletonStatsRow />
+      {/* Analytics header */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow flex items-center justify-between">
+        <SkeletonLine width="w-40" height="h-6" />
+        <div className="flex gap-2">
+          <SkeletonLine width="w-20" height="h-9" />
+          <SkeletonLine width="w-20" height="h-9" />
+        </div>
+      </div>
+      {/* Analytics summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="skeleton rounded-xl h-28 animate-fade-in" />
+        ))}
+      </div>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 stagger">
+        {[...Array(4)].map((_, i) => (
+          <SkeletonChart key={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────
 // EMPTY STATES
 // ─────────────────────────────────────────────────────
@@ -241,7 +287,7 @@ export function ConfirmDialog({
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
       <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm animate-scale-in">
         <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 mx-auto
