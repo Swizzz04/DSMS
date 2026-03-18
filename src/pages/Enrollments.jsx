@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Search, FileText, CheckCircle, XCircle, Clock, Eye,
   Download, User, ChevronRight, GraduationCap, MapPin,
-  BookOpen, X, Filter, Users, TrendingUp, ChevronDown, ChevronUp
+  BookOpen, X, Filter, Users, TrendingUp, ChevronDown, ChevronUp, Globe, DollarSign, CreditCard
 } from 'lucide-react'
 import { mockEnrollments } from '../data/mockEnrollments'
 import { useAuth } from '../context/AuthContext'
@@ -13,6 +13,13 @@ import { useAppConfig } from '../context/AppConfigContext'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import {
+  DeptEnrollmentCard as DeptCard,
+  ProgramEnrollmentCard as ProgramCard,
+  EnrollmentStatusPill as StatusPill,
+  DEPT_STYLES, PROG_COLORS,
+  CampusBanner,
+} from '../components/SchoolComponents'
 
 // ── helpers ────────────────────────────────────────────────────────
 function isBasicEd(g) {
@@ -22,317 +29,15 @@ function isCollege(g) {
   return g && (g.includes('BS') || g.includes('Year'))
 }
 
-const DEPT_STYLES = {
-  'Pre-Elementary': {
-    bg: 'bg-emerald-600', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    border: 'border-emerald-300 dark:border-emerald-700',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
-    bar: 'bg-emerald-500', dot: 'bg-emerald-400',
-  },
-  'Elementary': {
-    bg: 'bg-blue-600', lightBg: 'bg-blue-50 dark:bg-blue-900/20',
-    border: 'border-blue-300 dark:border-blue-700',
-    text: 'text-blue-700 dark:text-blue-300',
-    badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
-    bar: 'bg-blue-500', dot: 'bg-blue-400',
-  },
-  'Junior High School': {
-    bg: 'bg-indigo-700', lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',
-    border: 'border-indigo-300 dark:border-indigo-700',
-    text: 'text-indigo-700 dark:text-indigo-300',
-    badge: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300',
-    bar: 'bg-indigo-500', dot: 'bg-indigo-400',
-  },
-  'Senior High School': {
-    bg: 'bg-primary', lightBg: 'bg-red-50 dark:bg-red-900/20',
-    border: 'border-red-300 dark:border-red-700',
-    text: 'text-primary dark:text-red-300',
-    badge: 'bg-red-100 dark:bg-red-900/40 text-primary dark:text-red-300',
-    bar: 'bg-primary', dot: 'bg-red-400',
-  },
-}
-const PROG_COLORS = [
-  { bg: 'bg-primary',       lightBg: 'bg-red-50 dark:bg-red-900/20',     border: 'border-red-300 dark:border-red-700',     text: 'text-primary dark:text-red-300',     badge: 'bg-red-100 dark:bg-red-900/40 text-primary dark:text-red-300',           bar: 'bg-primary'       },
-  { bg: 'bg-secondary',     lightBg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-300 dark:border-indigo-700', text: 'text-indigo-700 dark:text-indigo-300', badge: 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300', bar: 'bg-secondary'     },
-  { bg: 'bg-light-secondary',lightBg: 'bg-blue-50 dark:bg-blue-900/20',  border: 'border-blue-300 dark:border-blue-700',   text: 'text-blue-700 dark:text-blue-300',   badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',       bar: 'bg-light-secondary'},
-  { bg: 'bg-violet-600',    lightBg: 'bg-violet-50 dark:bg-violet-900/20',border: 'border-violet-300 dark:border-violet-700',text: 'text-violet-700 dark:text-violet-300',badge: 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300',bar: 'bg-violet-500'    },
-]
-
 function StatusBadge({ status }) {
   const map = {
-    pending:  { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3"/>, label: 'Pending' },
-    approved: { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle className="w-3 h-3"/>, label: 'Approved' },
-    rejected: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="w-3 h-3"/>, label: 'Rejected' },
+    pending:          { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3"/>,        label: 'Awaiting Payment'  },
+    payment_received: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',         icon: <DollarSign className="w-3 h-3"/>,    label: 'Payment Received'  },
+    approved:         { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',     icon: <CheckCircle className="w-3 h-3"/>,   label: 'Approved'          },
+    rejected:         { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             icon: <XCircle className="w-3 h-3"/>,       label: 'Rejected'          },
   }
   const cfg = map[status] || map.pending
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
-}
-
-// ── Department Card (Basic Ed) ─────────────────────────────────────
-function DeptCard({ group, enrollments }) {
-  const [expanded, setExpanded] = useState(true)
-  const style = DEPT_STYLES[group.label] || DEPT_STYLES['Elementary']
-
-  const gradeData = group.options.map(grade => {
-    const gradeEnr = enrollments.filter(e => e.enrollment.gradeLevel === grade)
-    return {
-      grade,
-      total:    gradeEnr.length,
-      pending:  gradeEnr.filter(e => e.status === 'pending').length,
-      approved: gradeEnr.filter(e => e.status === 'approved').length,
-      rejected: gradeEnr.filter(e => e.status === 'rejected').length,
-    }
-  })
-
-  const deptTotal    = gradeData.reduce((s, r) => s + r.total, 0)
-  const deptPending  = gradeData.reduce((s, r) => s + r.pending, 0)
-  const deptApproved = gradeData.reduce((s, r) => s + r.approved, 0)
-  const deptRejected = gradeData.reduce((s, r) => s + r.rejected, 0)
-  const maxCount     = Math.max(...gradeData.map(r => r.total), 1)
-
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
-      {/* Card header */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className={`w-full ${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className="w-4 h-4 text-white" />
-          </div>
-          <div className="text-left min-w-0">
-            <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {group.options.length} grade level{group.options.length !== 1 ? 's' : ''}
-            </p>
-          </div>
-        </div>
-
-        {/* Summary pills */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="hidden sm:flex items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 px-2.5 py-1 rounded-full shadow-sm">
-              {deptTotal} total
-            </span>
-            {deptPending > 0 && (
-              <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">
-                {deptPending} pending
-              </span>
-            )}
-            {deptApproved > 0 && (
-              <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">
-                {deptApproved} approved
-              </span>
-            )}
-          </div>
-          {/* Mobile: just total */}
-          <span className={`sm:hidden text-sm font-bold ${style.text}`}>{deptTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </button>
-
-      {/* Grade level rows */}
-      {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {gradeData.map(row => (
-            <div key={row.grade} className="px-5 py-3 flex items-center gap-4">
-              {/* Grade name */}
-              <div className="w-28 flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{row.grade}</span>
-              </div>
-
-              {/* Progress bar */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                    {row.total > 0 ? (
-                      <div className="h-full flex rounded-full overflow-hidden">
-                        <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
-                        <div className="bg-yellow-400 h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
-                        <div className="bg-red-400 h-full transition-all duration-500" style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
-                      </div>
-                    ) : (
-                      <div className="h-full bg-gray-200 dark:bg-gray-600 rounded-full" style={{ width: '100%' }} />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Count badges */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {row.total === 0 ? (
-                  <span className="text-xs text-gray-300 dark:text-gray-600 w-16 text-right">No data</span>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-full">{row.total}</span>
-                    </div>
-                    {row.pending > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full" title="Pending">{row.pending}</span>
-                    )}
-                    {row.approved > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full" title="Approved">{row.approved}</span>
-                    )}
-                    {row.rejected > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold rounded-full" title="Rejected">{row.rejected}</span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* Dept subtotal row */}
-          <div className={`px-5 py-3 ${style.lightBg} flex items-center justify-between`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              {group.label} Total
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-gray-800 dark:text-white">{deptTotal}</span>
-              <div className="flex items-center gap-1.5 text-xs">
-                {deptPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{deptPending} pending</span>}
-                {deptApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{deptApproved} approved</span>}
-                {deptRejected > 0 && <span className="text-red-500 dark:text-red-400 font-semibold">{deptRejected} rejected</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── College Program Card ───────────────────────────────────────────
-function ProgramCard({ program, colorIdx, enrollments }) {
-  const [expanded, setExpanded] = useState(true)
-  const style = PROG_COLORS[colorIdx % PROG_COLORS.length]
-
-  const yearData = COLLEGE_YEAR_LEVELS.map(yr => {
-    const key    = `${program} - ${yr}`
-    const yrEnr  = enrollments.filter(e => e.enrollment.gradeLevel === key)
-    return {
-      yr,
-      total:    yrEnr.length,
-      pending:  yrEnr.filter(e => e.status === 'pending').length,
-      approved: yrEnr.filter(e => e.status === 'approved').length,
-      rejected: yrEnr.filter(e => e.status === 'rejected').length,
-    }
-  })
-
-  const progTotal    = yearData.reduce((s, r) => s + r.total, 0)
-  const progPending  = yearData.reduce((s, r) => s + r.pending, 0)
-  const progApproved = yearData.reduce((s, r) => s + r.approved, 0)
-  const progRejected = yearData.reduce((s, r) => s + r.rejected, 0)
-  const maxCount     = Math.max(...yearData.map(r => r.total), 1)
-
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
-      {/* Card header */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className={`w-full ${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <div className="text-left min-w-0">
-            <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">College · {COLLEGE_YEAR_LEVELS.length} year levels</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <div className="hidden sm:flex items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 px-2.5 py-1 rounded-full shadow-sm">
-              {progTotal} total
-            </span>
-            {progPending > 0 && (
-              <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">
-                {progPending} pending
-              </span>
-            )}
-            {progApproved > 0 && (
-              <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">
-                {progApproved} approved
-              </span>
-            )}
-          </div>
-          <span className={`sm:hidden text-sm font-bold ${style.text}`}>{progTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </button>
-
-      {/* Year level rows */}
-      {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {yearData.map(row => (
-            <div key={row.yr} className="px-5 py-3 flex items-center gap-4">
-              <div className="w-28 flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{row.yr}</span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                    {row.total > 0 ? (
-                      <div className="h-full flex rounded-full overflow-hidden">
-                        <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
-                        <div className="bg-yellow-400 h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
-                        <div className="bg-red-400 h-full transition-all duration-500" style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
-                      </div>
-                    ) : (
-                      <div className="h-full w-full bg-gray-200 dark:bg-gray-600 rounded-full" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {row.total === 0 ? (
-                  <span className="text-xs text-gray-300 dark:text-gray-600">No data</span>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-full">{row.total}</span>
-                    </div>
-                    {row.pending > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full" title="Pending">{row.pending}</span>
-                    )}
-                    {row.approved > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full" title="Approved">{row.approved}</span>
-                    )}
-                    {row.rejected > 0 && (
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold rounded-full" title="Rejected">{row.rejected}</span>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-          ))}
-
-          {/* Program subtotal */}
-          <div className={`px-5 py-3 ${style.lightBg} flex items-center justify-between`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              {program} Total
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-gray-800 dark:text-white">{progTotal}</span>
-              <div className="flex items-center gap-1.5 text-xs">
-                {progPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{progPending} pending</span>}
-                {progApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{progApproved} approved</span>}
-                {progRejected > 0 && <span className="text-red-500 dark:text-red-400 font-semibold">{progRejected} rejected</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ── Admin Overview ─────────────────────────────────────────────────
@@ -444,6 +149,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
       {/* ── Legend ── */}
       <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
         <span className="font-medium">Progress bar legend:</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> Payment Received</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Approved</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /> Pending</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> Rejected</span>
@@ -551,7 +257,111 @@ export default function Enrollments() {
   const { activeCampuses, currentSchoolYear } = useAppConfig()
   const location = useLocation()
   const { toasts, addToast, removeToast } = useToast()
-  const [enrollments, setEnrollments]           = useState(mockEnrollments)
+
+  // ── Data: start with mock data immediately, overlay website submissions ──
+  const getWebSubs = () => {
+    try { return JSON.parse(localStorage.getItem('cshc_submissions') || '[]') } catch { return [] }
+  }
+
+  // Filter website submissions by user's campus when they are campus-locked
+  const filterByCampus = (subs) => {
+    const campus = user?.campus
+    if (!campus || campus === 'all') return subs
+    return subs.filter(s => {
+      const subCampus = s.enrollment?.campus || s.campusName || ''
+      return subCampus === campus || subCampus.includes(campus) || campus.includes(subCampus)
+    })
+  }
+
+  const buildEnrollments = () => {
+    const subs = filterByCampus(getWebSubs())
+    return [...subs, ...mockEnrollments]
+  }
+
+  const [enrollments, setEnrollments]     = useState(buildEnrollments)
+  const [websiteSubmissions, setWebsiteSubs] = useState(() => filterByCampus(getWebSubs()))
+  const [websiteCount, setWebsiteCount]   = useState(() => {
+    const subs = filterByCampus(getWebSubs())
+    const role = user?.role
+    if (role === 'registrar_basic')   return subs.filter(s => s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')).length
+    if (role === 'registrar_college') return subs.filter(s => s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')).length
+    if (role === 'accounting')        return subs.filter(s => s.status === 'pending').length
+    return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
+  })
+
+  // Role-aware count: what needs THIS user's attention right now
+  const getActionableCount = (subs) => {
+    const role = user?.role
+    if (role === 'registrar_basic') {
+      return subs.filter(s =>
+        s.status === 'payment_received' &&
+        isBasicEd(s.enrollment?.gradeLevel || '')
+      ).length
+    }
+    if (role === 'registrar_college') {
+      return subs.filter(s =>
+        s.status === 'payment_received' &&
+        isCollege(s.enrollment?.gradeLevel || '')
+      ).length
+    }
+    if (role === 'accounting') {
+      return subs.filter(s => s.status === 'pending').length
+    }
+    // admin — count both pending and payment_received
+    return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
+  }
+
+  const loadBridge = useCallback(() => {
+    const subs = filterByCampus(getWebSubs())
+    setWebsiteSubs(subs)
+    setWebsiteCount(getActionableCount(subs))
+    setEnrollments([...subs, ...mockEnrollments])
+  }, [user?.campus, user?.role])
+
+  useEffect(() => {
+    const handleStorage = (e) => {
+      // React to new submissions OR status updates from other tabs
+      if (e.key === 'cshc_submissions' || e.key === 'cshc_new_submission' || e.key === 'cshc_status_update') {
+        loadBridge()
+      }
+    }
+    window.addEventListener('cshc_new_submission', loadBridge)
+    window.addEventListener('storage', handleStorage)
+    const t = setInterval(loadBridge, 10000)
+    return () => {
+      window.removeEventListener('cshc_new_submission', loadBridge)
+      window.removeEventListener('storage', handleStorage)
+      clearInterval(t)
+    }
+  }, [loadBridge])
+
+  // Generic status updater for website submissions — persists to localStorage
+  // so the change survives the 10s poll and is visible to other roles (registrar)
+  const updateWebsiteStatus = (refNum, newStatus) => {
+    try {
+      const raw  = localStorage.getItem('cshc_submissions')
+      const subs = raw ? JSON.parse(raw) : []
+      const updated = subs.map(s =>
+        (s.referenceNumber === refNum || s.id === refNum)
+          ? { ...s, status: newStatus, updatedAt: new Date().toISOString() }
+          : s
+      )
+      localStorage.setItem('cshc_submissions', JSON.stringify(updated))
+
+      // Cross-tab notification: writing a separate key to localStorage triggers
+      // the native 'storage' event on ALL other open tabs (same origin).
+      // The registrar's loadBridge listens to 'storage' and will reload immediately.
+      localStorage.setItem('cshc_status_update', JSON.stringify({
+        refNum, newStatus, ts: Date.now()
+      }))
+
+      // Same-tab: reload our own state from the updated localStorage
+      loadBridge()
+    } catch {}
+  }
+  const approveWebsite    = (refNum) => updateWebsiteStatus(refNum, 'approved')
+  const rejectWebsite     = (refNum) => updateWebsiteStatus(refNum, 'rejected')
+  const markPaidWebsite   = (refNum) => updateWebsiteStatus(refNum, 'payment_received')
   const [searchQuery, setSearchQuery]           = useState('')
   const [statusFilter, setStatusFilter]         = useState('all')
   const [timeFilter, setTimeFilter]             = useState('all')
@@ -577,7 +387,7 @@ export default function Enrollments() {
     }
   }, [location.state])
 
-  const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic'
+  const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' || (user?.role === 'accounting' && user?.campus !== 'all')
   const effectiveCampusFilter = isCampusLocked ? user.campus : campusFilter
 
   if (loading) return <PageSkeleton title="Enrollments" />
@@ -598,10 +408,15 @@ export default function Enrollments() {
     )
   }
 
-  // ── Non-admin: registrar list view ─────────────────────────────
+  // ── Non-admin: role-scoped list view ─────────────────────────
   const roleFiltered = enrollments.filter(e => {
-    if (user?.role === 'accounting') return false
     const g = e.enrollment.gradeLevel, c = e.enrollment.campus
+    // Accounting: sees only 'pending' enrollments on their campus
+    // (students who haven't paid yet — accounting needs to mark them paid)
+    if (user?.role === 'accounting') {
+      const campusMatch = user?.campus === 'all' || c === user.campus
+      return campusMatch && e.status === 'pending'
+    }
     if (user?.role === 'registrar_basic') {
       return isBasicEd(g) && c === user.campus
     }
@@ -615,7 +430,8 @@ export default function Enrollments() {
     const name = `${e.student.firstName} ${e.student.lastName}`.toLowerCase()
     const matchSearch = name.includes(searchQuery.toLowerCase()) || e.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())
     const matchStatus = statusFilter === 'all' || e.status === statusFilter
-    const matchCampus = effectiveCampusFilter === 'all' || e.enrollment.campus.includes(effectiveCampusFilter)
+    // For campus-locked roles, campus already filtered in roleFiltered above
+    const matchCampus = isCampusLocked || effectiveCampusFilter === 'all' || e.enrollment.campus.includes(effectiveCampusFilter)
     const matchGrade  = gradeLevelFilter === 'all' || e.enrollment.gradeLevel.includes(gradeLevelFilter)
     let matchTime = true
     if (timeFilter !== 'all') {
@@ -628,18 +444,53 @@ export default function Enrollments() {
   })
 
   const stats = {
-    total: roleFiltered.length, pending: roleFiltered.filter(e=>e.status==='pending').length,
-    approved: roleFiltered.filter(e=>e.status==='approved').length, rejected: roleFiltered.filter(e=>e.status==='rejected').length,
+    total:            roleFiltered.length,
+    pending:          roleFiltered.filter(e => e.status === 'pending').length,
+    payment_received: roleFiltered.filter(e => e.status === 'payment_received').length,
+    approved:         roleFiltered.filter(e => e.status === 'approved').length,
+    rejected:         roleFiltered.filter(e => e.status === 'rejected').length,
   }
 
-  const handleApprove = (id) => setConfirm({ open: true, type: 'approve', id })
-  const handleReject  = (id) => setConfirm({ open: true, type: 'reject',  id })
+  // Role-based action helpers
+  const canMarkPayment = (e) =>
+    (user?.role === 'admin' || user?.role === 'accounting') && e.status === 'pending'
+
+  const canApproveReject = (e) =>
+    (user?.role === 'admin') ||
+    (user?.role === 'registrar_basic'   && e.status === 'payment_received' && isBasicEd(e.enrollment.gradeLevel)) ||
+    (user?.role === 'registrar_college' && e.status === 'payment_received' && isCollege(e.enrollment.gradeLevel))
+
+  const handleApprove      = (id) => setConfirm({ open: true, type: 'approve',       id })
+  const handleReject       = (id) => setConfirm({ open: true, type: 'reject',        id })
+  const handleMarkPayment  = (id) => setConfirm({ open: true, type: 'mark_payment',  id })
   const confirmAction = () => {
     setActionLoading(true)
     setTimeout(() => {
-      setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: confirm.type === 'approve' ? 'approved' : 'rejected' } : e))
-      if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: confirm.type === 'approve' ? 'approved' : 'rejected' }))
-      addToast(confirm.type === 'approve' ? 'Enrollment approved!' : 'Enrollment rejected.', confirm.type === 'approve' ? 'success' : 'error')
+      let newStatus
+      if (confirm.type === 'approve')       newStatus = 'approved'
+      else if (confirm.type === 'reject')   newStatus = 'rejected'
+      else if (confirm.type === 'mark_payment') newStatus = 'payment_received'
+
+      // Update local state
+      setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: newStatus } : e))
+      if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: newStatus }))
+
+      // Persist status change to localStorage for website submissions
+      // This ensures the 10s poll doesn't revert the status
+      // AND makes the change visible to other roles (registrar, admin) immediately
+      const isWebsite = websiteSubmissions.some(s => s.id === confirm.id || s.referenceNumber === confirm.id)
+      if (isWebsite) {
+        if (confirm.type === 'approve')       approveWebsite(confirm.id)
+        else if (confirm.type === 'reject')   rejectWebsite(confirm.id)
+        else if (confirm.type === 'mark_payment') markPaidWebsite(confirm.id)
+      }
+
+      const toastMsg = {
+        approve:      'Enrollment approved! ✓',
+        reject:       'Enrollment rejected.',
+        mark_payment: 'Payment recorded — registrar has been notified.',
+      }
+      addToast(toastMsg[confirm.type], confirm.type === 'approve' ? 'success' : confirm.type === 'mark_payment' ? 'success' : 'error')
       setConfirm({ open: false, type: null, id: null }); setActionLoading(false)
     }, 800)
   }
@@ -671,27 +522,59 @@ export default function Enrollments() {
         </div>
       </div>
 
-      {isCampusLocked && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${user?.role === 'registrar_basic' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'}`}>
-          <MapPin className={`w-4 h-4 flex-shrink-0 ${user?.role === 'registrar_basic' ? 'text-emerald-600' : 'text-purple-600'}`} />
-          <div>
-            <p className={`text-sm font-semibold ${user?.role === 'registrar_basic' ? 'text-emerald-800 dark:text-emerald-200' : 'text-purple-800 dark:text-purple-200'}`}>
-              Viewing: {user.campus} — {user?.role === 'registrar_basic' ? 'Basic Education' : 'College Department'}
-            </p>
-            <p className={`text-xs ${user?.role === 'registrar_basic' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'}`}>
-              Showing enrollments for your assigned campus only
-            </p>
+      {/* Campus-locked banner */}
+      <CampusBanner user={user} />
+
+      {/* ── Website Submissions Banner ── */}
+      {websiteCount > 0 && (() => {
+        const isRegistrar = user?.role === 'registrar_basic' || user?.role === 'registrar_college'
+        if (isRegistrar) return (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-5 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                {websiteCount} enrollment{websiteCount !== 1 ? 's' : ''} paid and ready for your approval
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                Payment has been confirmed by Accounting — please review and approve or reject below
+              </p>
+            </div>
           </div>
-        </div>
-      )}
+        )
+        return (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-5 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Globe className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                {websiteCount} new online enrollment{websiteCount !== 1 ? 's' : ''} from the school website
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                Submitted via the public enrollment form — record payment to forward to registrar
+              </p>
+            </div>
+          </div>
+        )
+      })()}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {[
-          { label:'Total Enrollments', value:stats.total,    border:'border-primary',    sub:'All submissions',     cls:'text-gray-400' },
-          { label:'Pending Review',    value:stats.pending,  border:'border-yellow-500', sub:stats.total>0?`${Math.round(stats.pending/stats.total*100)}% of total`:'—', cls:'text-yellow-600 dark:text-yellow-400' },
-          { label:'Approved',          value:stats.approved, border:'border-green-500',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-green-600 dark:text-green-400' },
-          { label:'Rejected',          value:stats.rejected, border:'border-red-400',    sub:stats.total>0?`${Math.round(stats.rejected/stats.total*100)}% rejection rate`:'—', cls:'text-red-500 dark:text-red-400' },
-        ].map(({ label, value, border, sub, cls }) => (
+        {(user?.role === 'accounting'
+            ? [
+                { label:'Total Pending',      value:stats.total,    border:'border-yellow-500', sub:'Awaiting payment on your campus', cls:'text-yellow-600 dark:text-yellow-400' },
+                { label:'Need to Record',     value:stats.pending,  border:'border-primary',    sub:'Mark paid to notify registrar',   cls:'text-primary dark:text-red-400' },
+                { label:'Already Recorded',   value:0,              border:'border-blue-500',   sub:'Moved to registrar queue',        cls:'text-blue-500' },
+                { label:'Campus',             value:user?.campus?.replace(' Campus','').replace(' City',''), border:'border-gray-300', sub:'Your assigned campus', cls:'text-gray-600 dark:text-gray-300' },
+              ]
+            : [
+                { label:'Total Enrollments',  value:stats.total,            border:'border-primary',    sub:'All submissions',     cls:'text-gray-400' },
+                { label:'Awaiting Payment',   value:stats.pending,          border:'border-yellow-500', sub:'Pending payment at Accounting', cls:'text-yellow-600 dark:text-yellow-400' },
+                { label:'Payment Received',   value:stats.payment_received, border:'border-blue-500',   sub:'Ready for registrar review', cls:'text-blue-600 dark:text-blue-400' },
+                { label:'Approved',           value:stats.approved,         border:'border-green-500',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-green-600 dark:text-green-400' },
+              ]
+        ).map(({ label, value, border, sub, cls }) => (
           <div key={label} className={`bg-white dark:bg-gray-800 rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</p>
             <p className="text-2xl font-bold text-gray-800 dark:text-white">{value}</p>
@@ -711,6 +594,7 @@ export default function Enrollments() {
             className="px-3 py-2.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-primary outline-none">
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
+            <option value="payment_received">Payment Received</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -765,7 +649,14 @@ export default function Enrollments() {
                         <span className="text-sm font-semibold text-gray-800 dark:text-white">{e.student.firstName} {e.student.lastName}</span>
                         <StatusBadge status={e.status} />
                       </div>
-                      <p className="text-xs font-mono text-primary dark:text-red-400 mb-1">{e.referenceNumber}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
+                        {e.source === 'website' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                            <Globe className="w-2.5 h-2.5" /> Web
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-x-2 text-xs text-gray-500 dark:text-gray-400">
                         <span>{e.enrollment.gradeLevel}</span><span>•</span><span>{e.enrollment.campus.replace(' Campus','')}</span>
                       </div>
@@ -787,7 +678,14 @@ export default function Enrollments() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                   {filtered.map(e => (
                     <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-primary dark:text-red-400 whitespace-nowrap">{e.referenceNumber}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="text-sm font-mono font-medium text-primary dark:text-red-400">{e.referenceNumber}</p>
+                        {e.source === 'website' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 mt-0.5">
+                            <Globe className="w-2.5 h-2.5" /> Online Form
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <p className="text-sm font-medium text-gray-800 dark:text-white">{e.student.firstName} {e.student.lastName}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{e.student.email}</p>
@@ -802,7 +700,13 @@ export default function Enrollments() {
                             className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
                             <Eye className="w-4 h-4" /> View
                           </button>
-                          {e.status === 'pending' && (
+                          {canMarkPayment(e) && (
+                            <button onClick={() => handleMarkPayment(e.id)}
+                              className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg hover:bg-blue-200 transition font-medium flex items-center gap-1">
+                              <DollarSign className="w-3 h-3" /> Mark Paid
+                            </button>
+                          )}
+                          {canApproveReject(e) && (
                             <>
                               <button onClick={() => handleApprove(e.id)} className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 transition font-medium">Approve</button>
                               <button onClick={() => handleReject(e.id)}  className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-200 transition font-medium">Reject</button>
@@ -828,7 +732,14 @@ export default function Enrollments() {
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-primary" /></div>
                 <div className="min-w-0">
                   <h2 className="text-base font-bold text-gray-800 dark:text-white truncate">{selectedEnrollment.student.firstName} {selectedEnrollment.student.lastName}</h2>
-                  <p className="text-xs font-mono text-primary dark:text-red-400">{selectedEnrollment.referenceNumber}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-mono text-primary dark:text-red-400">{selectedEnrollment.referenceNumber}</p>
+                    {selectedEnrollment.source === 'website' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                        <Globe className="w-3 h-3" /> Submitted Online
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button onClick={() => setShowModal(false)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"><X className="w-5 h-5" /></button>
@@ -855,31 +766,72 @@ export default function Enrollments() {
                 </div>
               </InfoSection>
               <InfoSection title="Previous School" icon={<BookOpen className="w-4 h-4"/>}>
-                <InfoGrid fields={Object.entries(selectedEnrollment.previousSchool).map(([k, v]) => [k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase()), v])} />
+                <InfoGrid fields={
+                  Object.entries(selectedEnrollment.previousSchool)
+                    .flatMap(([k, v]) => {
+                      if (v === null || v === undefined) return []
+                      // Flatten nested objects (e.g. elementary: { name, address, year })
+                      if (typeof v === 'object' && !Array.isArray(v)) {
+                        const label = k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())
+                        return Object.entries(v)
+                          .filter(([,val]) => val)
+                          .map(([subK, subV]) => [
+                            `${label} — ${subK.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase())}`,
+                            String(subV)
+                          ])
+                      }
+                      return [[k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase()), String(v || '—')]]
+                    })
+                } />
               </InfoSection>
             </div>
             <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 flex-shrink-0">
               <button onClick={() => setShowModal(false)} className="px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition font-medium">Close</button>
-              {selectedEnrollment.status === 'pending' && (
-                <div className="flex gap-2">
-                  <button onClick={() => handleReject(selectedEnrollment.id)} className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-red-600 text-white rounded-xl hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium"><XCircle className="w-4 h-4" /> Reject</button>
-                  <button onClick={() => handleApprove(selectedEnrollment.id)} className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"><CheckCircle className="w-4 h-4" /> Approve</button>
-                </div>
-              )}
-              {selectedEnrollment.status !== 'pending' && (
-                <div className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 ${selectedEnrollment.status === 'approved' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'}`}>
-                  {selectedEnrollment.status === 'approved' ? <><CheckCircle className="w-4 h-4" /> Enrollment Approved</> : <><XCircle className="w-4 h-4" /> Enrollment Rejected</>}
-                </div>
-              )}
+              {/* Action buttons based on current status + role */}
+              <div className="flex gap-2">
+                {canMarkPayment(selectedEnrollment) && (
+                  <button onClick={() => handleMarkPayment(selectedEnrollment.id)}
+                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium">
+                    <CreditCard className="w-4 h-4" /> Record Payment
+                  </button>
+                )}
+                {canApproveReject(selectedEnrollment) && (
+                  <>
+                    <button onClick={() => handleReject(selectedEnrollment.id)} className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-red-600 text-white rounded-xl hover:bg-red-700 transition flex items-center justify-center gap-2 font-medium"><XCircle className="w-4 h-4" /> Reject</button>
+                    <button onClick={() => handleApprove(selectedEnrollment.id)} className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium"><CheckCircle className="w-4 h-4" /> Approve</button>
+                  </>
+                )}
+                {/* Status badges for completed/in-progress states */}
+                {selectedEnrollment.status === 'approved' && (
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                    <CheckCircle className="w-4 h-4" /> Enrollment Approved
+                  </div>
+                )}
+                {selectedEnrollment.status === 'rejected' && (
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                    <XCircle className="w-4 h-4" /> Enrollment Rejected
+                  </div>
+                )}
+                {selectedEnrollment.status === 'payment_received' && !canApproveReject(selectedEnrollment) && (
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                    <DollarSign className="w-4 h-4" /> Payment Received — Awaiting Registrar
+                  </div>
+                )}
+                {selectedEnrollment.status === 'pending' && !canMarkPayment(selectedEnrollment) && !canApproveReject(selectedEnrollment) && (
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+                    <Clock className="w-4 h-4" /> Awaiting Payment at Accounting
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       <ConfirmDialog open={confirm.open}
-        title={confirm.type === 'approve' ? 'Approve Enrollment' : 'Reject Enrollment'}
+        title={confirm.type === 'approve' ? 'Approve Enrollment' : confirm.type === 'mark_payment' ? 'Record Payment' : 'Reject Enrollment'}
         message={confirm.type === 'approve' ? 'Are you sure you want to approve this enrollment?' : 'Are you sure you want to reject this enrollment?'}
-        confirmLabel={confirm.type === 'approve' ? 'Approve' : 'Reject'}
+        confirmLabel={confirm.type === 'approve' ? 'Approve' : confirm.type === 'mark_payment' ? 'Record Payment' : 'Reject'}
         confirmClass={confirm.type === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
         loading={actionLoading} onConfirm={confirmAction}
         onCancel={() => setConfirm({ open: false, type: null, id: null })} />

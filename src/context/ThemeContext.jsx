@@ -3,12 +3,23 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 const ThemeContext = createContext()
 
 // Get the theme storage key scoped to the current logged-in user.
-// Falls back to 'guest' if no session exists yet (login page).
+// Uses sessionStorage for the active user (tab-specific) so that
+// multiple users logged in on different tabs don't interfere with
+// each other's theme preference.
+// Theme preferences themselves are still stored in localStorage
+// (keyed by user ID) so they persist across sessions.
 function getThemeKey() {
   try {
-    const raw = localStorage.getItem('cshc_user')
+    // sessionStorage is tab-isolated — each tab has its own user
+    const raw = sessionStorage.getItem('cshc_session_user')
     if (raw) {
       const user = JSON.parse(raw)
+      if (user?.id) return `cshc_theme_${user.id}`
+    }
+    // Fallback: try localStorage for single-tab usage
+    const lsRaw = localStorage.getItem('cshc_user')
+    if (lsRaw) {
+      const user = JSON.parse(lsRaw)
       if (user?.id) return `cshc_theme_${user.id}`
     }
   } catch {}
@@ -55,19 +66,13 @@ export function ThemeProvider({ children }) {
     applyTheme(t)
   }, [])
 
-  // Cross-tab: if another tab logs in/out, sync theme
+  // Same-tab only: AuthContext fires 'cshc_auth_change' after login/logout
+  // We intentionally do NOT listen to the 'storage' event for cshc_user
+  // because that would cause one tab's login to change another tab's theme.
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === 'cshc_user') refreshUserTheme()
-    }
-    // Same-tab: fired by AuthContext right after login/logout
     const onAuthChange = () => refreshUserTheme()
-    window.addEventListener('storage', onStorage)
     window.addEventListener('cshc_auth_change', onAuthChange)
-    return () => {
-      window.removeEventListener('storage', onStorage)
-      window.removeEventListener('cshc_auth_change', onAuthChange)
-    }
+    return () => window.removeEventListener('cshc_auth_change', onAuthChange)
   }, [refreshUserTheme])
 
   // Apply theme to DOM whenever it changes

@@ -17,63 +17,17 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { exportMultipleSheets } from '../utils/exportToExcel'
 import { SkeletonDashboard } from '../components/UIComponents'
+import {
+  StatCard, CampusMiniCard, SectionPanel, CollectionRateBar, CampusBanner,
+  EnrollmentStatusPill, PaymentStatusBadge,
+  EnrollmentTable, CampusEnrollmentTable, CampusStudentTable, CampusPaymentTable,
+  php, isBasicGrade, isCollegeGrade,
+} from '../components/SchoolComponents'
 import { mockStudents } from '../data/mockStudents'
 import { mockEnrollments } from '../data/mockEnrollments'
 import { mockPayments } from '../data/mockPayments'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend)
-
-const php = (v) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0 }).format(v)
-
-function isBasicGrade(g) {
-  return g?.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g?.includes(x))
-}
-function isCollegeGrade(g) {
-  return g?.includes('BS') || g?.includes('Year')
-}
-
-function StatusPill({ status }) {
-  const map = {
-    pending:  { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3" />, label: 'Pending' },
-    approved: { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle className="w-3 h-3" />, label: 'Approved' },
-    rejected: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="w-3 h-3" />, label: 'Rejected' },
-  }
-  const cfg = map[status] || map.pending
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
-      {cfg.icon}{cfg.label}
-    </span>
-  )
-}
-
-function StatCard({ label, value, sub, border, icon, highlight }) {
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{label}</p>
-        <div className="opacity-80">{icon}</div>
-      </div>
-      <p className={`text-2xl font-bold ${highlight || 'text-gray-800 dark:text-white'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
-    </div>
-  )
-}
-
-function SectionHeader({ title, icon, colorCls, pills }) {
-  return (
-    <div className={`px-5 py-3.5 flex items-center gap-2.5 border-b border-gray-100 dark:border-gray-700 ${colorCls}`}>
-      <div className="opacity-90">{icon}</div>
-      <h3 className="text-sm font-bold uppercase tracking-wider">{title}</h3>
-      {pills && (
-        <div className="ml-auto flex items-center gap-3">
-          {pills.filter(Boolean).map((p, i) => (
-            <span key={i} className="text-xs font-semibold opacity-90">{p}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -84,24 +38,47 @@ export default function Dashboard() {
   useEffect(() => { const t = setTimeout(() => setLoading(false), 800); return () => clearTimeout(t) }, [])
   useEffect(() => { setLoading(true); const t = setTimeout(() => setLoading(false), 400); return () => clearTimeout(t) }, [campusFilter])
 
-  const isCollegeReg = user?.role === 'registrar_college'
-  const isBasicReg   = user?.role === 'registrar_basic'
-  const isPrincipal  = user?.role === 'principal_basic'
+  const isCollegeReg        = user?.role === 'registrar_college'
+  const isBasicReg          = user?.role === 'registrar_basic'
+  const isPrincipal         = user?.role === 'principal_basic'
+  const isAccounting        = user?.role === 'accounting'
+  const isAccountingLocked  = isAccounting && user?.campus !== 'all'
+  const accountingCampus    = isAccountingLocked ? user.campus : null
 
-  // Campus filtering
-  const shownCampuses = campusFilter === 'all' ? activeCampuses : activeCampuses.filter(c => c.key === campusFilter)
-  const campusNames   = shownCampuses.map(c => c.name)
-  const campusLabel   = campusFilter === 'all' ? 'All Campuses' : (activeCampuses.find(c => c.key === campusFilter)?.name || campusFilter)
+  // Campus filtering — accounting locked users always see only their campus
+  const effectiveCampusFilter = isAccountingLocked
+    ? activeCampuses.find(c => c.name === accountingCampus)?.key || campusFilter
+    : campusFilter
 
-  const filteredStudents    = mockStudents.filter(s => campusFilter === 'all' || campusNames.includes(s.academic.campus))
-  const filteredEnrollments = mockEnrollments.filter(e => campusFilter === 'all' || campusNames.includes(e.enrollment.campus))
-  const filteredPayments    = mockPayments.filter(p => campusFilter === 'all' || campusNames.includes(p.campus))
+  const shownCampuses = isAccountingLocked
+    ? activeCampuses.filter(c => c.name === accountingCampus)
+    : effectiveCampusFilter === 'all'
+      ? activeCampuses
+      : activeCampuses.filter(c => c.key === effectiveCampusFilter)
+
+  const campusNames = shownCampuses.map(c => c.name)
+  const campusLabel = isAccountingLocked
+    ? accountingCampus
+    : effectiveCampusFilter === 'all'
+      ? 'All Campuses'
+      : (activeCampuses.find(c => c.key === effectiveCampusFilter)?.name || effectiveCampusFilter)
+
+  const filteredStudents    = mockStudents.filter(s =>
+    isAccountingLocked ? s.academic.campus === accountingCampus : (effectiveCampusFilter === 'all' || campusNames.includes(s.academic.campus))
+  )
+  const filteredEnrollments = mockEnrollments.filter(e =>
+    isAccountingLocked ? e.enrollment.campus === accountingCampus : (effectiveCampusFilter === 'all' || campusNames.includes(e.enrollment.campus))
+  )
+  const filteredPayments = mockPayments.filter(p =>
+    isAccountingLocked ? p.campus === accountingCampus : (effectiveCampusFilter === 'all' || campusNames.includes(p.campus))
+  )
 
   // Enrollment stats
   const enrTotal    = filteredEnrollments.length
-  const enrPending  = filteredEnrollments.filter(e => e.status === 'pending').length
-  const enrApproved = filteredEnrollments.filter(e => e.status === 'approved').length
-  const enrRejected = filteredEnrollments.filter(e => e.status === 'rejected').length
+  const enrPending         = filteredEnrollments.filter(e => e.status === 'pending').length
+  const enrPaymentReceived = filteredEnrollments.filter(e => e.status === 'payment_received').length
+  const enrApproved        = filteredEnrollments.filter(e => e.status === 'approved').length
+  const enrRejected        = filteredEnrollments.filter(e => e.status === 'rejected').length
   const basicEnr    = filteredEnrollments.filter(e => isBasicGrade(e.enrollment.gradeLevel))
   const collegeEnr  = filteredEnrollments.filter(e => isCollegeGrade(e.enrollment.gradeLevel))
 
@@ -118,11 +95,11 @@ export default function Dashboard() {
   const payOverdue     = filteredPayments.filter(p => p.status === 'overdue').length
   const collectionRate = payTotalFee > 0 ? Math.round((payRevenue / payTotalFee) * 100) : 0
 
-  // Per-campus stats
+  // Per-campus stats — uses filtered data so accounting locked users only see their campus
   const campusStats = shownCampuses.map(c => {
-    const cs = mockStudents.filter(s => s.academic.campus === c.name)
-    const ce = mockEnrollments.filter(e => e.enrollment.campus === c.name)
-    const cp = mockPayments.filter(p => p.campus === c.name)
+    const cs = filteredStudents.filter(s => s.academic.campus === c.name)
+    const ce = filteredEnrollments.filter(e => e.enrollment.campus === c.name)
+    const cp = filteredPayments.filter(p => p.campus === c.name)
     const rev = cp.reduce((s, p) => s + p.amountPaid, 0)
     const tot = cp.reduce((s, p) => s + p.totalFee, 0)
     return {
@@ -131,9 +108,10 @@ export default function Dashboard() {
       basicStu: cs.filter(s => isBasicGrade(s.academic.gradeLevel)).length,
       collegeStu: cs.filter(s => isCollegeGrade(s.academic.gradeLevel)).length,
       enrollments: ce.length,
-      pending: ce.filter(e => e.status === 'pending').length,
-      approved: ce.filter(e => e.status === 'approved').length,
-      rejected: ce.filter(e => e.status === 'rejected').length,
+      pending:          ce.filter(e => e.status === 'pending').length,
+      payment_received: ce.filter(e => e.status === 'payment_received').length,
+      approved:         ce.filter(e => e.status === 'approved').length,
+      rejected:         ce.filter(e => e.status === 'rejected').length,
       revenue: rev,
       outstanding: cp.reduce((s, p) => s + p.balance, 0),
       totalFee: tot,
@@ -159,8 +137,8 @@ export default function Dashboard() {
   const campusShortName = (name) => name.replace(' Campus','').replace(' City','')
 
   const enrStatusChartData = {
-    labels: ['Approved','Pending','Rejected'],
-    datasets: [{ data: [enrApproved, enrPending, enrRejected], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }],
+    labels: ['Approved', 'Payment Received', 'Awaiting Payment', 'Rejected'],
+    datasets: [{ data: [enrApproved, enrPaymentReceived, enrPending, enrRejected], backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'], borderWidth: 0 }],
   }
   const campusBarData = {
     labels: campusStats.map(c => campusShortName(c.name)),
@@ -240,34 +218,22 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Campus-locked banner */}
+      <CampusBanner user={user} />
+
       {/* Grand stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Total Students"    value={stuTotal.toLocaleString()}  sub={campusLabel} border="border-blue-500" icon={<Users className="w-5 h-5 text-blue-500"/>} />
-        <StatCard label="Total Enrollments" value={enrTotal.toLocaleString()}  sub={`${enrPending} pending · ${enrApproved} approved`} border="border-primary" icon={<FileText className="w-5 h-5 text-primary"/>} />
+        <StatCard label="Total Enrollments" value={enrTotal.toLocaleString()}  sub={`${enrPending} awaiting payment · ${enrPaymentReceived} ready for review`} border="border-primary" icon={<FileText className="w-5 h-5 text-primary"/>} />
         <StatCard label="Total Revenue"     value={php(payRevenue)} sub={`${collectionRate}% collection rate`} border="border-green-500" highlight="text-green-600 dark:text-green-400" icon={<DollarSign className="w-5 h-5 text-green-500"/>} />
         <StatCard label="Outstanding"       value={php(payOutstanding)} sub={payOverdue > 0 ? `${payOverdue} overdue accounts` : 'No overdue'} border={payOverdue > 0 ? 'border-red-500' : 'border-gray-300'} highlight={payOutstanding > 0 ? 'text-red-500 dark:text-red-400' : undefined} icon={<AlertCircle className={`w-5 h-5 ${payOverdue > 0 ? 'text-red-500' : 'text-gray-400'}`}/>} />
       </div>
 
       {/* Per-campus strip */}
-      {campusStats.length > 1 && (
+      {campusStats.length > 1 && !isAccountingLocked && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {campusStats.map(c => (
-            <div key={c.name} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 bg-secondary/10 dark:bg-secondary/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-3.5 h-3.5 text-secondary dark:text-blue-400" />
-                </div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{c.name}</p>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div><p className="text-lg font-bold text-gray-800 dark:text-white">{c.students}</p><p className="text-xs text-gray-400">Students</p></div>
-                <div><p className="text-lg font-bold text-gray-800 dark:text-white">{c.enrollments}</p><p className="text-xs text-gray-400">Enrolled</p></div>
-                <div><p className="text-lg font-bold text-green-600 dark:text-green-400">{c.collectionRate}%</p><p className="text-xs text-gray-400">Collected</p></div>
-              </div>
-              <div className="mt-3 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 rounded-full transition-all duration-700" style={{ width: `${c.collectionRate}%` }} />
-              </div>
-            </div>
+            <CampusMiniCard key={c.name} campusStat={c} />
           ))}
         </div>
       )}
@@ -283,270 +249,147 @@ export default function Dashboard() {
             {enrTotal > 0 ? <Doughnut data={enrStatusChartData} options={pieOpts} /> : <p className="text-sm text-gray-400">No data</p>}
           </div>
         </div>
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-500" /> Students & Enrollments by Campus
-          </h3>
-          <p className="text-xs text-gray-400 mb-4">{currentSchoolYear}</p>
-          <div style={{ height: 200 }}><Bar data={campusBarData} options={baseOpts} /></div>
-        </div>
+        {!isAccounting ? (
+          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-500" /> Students & Enrollments by Campus
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">{currentSchoolYear}</p>
+            <div style={{ height: 200 }}><Bar data={campusBarData} options={baseOpts} /></div>
+          </div>
+        ) : (
+          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1 flex items-center gap-2">
+              <DollarSign className="w-4 h-4 text-green-500" /> Revenue vs Outstanding
+            </h3>
+            <p className="text-xs text-gray-400 mb-4">{campusLabel} · {currentSchoolYear}</p>
+            <div style={{ height: 200 }}><Bar data={revenueBarData} options={{ ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, ticks: { ...baseOpts.scales.y.ticks, callback: (v) => `₱${(v/1000).toFixed(0)}k` } } } }} /></div>
+          </div>
+        )}
       </div>
 
-      {/* ══ ENROLLMENTS SECTION ══ */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-        <SectionHeader
-          title="Enrollments Summary"
-          icon={<FileText className="w-4 h-4" />}
-          colorCls="text-primary dark:text-red-400 bg-red-50 dark:bg-red-900/10"
-          pills={[`${enrTotal} total`, enrPending > 0 && `${enrPending} pending`]}
-        />
-        <div className="p-5 space-y-4">
 
-          {/* Status tiles */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* ══ ENROLLMENTS SECTION ══ */}
+      {!isAccounting && <SectionPanel
+        title="Enrollments Summary"
+        icon={<FileText className="w-4 h-4" />}
+        colorCls="text-primary dark:text-red-400 bg-red-50 dark:bg-red-900/10"
+        pills={[`${enrTotal} total`, enrPending > 0 && `${enrPending} pending`]}
+      >
+        {/* Status tiles */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {[
+            { label: 'Total',             val: enrTotal,            color: 'text-gray-800 dark:text-white',        bg: 'bg-gray-50 dark:bg-gray-700/50' },
+            { label: 'Awaiting Payment',  val: enrPending,          color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+            { label: 'Payment Received',  val: enrPaymentReceived,  color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-900/20' },
+            { label: 'Approved',          val: enrApproved,         color: 'text-green-600 dark:text-green-400',   bg: 'bg-green-50 dark:bg-green-900/20' },
+          ].map(s => (
+            <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
+              <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Basic Ed vs College */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          {[
+            { label: 'Basic Education', icon: <BookOpen className="w-4 h-4 text-emerald-500"/>, enr: basicEnr },
+            { label: 'College',         icon: <GraduationCap className="w-4 h-4 text-blue-500"/>, enr: collegeEnr },
+          ].map(d => (
+            <div key={d.label} className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                {d.icon}
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{d.label}</p>
+                <span className="ml-auto text-sm font-bold text-gray-800 dark:text-white">{d.enr.length}</span>
+              </div>
+              {[
+                { label: 'Pending',  val: d.enr.filter(e=>e.status==='pending').length,  cls:'text-yellow-600 dark:text-yellow-400' },
+                { label: 'Approved', val: d.enr.filter(e=>e.status==='approved').length, cls:'text-green-600 dark:text-green-400' },
+                { label: 'Rejected', val: d.enr.filter(e=>e.status==='rejected').length, cls:'text-red-500 dark:text-red-400' },
+              ].map(r => (
+                <div key={r.label} className="flex items-center justify-between text-xs py-0.5">
+                  <span className="text-gray-500 dark:text-gray-400">{r.label}</span>
+                  <span className={`font-semibold ${r.cls}`}>{r.val}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        <CampusEnrollmentTable campusStats={campusStats} />
+
+        {filteredEnrollments.length > 0 && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Recent Applications</p>
+            <EnrollmentTable enrollments={filteredEnrollments} limit={5} />
+          </div>
+        )}
+      </SectionPanel>}
+
+      {/* ══ STUDENTS SECTION ══ */}
+      {!isAccounting && <SectionPanel
+        title="Students Summary"
+        icon={<Users className="w-4 h-4" />}
+        colorCls="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10"
+        pills={[`${stuTotal} total`]}
+      >
+        {/* Overview tiles */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 text-center">
+            <p className="text-3xl font-bold text-gray-800 dark:text-white">{stuTotal}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Students</p>
+          </div>
+          <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 text-center">
+            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{basicStu.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Basic Education</p>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center">
+            <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{collegeStu.length}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">College</p>
+          </div>
+        </div>
+
+        <CampusStudentTable campusStats={campusStats} stuTotal={stuTotal} />
+      </SectionPanel>}
+
+      {/* ══ PAYMENTS SECTION ══ */}
+      {!isPrincipal && (
+        <SectionPanel
+          title="Payments Summary"
+          icon={<DollarSign className="w-4 h-4" />}
+          colorCls="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10"
+          pills={[`${collectionRate}% collected`, payOverdue > 0 && `${payOverdue} overdue`]}
+        >
+          {/* Stat tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
-              { label: 'Total',    val: enrTotal,    color: 'text-gray-800 dark:text-white',        bg: 'bg-gray-50 dark:bg-gray-700/50' },
-              { label: 'Pending',  val: enrPending,  color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
-              { label: 'Approved', val: enrApproved, color: 'text-green-600 dark:text-green-400',   bg: 'bg-green-50 dark:bg-green-900/20' },
-              { label: 'Rejected', val: enrRejected, color: 'text-red-500 dark:text-red-400',       bg: 'bg-red-50 dark:bg-red-900/20' },
+              { label: 'Expected',    val: php(payTotalFee),    color: 'text-gray-800 dark:text-white',       bg: 'bg-gray-50 dark:bg-gray-700/50' },
+              { label: 'Collected',   val: php(payRevenue),     color: 'text-green-600 dark:text-green-400',  bg: 'bg-green-50 dark:bg-green-900/20' },
+              { label: 'Outstanding', val: php(payOutstanding), color: 'text-red-500 dark:text-red-400',      bg: 'bg-red-50 dark:bg-red-900/20' },
+              { label: 'Fully Paid',  val: `${payPaid}`,        color: 'text-blue-600 dark:text-blue-400',    bg: 'bg-blue-50 dark:bg-blue-900/20' },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
+                <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
               </div>
             ))}
           </div>
 
-          {/* Basic Ed vs College */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { label: 'Basic Education', icon: <BookOpen className="w-4 h-4 text-emerald-500"/>, enr: basicEnr },
-              { label: 'College',         icon: <GraduationCap className="w-4 h-4 text-blue-500"/>, enr: collegeEnr },
-            ].map(d => (
-              <div key={d.label} className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  {d.icon}
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{d.label}</p>
-                  <span className="ml-auto text-sm font-bold text-gray-800 dark:text-white">{d.enr.length}</span>
-                </div>
-                {[
-                  { label: 'Pending',  val: d.enr.filter(e=>e.status==='pending').length,  cls:'text-yellow-600 dark:text-yellow-400' },
-                  { label: 'Approved', val: d.enr.filter(e=>e.status==='approved').length, cls:'text-green-600 dark:text-green-400' },
-                  { label: 'Rejected', val: d.enr.filter(e=>e.status==='rejected').length, cls:'text-red-500 dark:text-red-400' },
-                ].map(r => (
-                  <div key={r.label} className="flex items-center justify-between text-xs py-0.5">
-                    <span className="text-gray-500 dark:text-gray-400">{r.label}</span>
-                    <span className={`font-semibold ${r.cls}`}>{r.val}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+          <CollectionRateBar rate={collectionRate} collected={payRevenue} expected={payTotalFee} />
 
-          {/* Per-campus enrollment table */}
-          <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-700/50">
-                <tr>{['Campus','Total','Pending','Approved','Rejected','Approval Rate'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {campusStats.map(c => {
-                  const rate = c.enrollments > 0 ? Math.round((c.approved/c.enrollments)*100) : 0
-                  return (
-                    <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-                      <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-200">{c.enrollments}</td>
-                      <td className="px-4 py-3 text-yellow-600 dark:text-yellow-400 font-semibold">{c.pending}</td>
-                      <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{c.approved}</td>
-                      <td className="px-4 py-3 text-red-500 dark:text-red-400 font-semibold">{c.rejected}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
-                            <div className="h-full bg-green-500 rounded-full" style={{ width: `${rate}%` }} />
-                          </div>
-                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 w-9">{rate}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Recent applications */}
-          {filteredEnrollments.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Recent Applications</p>
-              <div className="space-y-1">
-                {filteredEnrollments.slice(0,5).map(e => (
-                  <div key={e.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                    <div className="w-7 h-7 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-3.5 h-3.5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 dark:text-white truncate">{e.student.firstName} {e.student.lastName}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{e.enrollment.gradeLevel} · {e.enrollment.campus}</p>
-                    </div>
-                    <StatusPill status={e.status} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ══ STUDENTS SECTION ══ */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-        <SectionHeader
-          title="Students Summary"
-          icon={<Users className="w-4 h-4" />}
-          colorCls="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10"
-          pills={[`${stuTotal} total`]}
-        />
-        <div className="p-5 space-y-4">
-
-          {/* Overview tiles */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-gray-800 dark:text-white">{stuTotal}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Total Students</p>
-            </div>
-            <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{basicStu.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Basic Education</p>
-            </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 text-center">
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{collegeStu.length}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">College</p>
+          {/* Revenue chart */}
+          <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4 mt-4">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Revenue by Campus</p>
+            <div style={{ height: 160 }}>
+              <Bar data={revenueBarData} options={{ ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, ticks: { ...baseOpts.scales.y.ticks, callback: (v) => `₱${(v/1000).toFixed(0)}k` } } } }} />
             </div>
           </div>
 
-          {/* Per-campus student table */}
-          <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-700/50">
-                <tr>{['Campus','Total','Basic Ed','College','Share'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}</tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {campusStats.map(c => {
-                  const share = stuTotal > 0 ? Math.round((c.students/stuTotal)*100) : 0
-                  return (
-                    <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-                      <td className="px-4 py-3 font-bold text-gray-800 dark:text-white">{c.students}</td>
-                      <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{c.basicStu}</td>
-                      <td className="px-4 py-3 text-blue-600 dark:text-blue-400">{c.collegeStu}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${share}%` }} />
-                          </div>
-                          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-9">{share}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="mt-4">
+            <CampusPaymentTable campusStats={campusStats} />
           </div>
-        </div>
-      </div>
-
-      {/* ══ PAYMENTS SECTION ══ */}
-      {!isPrincipal && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-          <SectionHeader
-            title="Payments Summary"
-            icon={<DollarSign className="w-4 h-4" />}
-            colorCls="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10"
-            pills={[`${collectionRate}% collected`, payOverdue > 0 && `${payOverdue} overdue`]}
-          />
-          <div className="p-5 space-y-4">
-
-            {/* Stat tiles */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: 'Expected',  val: php(payTotalFee),    color: 'text-gray-800 dark:text-white',        bg: 'bg-gray-50 dark:bg-gray-700/50' },
-                { label: 'Collected', val: php(payRevenue),     color: 'text-green-600 dark:text-green-400',   bg: 'bg-green-50 dark:bg-green-900/20' },
-                { label: 'Outstanding',val: php(payOutstanding),color: 'text-red-500 dark:text-red-400',       bg: 'bg-red-50 dark:bg-red-900/20' },
-                { label: 'Fully Paid', val: `${payPaid}`,       color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-900/20' },
-              ].map(s => (
-                <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                  <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Collection rate bar */}
-            <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Collection Rate</p>
-                <span className={`text-sm font-bold ${collectionRate >= 75 ? 'text-green-600 dark:text-green-400' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-500'}`}>
-                  {collectionRate}%
-                </span>
-              </div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-700 ${collectionRate >= 75 ? 'bg-green-500' : collectionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                  style={{ width: `${collectionRate}%` }} />
-              </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-1.5">
-                <span>Collected: {php(payRevenue)}</span>
-                <span>Expected: {php(payTotalFee)}</span>
-              </div>
-            </div>
-
-            {/* Revenue chart */}
-            <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Revenue by Campus</p>
-              <div style={{ height: 160 }}>
-                <Bar data={revenueBarData} options={{ ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, ticks: { ...baseOpts.scales.y.ticks, callback: (v) => `₱${(v/1000).toFixed(0)}k` } } } }} />
-              </div>
-            </div>
-
-            {/* Per-campus payment table */}
-            <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-700/50">
-                  <tr>{['Campus','Expected','Collected','Outstanding','Collection Rate','Overdue'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                  ))}</tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {campusStats.map(c => (
-                    <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{php(c.totalFee)}</td>
-                      <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold whitespace-nowrap">{php(c.revenue)}</td>
-                      <td className="px-4 py-3 text-red-500 dark:text-red-400 whitespace-nowrap">{php(c.outstanding)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
-                            <div className={`h-full rounded-full ${c.collectionRate >= 75 ? 'bg-green-500' : c.collectionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                              style={{ width: `${c.collectionRate}%` }} />
-                          </div>
-                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 w-9">{c.collectionRate}%</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.overdue > 0
-                          ? <span className="text-xs font-semibold text-red-500">{c.overdue} accts</span>
-                          : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        </SectionPanel>
       )}
 
     </div>
@@ -612,7 +455,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
                       <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{e.enrollment.gradeLevel}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{e.enrollment.studentType}</td>
-                      <td className="px-4 py-3 whitespace-nowrap"><StatusPill status={e.status} /></td>
+                      <td className="px-4 py-3 whitespace-nowrap"><EnrollmentStatusPill status={e.status} /></td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">
                         {new Date(e.submittedDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
                       </td>

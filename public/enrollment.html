@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Enrollment - Cebu Sacred Heart College</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="enrollment-style.css">
+</head>
+<body>
+
+    <!-- Navigation (same as main page) -->
+    <nav>
+        <a href="index.html" class="logo">
+            <img src="logo.png" alt="Cebu Sacred Heart College, Inc." class="logo-img">
+        </a>
+        
+        <ul class="nav-links-simple">
+            <li><a href="index.html">← Back to Home</a></li>
+        </ul>
+    </nav>
+
+
+      <!-- Enrollment Form Section -->
+<section class="enrollment-section">
+    <div class="container">
+        <div class="enrollment-header">
+            <h1>Online Enrollment Form</h1>
+            <p class="enrollment-subtitle">Academic Year 2025-2026</p>
+            
+        </div>
+
+        <!-- ✅ PROGRESS BAR -->
+        <div class="progress-container" id="progressContainer">
+            <p class="enrollment-instructions">Please fill out all required fields carefully. Fields marked with <span class="required">*</span> are required.</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-steps">
+                <div class="progress-step active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Campus Selection</div>
+                </div>
+                <div class="progress-step" data-step="2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Student Information</div>
+                </div>
+                <div class="progress-step" data-step="3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Parent/Guardian Information</div>
+                </div>
+                <div class="progress-step" data-step="4">
+                    <div class="step-circle">4</div>
+                    <div class="step-label">Previous School</div>
+                </div>
+                <div class="progress-step" data-step="5">
+                    <div class="step-circle">5</div>
+                    <div class="step-label">Review & Submit</div>
+                </div>
+            </div>
+        </div>
+
+        <form class="enrollment-form" id="enrollmentForm" novalidate>
+            
+            <!-- ✅ STEP 1: Campus Selection -->
+            <div class="form-step active" data-step="1">
+                <h2 class="step-title">Campus & Program Selection</h2>
+                
+                <div class="form-group">
+                    <div class="floating-input">
+                        <select id="campus" name="campus" required>
+                            <option value="">Select Campus</option>
+                            <option value="talisay">Talisay City Campus (Main)</option>
+                            <option value="carcar">Carcar City Campus</option>
+                            <option value="bohol">Tagbilaran, Bohol Campus</option>
+                        </select>
+                        <label for="campus">Preferred Campus <span class="required">*</span></label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="floating-input">
+                        <select id="gradeLevel" name="gradeLevel" required disabled>
+                            <option value="">Select Grade Level / Program</option>
+                        </select>
+                        <label for="gradeLevel">Grade Level / Program <span class="required">*</span></label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="floating-input">
+                        <select id="studentType" name="studentType" required>
+                            <option value="">Select Student Type</option>
+                            <option value="new">New Student</option>
+                            <option value="transferee">Transferee</option>
+                            <option value="returnee">Returnee</option>
+                        </select>
+                        <label for="studentType">Student Type <span class="required">*</span></label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="floating-input">
+                        <input type="text" id="schoolYear" name="schoolYear" value="2025-2026" readonly required>
+                        <label for="schoolYear">School Year <span class="required">*</span></label>
+                    </div>
+                </div>
+
+                <div class="step-buttons">
+                    <button type="button" class="btn-next" onclick="nextStep()">Next Step →</button>
+                </div>
+            </div>
+
+             <!-- ✅ STEP 2: Student Information -->
+            <div class="form-step" data-step="2">
+                <h2 class="step-title">Student Information</h2>
+    
+                    <div class="form-row-multi">
+                        <div class="form-group">
+                            <div class="floating-input">
+                                <input type="text" id="lastName" maxlength="50" name="lastName" required placeholder="Doe">
+                                <label for="lastName">Last Name <span class="required">*</span></label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="floating-input">
+                                <input type="text" id="firstName" name="firstName" required placeholder="John">
+                                <label for="firstName">First Name <span class="required">*</span></label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="floating-input">
+                                <input type="text" id="middleName" name="middleName" required placeholder   ="Noble">
+                                <label for="middleName">Middle Name</label>
+                            </div>
+
+                            <!-- ✅  No middle name checkbox -->
+                            <div class="checkbox-inline">
+                                <label class="checkbox-label-inline">
+                                <input type="checkbox" id="noMiddleName">
+                                <span>No middle name</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                            <div class="form-row-multi">
+                                <div class="form-group">
+                                <div class="floating-input">
+                                <input type="date" id="birthDate" name="birthDate" required>
+                                <label for="birthDate">Date of Birth <span class="required">*</span></label>
+                            </div>
+        </div>
+
+        <!-- ✅ Place of Birth -->
+        <div class="form-group">
+            <div class="floating-input">
+                <input type="text" id="birthPlace" maxlength="100" name="birthPlace" required>
+                <label for="birthPlace">Place of Birth <span class="required">*</span></label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="floating-input">
+                <input type="number" id="age" name="age" readonly placeholder="Auto-calculated">
+                <label for="age">Age</label>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅  Gender, Civil Status, Religion, Nationality -->
+    <div class="form-row-multi">
+        <div class="form-group">
+            <div class="floating-input">
+                <select id="gender" name="gender" required placeholder="Select">
+                    <option value=""></option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select>
+                <label for="gender">Gender <span class="required">*</span></label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="floating-input">
+                <select id="civilStatus" name="civilStatus" required placeholder="Select">
+                    <option value=""></option>
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                    <option value="widowed">Widowed</option>
+                    <option value="separated">Separated</option>
+                </select>
+                <label for="civilStatus">Civil Status <span class="required">*</span></label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="floating-input">
+                <input type="text" id="religion" name="religion" required placeholder="e.g., Roman Catholic">
+                <label for="religion">Religion <span class="required">*</span></label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="floating-input">
+                <select id="nationality" name="nationality" required placeholder="Select">
+                    <option value=""></option>
+                    <option value="filipino">Filipino</option>
+                    <option value="american">American</option>
+                    <option value="chinese">Chinese</option>
+                    <option value="japanese">Japanese</option>
+                    <option value="korean">Korean</option>
+                    <option value="other">Other</option>
+                </select>
+                <label for="nationality">Nationality <span class="required">*</span></label>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <div class="floating-input">
+            <input type="text" id="address" maxlength="255" name="address" required placeholder="House No., Street, Barangay, City/Municipality, Province">
+            <label for="address">Complete Address <span class="required">*</span></label>
+        </div>
+    </div>
+
+    <div class="form-row-multi">
+        <div class="form-group">
+            <div class="floating-input">
+                <!-- ✅ EMAIL with validation -->
+                <!-- ✅ CORRECT -->
+                <input type="email" id="email" autocomplete="email" name="email" required 
+                    pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+                    title="Please enter a valid email address (e.g., user@example.com)">
+                <label for="email">Email Address <span class="required">*</span></label>
+            </div>
+            <small class="input-hint">Use a valid email (e.g., juan@example.com)</small>
+        </div>
+
+        <div class="form-group">
+            <div class="floating-input">
+                <!-- ✅ CONTACT NUMBER with validation -->
+                <input type="tel" id="contactNumber" autocomplete="tel" name="contactNumber" required
+                       pattern="[0-9]{11}" 
+                       maxlength="11"
+                       title="Please enter exactly 11 digits"
+                       placeholder="09XXXXXXXXX">
+                <label for="contactNumber">Contact Number <span class="required">*</span></label>
+            </div>
+            <small class="input-hint">11 digits (e.g., 09123456789)</small>
+        </div>
+    </div>
+
+    <div class="step-buttons">
+        <button type="button" class="btn-prev" onclick="prevStep()">← Previous</button>
+        <button type="button" class="btn-next" onclick="nextStep()">Next Step →</button>
+    </div>
+</div>
+
+            <!-- ✅ STEP 3: Parent/Guardian Information -->
+            <div class="form-step" data-step="3">
+                <h2 class="step-title">Parent/Guardian Information</h2>
+                
+                <h3 class="subsection-title">Father's Information</h3>
+                <div class="form-row-multi">
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="fatherName" name="fatherName" required>
+                            <label for="fatherName">Father's Full Name <span class="required">*</span></label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="fatherOccupation" name="fatherOccupation">
+                            <label for="fatherOccupation">Occupation</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="tel" id="fatherContact" name="fatherContact" required>
+                            <label for="fatherContact">Contact Number <span class="required">*</span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="subsection-title">Mother's Information</h3>
+                <div class="form-row-multi">
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="motherName" name="motherName" required>
+                            <label for="motherName">Mother's Full Name <span class="required">*</span></label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="motherOccupation" name="motherOccupation">
+                            <label for="motherOccupation">Occupation</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="tel" id="motherContact" name="motherContact" required>
+                            <label for="motherContact">Contact Number <span class="required">*</span></label>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="subsection-title">Guardian (if applicable)</h3>
+                <div class="form-row-multi">
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="guardianName" name="guardianName">
+                            <label for="guardianName">Guardian's Full Name</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="text" id="guardianRelation" name="guardianRelation">
+                            <label for="guardianRelation">Relationship</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="floating-input">
+                            <input type="tel" id="guardianContact" name="guardianContact">
+                            <label for="guardianContact">Contact Number</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="step-buttons">
+                    <button type="button" class="btn-prev" onclick="prevStep()">← Previous</button>
+                    <button type="button" class="btn-next" onclick="nextStep()">Next Step →</button>
+                </div>
+            </div>
+
+           <!-- ✅ STEP 4: Previous School / Preliminary Education -->
+<div class="form-step" data-step="4">
+    <h2 class="step-title" id="step4Title">Previous School Information</h2>
+    
+    <!-- ✅ For Elementary students (simple form) -->
+    <div id="simpleSchoolForm">
+        <div class="form-group">
+            <div class="floating-input">
+                <input type="text" id="lastSchool" maxlength="150" name="lastSchool" required>
+                <label for="lastSchool">Last School Attended <span class="required">*</span></label>
+            </div>
+        </div>
+
+        <div class="form-row-multi">
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="schoolAddress" maxlength="200" name="schoolAddress">
+                    <label for="schoolAddress">School Address</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="lastGrade" name="lastGrade">
+                    <label for="lastGrade">Last Grade/Year Level Completed</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="lastSchoolYear" name="lastSchoolYear">
+                    <label for="lastSchoolYear">School Year Completed</label>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ✅ For College students (detailed education history) -->
+    <div id="detailedEducationForm" style="display: none;">
+        
+        <!-- Elementary History -->
+        <h3 class="subsection-title">Elementary Education</h3>
+        <div class="form-row-multi">
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="elementarySchool" name="elementarySchool">
+                    <label for="elementarySchool">Elementary School Name <span class="required">*</span></label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="elementaryAddress" name="elementaryAddress">
+                    <label for="elementaryAddress">Address</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="elementaryYear" name="elementaryYear" placeholder="e.g., 2015-2016">
+                    <label for="elementaryYear">Year Graduated</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Junior High School History -->
+        <h3 class="subsection-title">Junior High School Education</h3>
+        <div class="form-row-multi">
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="juniorHighSchool" name="juniorHighSchool">
+                    <label for="juniorHighSchool">Junior High School Name <span class="required">*</span></label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="juniorHighAddress" name="juniorHighAddress">
+                    <label for="juniorHighAddress">Address</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="juniorHighYear" name="juniorHighYear" placeholder="e.g., 2019-2020">
+                    <label for="juniorHighYear">Year Graduated</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Senior High School History -->
+        <h3 class="subsection-title">Senior High School Education</h3>
+        <div class="form-row-multi">
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="seniorHighSchool" name="seniorHighSchool">
+                    <label for="seniorHighSchool">Senior High School Name <span class="required">*</span></label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="seniorHighAddress" name="seniorHighAddress">
+                    <label for="seniorHighAddress">Address</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="seniorHighYear" name="seniorHighYear" placeholder="e.g., 2023-2024">
+                    <label for="seniorHighYear">Year Graduated</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Last School Attended (if transferee) -->
+        <h3 class="subsection-title">Last School Attended (if applicable)</h3>
+        <div class="form-row-multi">
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="lastCollegeSchool" name="lastCollegeSchool">
+                    <label for="lastCollegeSchool">College/University Name</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="lastCollegeAddress" name="lastCollegeAddress">
+                    <label for="lastCollegeAddress">Address</label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="floating-input">
+                    <input type="text" id="lastCollegeYear" name="lastCollegeYear" placeholder="e.g., 2024-2025">
+                    <label for="lastCollegeYear">Year Attended</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-buttons">
+        <button type="button" class="btn-prev" onclick="prevStep()">← Previous</button>
+        <button type="button" class="btn-next" onclick="nextStep()">Review →</button>
+    </div>
+</div>
+            <!-- ✅ STEP 5: Review & Submit -->
+            <div class="form-step" data-step="5">
+                <h2 class="step-title">Review Your Information</h2>
+                
+                <div class="review-section">
+                    <h3>Campus & Program</h3>
+                    <div class="review-content" id="reviewCampus"></div>
+                </div>
+
+                <div class="review-section">
+                    <h3>Student Information</h3>
+                    <div class="review-content" id="reviewStudent"></div>
+                </div>
+
+                <div class="review-section">
+                    <h3>Parent/Guardian Information</h3>
+                    <div class="review-content" id="reviewParent"></div>
+                </div>
+
+                <div class="review-section">
+                    <h3>Previous School</h3>
+                    <div class="review-content" id="reviewSchool"></div>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="termsAccept" name="termsAccept" required>
+                        <span>I hereby certify that all information provided above is true and correct. <span class="required">*</span></span>
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="dataPrivacy" name="dataPrivacy" required>
+                        <span>I consent to the collection and processing of my personal data in accordance with the Data Privacy Act. <span class="required">*</span></span>
+                    </label>
+                </div>
+
+                <div class="step-buttons">
+                    <button type="button" class="btn-prev" onclick="prevStep()">← Previous</button>
+                    <button type="submit" class="btn-submit">Submit Enrollment</button>
+                </div>
+            </div>
+
+
+        <!-- Security: Honeypot field — DO NOT REMOVE (bot detection) -->
+        <div style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" aria-hidden="true">
+            <label for="cshc_hp_field">Leave this empty</label>
+            <input type="text" id="cshc_hp_field" name="cshc_hp_field" tabindex="-1" autocomplete="off">
+        </div>
+        </form>
+
+        <!-- Success Message (same as before) -->
+        <div class="success-message" id="successMessage">
+            <div class="success-icon">✓</div>
+            <h2>Enrollment Submitted Successfully!</h2>
+            <p>Thank you for your interest in Cebu Sacred Heart College.</p>
+            <p><strong>Reference Number:</strong> <span id="referenceNumber"></span></p>
+            <p>Our admissions office will contact you within 2-3 business days.</p>
+            <a href="index.html" class="btn btn-primary">Return to Home</a>
+        </div>
+
+    </div>
+</section> 
+
+<!-- Custom Calendar Popup -->
+<div class="calendar-overlay" id="calendarOverlay">
+    <div class="calendar-popup">
+        <div class="calendar-header">
+            <button type="button" class="calendar-nav" id="calendarPrevMonth">
+                <span>‹</span>
+            </button>
+                 <!-- ✅ Clickable Month and Year -->
+                    <div class="calendar-title-container">
+                        <span class="calendar-month-clickable" id="calendarMonthClickable">January</span>
+                        <span class="calendar-year-clickable" id="calendarYearClickable">2026</span>
+                    </div>
+    
+                 <!-- ✅ Hidden dropdowns that appear on click -->
+                    <div class="calendar-dropdown-overlay" id="calendarDropdownOverlay">
+                        <div class="calendar-dropdown-content">
+                            <h3 id="dropdownTitle">Select Month</h3>
+                            <div class="calendar-dropdown-grid" id="calendarDropdownGrid">
+                                <!-- Options will be generated by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+    
+                    <button type="button" class="calendar-nav" id="calendarNextMonth">
+                        <span>›</span>
+                    </button>
+        </div>
+        
+        <div class="calendar-weekdays">
+            <div>Sun</div>
+            <div>Mon</div>
+            <div>Tue</div>
+            <div>Wed</div>
+            <div>Thu</div>
+            <div>Fri</div>
+            <div>Sat</div>
+        </div>
+        
+        <div class="calendar-days" id="calendarDays">
+            <!-- Days will be generated by JavaScript -->
+        </div>
+        
+        <div class="calendar-footer">
+            <button type="button" class="calendar-today-btn" id="calendarToday">Today</button>
+            <button type="button" class="calendar-clear-btn" id="calendarClear">Clear</button>
+            <button type="button" class="calendar-close-btn" id="calendarClose">Close</button>
+        </div>
+    </div>
+</div>
+    
+
+    <!-- Footer (same as main page) -->
+    <footer class="footer">
+        <div class="container"> 
+            <div class="footer-bottom">
+                <p>&copy; 2025 Cebu Sacred Heart College, Inc. All rights reserved.</p>
+                <p>Developed by Alvin Gonzales</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Security bridge: load BEFORE enrollment.js -->
+    <script src="enrollmentBridge.website.js"></script>
+    <script src="enrollment.js"></script>
+
+</body>
+</html>

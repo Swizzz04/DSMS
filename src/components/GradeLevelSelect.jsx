@@ -73,28 +73,69 @@ export default function GradeLevelSelect({ value, onChange, campusFilter = 'all'
   const selectedLabel = value === 'all' ? 'All Grades' : value
 
   // ── Position panel under trigger ────────────────────────────────
-  const openDropdown = () => {
+  const updatePos = () => {
     if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
+    const rect    = triggerRef.current.getBoundingClientRect()
+    const vw      = window.innerWidth
+    const PADDING = 8  // min gap from screen edge
+
+    // Width: use trigger width but never wider than viewport minus padding
+    const width = Math.min(rect.width, vw - PADDING * 2)
+    // Width must be at least 200px (or vw minus padding if screen is tiny)
+    const finalWidth = Math.max(width, Math.min(200, vw - PADDING * 2))
+
+    // Left: start at trigger left, but clamp so right edge doesn't go off screen
+    let left = rect.left
+    if (left + finalWidth > vw - PADDING) {
+      left = vw - finalWidth - PADDING
+    }
+    if (left < PADDING) left = PADDING
+
     setDropPos({
-      top:   rect.bottom + window.scrollY + 4,
-      left:  rect.left   + window.scrollX,
-      width: rect.width,
+      top:   rect.bottom + 4,
+      left,
+      width: finalWidth,
     })
+  }
+
+  const openDropdown = () => {
+    updatePos()
     setOpen(true)
   }
 
-  // Close on outside click
+  // Close on outside click + reposition on scroll/resize while open
   useEffect(() => {
     if (!open) return
-    const handler = (e) => {
+    const handleClick = (e) => {
       if (
-        panelRef.current  && !panelRef.current.contains(e.target) &&
+        panelRef.current   && !panelRef.current.contains(e.target) &&
         triggerRef.current && !triggerRef.current.contains(e.target)
       ) setOpen(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleScroll = () => {
+      if (triggerRef.current) {
+        const rect = triggerRef.current.getBoundingClientRect()
+        // Close if trigger scrolled off screen
+        if (rect.bottom < 0 || rect.top > window.innerHeight) {
+          setOpen(false)
+        } else {
+          const vw = window.innerWidth, PAD = 8
+        const w  = Math.max(Math.min(rect.width, vw - PAD * 2), Math.min(200, vw - PAD * 2))
+        let   l  = rect.left
+        if (l + w > vw - PAD) l = vw - w - PAD
+        if (l < PAD) l = PAD
+        setDropPos({ top: rect.bottom + 4, left: l, width: w })
+        }
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    window.addEventListener('scroll',  handleScroll, true)
+    window.addEventListener('resize',  updatePos)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('scroll',  handleScroll, true)
+      window.removeEventListener('resize',  updatePos)
+    }
   }, [open])
 
   const select = (val) => { onChange(val); setOpen(false) }
@@ -129,7 +170,7 @@ export default function GradeLevelSelect({ value, onChange, campusFilter = 'all'
   const panel = open && createPortal(
     <div
       ref={panelRef}
-      style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, minWidth: 200 }}
+      style={{ position: 'fixed', top: dropPos.top, left: dropPos.left, width: dropPos.width, minWidth: 200 }}
       className="fixed z-[9999] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
         rounded-xl shadow-2xl overflow-hidden"
     >
@@ -146,7 +187,7 @@ export default function GradeLevelSelect({ value, onChange, campusFilter = 'all'
       </button>
 
       {/* Grouped options */}
-      <div className="max-h-72 overflow-y-auto">
+      <div className="overflow-y-auto" style={{ maxHeight: Math.min(288, window.innerHeight - dropPos.top - 16) }}>
         {groups.map((group) => (
           <div key={group.label}>
             {/* Group header */}

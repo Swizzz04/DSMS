@@ -99,7 +99,9 @@ export function AuthProvider({ children }) {
 
   const doLogout = (expired = false) => {
     setUser(null)
-    localStorage.removeItem(USER_KEY)
+    // Clear this tab's session only
+    sessionStorage.removeItem('cshc_session_user')
+    localStorage.removeItem(USER_KEY) // clean up any legacy localStorage entries
     if (timerRef.current) clearTimeout(timerRef.current)
     if (expired) {
       sessionStorage.setItem('cshc_expired', '1')
@@ -117,20 +119,29 @@ export function AuthProvider({ children }) {
   }, [user, resetTimer])
 
   // ── Restore session on mount ───────────────────────────────────────
+  // Uses sessionStorage (tab-isolated) as the primary session store.
+  // localStorage is only used to persist lockout state and app config —
+  // NOT for auto-login across tabs. Each tab must log in independently.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(USER_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw)
+      // Primary: check sessionStorage (this tab's own session)
+      const sessionRaw = sessionStorage.getItem('cshc_session_user')
+      if (sessionRaw) {
+        const parsed = JSON.parse(sessionRaw)
         if (isValidSession(parsed)) {
           setUser(parsed)
           resetTimer()
+          setLoading(false)
+          return
         } else {
-          // Malformed — clear it
-          localStorage.removeItem(USER_KEY)
+          sessionStorage.removeItem('cshc_session_user')
         }
       }
+      // No session in this tab — show login page
+      // (Do NOT read localStorage here to prevent cross-tab auto-login)
+      localStorage.removeItem(USER_KEY)
     } catch {
+      sessionStorage.removeItem('cshc_session_user')
       localStorage.removeItem(USER_KEY)
     }
     setLoading(false)
@@ -183,7 +194,9 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem('cshc_expired')
     const safe = sanitizeUser(found)
     setUser(safe)
-    localStorage.setItem(USER_KEY, JSON.stringify(safe))
+    // Store ONLY in sessionStorage (tab-isolated) — never localStorage
+    // This prevents other tabs from auto-logging in as this user
+    sessionStorage.setItem('cshc_session_user', JSON.stringify(safe))
     resetTimer()
     // Notify ThemeContext to load this user's saved theme preference
     window.dispatchEvent(new CustomEvent('cshc_auth_change'))
