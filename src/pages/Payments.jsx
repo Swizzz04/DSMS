@@ -13,6 +13,14 @@ import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { PageSkeleton, EmptyState, useToast, ToastContainer } from '../components/UIComponents'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import {
+  DeptPaymentCard,
+  ProgramPaymentCard,
+  PaymentStatusBadge as StatusBadge,
+  DEPT_STYLES, PROG_COLORS,
+  CampusBanner,
+} from '../components/SchoolComponents'
+
 
 // ── helpers ────────────────────────────────────────────────────────
 const php = (n) =>
@@ -25,244 +33,6 @@ function isCollege(g) {
   return g && (g.includes('BS') || g.includes('Year'))
 }
 
-const DEPT_STYLES = {
-  'Pre-Elementary':   { bg: 'bg-emerald-600', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300', bar: 'bg-emerald-500' },
-  'Elementary':       { bg: 'bg-blue-600',    light: 'bg-blue-50 dark:bg-blue-900/20',       border: 'border-blue-200 dark:border-blue-700',       text: 'text-blue-700 dark:text-blue-300',       bar: 'bg-blue-500'    },
-  'Junior High School':{ bg: 'bg-indigo-700', light: 'bg-indigo-50 dark:bg-indigo-900/20',   border: 'border-indigo-200 dark:border-indigo-700',   text: 'text-indigo-700 dark:text-indigo-300',   bar: 'bg-indigo-500'  },
-  'Senior High School':{ bg: 'bg-primary',    light: 'bg-red-50 dark:bg-red-900/20',         border: 'border-red-200 dark:border-red-700',         text: 'text-primary dark:text-red-300',         bar: 'bg-primary'     },
-}
-const PROG_COLORS = [
-  { bg: 'bg-primary',        light: 'bg-red-50 dark:bg-red-900/20',       border: 'border-red-200 dark:border-red-700',       text: 'text-primary dark:text-red-300',        bar: 'bg-primary'         },
-  { bg: 'bg-secondary',      light: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-200 dark:border-indigo-700', text: 'text-indigo-700 dark:text-indigo-300',  bar: 'bg-secondary'       },
-  { bg: 'bg-light-secondary',light: 'bg-blue-50 dark:bg-blue-900/20',     border: 'border-blue-200 dark:border-blue-700',     text: 'text-blue-700 dark:text-blue-300',      bar: 'bg-light-secondary' },
-  { bg: 'bg-violet-600',     light: 'bg-violet-50 dark:bg-violet-900/20', border: 'border-violet-200 dark:border-violet-700', text: 'text-violet-700 dark:text-violet-300',  bar: 'bg-violet-500'      },
-]
-
-function StatusBadge({ status }) {
-  const map = {
-    paid:    { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',    Icon: CheckCircle },
-    partial: { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', Icon: Clock       },
-    overdue: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             Icon: AlertCircle },
-    pending: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',            Icon: XCircle     },
-  }
-  const { cls, Icon } = map[status] || map.pending
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
-      <Icon className="w-3 h-3" />{status.charAt(0).toUpperCase()+status.slice(1)}
-    </span>
-  )
-}
-
-// ── Grade-level row inside a card ─────────────────────────────────
-function GradeRow({ label, payments, maxRevenue }) {
-  const revenue     = payments.reduce((s, p) => s + p.amountPaid, 0)
-  const outstanding = payments.reduce((s, p) => s + p.balance, 0)
-  const totalFee    = payments.reduce((s, p) => s + p.totalFee, 0)
-  const paid        = payments.filter(p => p.status === 'paid').length
-  const partial     = payments.filter(p => p.status === 'partial').length
-  const overdue     = payments.filter(p => p.status === 'overdue').length
-  const pending     = payments.filter(p => p.status === 'pending').length
-
-  return (
-    <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-      {/* Grade label */}
-      <div className="w-32 flex-shrink-0">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
-        <p className="text-xs text-gray-400 dark:text-gray-500">{payments.length} student{payments.length !== 1 ? 's' : ''}</p>
-      </div>
-
-      {/* Revenue bar */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-            {totalFee > 0 ? (
-              <div className="h-full flex rounded-full overflow-hidden">
-                <div className="bg-green-500 h-full transition-all duration-500"
-                  style={{ width: `${(revenue / totalFee) * 100}%` }} />
-                <div className="bg-gray-300 dark:bg-gray-600 h-full transition-all duration-500"
-                  style={{ width: `${(outstanding / totalFee) * 100}%` }} />
-              </div>
-            ) : (
-              <div className="h-full w-full bg-gray-200 dark:bg-gray-600 rounded-full" />
-            )}
-          </div>
-          <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
-            {totalFee > 0 ? Math.round((revenue / totalFee) * 100) : 0}%
-          </span>
-        </div>
-      </div>
-
-      {/* Amounts */}
-      <div className="flex items-center gap-4 flex-shrink-0 sm:w-64 justify-between">
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Collected</p>
-          <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(revenue)}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Outstanding</p>
-          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}`}>{outstanding > 0 ? php(outstanding) : '—'}</p>
-        </div>
-      </div>
-
-      {/* Status mini-badges */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {paid    > 0 && <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full" title="Paid">{paid} paid</span>}
-        {partial > 0 && <span className="text-xs font-semibold bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full" title="Partial">{partial} partial</span>}
-        {overdue > 0 && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full" title="Overdue">{overdue} overdue</span>}
-        {pending > 0 && <span className="text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full" title="No payment">{pending} unpaid</span>}
-      </div>
-    </div>
-  )
-}
-
-// ── Department card (Basic Ed) ────────────────────────────────────
-function DeptPaymentCard({ group, payments }) {
-  const [expanded, setExpanded] = useState(true)
-  const style = DEPT_STYLES[group.label] || DEPT_STYLES['Elementary']
-
-  const deptPayments  = payments.filter(p => group.options.includes(p.gradeLevel))
-  const deptRevenue   = deptPayments.reduce((s, p) => s + p.amountPaid, 0)
-  const deptOutstanding = deptPayments.reduce((s, p) => s + p.balance, 0)
-  const deptTotalFee  = deptPayments.reduce((s, p) => s + p.totalFee, 0)
-  const maxRevenue    = Math.max(...group.options.map(g => payments.filter(p => p.gradeLevel === g).reduce((s, p) => s + p.amountPaid, 0)), 1)
-
-  if (deptPayments.length === 0) return null
-
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
-      <button onClick={() => setExpanded(e => !e)}
-        className={`w-full ${style.light} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}>
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className="w-4 h-4 text-white" />
-          </div>
-          <div className="text-left min-w-0">
-            <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{deptPayments.length} student{deptPayments.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
-            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
-          </div>
-          {deptOutstanding > 0 && (
-            <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
-              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(deptOutstanding)}</p>
-            </div>
-          )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {group.options.map(grade => {
-            const gradePayments = payments.filter(p => p.gradeLevel === grade)
-            if (gradePayments.length === 0) return null
-            return <GradeRow key={grade} label={grade} payments={gradePayments} maxRevenue={maxRevenue} />
-          })}
-
-          {/* Dept total */}
-          <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{group.label} Total</span>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Total Fees</p>
-                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(deptTotalFee)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Collected</p>
-                <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Outstanding</p>
-                <p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── College program card ───────────────────────────────────────────
-function ProgramPaymentCard({ program, colorIdx, payments }) {
-  const [expanded, setExpanded] = useState(true)
-  const style = PROG_COLORS[colorIdx % PROG_COLORS.length]
-
-  const progPayments    = payments.filter(p => p.gradeLevel.startsWith(program))
-  const progRevenue     = progPayments.reduce((s, p) => s + p.amountPaid, 0)
-  const progOutstanding = progPayments.reduce((s, p) => s + p.balance, 0)
-  const progTotalFee    = progPayments.reduce((s, p) => s + p.totalFee, 0)
-  const maxRevenue      = Math.max(...COLLEGE_YEAR_LEVELS.map(yr => payments.filter(p => p.gradeLevel === `${program} - ${yr}`).reduce((s, p) => s + p.amountPaid, 0)), 1)
-
-  if (progPayments.length === 0) return null
-
-  return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
-      <button onClick={() => setExpanded(e => !e)}
-        className={`w-full ${style.light} px-5 py-4 flex items-center justify-between gap-4 hover:opacity-90 transition`}>
-        <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className="w-4 h-4 text-white" />
-          </div>
-          <div className="text-left min-w-0">
-            <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{progPayments.length} student{progPayments.length !== 1 ? 's' : ''}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
-            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
-          </div>
-          {progOutstanding > 0 && (
-            <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
-              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(progOutstanding)}</p>
-            </div>
-          )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </button>
-
-      {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-          {COLLEGE_YEAR_LEVELS.map(yr => {
-            const key = `${program} - ${yr}`
-            const yrPayments = payments.filter(p => p.gradeLevel === key)
-            if (yrPayments.length === 0) return null
-            return <GradeRow key={yr} label={yr} payments={yrPayments} maxRevenue={maxRevenue} />
-          })}
-
-          {/* Program total */}
-          <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{program} Total</span>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Total Fees</p>
-                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(progTotalFee)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Collected</p>
-                <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">Outstanding</p>
-                <p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ════════════════════════════════════════════════════════════════════
 // ADMIN PAYMENTS OVERVIEW
 // ════════════════════════════════════════════════════════════════════
 function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
@@ -512,6 +282,11 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
 export default function Payments() {
   const { user } = useAuth()
   const { activeCampuses, currentSchoolYear } = useAppConfig()
+
+  // Campus-locked accounting: scope all data to user.campus
+  const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
+  const accountingCampus   = isAccountingLocked ? user.campus : null
+
   const [payments]                          = useState(mockPayments)
   const [searchQuery, setSearchQuery]       = useState('')
   const [statusFilter, setStatusFilter]     = useState('all')
@@ -531,7 +306,7 @@ export default function Payments() {
 
   if (loading) return <PageSkeleton title="Payments" />
 
-  // ── Admin: overview ────────────────────────────────────────────
+  // ── Admin: full overview ─────────────────────────────────────
   if (user?.role === 'admin') {
     return (
       <>
@@ -548,20 +323,27 @@ export default function Payments() {
   }
 
   // ── Accounting: detailed list view ─────────────────────────────
+  // Campus-locked accounting sees only their campus; global accounting respects campusFilter
+  const baseCampusFilter = isAccountingLocked
+    ? accountingCampus
+    : (campusFilter !== 'all' ? activeCampuses.find(c => c.key === campusFilter)?.name : null)
+
   const filtered = payments.filter(p =>
     (p.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
      p.studentId.toLowerCase().includes(searchQuery.toLowerCase())) &&
     (statusFilter === 'all' || p.status === statusFilter) &&
-    (campusFilter === 'all' || p.campus.includes(campusFilter)) &&
+    (!baseCampusFilter || p.campus === baseCampusFilter) &&
     (gradeLevelFilter === 'all' || p.gradeLevel === gradeLevelFilter || p.gradeLevel.startsWith(gradeLevelFilter + ' -'))
   )
 
   const stats = {
     revenue:     filtered.reduce((s, p) => s + p.amountPaid, 0),
     outstanding: filtered.reduce((s, p) => s + p.balance, 0),
+    totalFee:    filtered.reduce((s, p) => s + p.totalFee, 0),
     paid:        filtered.filter(p => p.status === 'paid').length,
     overdue:     filtered.filter(p => p.status === 'overdue').length,
   }
+  const collectionRate = stats.totalFee > 0 ? Math.round((stats.revenue / stats.totalFee) * 100) : 0
 
   const handleExport = () => {
     const data = filtered.map(p => ({
@@ -578,10 +360,21 @@ export default function Payments() {
 
   return (
     <div className="animate-fade-in space-y-5">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Payments</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Track and manage student payment records</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-white">Payments</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {isAccountingLocked ? `${accountingCampus} · Payment records` : 'Track and manage student payment records'}
+          </p>
+        </div>
+        <button onClick={handleExport}
+          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+          <Download className="w-4 h-4" /> Export
+        </button>
       </div>
+
+      {/* Campus-locked banner */}
+      <CampusBanner user={user} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -617,7 +410,11 @@ export default function Payments() {
             <option value="pending">Pending</option>
           </select>
           <div>
-            <GradeLevelSelect value={gradeLevelFilter} onChange={setGradeLevelFilter} campusFilter={campusFilter} userRole={user?.role} />
+            <GradeLevelSelect value={gradeLevelFilter} onChange={setGradeLevelFilter}
+              campusFilter={isAccountingLocked
+                ? (activeCampuses.find(c => c.name === accountingCampus)?.key || 'all')
+                : campusFilter}
+              userRole={user?.role} />
           </div>
           <div className="col-span-2 flex justify-end">
             <button onClick={handleExport}

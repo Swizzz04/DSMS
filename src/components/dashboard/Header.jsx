@@ -1,43 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, User, Menu, LogOut, ChevronDown, MapPin, X } from 'lucide-react'
+import { User, Menu, LogOut, ChevronDown, MapPin, X } from 'lucide-react'
 import ThemeToggle from '../ThemeToggle'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import NotificationPanel from './NotificationPanel'
 import { mockEnrollments } from '../../data/mockEnrollments'
+import { CampusChip } from '../SchoolComponents'
 import { mockPayments } from '../../data/mockPayments'
 import { useAvatar } from '../../hooks/useAvatar'
 import ProfileModal from './ProfileModal'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { useCampusFilter } from '../../context/CampusFilterContext'
 
-function getNotificationCount(user) {
-  let count = 0
-  if (user?.role !== 'accounting') {
-    mockEnrollments.forEach(e => {
-      if (e.status === 'pending') {
-        const isBasicGrade   = e.enrollment.gradeLevel.includes('Grade')
-        const isCollegeGrade = e.enrollment.gradeLevel.includes('BS') || e.enrollment.gradeLevel.includes('Year')
-        const visible =
-          user?.role === 'admin' ||
-          (user?.role === 'registrar_basic'   && isBasicGrade && e.enrollment.campus === user?.campus) ||
-          (user?.role === 'principal_basic'   && isBasicGrade) ||
-          (user?.role === 'registrar_college' && isCollegeGrade && e.enrollment.campus === user?.campus)
-        if (visible) count++
-      }
-    })
-  }
-  if (user?.role === 'admin' || user?.role === 'accounting') {
-    mockPayments.forEach(p => {
-      if (p.status === 'overdue') count++
-      if (p.status === 'partial') {
-        const days = Math.ceil((new Date(p.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
-        if (days <= 30 && days > 0) count++
-      }
-    })
-  }
-  return count
-}
 
 // Shared transition classes for all dropdowns
 const dropdownTransition = (open) =>
@@ -51,16 +24,15 @@ export default function Header({ toggleSidebar }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showDropdown,      setShowDropdown]      = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [showProfile,       setShowProfile]       = useState(false)
   const [showCampusPicker,  setShowCampusPicker]  = useState(false)
   const dropdownRef = useRef(null)
   const campusRef   = useRef(null)
-  const notifRef    = useRef(null)
   const [avatar]    = useAvatar(user?.id)
   const { activeCampuses } = useAppConfig()
   const { campusFilter, setCampusFilter } = useCampusFilter()
-  const notifCount = getNotificationCount(user)
+  const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
+
 
   const selectedCampus = activeCampuses.find(c => c.key === campusFilter)
   const campusLabel    = selectedCampus ? selectedCampus.name : 'All Campuses'
@@ -71,7 +43,6 @@ export default function Header({ toggleSidebar }) {
     function handler(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowDropdown(false)
       if (campusRef.current   && !campusRef.current.contains(e.target))   setShowCampusPicker(false)
-      if (notifRef.current    && !notifRef.current.contains(e.target))    setShowNotifications(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -94,11 +65,14 @@ export default function Header({ toggleSidebar }) {
         {/* ── Action row ── */}
         <div className="flex items-center gap-1 sm:gap-2">
 
+          {/* ── Campus chip for all campus-locked roles ── */}
+          <CampusChip user={user} />
+
           {/* ── 1. Campus Selector (hidden for campus-locked roles) ── */}
-          {user?.role !== 'registrar_college' && user?.role !== 'registrar_basic' && (
+          {user?.role !== 'registrar_college' && user?.role !== 'registrar_basic' && !(user?.role === 'accounting' && user?.campus !== 'all') && (
           <div className="relative" ref={campusRef}>
             <button
-              onClick={() => { setShowCampusPicker(v => !v); setShowNotifications(false); setShowDropdown(false) }}
+              onClick={() => { setShowCampusPicker(v => !v); setShowDropdown(false) }}
               className={`flex items-center gap-1.5 rounded-lg border transition-all px-2.5 py-2
                 ${campusFilter !== 'all'
                   ? 'bg-primary text-white border-primary shadow-sm'
@@ -165,28 +139,9 @@ export default function Header({ toggleSidebar }) {
           </div>
           )}
 
-          {/* ── 2. Notifications ── */}
-          <div className="relative" ref={notifRef}>
-            <button
-              onClick={() => { setShowNotifications(v => !v); setShowCampusPicker(false); setShowDropdown(false) }}
-              className="relative p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Bell className="w-5 h-5" />
-              {notifCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-[17px] h-[17px] bg-primary text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 leading-none">
-                  {notifCount > 9 ? '9+' : notifCount}
-                </span>
-              )}
-            </button>
 
-            {/* Notification panel */}
-            <div className={`fixed inset-x-3 top-[4.5rem] z-[9999]
-              sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80
-              ${dropdownTransition(showNotifications)}`}
-            >
-              <NotificationPanel onClose={() => setShowNotifications(false)} />
-            </div>
-          </div>
+
+          {/* Notifications moved to sidebar badges */}
 
           {/* ── 3. Theme Toggle ── */}
           <ThemeToggle />
@@ -194,7 +149,7 @@ export default function Header({ toggleSidebar }) {
           {/* ── 4. User Profile ── */}
           <div className="relative" ref={dropdownRef}>
             <button
-              onClick={() => { setShowDropdown(v => !v); setShowNotifications(false); setShowCampusPicker(false) }}
+              onClick={() => { setShowDropdown(v => !v); setShowCampusPicker(false) }}
               className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center overflow-hidden flex-shrink-0">
