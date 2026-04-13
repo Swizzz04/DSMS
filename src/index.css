@@ -2,7 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
+/* ═══════════════════════════════════════════════════════════════════
+   CSHC ADMIN PORTAL — Global Design System
+   ───────────────────────────────────────────────────────────────────
+   Sections:
+     1. Reset & base
+     2. Design tokens (colors, radius, spacing, shadows, transitions)
+     3. Typography scale
+     4. Skeleton shimmer
+     5. Animation library
+     6. Transition utilities
+     7. Component primitives (cards, badges, buttons, inputs)
+     8. Page & layout utilities
+     9. Scrollbar styling
+    10. Dark mode overrides
+    11. Reduced-motion safety net
+   ═══════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────────────
+   1. RESET & BASE
+   ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -11,63 +32,689 @@
 html {
   width: 100%;
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Smooth scrolling for anchor links */
+  scroll-behavior: smooth;
 }
 
 body {
   width: 100%;
   min-height: 100vh;
-  margin: 0;
-  padding: 0;
+  min-height: 100dvh;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  background-color: #f7f8ef;
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  /* Smooth color transitions when toggling dark mode */
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
 }
-/* ── Skeleton shimmer ── */
+
+/* Better tap targets on mobile — removes 300ms delay */
+button, a, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Smooth horizontal scroll on iOS */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   2. DESIGN TOKENS
+   ───────────────────────────────────────────────────────────────── */
+:root {
+  /* ── Brand colors ─────────────────────────────── */
+  --color-primary:          #750014;   /* CSHC burgundy red        */
+  --color-primary-hover:    #5a0010;   /* darker on hover          */
+  --color-primary-light:    #f9e8eb;   /* light tint for badges    */
+  --color-primary-muted:    rgba(117, 0, 20, 0.08);
+
+  --color-secondary:        #080c42;   /* CSHC navy                */
+  --color-secondary-hover:  #060931;
+  --color-secondary-light:  #202682;   /* lighter navy             */
+  --color-secondary-muted:  rgba(8, 12, 66, 0.08);
+
+  /* ── Surface colors (light mode) ─────────────── */
+  --color-bg-page:          #f4f5f0;   /* warm off-white page bg   */
+  --color-bg-card:          #ffffff;
+  --color-bg-card-hover:    #fafafa;
+  --color-bg-subtle:        #f8f8f6;   /* input fills, table rows  */
+  --color-bg-muted:         #f0f0ec;   /* secondary sections       */
+
+  /* ── Border colors (light mode) ──────────────── */
+  --color-border:           #e8e8e4;
+  --color-border-strong:    #d4d4d0;
+  --color-border-focus:     var(--color-secondary);
+
+  /* ── Text colors (light mode) ────────────────── */
+  --color-text-primary:     #1a1a1a;
+  --color-text-secondary:   #4a4a4a;
+  --color-text-muted:       #8a8a8a;
+  --color-text-inverse:     #ffffff;
+
+  /* ── Semantic colors ──────────────────────────── */
+  --color-success:          #16a34a;
+  --color-success-light:    #f0fdf4;
+  --color-success-border:   #bbf7d0;
+
+  --color-warning:          #d97706;
+  --color-warning-light:    #fffbeb;
+  --color-warning-border:   #fed7aa;
+
+  --color-error:            #dc2626;
+  --color-error-light:      #fef2f2;
+  --color-error-border:     #fecaca;
+
+  --color-info:             #2563eb;
+  --color-info-light:       #eff6ff;
+  --color-info-border:      #bfdbfe;
+
+  /* ── Status badge colors ──────────────────────── */
+  --color-pending-bg:       #fefce8;
+  --color-pending-text:     #854d0e;
+  --color-pending-border:   #fde68a;
+
+  --color-approved-bg:      #f0fdf4;
+  --color-approved-text:    #166534;
+  --color-approved-border:  #bbf7d0;
+
+  --color-rejected-bg:      #fef2f2;
+  --color-rejected-text:    #991b1b;
+  --color-rejected-border:  #fecaca;
+
+  --color-payment-bg:       #eff6ff;
+  --color-payment-text:     #1d4ed8;
+  --color-payment-border:   #bfdbfe;
+
+  /* ── Radius scale ─────────────────────────────── */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-full: 9999px;
+
+  /* ── Spacing scale (consistent multiples of 4px) */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Shadows ──────────────────────────────────── */
+  --shadow-xs:  0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md:  0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg:  0 10px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.04);
+  --shadow-modal: 0 20px 40px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.08);
+
+  /* ── Transition presets ───────────────────────── */
+  --t-fast:    100ms ease;
+  --t-base:    200ms ease;
+  --t-slow:    300ms ease;
+  --t-page:    250ms ease-out;
+  --t-modal:   220ms cubic-bezier(0.34, 1.2, 0.64, 1);   /* slight spring */
+  --t-slide:   280ms cubic-bezier(0.4, 0, 0.2, 1);        /* material ease */
+  --t-spring:  350ms cubic-bezier(0.34, 1.56, 0.64, 1);   /* bouncy spring */
+
+  /* ── Z-index scale ────────────────────────────── */
+  --z-sidebar:  60;
+  --z-header:   50;
+  --z-dropdown: 9000;
+  --z-modal:    9999;
+  --z-toast:    10000;
+}
+
+/* ── Dark mode token overrides ─────────────────── */
+.dark {
+  --color-bg-page:          #0f1117;
+  --color-bg-card:          #1a1d27;
+  --color-bg-card-hover:    #1f2235;
+  --color-bg-subtle:        #161824;
+  --color-bg-muted:         #13151f;
+
+  --color-border:           #2a2d3e;
+  --color-border-strong:    #363a52;
+  --color-border-focus:     #4f5bcc;
+
+  --color-text-primary:     #f0f0ee;
+  --color-text-secondary:   #a8a8b0;
+  --color-text-muted:       #6a6a78;
+
+  --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md:   0 4px 6px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg:   0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.2);
+  --shadow-modal:0 20px 40px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
+
+  --color-primary-muted:    rgba(117, 0, 20, 0.15);
+  --color-secondary-muted:  rgba(32, 38, 130, 0.25);
+
+  --color-success-light:    rgba(22, 163, 74, 0.12);
+  --color-success-border:   rgba(22, 163, 74, 0.25);
+  --color-warning-light:    rgba(217, 119, 6, 0.12);
+  --color-warning-border:   rgba(217, 119, 6, 0.25);
+  --color-error-light:      rgba(220, 38, 38, 0.12);
+  --color-error-border:     rgba(220, 38, 38, 0.25);
+  --color-info-light:       rgba(37, 99, 235, 0.12);
+  --color-info-border:      rgba(37, 99, 235, 0.25);
+
+  --color-pending-bg:       rgba(202, 138, 4, 0.12);
+  --color-pending-text:     #fbbf24;
+  --color-pending-border:   rgba(202, 138, 4, 0.25);
+
+  --color-approved-bg:      rgba(22, 163, 74, 0.12);
+  --color-approved-text:    #4ade80;
+  --color-approved-border:  rgba(22, 163, 74, 0.25);
+
+  --color-rejected-bg:      rgba(220, 38, 38, 0.12);
+  --color-rejected-text:    #f87171;
+  --color-rejected-border:  rgba(220, 38, 38, 0.25);
+
+  --color-payment-bg:       rgba(37, 99, 235, 0.12);
+  --color-payment-text:     #60a5fa;
+  --color-payment-border:   rgba(37, 99, 235, 0.25);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   3. TYPOGRAPHY SCALE
+   ───────────────────────────────────────────────────────────────── */
+.text-display   { font-size: 1.875rem; line-height: 1.2;  font-weight: 700; letter-spacing: -0.025em; }
+.text-title     { font-size: 1.5rem;   line-height: 1.25; font-weight: 700; letter-spacing: -0.02em;  }
+.text-heading   { font-size: 1.125rem; line-height: 1.4;  font-weight: 600; }
+.text-subheading{ font-size: 0.9375rem;line-height: 1.4;  font-weight: 600; }
+.text-body      { font-size: 0.875rem; line-height: 1.6;  font-weight: 400; }
+.text-small     { font-size: 0.8125rem;line-height: 1.5;  font-weight: 400; }
+.text-caption   { font-size: 0.75rem;  line-height: 1.4;  font-weight: 400; }
+.text-label     { font-size: 0.75rem;  line-height: 1;    font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+
+
+/* ─────────────────────────────────────────────────────────────────
+   4. SKELETON SHIMMER
+   ───────────────────────────────────────────────────────────────── */
 @keyframes shimmer {
-  0%   { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+  0%   { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
 }
 
 .skeleton {
-  border-radius: 0.375rem;
-  background: linear-gradient(
-    90deg,
-    #e2e8f0 25%,
-    #f1f5f9 50%,
-    #e2e8f0 75%
-  );
-  background-size: 800px 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, #e8e8e4 25%, #f4f4f0 50%, #e8e8e4 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
 .dark .skeleton {
-  background: linear-gradient(
-    90deg,
-    #1e293b 25%,
-    #273449 50%,
-    #1e293b 75%
-  );
-  background-size: 800px 100%;
-  animation: shimmer 1.4s ease-in-out infinite;
+  background: linear-gradient(90deg, #1e2130 25%, #252840 50%, #1e2130 75%);
+  background-size: 1200px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }
 
-/* ── Fade-in on mount ── */
+
+/* ─────────────────────────────────────────────────────────────────
+   5. ANIMATION LIBRARY
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Core keyframes ───────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out both;
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0);   }
+  to   { opacity: 0; transform: translateY(8px); }
 }
 
-/* ── Staggered children ── */
-.stagger > *:nth-child(1) { animation-delay: 0ms;   }
-.stagger > *:nth-child(2) { animation-delay: 60ms;  }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);   }
+}
+
+@keyframes scaleOut {
+  from { opacity: 1; transform: scale(1)    translateY(0);   }
+  to   { opacity: 0; transform: scale(0.94) translateY(4px); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0);    }
+}
+
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+/* Sidebar slide (no opacity change — mask handles it) */
+@keyframes sidebarIn {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0);     }
+}
+
+@keyframes sidebarOut {
+  from { transform: translateX(0);     }
+  to   { transform: translateX(-100%); }
+}
+
+/* Overlay backdrop */
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes backdropOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Dropdown panel */
+@keyframes dropdownIn {
+  from { opacity: 0; transform: scaleY(0.92) translateY(-6px); }
+  to   { opacity: 1; transform: scaleY(1)    translateY(0);    }
+}
+
+/* Toast notifications */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%) scale(0.9); }
+  to   { opacity: 1; transform: translateX(0)    scale(1);   }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0)    scale(1);   }
+  to   { opacity: 0; transform: translateX(100%) scale(0.9); }
+}
+
+/* Badge pop (when count changes) */
+@keyframes badgePop {
+  0%   { transform: scale(1);   }
+  40%  { transform: scale(1.35);}
+  70%  { transform: scale(0.9); }
+  100% { transform: scale(1);   }
+}
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pulse (for live indicator dots) */
+@keyframes pulse {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%       { opacity: 0.5; transform: scale(0.88); }
+}
+
+/* ── Animation utility classes ────────────────── */
+.animate-fade-in        { animation: fadeIn        var(--t-page) both; }
+.animate-fade-out       { animation: fadeOut       var(--t-page) both; }
+.animate-fade-in-up     { animation: fadeInUp      var(--t-page) both; }
+.animate-fade-in-down   { animation: fadeInDown    var(--t-page) both; }
+.animate-scale-in       { animation: scaleIn       var(--t-modal) both; }
+.animate-scale-out      { animation: scaleOut      var(--t-base)  both; }
+.animate-slide-in-left  { animation: slideInLeft   var(--t-slide) both; }
+.animate-slide-in-right { animation: slideInRight  var(--t-slide) both; }
+.animate-slide-in-up    { animation: slideInUp     var(--t-slide) both; }
+.animate-slide-in-down  { animation: slideInDown   var(--t-slide) both; }
+.animate-spin           { animation: spin 0.75s linear infinite; }
+.animate-pulse-soft     { animation: pulse 2s ease-in-out infinite; }
+.animate-badge-pop      { animation: badgePop 0.35s var(--t-spring) both; }
+
+/* ── Staggered entrance ───────────────────────── */
+.stagger > *:nth-child(1) { animation-delay:   0ms; }
+.stagger > *:nth-child(2) { animation-delay:  60ms; }
 .stagger > *:nth-child(3) { animation-delay: 120ms; }
 .stagger > *:nth-child(4) { animation-delay: 180ms; }
+.stagger > *:nth-child(5) { animation-delay: 240ms; }
+.stagger > *:nth-child(6) { animation-delay: 300ms; }
+
+/* ── Page transitions ─────────────────────────── */
+.page-enter {
+  animation: fadeInUp var(--t-page) both;
+}
+
+/* ── Toast ────────────────────────────────────── */
+.toast-in  { animation: toastIn  var(--t-slide) cubic-bezier(0.34, 1.2, 0.64, 1) both; }
+.toast-out { animation: toastOut var(--t-base)  ease-in both; }
+
+/* ── Modal / overlay ──────────────────────────── */
+.modal-backdrop-in  { animation: backdropIn  var(--t-slow) ease both; }
+.modal-backdrop-out { animation: backdropOut var(--t-base) ease both; }
+.modal-panel-in     { animation: scaleIn     var(--t-modal) both; }
+.modal-panel-out    { animation: scaleOut    var(--t-base)  both; }
+
+/* ── Dropdown ─────────────────────────────────── */
+.dropdown-in {
+  animation: dropdownIn var(--t-base) cubic-bezier(0.4, 0, 0.2, 1) both;
+  transform-origin: top center;
+}
+
+/* ── Route-level page exit (add with JS on unmount if needed) ── */
+.page-exit {
+  animation: fadeOut var(--t-base) both;
+  pointer-events: none;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   6. TRANSITION UTILITIES
+   ───────────────────────────────────────────────────────────────── */
+
+/* Sidebar open/close — replaces abrupt conditional rendering */
+.sidebar-panel {
+  transition: transform var(--t-slide), opacity var(--t-slow);
+}
+.sidebar-panel.closed {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+.sidebar-panel.open {
+  transform: translateX(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Overlay backdrop */
+.overlay-backdrop {
+  transition: opacity var(--t-slow);
+}
+.overlay-backdrop.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.overlay-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Collapsible / accordion panels */
+.collapsible {
+  overflow: hidden;
+  transition: max-height var(--t-slide), opacity var(--t-base);
+}
+.collapsible.closed {
+  max-height: 0;
+  opacity: 0;
+}
+.collapsible.open {
+  max-height: 2000px;   /* large enough for any panel */
+  opacity: 1;
+}
+
+/* Smooth tab indicator */
+.tab-indicator {
+  transition: transform var(--t-slide), width var(--t-base);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   7. COMPONENT PRIMITIVES
+   ───────────────────────────────────────────────────────────────── */
+
+/* ── Cards ────────────────────────────────────── */
+.card {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--t-base), border-color var(--t-base);
+}
+.card-hover:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+/* Stat card with brand left-border accent */
+.stat-card {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5);
+  transition: box-shadow var(--t-base), transform var(--t-base);
+}
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ── Buttons ──────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition:
+    background-color var(--t-base),
+    color            var(--t-base),
+    border-color     var(--t-base),
+    box-shadow       var(--t-base),
+    transform        var(--t-fast),
+    opacity          var(--t-base);
+}
+.btn:active:not(:disabled)  { transform: scale(0.97); }
+.btn:disabled               { opacity: 0.55; cursor: not-allowed; }
+.btn:focus-visible          { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+.btn-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+
+.btn-secondary {
+  background-color: var(--color-secondary);
+  color: #ffffff;
+}
+.btn-secondary:hover:not(:disabled) { background-color: var(--color-secondary-hover); }
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-bg-subtle);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+.btn-danger {
+  background-color: var(--color-error);
+  color: #ffffff;
+}
+.btn-danger:hover:not(:disabled) { background-color: #b91c1c; }
+
+/* ── Inputs ───────────────────────────────────── */
+.input {
+  width: 100%;
+  padding: 0.5625rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition:
+    border-color var(--t-base),
+    box-shadow   var(--t-base),
+    background-color var(--t-slow);
+}
+.input::placeholder { color: var(--color-text-muted); }
+.input:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-secondary-muted);
+}
+
+/* ── Status badges ────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: opacity var(--t-fast);
+}
+.badge-pending  { background: var(--color-pending-bg);  color: var(--color-pending-text);  border-color: var(--color-pending-border);  }
+.badge-approved { background: var(--color-approved-bg); color: var(--color-approved-text); border-color: var(--color-approved-border); }
+.badge-rejected { background: var(--color-rejected-bg); color: var(--color-rejected-text); border-color: var(--color-rejected-border); }
+.badge-payment  { background: var(--color-payment-bg);  color: var(--color-payment-text);  border-color: var(--color-payment-border);  }
+
+/* ── Table ────────────────────────────────────── */
+.table-row {
+  transition: background-color var(--t-fast);
+}
+.table-row:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+/* ── Nav items ────────────────────────────────── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  transition:
+    background-color var(--t-base),
+    color            var(--t-base),
+    transform        var(--t-fast);
+  cursor: pointer;
+}
+.nav-item:hover {
+  background-color: var(--color-primary-muted);
+  color: var(--color-primary);
+  transform: translateX(2px);
+}
+.nav-item.active {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+/* ── Modal open — prevent body scroll ─────────── */
+body.modal-open {
+  overflow: hidden;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   8. PAGE & LAYOUT UTILITIES
+   ───────────────────────────────────────────────────────────────── */
+
+/* Section heading with brand underline */
+.section-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--color-primary);
+  margin-bottom: var(--space-4);
+}
+
+/* Filter/toolbar row */
+.filter-bar {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background-color: var(--color-border);
+  margin: var(--space-4) 0;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────
+   9. SCROLLBAR STYLING
+   ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar               { width: 5px; height: 5px; }
+::-webkit-scrollbar-track         { background: transparent; }
+::-webkit-scrollbar-thumb         { background: var(--color-border-strong); border-radius: var(--radius-full); }
+::-webkit-scrollbar-thumb:hover   { background: var(--color-text-muted); }
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong) transparent; }
+
+
+/* ─────────────────────────────────────────────────────────────────
+   10. DARK MODE OVERRIDES
+       Tailwind dark: classes handle most of this.
+       These cover CSS variable-driven components.
+   ───────────────────────────────────────────────────────────────── */
+.dark .card          { border-color: var(--color-border); }
+.dark .filter-bar    { border-color: var(--color-border); }
+.dark .input         { border-color: var(--color-border); background-color: var(--color-bg-subtle); }
+.dark .input:focus   { border-color: var(--color-border-focus); }
+.dark .btn-ghost     { border-color: var(--color-border); }
+
+
+/* ─────────────────────────────────────────────────────────────────
+   11. REDUCED-MOTION SAFETY NET
+       Respects OS-level "Reduce Motion" accessibility setting.
+       All animations collapse to instant opacity fade only.
+   ───────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration:        0.01ms !important;
+    animation-iteration-count: 1      !important;
+    transition-duration:       0.01ms !important;
+    scroll-behavior:           auto   !important;
+  }
+}
