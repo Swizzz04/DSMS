@@ -1,86 +1,123 @@
+/**
+ * NotificationPanel.jsx — CSHC Admin Portal
+ * ─────────────────────────────────────────────────────────────────
+ * Rev. 4 UI Cleanup:
+ *  - All hardcoded bg-white/bg-gray-800 → var(--color-bg-card)
+ *  - All border-gray-* → var(--color-border)
+ *  - All text-gray-* → var(--color-text-*)
+ *  - All bg-gray-50/100/700 → var(--color-bg-subtle/muted)
+ *  - shadow-2xl → var(--shadow-modal)
+ *  - Icon config uses semantic token colors
+ *  - No gradients, no shadow-2xl, no hover:scale, no backdrop-blur
+ * ─────────────────────────────────────────────────────────────────
+ */
 import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Clock, AlertCircle, CheckCircle, DollarSign, X } from 'lucide-react'
-import { mockEnrollments } from '../../data/mockEnrollments'
-import { mockPayments } from '../../data/mockPayments'
 import { useAuth } from '../../context/AuthContext'
 
-// Generate notifications from real mock data
+// Generate notifications from live localStorage submissions
 function generateNotifications(user) {
   const notifications = []
+  if (!user) return notifications
 
-  // Pending enrollments → relevant for admin, registrar_basic, registrar_college
-  if (user?.role !== 'accounting') {
-    mockEnrollments.forEach(e => {
-      if (e.status === 'pending') {
-        const isBasicGrade = e.enrollment.gradeLevel.includes('Grade')
-        const isCollegeGrade = e.enrollment.gradeLevel.includes('BS') || e.enrollment.gradeLevel.includes('Year')
+  let subs = []
+  try { subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]') } catch {}
 
+  const campus = user.campus
+  const campusMatch = (val) => {
+    if (!val || campus === 'all') return true
+    return val === campus || val.includes(campus) || campus.includes(val)
+  }
+  const isBasicGrade   = g => g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
+  const isCollegeGrade = g => g && (g.includes('BS') || g.includes('Year'))
+
+  const campusSubs = subs.filter(s => campusMatch(s.enrollment?.campus || ''))
+
+  // ── Pending enrollments (awaiting payment recording) ──────────
+  if (user.role !== 'accounting') {
+    campusSubs
+      .filter(e => e.status === 'pending')
+      .forEach(e => {
+        const g = e.enrollment?.gradeLevel || ''
         const visible =
-          user?.role === 'admin' ||
-          (user?.role === 'registrar_basic' && isBasicGrade) ||
-          (user?.role === 'registrar_college' && isCollegeGrade)
-
+          (user.role === 'admin' || user.role === 'technical_admin') ||
+          (user.role === 'registrar_basic'   && isBasicGrade(g)) ||
+          (user.role === 'registrar_college' && isCollegeGrade(g))
         if (visible) {
+          const name = e.student?.fullName ||
+            `${(e.student?.firstName || '')} ${(e.student?.lastName || '')}`.trim()
           notifications.push({
-            id: `enroll-${e.id}`,
-            type: 'pending',
-            icon: 'clock',
-            title: 'Pending Enrollment',
-            message: `${e.student.firstName} ${e.student.lastName} — ${e.enrollment.gradeLevel}`,
-            sub: `${e.enrollment.campus} • ${e.referenceNumber}`,
+            id: `enroll-${e.id || e.referenceNumber}`,
+            type: 'pending', icon: 'clock',
+            title: 'Awaiting Payment',
+            message: `${name} — ${g}`,
+            sub: `${e.enrollment?.campus || ''} • ${e.referenceNumber || ''}`,
             time: e.submittedDate,
             link: '/enrollments',
             read: false,
           })
         }
-      }
-    })
+      })
   }
 
-  // Overdue payments → relevant for admin and accounting
-  if (user?.role === 'admin' || user?.role === 'accounting') {
-    mockPayments.forEach(p => {
-      if (p.status === 'overdue') {
-        notifications.push({
-          id: `payment-overdue-${p.id}`,
-          type: 'overdue',
-          icon: 'alert',
-          title: 'Overdue Payment',
-          message: `${p.studentName} — ₱${p.balance.toLocaleString()} balance`,
-          sub: `${p.campus} • Due ${new Date(p.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
-          time: p.dueDate,
-          link: '/payments',
-          read: false,
-        })
-      }
-    })
-
-    // Partial payments with upcoming due dates
-    mockPayments.forEach(p => {
-      if (p.status === 'partial') {
-        const dueDate = new Date(p.dueDate)
-        const now = new Date()
-        const daysUntilDue = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-        if (daysUntilDue <= 30 && daysUntilDue > 0) {
+  // ── Payment received — awaiting registrar approval ────────────
+  if (user.role === 'registrar_basic' || user.role === 'registrar_college' || user.role === 'admin' || user.role === 'technical_admin') {
+    campusSubs
+      .filter(e => e.status === 'payment_received')
+      .forEach(e => {
+        const g = e.enrollment?.gradeLevel || ''
+        const visible =
+          (user.role === 'admin' || user.role === 'technical_admin') ||
+          (user.role === 'registrar_basic'   && isBasicGrade(g)) ||
+          (user.role === 'registrar_college' && isCollegeGrade(g))
+        if (visible) {
+          const name = e.student?.fullName ||
+            `${(e.student?.firstName || '')} ${(e.student?.lastName || '')}`.trim()
           notifications.push({
-            id: `payment-partial-${p.id}`,
-            type: 'partial',
-            icon: 'dollar',
-            title: 'Partial Payment',
-            message: `${p.studentName} — ₱${p.balance.toLocaleString()} remaining`,
-            sub: `Due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''} • ${p.campus}`,
-            time: p.lastPaymentDate,
-            link: '/payments',
+            id: `approve-${e.id || e.referenceNumber}`,
+            type: 'check', icon: 'check',
+            title: 'Ready for Approval',
+            message: `${name} — ${g}`,
+            sub: `${e.enrollment?.campus || ''} • ${e.referenceNumber || ''}`,
+            time: e.updatedAt || e.submittedDate,
+            link: '/enrollments',
             read: false,
           })
         }
-      }
-    })
+      })
   }
 
-  // Sort by time descending
-  return notifications.sort((a, b) => new Date(b.time) - new Date(a.time))
+  // ── Overdue balances (>30 days with balance) ──────────────────
+  if (user.role === 'admin' || user.role === 'technical_admin' || user.role === 'accounting') {
+    campusSubs
+      .filter(s =>
+        (s.status === 'payment_received' || s.status === 'approved') &&
+        (s.balance || 0) > 0 &&
+        s.submittedDate &&
+        Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
+      )
+      .forEach(p => {
+        const name = p.student?.fullName ||
+          `${(p.student?.firstName || '')} ${(p.student?.lastName || '')}`.trim()
+        const days = Math.floor((Date.now() - new Date(p.submittedDate)) / 86400000)
+        notifications.push({
+          id: `overdue-${p.id || p.referenceNumber}`,
+          type: 'overdue', icon: 'alert',
+          title: 'Overdue Balance',
+          message: `${name} — ₱${(p.balance || 0).toLocaleString()} remaining`,
+          sub: `${p.enrollment?.campus || ''} • ${days} days overdue`,
+          time: p.submittedDate,
+          link: '/payments',
+          read: false,
+        })
+      })
+  }
+
+  // Sort most recent first, cap at 20
+  return notifications
+    .sort((a, b) => new Date(b.time) - new Date(a.time))
+    .slice(0, 20)
 }
 
 function timeAgo(dateString) {
@@ -99,10 +136,10 @@ function timeAgo(dateString) {
 }
 
 const iconConfig = {
-  clock: { icon: Clock, bg: 'bg-yellow-100 dark:bg-yellow-900/30', color: 'text-yellow-600 dark:text-yellow-400' },
-  alert: { icon: AlertCircle, bg: 'bg-red-100 dark:bg-red-900/30', color: 'text-red-600 dark:text-red-400' },
-  dollar: { icon: DollarSign, bg: 'bg-blue-100 dark:bg-blue-900/30', color: 'text-blue-600 dark:text-blue-400' },
-  check: { icon: CheckCircle, bg: 'bg-green-100 dark:bg-green-900/30', color: 'text-green-600 dark:text-green-400' },
+  clock:  { icon: Clock,       color: 'var(--color-warning)', bg: 'var(--color-warning-light)' },
+  alert:  { icon: AlertCircle, color: 'var(--color-error)',   bg: 'var(--color-error-light)'   },
+  dollar: { icon: DollarSign,  color: 'var(--color-info)',    bg: 'var(--color-info-light)'    },
+  check:  { icon: CheckCircle, color: 'var(--color-success)', bg: 'var(--color-success-light)' },
 }
 
 export default function NotificationPanel({ onClose }) {
@@ -121,23 +158,42 @@ export default function NotificationPanel({ onClose }) {
   return (
     <div
       ref={panelRef}
-      className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700"
-      style={{ top: '100%' }}
+      className="w-full rounded-[var(--radius-xl)] overflow-hidden"
+      style={{
+        top: '100%',
+        backgroundColor: 'var(--color-bg-card)',
+        border: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-modal)',
+      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b"
+        style={{
+          borderColor: 'var(--color-border)',
+          backgroundColor: 'var(--color-bg-subtle)',
+        }}
+      >
         <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-gray-800 dark:text-white text-sm">Notifications</h3>
+          <Bell className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+          <h3 className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
+            Notifications
+          </h3>
           {unreadCount > 0 && (
-            <span className="px-2 py-0.5 bg-primary text-white text-xs rounded-full font-medium">
+            <span
+              className="px-2 py-0.5 text-xs rounded-full font-medium"
+              style={{ backgroundColor: 'var(--color-primary)', color: '#ffffff' }}
+            >
               {unreadCount}
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+          className="transition-colors"
+          style={{ color: 'var(--color-text-muted)' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
         >
           <X className="w-4 h-4" />
         </button>
@@ -147,43 +203,70 @@ export default function NotificationPanel({ onClose }) {
       <div className="max-h-[420px] overflow-y-auto">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-3">
-              <Bell className="w-6 h-6 text-gray-400" />
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
+              style={{ backgroundColor: 'var(--color-bg-muted)' }}
+            >
+              <Bell className="w-6 h-6" style={{ color: 'var(--color-text-muted)' }} />
             </div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">All caught up!</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">No new notifications</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+              All caught up!
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+              No new notifications
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {notifications.map((notif) => {
+          <div>
+            {notifications.map((notif, idx) => {
               const cfg = iconConfig[notif.icon] || iconConfig.clock
               const IconComponent = cfg.icon
               return (
                 <button
                   key={notif.id}
                   onClick={() => handleNotificationClick(notif.link)}
-                  className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left group"
+                  className="w-full flex items-start gap-3 px-4 py-3 transition-colors text-left group"
+                  style={{
+                    borderBottom: idx < notifications.length - 1 ? '1px solid var(--color-border)' : 'none',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                   {/* Icon */}
-                  <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5 ${cfg.bg}`}>
-                    <IconComponent className={`w-4 h-4 ${cfg.color}`} />
+                  <div
+                    className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center mt-0.5"
+                    style={{ backgroundColor: cfg.bg }}
+                  >
+                    <IconComponent className="w-4 h-4" style={{ color: cfg.color }} />
                   </div>
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-0.5">
+                    <p
+                      className="text-xs font-semibold uppercase tracking-wide mb-0.5"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
                       {notif.title}
                     </p>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
+                    <p
+                      className="text-sm font-medium truncate"
+                      style={{ color: 'var(--color-text-primary)' }}
+                    >
                       {notif.message}
                     </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                    <p
+                      className="text-xs truncate mt-0.5"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
                       {notif.sub}
                     </p>
                   </div>
 
                   {/* Time */}
-                  <div className="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 mt-0.5 whitespace-nowrap">
+                  <div
+                    className="flex-shrink-0 text-xs mt-0.5 whitespace-nowrap"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
                     {timeAgo(notif.time)}
                   </div>
                 </button>
@@ -195,12 +278,21 @@ export default function NotificationPanel({ onClose }) {
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div
+          className="px-4 py-3 border-t"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-bg-subtle)',
+          }}
+        >
+          <div className="flex items-center justify-between text-xs" style={{ color: 'var(--color-text-muted)' }}>
             <span>{unreadCount} item{unreadCount !== 1 ? 's' : ''} need{unreadCount === 1 ? 's' : ''} attention</span>
             <button
               onClick={() => { navigate('/enrollments'); onClose() }}
-              className="text-primary hover:text-accent-burgundy font-medium transition-colors"
+              className="font-medium transition-colors"
+              style={{ color: 'var(--color-primary)' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--color-primary-hover)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--color-primary)'}
             >
               View all →
             </button>

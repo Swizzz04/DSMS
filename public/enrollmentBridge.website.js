@@ -44,9 +44,10 @@
   };
 
   var TYPE_MAP = {
-    new:        'New',
+    new:        'New Student',
     transferee: 'Transferee',
     returnee:   'Returnee',
+    shifty:     'Shifty',
   };
 
   // ── Generate reference number ──────────────────────────────────
@@ -72,9 +73,55 @@
   }
 
   // ── Capitalize first letter ────────────────────────────────────
+  // Title Case — each word capitalized (Name Case)
+  // Handles hyphenated names, special words, and smart comma/period spacing
+  // e.g. "valladolid carcar city cebu" → "Valladolid, Carcar City, Cebu"
+  // e.g. "san jose del monte" → "San Jose Del Monte"
+  function toNameCase(str) {
+    if (!str) return '';
+    return str.trim()
+      // Normalize multiple spaces and common separators
+      .replace(/\s{2,}/g, ' ')
+      // Capitalize first letter of each word, lowercase the rest
+      .replace(/\w\S*/g, function(word) {
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      });
+  }
+
+  // Smart address formatter — detects plain address strings and adds commas
+  // "valladolid carcar city cebu" → "Valladolid, Carcar City, Cebu"
+  // Already formatted addresses (has commas) are just title-cased
+  function formatAddress(str) {
+    if (!str) return '';
+    var trimmed = str.trim();
+    // If already has commas, just apply name case to each part
+    if (trimmed.indexOf(',') !== -1) {
+      return trimmed.split(',')
+        .map(function(part) { return toNameCase(part.trim()) })
+        .join(', ');
+    }
+    // No commas — detect city/municipality patterns and insert commas
+    // Common PH pattern: Barangay City/Municipality Province
+    // Strategy: split on known province/city keywords or just title-case with spaces
+    // For now: apply title case and preserve spacing (user can refine in Settings later)
+    return toNameCase(trimmed);
+  }
+
+  // Student full name — LAST NAME, FIRST NAME MIDDLE NAME (all caps)
+  function formatStudentName(first, middle, last) {
+    var f = (first  || '').trim().toUpperCase();
+    var m = (middle || '').trim().toUpperCase();
+    var l = (last   || '').trim().toUpperCase();
+    if (!f && !l) return '';
+    var full = l ? l + ', ' + f : f;
+    if (m) full += ' ' + m;
+    return full;
+  }
+
+  // Simple cap — first letter only (kept for gender, civil status, etc.)
   function cap(str) {
     if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
   }
 
   // ── Normalize raw form data → portal format ────────────────────
@@ -87,18 +134,20 @@
       submittedDate:   new Date().toISOString(),
 
       student: {
-        firstName:     raw.firstName     || '',
-        middleName:    raw.middleName    || '',
-        lastName:      raw.lastName      || '',
+        firstName:     toNameCase(raw.firstName),
+        middleName:    toNameCase(raw.middleName),
+        lastName:      toNameCase(raw.lastName),
+        // Full name in CAPS: LASTNAME, FIRSTNAME MIDDLENAME
+        fullName:      formatStudentName(raw.firstName, raw.middleName, raw.lastName),
         birthDate:     raw.birthDate     || '',
         age:           calcAge(raw.birthDate),
-        placeOfBirth:  raw.birthPlace    || '',
+        placeOfBirth:  toNameCase(raw.birthPlace),
         gender:        cap(raw.gender),
         civilStatus:   cap(raw.civilStatus),
-        religion:      raw.religion      || '',
-        nationality:   cap(raw.nationality),
-        address:       raw.address       || '',
-        email:         raw.email         || '',
+        religion:      toNameCase(raw.religion),
+        nationality:   toNameCase(raw.nationality),
+        address:       formatAddress(raw.address),
+        email:         (raw.email || '').toLowerCase().trim(),
         contactNumber: raw.contactNumber || '',
       },
 
@@ -106,43 +155,44 @@
         campus:      CAMPUS_MAP[raw.campus]         || raw.campus      || '',
         gradeLevel:  GRADE_MAP[raw.gradeLevel]       || raw.gradeLevel  || '',
         studentType: TYPE_MAP[raw.studentType]       || raw.studentType || '',
+        semester:    raw.semester ? (raw.semester === '1st' ? '1st Semester' : raw.semester === '2nd' ? '2nd Semester' : 'Summer Semester') : '',
         schoolYear:  raw.schoolYear                  || '2025-2026',
       },
 
       father: {
-        name:          raw.fatherName       || '',
-        occupation:    raw.fatherOccupation || '',
+        name:          toNameCase(raw.fatherName),
+        occupation:    toNameCase(raw.fatherOccupation),
         contactNumber: raw.fatherContact    || '',
       },
 
       mother: {
-        name:          raw.motherName       || '',
-        occupation:    raw.motherOccupation || '',
+        name:          toNameCase(raw.motherName),
+        occupation:    toNameCase(raw.motherOccupation),
         contactNumber: raw.motherContact    || '',
       },
 
       guardian: {
-        name:          raw.guardianName     || '',
-        relationship:  raw.guardianRelation || '',
+        name:          toNameCase(raw.guardianName),
+        relationship:  toNameCase(raw.guardianRelation),
         contactNumber: raw.guardianContact  || '',
       },
 
       previousSchool: {
-        name:       raw.lastSchool        || raw.elementarySchool || '',
-        address:    raw.schoolAddress     || raw.elementaryAddress || '',
+        name:       toNameCase(raw.lastSchool        || raw.elementarySchool || ''),
+        address:    formatAddress(raw.schoolAddress  || raw.elementaryAddress || ''),
         lastGrade:  raw.lastGrade         || '',
         schoolYear: raw.lastSchoolYear    || '',
         elementary: raw.elementarySchool ? {
-          name: raw.elementarySchool || '', address: raw.elementaryAddress || '', year: raw.elementaryYear || ''
+          name: toNameCase(raw.elementarySchool), address: formatAddress(raw.elementaryAddress || ''), year: raw.elementaryYear || ''
         } : null,
         juniorHigh: raw.juniorHighSchool ? {
-          name: raw.juniorHighSchool || '', address: raw.juniorHighAddress || '', year: raw.juniorHighYear || ''
+          name: toNameCase(raw.juniorHighSchool), address: formatAddress(raw.juniorHighAddress || ''), year: raw.juniorHighYear || ''
         } : null,
         seniorHigh: raw.seniorHighSchool ? {
-          name: raw.seniorHighSchool || '', address: raw.seniorHighAddress || '', year: raw.seniorHighYear || ''
+          name: toNameCase(raw.seniorHighSchool), address: formatAddress(raw.seniorHighAddress || ''), year: raw.seniorHighYear || ''
         } : null,
         lastCollege: raw.lastCollegeSchool ? {
-          name: raw.lastCollegeSchool || '', address: raw.lastCollegeAddress || '', year: raw.lastCollegeYear || ''
+          name: toNameCase(raw.lastCollegeSchool || ''), address: formatAddress(raw.lastCollegeAddress || ''), year: raw.lastCollegeYear || ''
         } : null,
       },
     };

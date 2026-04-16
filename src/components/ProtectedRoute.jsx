@@ -12,10 +12,10 @@ export default function ProtectedRoute({ children, requiredRole }) {
   // Logged in but doesn't have required role
   if (requiredRole && !hasPermission(requiredRole)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-light-cream dark:bg-secondary">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-page)]">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-primary mb-4">Access Denied</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-[var(--color-text-secondary)]">
             You don't have permission to access this page.
           </p>
         </div>

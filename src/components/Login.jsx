@@ -1,158 +1,399 @@
 import { useState } from 'react'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
-import ThemeToggle from './ThemeToggle'
+import { Eye, EyeOff, LogIn, Shield, BookOpen, Users } from 'lucide-react'
 
 export default function Login({ onLoginSuccess, error, loading = false }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
+  const [rememberMe,   setRememberMe]   = useState(false)
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (onLoginSuccess) {
-      onLoginSuccess(email, password)
-    }
+    if (onLoginSuccess) onLoginSuccess(email, password)
   }
 
-return (
-  <div className="fixed inset-0 w-full h-full bg-gradient-to-br from-dirty-white via-off-white to-dirty-white dark:bg-gradient-to-br dark:from-secondary dark:via-slate-950 dark:to-secondary overflow-y-auto transition-colors duration-300">
-    <div className="min-h-full w-full flex items-center justify-center p-4 py-8">
-      
-      {/* Login Card Container - CENTERED */}
-      <div className="w-full max-w-md mx-auto">
-        
-        {/* School Branding */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-48 h-48 bg-light-cream dark:bg-gray-800 rounded-full mb-6 shadow-xl border-4 border-primary dark:border-white transition-colors duration-300">
-            <img 
-              src="/cshclogo.png"
-              alt="Cebu Sacred Heart College Logo"
-              className="w-full h-full object-contain p-2"
-            />
+  return (
+    <div style={{
+      position: 'fixed', inset: 0,
+      display: 'flex', overflow: 'hidden',
+      background: 'var(--color-secondary)',
+      fontFamily: 'Inter, -apple-system, sans-serif',
+    }}>
+
+      {/* ── Left Panel (hidden on mobile, shown ≥ 900px) ── */}
+      <aside
+        className="login-panel"
+        style={{
+          display: 'none',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          padding: '3rem',
+          flex: '0 0 42%',
+          background: 'linear-gradient(160deg, var(--color-secondary-light) 0%, var(--color-secondary) 55%, #04062a 100%)',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Decorative circles */}
+        <div style={{
+          position: 'absolute', top: -80, left: -80,
+          width: 420, height: 420, borderRadius: '50%',
+          border: '60px solid rgba(117,0,20,0.08)',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute', bottom: -60, right: -60,
+          width: 300, height: 300, borderRadius: '50%',
+          border: '40px solid rgba(117,0,20,0.05)',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Red accent bar */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0,
+          width: 4, height: '100%',
+          background: 'linear-gradient(to bottom, transparent, var(--color-primary), transparent)',
+        }} />
+
+        {/* Logo + school name */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'loginFadeUp 0.7s ease both' }}>
+          <div style={{
+            width: 88, height: 88, borderRadius: '50%',
+            background: '#fff',
+            border: '3px solid var(--color-primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 0 8px rgba(117,0,20,0.12), 0 16px 40px rgba(0,0,0,0.4)',
+            overflow: 'hidden', flexShrink: 0,
+          }}>
+            <img src="/cshclogo.png" alt="Cebu Sacred Heart College Logo"
+              style={{ width: 78, height: 78, objectFit: 'contain', padding: 6 }} />
           </div>
-          
-          <h1 className="text-3xl font-bold text-primary dark:text-white mb-2 transition-colors">
-            CEBU SACRED HEART COLLEGE
-          </h1>
-          <p className="text-primary dark:text-white font-semibold text-lg transition-colors">
-            School Management System
-          </p>
+          <div>
+            <div style={{
+              fontSize: 'clamp(1.05rem, 1.8vw, 1.35rem)',
+              fontWeight: 700, color: '#fff',
+              lineHeight: 1.25, letterSpacing: '0.01em',
+            }}>
+              Cebu Sacred Heart College, Inc.
+            </div>
+            <div style={{
+              fontSize: '0.7rem', fontWeight: 600,
+              color: 'var(--primary-light)',
+              letterSpacing: '0.15em', textTransform: 'uppercase',
+              marginTop: '0.35rem',
+            }}>
+              School Management System
+            </div>
+          </div>
         </div>
 
-        {/* Login Form Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 border-t-4 border-primary dark:border-white transition-colors duration-300">
-          
-          {/* Card header row: title + theme toggle */}
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <h2 className="text-2xl font-bold text-secondary dark:text-white transition-colors">
-                Welcome Back
-              </h2>
-              <p className="text-secondary dark:text-gray-400 transition-colors">
-                Please sign in to continue
-              </p>
-            </div>
-            <ThemeToggle />
-          </div>
-
-          {/* Error Message */}
-          { error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-4">
-              <p className="text-sm font-medium">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-secondary dark:text-gray-300 mb-2 transition-colors">
-                Email Address
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all"
-                placeholder="admin@cshc.edu.ph"
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-secondary dark:text-gray-300 mb-2 transition-colors">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:border-secondary focus:ring-2 focus:ring-secondary/20 outline-none transition-all pr-12"
-                  placeholder="Enter your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
+        {/* Feature pills */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', animation: 'loginFadeUp 0.7s 0.15s ease both' }}>
+          {[
+            { icon: <Shield size={15} />,   title: 'Secure Access',         desc: 'Role-based permissions for all staff' },
+            { icon: <Users size={15} />,    title: 'Enrollment Management', desc: 'Streamline student records & enrollment' },
+            { icon: <BookOpen size={15} />, title: 'Academic Tools',        desc: 'Grades, schedules, and reporting in one place' },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} style={{
+              display: 'flex', alignItems: 'center', gap: '0.875rem',
+              padding: '0.8rem 1rem',
+              borderRadius: 'var(--radius-lg)',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(6px)',
+            }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: 'var(--radius-sm)',
+                background: 'var(--color-bg-card)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--color-primary-light)', flexShrink: 0,
+              }}>
+                {icon}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff', marginBottom: 2 }}>{title}</div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.42)', lineHeight: 1.4 }}>{desc}</div>
               </div>
             </div>
-
-            {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 text-primary border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-primary cursor-pointer"
-                />
-                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400 transition-colors">
-                  Remember me
-                </span>
-              </label>
-              <a href="#" className="text-sm text-primary hover:text-light-secondary dark:text-white dark:hover:text-light-secondary font-semibold transition-colors">
-                Forgot Password?
-              </a>
-            </div>
-
-            {/* Login Button */}
-            <button
-              type="submit" disabled={loading}
-              className="w-full bg-gradient-to-r from-primary to-accent-burgundy hover:from-accent-burgundy hover:to-primary text-white py-3 rounded-lg font-semibold text-lg shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
-            >
-              <LogIn className="w-5 h-5" />
-              Sign In
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 transition-colors">
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400 transition-colors">
-              Need help? Contact IT Support
-            </p>
-          </div>
+          ))}
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6 transition-colors">
-          © 2026 Cebu Sacred Heart College. All rights reserved.
-        </p>
-      </div>
-      
+        <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
+          © 2026 Cebu Sacred Heart College, Inc.
+        </div>
+      </aside>
+
+      {/* ── Right Panel ── */}
+      <main style={{
+        flex: 1,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '2rem 1.5rem',
+        overflowY: 'auto',
+        background: '#f4f5f0',
+        position: 'relative',
+      }}>
+        {/* Dot grid texture */}
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none',
+          backgroundImage: 'radial-gradient(circle, rgba(8,12,66,0.06) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }} />
+
+        <div style={{ width: '100%', maxWidth: 400, position: 'relative', animation: 'loginFadeUp 0.65s 0.1s ease both' }}>
+
+          {/* Mobile-only branding */}
+          <div className="login-mobile-brand" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%',
+              background: '#fff',
+              border: '3px solid var(--color-primary)',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'var(--shadow-md)', overflow: 'hidden',
+              marginBottom: '0.75rem',
+            }}>
+              <img src="/cshclogo.png" alt="CSHC Logo"
+                style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
+            </div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#080c42', display: 'block' }}>
+              Cebu Sacred Heart College
+            </div>
+            <div style={{
+              fontSize: '0.68rem', fontWeight: 600,
+              color: 'var(--color-primary)',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+            }}>
+              School Management System
+            </div>
+          </div>
+
+          {/* ── Card ── */}
+          <div style={{
+            padding: '2.25rem 2rem',
+            borderRadius: '20px',
+            background: '#ffffff',
+            border: '1px solid #e8e8e4',
+            borderTop: '3px solid #750014',
+            boxShadow: '0 4px 6px rgba(8,12,66,0.04), 0 20px 60px rgba(8,12,66,0.10)',
+          }}>
+            {/* Eyebrow + heading */}
+            <div style={{ marginBottom: '1.75rem' }}>
+              <div style={{
+                fontSize: '0.62rem', fontWeight: 700,
+                letterSpacing: '0.18em', textTransform: 'uppercase',
+                color: 'var(--color-primary)', marginBottom: '0.35rem',
+              }}>
+                Administrator Portal
+              </div>
+              <h1 style={{
+                fontSize: '1.6rem', fontWeight: 700,
+                color: '#080c42',
+                lineHeight: 1.2, marginBottom: '0.3rem',
+              }}>
+                Welcome back.
+              </h1>
+              <p style={{ fontSize: '0.82rem', color: '#8a8a8a' }}>
+                Sign in to access the management system.
+              </p>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--color-error-light)',
+                border: '1px solid var(--color-error-border)',
+                color: 'var(--color-error)',
+                fontSize: '0.82rem', fontWeight: 500,
+                marginBottom: '1.25rem',
+              }}>
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+
+              {/* Email */}
+              <div style={{ marginBottom: '1.1rem' }}>
+                <label htmlFor="email" style={{
+                  display: 'block', fontSize: '0.78rem', fontWeight: 600,
+                  color: '#4a4a4a', marginBottom: '0.45rem',
+                }}>
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  style={{ background: '#ffffff', color: '#1a1a1a', border: '1.5px solid #e8e8e4' }}
+                  className="input"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                />
+              </div>
+
+              {/* Password */}
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label htmlFor="password" style={{
+                  display: 'block', fontSize: '0.78rem', fontWeight: 600,
+                  color: '#4a4a4a', marginBottom: '0.45rem',
+                }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    className="input"
+                    style={{ paddingRight: '2.75rem', background: '#ffffff', color: '#1a1a1a', border: '1.5px solid #e8e8e4' }}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{
+                      position: 'absolute', right: '0.75rem', top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: '#8a8a8a',
+                      display: 'flex', alignItems: 'center',
+                      padding: 2, borderRadius: 'var(--radius-xs)',
+                      transition: 'color var(--t-base)',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#4a4a4a'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#8a8a8a'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remember me + Forgot password */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: '1.5rem', marginTop: '0.5rem',
+              }}>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  cursor: 'pointer', fontSize: '0.8rem',
+                  color: '#8a8a8a', userSelect: 'none',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    style={{
+                      width: 15, height: 15, borderRadius: 4,
+                      accentColor: '#080c42', cursor: 'pointer',
+                    }}
+                  />
+                  Remember me
+                </label>
+                <a
+                  href="#"
+                  style={{
+                    fontSize: '0.8rem', fontWeight: 600,
+                    color: 'var(--color-primary)', textDecoration: 'none',
+                    transition: 'color var(--t-base)',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--color-primary-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--color-primary)'}
+                >
+                  Forgot Password?
+                </a>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-secondary"
+                style={{
+                  width: '100%', padding: '0.875rem',
+                  borderRadius: 'var(--radius-xl)',
+                  fontSize: '0.9rem', letterSpacing: '0.02em',
+                  boxShadow: '0 4px 14px rgba(8,12,66,0.25), inset 0 1px 0 rgba(255,255,255,0.08)',
+                  position: 'relative', overflow: 'hidden',
+                  transition: 'transform var(--t-fast), box-shadow var(--t-base), background-color var(--t-base)',
+                }}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = '0 8px 22px rgba(8,12,66,0.32)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(8,12,66,0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }}
+              >
+                {/* Red shimmer accent at bottom of button */}
+                <div style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
+                  height: 2,
+                  background: 'linear-gradient(90deg, transparent, var(--color-primary), transparent)',
+                  opacity: 0.55,
+                }} />
+
+                {loading ? (
+                  <>
+                    <span style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '2px solid rgba(255,255,255,0.25)',
+                      borderTopColor: '#fff',
+                      animation: 'loginSpin 0.7s linear infinite',
+                      display: 'inline-block', flexShrink: 0,
+                    }} />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    <LogIn size={16} />
+                    Sign In
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Support footer */}
+            <div style={{ height: 1, background: '#e8e8e4', margin: '1.5rem 0 1rem' }} />
+            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#8a8a8a' }}>
+              Need help?{' '}
+              <a
+                href="mailto:it@cshc.edu.ph"
+                style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}
+                onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+              >
+                Contact IT Support
+              </a>
+            </div>
+          </div>
+
+          {/* Page copyright */}
+          <p style={{
+            textAlign: 'center', fontSize: '0.68rem',
+            color: '#8a8a8a', marginTop: '1.5rem',
+          }}>
+            © 2026 Cebu Sacred Heart College, Inc. All rights reserved.
+          </p>
+        </div>
+      </main>
+
+      {/* Keyframes + responsive visibility */}
+      <style>{`
+        @keyframes loginFadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loginSpin {
+          to { transform: rotate(360deg); }
+        }
+        @media (min-width: 900px) {
+          .login-panel        { display: flex !important; }
+          .login-mobile-brand { display: none !important; }
+        }
+      `}</style>
     </div>
-  </div>
-)
+  )
 }

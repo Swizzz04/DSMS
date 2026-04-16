@@ -90,14 +90,20 @@ export function AuthProvider({ children }) {
   const timerRef = useRef(null)
 
   // ── Session timeout ────────────────────────────────────────────────
+  // ✅ FIX: Store doLogout in a ref so the timer callback always calls
+  // the latest version and never captures a stale closure
+  const doLogoutRef = useRef(null)
+
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
-      doLogout(true) // silent auto-logout
+      // Use ref to avoid stale closure — doLogout may have changed
+      if (doLogoutRef.current) doLogoutRef.current(true)
     }, SESSION_TIMEOUT)
   }, [])
 
-  const doLogout = (expired = false) => {
+  // ✅ FIX: Defined as useCallback so it can be safely stored in ref
+  const doLogout = useCallback((expired = false) => {
     setUser(null)
     // Clear this tab's session only
     sessionStorage.removeItem('cshc_session_user')
@@ -108,7 +114,10 @@ export function AuthProvider({ children }) {
     }
     // Notify ThemeContext to reset to guest/system theme
     window.dispatchEvent(new CustomEvent('cshc_auth_change'))
-  }
+  }, [])
+
+  // ✅ FIX: Keep ref in sync with latest doLogout
+  useEffect(() => { doLogoutRef.current = doLogout }, [doLogout])
 
   // Track user activity to reset the inactivity timer
   useEffect(() => {
@@ -209,7 +218,8 @@ export function AuthProvider({ children }) {
   // ── Permission check ───────────────────────────────────────────────
   const hasPermission = (requiredRole) => {
     if (!user) return false
-    if (user.role === 'admin') return true
+    // Both admin (school owner) and technical_admin bypass role checks
+    if (user.role === 'admin' || user.role === 'technical_admin') return true
     return user.role === requiredRole
   }
 

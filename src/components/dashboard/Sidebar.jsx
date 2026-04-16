@@ -1,130 +1,68 @@
 import { useState, useEffect, useCallback } from 'react'
-import { LayoutDashboard, FileText, Users, DollarSign, Settings, X, GraduationCap } from 'lucide-react'
+import {
+  LayoutDashboard, FileText, Users, DollarSign,
+  Settings, X, GraduationCap, BarChart2, Layers
+} from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { mockEnrollments } from '../../data/mockEnrollments'
-import { mockPayments } from '../../data/mockPayments'
-import { mockStudents } from '../../data/mockStudents'
 
-// ── Helpers ──────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────
 const isBasicGrade   = g => g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
 const isCollegeGrade = g => g && (g.includes('BS') || g.includes('Year'))
 
-/**
- * Computes per-page badge counts for the logged-in user.
- *
- * PAGE BADGES:
- *   dashboard   → total of all other badges (shows something needs attention)
- *   enrollments →
- *     admin               = pending + payment_received + website submissions
- *     registrar_basic     = payment_received basic ed (ready to approve)
- *     registrar_college   = payment_received college (ready to approve)
- *     accounting          = pending on their campus (awaiting payment recording)
- *   payments →
- *     admin / accounting  = overdue accounts
- *   students →
- *     admin               = students with 'inactive' or 'graduated' status needing review (0 if none)
- *     registrar_basic     = pending enrollment count for their campus basic ed
- *     registrar_college   = pending enrollment count for their campus college
- *   settings → always 0
- */
 function computeBadges(user) {
   if (!user) return {}
-
   const role   = user.role
-  const campus = user.campus  // 'all' or specific campus name
-
-  // Filter by campus
-  const campusEnr = mockEnrollments.filter(e =>
-    campus === 'all' || e.enrollment.campus === campus
-  )
-  const campusPay = mockPayments.filter(p =>
-    campus === 'all' || p.campus === campus
-  )
-  const campusStu = mockStudents.filter(s =>
-    campus === 'all' || s.academic.campus === campus
-  )
-
-  // Website bridge submissions — filter by campus (checks multiple possible fields)
-  let webPending = 0
+  const campus = user.campus
+  const campusMatch = (val) => {
+    if (!val || campus === 'all') return true
+    return val === campus || val.includes(campus) || campus.includes(val)
+  }
+  const campusEnr = []
+  const campusStu = []
+  let webSubs = []
   try {
-    const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
-    webPending = subs.filter(s => {
-      if (s.status !== 'pending') return false
-      if (campus === 'all') return true
-      // Check all possible campus fields the bridge might use
+    const all = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+    webSubs = all.filter(s => {
       const subCampus = s.enrollment?.campus || s.campusName || s.campus || ''
-      return subCampus === campus ||
-             subCampus.includes(campus) ||
-             campus.includes(subCampus)
-    }).length
+      return campusMatch(subCampus)
+    })
   } catch {}
+  const allEnr = [...campusEnr, ...webSubs]
+  let enrBadge = 0, payBadge = 0, stuBadge = 0
 
-  let enrBadge = 0
-  let payBadge = 0
-  let stuBadge = 0
-
-  // ── Admin ──────────────────────────────────────────────────────
   if (role === 'admin') {
-    // Enrollments: anything needing action (pending payment + ready to approve + website)
-    enrBadge = campusEnr.filter(e =>
-      e.status === 'pending' || e.status === 'payment_received'
-    ).length + webPending
-
-    // Payments: overdue accounts
-    payBadge = campusPay.filter(p => p.status === 'overdue').length
-
-    // Students: none requiring urgent action for admin
-    stuBadge = 0
+    enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
   }
-
-  // ── Basic Ed Registrar ─────────────────────────────────────────
+  if (role === 'technical_admin') {
+    enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
+    payBadge = webSubs.filter(s =>
+      (s.status === 'payment_received' || s.status === 'approved') &&
+      (s.balance || 0) > 0 && s.submittedDate &&
+      Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
+    ).length
+  }
   if (role === 'registrar_basic') {
-    // Enrollments: payment_received basic ed = ready for registrar to approve
-    enrBadge = campusEnr.filter(e =>
-      e.status === 'payment_received' && isBasicGrade(e.enrollment.gradeLevel)
-    ).length
-
-    // Students: inactive basic ed students that may need re-enrollment
-    stuBadge = campusStu.filter(s =>
-      isBasicGrade(s.academic.gradeLevel) && s.status === 'inactive'
-    ).length
+    enrBadge = allEnr.filter(e => e.status === 'payment_received' && isBasicGrade(e.enrollment?.gradeLevel || '')).length
+    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
   }
-
-  // ── College Registrar ──────────────────────────────────────────
   if (role === 'registrar_college') {
-    // Enrollments: payment_received college = ready to approve
-    enrBadge = campusEnr.filter(e =>
-      e.status === 'payment_received' && isCollegeGrade(e.enrollment.gradeLevel)
-    ).length
-
-    // Students: inactive college students
-    stuBadge = campusStu.filter(s =>
-      isCollegeGrade(s.academic.gradeLevel) && s.status === 'inactive'
-    ).length
+    enrBadge = allEnr.filter(e => e.status === 'payment_received' && isCollegeGrade(e.enrollment?.gradeLevel || '')).length
+    stuBadge = campusStu.filter(s => isCollegeGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
   }
-
-  // ── Accounting ────────────────────────────────────────────────
   if (role === 'accounting') {
-    // Enrollments: pending = students who haven't paid yet (needs accounting action)
-    enrBadge = campusEnr.filter(e => e.status === 'pending').length + webPending
-
-    // Payments: overdue accounts on campus
-    payBadge = campusPay.filter(p => p.status === 'overdue').length
-  }
-
-  // ── Principal ────────────────────────────────────────────────
-  if (role === 'principal_basic') {
-    // Students: inactive students to review
-    stuBadge = campusStu.filter(s =>
-      isBasicGrade(s.academic.gradeLevel) && s.status === 'inactive'
+    enrBadge = allEnr.filter(e => e.status === 'pending').length
+    payBadge = webSubs.filter(s =>
+      (s.status === 'payment_received' || s.status === 'approved') &&
+      s.balance > 0 && s.submittedDate &&
+      Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
     ).length
   }
-
-  const dashBadge = enrBadge + payBadge + stuBadge
-
+  if (role === 'principal_basic' || role === 'program_head') {
+    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
+  }
   return {
-    dashboard:   dashBadge,
+    dashboard:   enrBadge + payBadge + stuBadge,
     enrollments: enrBadge,
     payments:    payBadge,
     students:    stuBadge,
@@ -136,12 +74,23 @@ function computeBadges(user) {
 function NavBadge({ count, active }) {
   if (!count || count <= 0) return null
   return (
-    <span className={`
-      ml-auto min-w-[20px] h-5 px-1.5 rounded-full text-[11px] font-bold
-      flex items-center justify-center leading-none flex-shrink-0
-      transition-colors
-      ${active ? 'bg-white text-primary' : 'bg-red-500 text-white'}
-    `}>
+    <span style={{
+      marginLeft:      'auto',
+      minWidth:        18,
+      height:          18,
+      padding:         '0 5px',
+      borderRadius:    999,
+      fontSize:        10,
+      fontWeight:      700,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      flexShrink:      0,
+      letterSpacing:   '0.02em',
+      backgroundColor: active ? 'rgba(255,255,255,0.20)' : 'var(--color-primary)',
+      color:           '#fff',
+      border:          active ? '1px solid rgba(255,255,255,0.30)' : 'none',
+    }}>
       {count > 99 ? '99+' : count}
     </span>
   )
@@ -150,139 +99,296 @@ function NavBadge({ count, active }) {
 // ── Main Sidebar ──────────────────────────────────────────────────
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
-  const { user } = useAuth()
+  const { user }  = useAuth()
   const [badges, setBadges] = useState({})
 
-  const refreshBadges = useCallback(() => {
-    setBadges(computeBadges(user))
-  }, [user])
+  const refreshBadges = useCallback(() => setBadges(computeBadges(user)), [user])
 
   useEffect(() => {
     refreshBadges()
-    // Re-compute when a new enrollment or status update arrives from another tab
-    const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === 'cshc_new_submission' || e.key === 'cshc_status_update') {
-        refreshBadges()
-      }
-    }
-    window.addEventListener('cshc_new_submission', refreshBadges)
-    window.addEventListener('storage', handleStorage)
+    const handleStorage = (e) => { if (e.key === 'cshc_submissions' || e.key === null) refreshBadges() }
+    window.addEventListener('cshc_enrollment_updated', refreshBadges)
+    window.addEventListener('cshc_new_submission',     refreshBadges)
+    window.addEventListener('storage',                 handleStorage)
     const t = setInterval(refreshBadges, 10_000)
     return () => {
-      window.removeEventListener('cshc_new_submission', refreshBadges)
-      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener('cshc_enrollment_updated', refreshBadges)
+      window.removeEventListener('cshc_new_submission',     refreshBadges)
+      window.removeEventListener('storage',                 handleStorage)
       clearInterval(t)
     }
   }, [refreshBadges])
 
-  // ── Nav items per role ────────────────────────────────────────
   const getNavItems = () => {
     const base = [{
       id: 'dashboard', label: 'Dashboard',
       icon: LayoutDashboard, path: '/dashboard',
-      roles: ['admin','registrar_basic','registrar_college','accounting','principal_basic']
+      roles: ['admin','technical_admin','registrar_basic','registrar_college','accounting','principal_basic','program_head']
     }]
-
     const roleItems = {
       admin: [
-        { id: 'enrollments', label: 'Enrollments', icon: FileText,        path: '/enrollments', roles: ['admin'] },
-        { id: 'students',    label: 'Students',    icon: Users,            path: '/students',    roles: ['admin'] },
-        { id: 'payments',    label: 'Payments',    icon: DollarSign,       path: '/payments',    roles: ['admin'] },
-        { id: 'settings',    label: 'Settings',    icon: Settings,         path: '/settings',    roles: ['admin'] },
+        { id: 'enrollments', label: 'Enrollments', icon: FileText,  path: '/enrollments', roles: ['admin'] },
+        { id: 'reports',     label: 'Reports',     icon: BarChart2, path: '/reports',     roles: ['admin'] },
+      ],
+      technical_admin: [
+        { id: 'enrollments', label: 'Enrollments', icon: FileText,   path: '/enrollments', roles: ['technical_admin'] },
+        { id: 'students',    label: 'Students',    icon: Users,      path: '/students',    roles: ['technical_admin'] },
+        { id: 'payments',    label: 'Payments',    icon: DollarSign, path: '/payments',    roles: ['technical_admin'] },
+        { id: 'reports',     label: 'Reports',     icon: BarChart2,  path: '/reports',     roles: ['technical_admin'] },
+        { id: 'settings',    label: 'Settings',    icon: Settings,   path: '/settings',    roles: ['technical_admin'] },
       ],
       registrar_basic: [
         { id: 'enrollments', label: 'Basic Ed Enrollments', icon: FileText,      path: '/enrollments', roles: ['registrar_basic'] },
         { id: 'students',    label: 'Basic Ed Students',    icon: GraduationCap, path: '/students',    roles: ['registrar_basic'] },
       ],
       registrar_college: [
-        { id: 'enrollments', label: 'College Enrollments', icon: FileText, path: '/enrollments', roles: ['registrar_college'] },
-        { id: 'students',    label: 'College Students',    icon: Users,    path: '/students',    roles: ['registrar_college'] },
+        { id: 'enrollments',  label: 'College Enrollments', icon: FileText, path: '/enrollments',  roles: ['registrar_college'] },
+        { id: 'students',     label: 'College Students',    icon: Users,    path: '/students',     roles: ['registrar_college'] },
+        { id: 'subject-load', label: 'Subject Load',        icon: Layers,   path: '/subject-load', roles: ['registrar_college'] },
       ],
       accounting: [
         { id: 'payments',    label: 'Payments',    icon: DollarSign, path: '/payments',    roles: ['accounting'] },
+        { id: 'reports',     label: 'Reports',     icon: BarChart2,  path: '/reports',     roles: ['accounting', 'admin'] },
         { id: 'enrollments', label: 'Enrollments', icon: FileText,   path: '/enrollments', roles: ['accounting'] },
+        { id: 'settings',    label: 'Settings',    icon: Settings,   path: '/settings',    roles: ['accounting'] },
       ],
       principal_basic: [
-        { id: 'students', label: 'Students', icon: GraduationCap, path: '/students', roles: ['principal_basic'] },
+        { id: 'students',     label: 'Students',     icon: GraduationCap, path: '/students',     roles: ['principal_basic'] },
+        { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load', roles: ['principal_basic'] },
+      ],
+      program_head: [
+        { id: 'students',     label: 'Students',     icon: Users,  path: '/students',     roles: ['program_head'] },
+        { id: 'subject-load', label: 'Subject Load', icon: Layers, path: '/subject-load', roles: ['program_head'] },
       ],
     }
-
     const role = user?.role || 'admin'
     return [...base, ...(roleItems[role] || [])].filter(i => i.roles.includes(role))
   }
 
-  const navItems     = getNavItems()
-  const isActive     = (path) => location.pathname === path
+  const navItems = getNavItems()
+  const isActive = (path) => location.pathname === path
+
   const getRoleLabel = () => ({
-    admin:             'Admin Portal',
+    admin:             'Owner Dashboard',
+    technical_admin:   'Admin Portal',
     registrar_basic:   'Basic Ed Registrar',
     registrar_college: 'College Registrar',
     accounting:        'Accounting Portal',
     principal_basic:   'Basic Ed Principal',
+    program_head:      'Program Head',
   }[user?.role] || 'Portal')
+
+  // ── Section label helper (visual grouping within long nav lists) ──
+  const getSectionLabel = (id) => ({
+    enrollments: 'Management',
+    payments:    'Management',
+    students:    'Management',
+    reports:     'Analytics',
+    settings:    'System',
+    'subject-load': 'Academic',
+  }[id])
+
+  // Insert section dividers
+  const itemsWithDividers = []
+  let lastSection = null
+  navItems.forEach((item, idx) => {
+    if (idx === 0) { itemsWithDividers.push(item); return }
+    const sec = getSectionLabel(item.id)
+    if (sec && sec !== lastSection) {
+      itemsWithDividers.push({ type: 'divider', label: sec })
+      lastSection = sec
+    }
+    itemsWithDividers.push(item)
+  })
 
   return (
     <>
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={toggleSidebar} />
-      )}
+      {/* Mobile overlay — uses CSS transition via overlay-backdrop class */}
+      <div
+        className={`overlay-backdrop fixed inset-0 z-[60] lg:hidden ${isOpen ? 'visible' : 'hidden'}`}
+        style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+        onClick={toggleSidebar}
+      />
 
-      <aside className={`
-        fixed lg:relative top-0 left-0 h-full bg-white dark:bg-gray-800
-        transition-transform duration-300 ease-in-out z-50
-        w-64 border-r border-gray-200 dark:border-gray-700 flex flex-col
-        ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-
-        {/* Logo + role */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0 bg-white">
-              <img src="/cshclogo.png" alt="CSHC Logo" className="w-full h-full object-contain" />
+      {/* Sidebar panel — uses CSS sidebar-panel transition */}
+      <aside
+        className={`sidebar-panel fixed top-0 left-0 h-full z-[70] w-64 shrink-0 flex flex-col ${isOpen ? 'open' : 'closed'}`}
+        style={{
+          backgroundColor: 'var(--color-bg-card)',
+          borderRight:     '1px solid var(--color-border)',
+          boxShadow:       isOpen ? 'var(--shadow-modal)' : 'none',
+        }}
+      >
+        {/* ── Brand header ── */}
+        <div style={{
+          height:         64,
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        '0 1rem',
+          borderBottom:   '1px solid var(--color-border)',
+          flexShrink:     0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* Logo with red ring */}
+            <div style={{
+              width:        38,
+              height:       38,
+              borderRadius: '50%',
+              overflow:     'hidden',
+              flexShrink:   0,
+              border:       '2px solid var(--color-primary)',
+              backgroundColor: '#fff',
+              boxShadow:    '0 0 0 3px var(--color-primary-muted)',
+            }}>
+              <img src="/cshclogo.png" alt="CSHC" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
             </div>
             <div>
-              <h2 className="font-bold text-primary dark:text-white text-sm">CSHC</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{getRoleLabel()}</p>
+              <div style={{
+                fontSize:      '0.8rem',
+                fontWeight:    700,
+                color:         'var(--color-text-primary)',
+                letterSpacing: '0.04em',
+                lineHeight:    1.2,
+              }}>
+                CSHC
+              </div>
+              <div style={{
+                fontSize:      '0.62rem',
+                color:         'var(--color-text-muted)',
+                letterSpacing: '0.03em',
+                lineHeight:    1.3,
+                maxWidth:      140,
+                overflow:      'hidden',
+                whiteSpace:    'nowrap',
+                textOverflow:  'ellipsis',
+              }}>
+                {getRoleLabel()}
+              </div>
             </div>
           </div>
+
+          {/* Mobile close button */}
           <button
             onClick={toggleSidebar}
-            className="lg:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            className="lg:hidden"
+            style={{
+              padding:         6,
+              borderRadius:    'var(--radius-sm)',
+              color:           'var(--color-text-muted)',
+              background:      'none',
+              border:          'none',
+              cursor:          'pointer',
+              transition:      'color var(--t-base)',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
           >
-            <X className="w-5 h-5" />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Nav links */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+        {/* ── Navigation ── */}
+        <nav style={{
+          flex:       1,
+          padding:    '0.75rem 0.75rem',
+          overflowY:  'auto',
+          overflowX:  'hidden',
+        }}>
+          {itemsWithDividers.map((item, idx) => {
+            // Section divider label
+            if (item.type === 'divider') {
+              return (
+                <div key={`div-${idx}`} style={{
+                  padding:       '0.85rem 0.75rem 0.35rem',
+                  fontSize:      '0.58rem',
+                  fontWeight:    700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color:         'var(--color-text-muted)',
+                }}>
+                  {item.label}
+                </div>
+              )
+            }
+
             const active     = isActive(item.path)
             const badgeCount = badges[item.id] || 0
+
             return (
               <Link
                 key={item.id}
                 to={item.path}
                 onClick={() => window.innerWidth < 1024 && toggleSidebar()}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-lg
-                  transition-colors duration-200
-                  ${active
-                    ? 'bg-primary text-white'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                style={{
+                  display:        'flex',
+                  alignItems:     'center',
+                  gap:            '0.65rem',
+                  padding:        '0.6rem 0.75rem',
+                  borderRadius:   'var(--radius-md)',
+                  marginBottom:   2,
+                  textDecoration: 'none',
+                  position:       'relative',
+                  transition:     `background-color var(--t-base), color var(--t-base)`,
+                  backgroundColor: active ? 'var(--color-primary)' : 'transparent',
+                  color:          active ? '#fff' : 'var(--color-text-secondary)',
+                  // Active left-edge accent
+                  borderLeft:     active ? '3px solid var(--color-primary)' : '3px solid transparent',
+                }}
+                onMouseEnter={e => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = 'var(--color-primary-muted)'
+                    e.currentTarget.style.color           = 'var(  --color-text-secondary)'
                   }
-                `}
+                }}
+                onMouseLeave={e => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color           = 'var(--color-text-primary)'
+                  }
+                }}
               >
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium flex-1">{item.label}</span>
+                {/* Icon */}
+                <item.icon
+                  size={16}
+                  style={{
+                    flexShrink: 0,
+                    color:      active ? '#fff' : 'var(--color-text-muted)',
+                    transition: 'color var(--t-base)',
+                  }}
+                />
+
+                {/* Label */}
+                <span style={{
+                  fontSize:     '0.82rem',
+                  fontWeight:   active ? 600 : 500,
+                  flex:         1,
+                  overflow:     'hidden',
+                  whiteSpace:   'nowrap',
+                  textOverflow: 'ellipsis',
+                  letterSpacing: '0.01em',
+                }}>
+                  {item.label}
+                </span>
+
+                {/* Badge */}
                 <NavBadge count={badgeCount} active={active} />
               </Link>
             )
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <p className="text-xs text-gray-500 dark:text-gray-400 text-center">© 2026 CSHC</p>
+        {/* ── Footer ── */}
+        <div style={{
+          padding:       '0.75rem 1rem',
+          borderTop:     '1px solid var(--color-border)',
+          flexShrink:    0,
+          textAlign:     'center',
+          fontSize:      '0.62rem',
+          color:         'var(--color-text-muted)',
+          letterSpacing: '0.04em',
+        }}>
+          © 2026 CSHC · All rights reserved
         </div>
       </aside>
     </>

@@ -117,7 +117,7 @@ export function PaymentStatusBadge({ status }) {
     paid:    { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',     Icon: CheckCircle },
     partial: { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', Icon: Clock       },
     overdue: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             Icon: AlertCircle },
-    pending: { cls: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',            Icon: XCircle     },
+    pending: { cls: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',            Icon: XCircle     },
   }
   const { cls, Icon } = map[status] || map.pending
   return (
@@ -142,13 +142,13 @@ export function PaymentStatusBadge({ status }) {
  */
 export function StatCard({ label, value, sub, border, icon, highlight }) {
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
+    <div className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{label}</p>
+        <p className="text-xs text-[var(--color-text-muted)] font-medium">{label}</p>
         <div className="opacity-80">{icon}</div>
       </div>
-      <p className={`text-2xl font-bold ${highlight || 'text-gray-800 dark:text-white'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{sub}</p>}
+      <p className={`text-2xl font-bold ${highlight || 'text-[var(--color-text-primary)]'}`}>{value}</p>
+      {sub && <p className="text-xs text-[var(--color-text-muted)] mt-1">{sub}</p>}
     </div>
   )
 }
@@ -160,20 +160,20 @@ export function StatCard({ label, value, sub, border, icon, highlight }) {
  */
 export function CampusMiniCard({ campusStat: c }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+    <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)]">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 bg-secondary/10 dark:bg-secondary/30 rounded-lg flex items-center justify-center flex-shrink-0">
           <MapPin className="w-3.5 h-3.5 text-secondary dark:text-blue-400" />
         </div>
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate">{c.name}</p>
+        <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c.name}</p>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
-          <p className="text-lg font-bold text-gray-800 dark:text-white">{c.students}</p>
+          <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.students}</p>
           <p className="text-xs text-gray-400">Students</p>
         </div>
         <div>
-          <p className="text-lg font-bold text-gray-800 dark:text-white">{c.enrollments}</p>
+          <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.enrollments}</p>
           <p className="text-xs text-gray-400">Enrolled</p>
         </div>
         <div>
@@ -184,7 +184,7 @@ export function CampusMiniCard({ campusStat: c }) {
         </div>
       </div>
       {c.collectionRate != null && (
-        <div className="mt-3 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="mt-3 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
           <div className="h-full bg-green-500 rounded-full transition-all duration-700"
             style={{ width: `${c.collectionRate}%` }} />
         </div>
@@ -290,6 +290,8 @@ export function CampusChip({ user }) {
   const isLocked =
     user.role === 'registrar_basic'   ||
     user.role === 'registrar_college' ||
+    user.role === 'principal_basic'   ||
+    user.role === 'program_head'      ||
     (user.role === 'accounting' && user.campus !== 'all')
 
   if (!isLocked) return null
@@ -297,6 +299,8 @@ export function CampusChip({ user }) {
   const colors = {
     registrar_basic:   'bg-emerald-500 border-emerald-500 text-white',
     registrar_college: 'bg-purple-600  border-purple-600  text-white',
+    principal_basic:   'bg-orange-500  border-orange-500  text-white',
+    program_head:      'bg-violet-600  border-violet-600  text-white',
     accounting:        'bg-amber-500   border-amber-500   text-white',
   }
 
@@ -335,8 +339,8 @@ export function CampusChip({ user }) {
  */
 export function SectionPanel({ title, icon, colorCls, pills, children }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden">
-      <div className={`px-5 py-3.5 flex items-center gap-2.5 border-b border-gray-100 dark:border-gray-700 ${colorCls}`}>
+    <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm overflow-hidden">
+      <div className={`px-5 py-3.5 flex items-center gap-2.5 border-b border-[var(--color-border)] ${colorCls}`}>
         <div className="opacity-90">{icon}</div>
         <h3 className="text-sm font-bold uppercase tracking-wider">{title}</h3>
         {pills?.filter(Boolean).length > 0 && (
@@ -364,12 +368,12 @@ export function CollectionRateBar({ rate, collected, expected }) {
   const color = rate >= 75 ? 'bg-green-500' : rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
   const textColor = rate >= 75 ? 'text-green-600 dark:text-green-400' : rate >= 50 ? 'text-yellow-600' : 'text-red-500'
   return (
-    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+    <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Overall Collection Rate</p>
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">Overall Collection Rate</p>
         <span className={`text-sm font-bold ${textColor}`}>{rate}%</span>
       </div>
-      <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+      <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${rate}%` }} />
       </div>
       <div className="flex justify-between text-xs text-gray-400 mt-1.5">
@@ -416,7 +420,7 @@ export function DeptEnrollmentCard({ group, enrollments }) {
   const maxCount     = Math.max(...gradeData.map(r => r.total), 1)
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+    <div className={`bg-[var(--color-bg-card)] rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
       {/* Header */}
       <div onClick={() => setExpanded(e => !e)}
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
@@ -426,14 +430,14 @@ export function DeptEnrollmentCard({ group, enrollments }) {
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-[var(--color-text-muted)]">
               {group.options.length} grade level{group.options.length !== 1 ? 's' : ''}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="hidden sm:flex items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 px-2.5 py-1 rounded-full shadow-sm">
+            <span className="text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] px-2.5 py-1 rounded-full shadow-sm">
               {deptTotal} total
             </span>
             {deptPending  > 0 && <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">{deptPending} pending</span>}
@@ -446,14 +450,14 @@ export function DeptEnrollmentCard({ group, enrollments }) {
 
       {/* Grade rows */}
       {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-[var(--color-border)]">
           {gradeData.map(row => (
             <div key={row.grade} className="px-5 py-3 flex items-center gap-4">
               <div className="w-28 flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{row.grade}</span>
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">{row.grade}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2 overflow-hidden">
                   {row.total > 0 ? (
                     <div className="h-full flex rounded-full overflow-hidden">
                       <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
@@ -461,18 +465,18 @@ export function DeptEnrollmentCard({ group, enrollments }) {
                       <div className="bg-red-400 h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
                     </div>
                   ) : (
-                    <div className="h-full bg-gray-200 dark:bg-gray-600 rounded-full w-full" />
+                    <div className="h-full bg-[var(--color-border)] rounded-full w-full" />
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {row.total === 0 ? (
-                  <span className="text-xs text-gray-300 dark:text-gray-600 w-16 text-right">No data</span>
+                  <span className="text-xs text-[var(--color-text-muted)] opacity-50 w-16 text-right">No data</span>
                 ) : (
                   <>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-full">{row.total}</span>
+                      <span className="text-xs text-[var(--color-text-muted)]">Total</span>
+                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] text-xs font-bold rounded-full">{row.total}</span>
                     </div>
                     {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full">{row.pending}</span>}
                     {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">{row.approved}</span>}
@@ -484,9 +488,9 @@ export function DeptEnrollmentCard({ group, enrollments }) {
           ))}
           {/* Subtotal */}
           <div className={`px-5 py-3 ${style.lightBg} flex items-center justify-between`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{group.label} Total</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{group.label} Total</span>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-gray-800 dark:text-white">{deptTotal}</span>
+              <span className="text-sm font-bold text-[var(--color-text-primary)]">{deptTotal}</span>
               <div className="flex items-center gap-1.5 text-xs">
                 {deptPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{deptPending} pending</span>}
                 {deptApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{deptApproved} approved</span>}
@@ -530,7 +534,7 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
   const maxCount     = Math.max(...yearData.map(r => r.total), 1)
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+    <div className={`bg-[var(--color-bg-card)] rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
       {/* Header */}
       <div onClick={() => setExpanded(e => !e)}
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
@@ -540,12 +544,12 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">College · {COLLEGE_YEAR_LEVELS.length} year levels</p>
+            <p className="text-xs text-[var(--color-text-muted)]">College · {COLLEGE_YEAR_LEVELS.length} year levels</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <div className="hidden sm:flex items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 px-2.5 py-1 rounded-full shadow-sm">
+            <span className="text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] px-2.5 py-1 rounded-full shadow-sm">
               {progTotal} total
             </span>
             {progPending  > 0 && <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">{progPending} pending</span>}
@@ -558,14 +562,14 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
 
       {/* Year rows */}
       {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-[var(--color-border)]">
           {yearData.map(row => (
             <div key={row.yr} className="px-5 py-3 flex items-center gap-4">
               <div className="w-28 flex-shrink-0">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{row.yr}</span>
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">{row.yr}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2 overflow-hidden">
                   {row.total > 0 ? (
                     <div className="h-full flex rounded-full overflow-hidden">
                       <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
@@ -573,18 +577,18 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
                       <div className="bg-red-400 h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
                     </div>
                   ) : (
-                    <div className="h-full bg-gray-200 dark:bg-gray-600 rounded-full w-full" />
+                    <div className="h-full bg-[var(--color-border)] rounded-full w-full" />
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {row.total === 0 ? (
-                  <span className="text-xs text-gray-300 dark:text-gray-600">No data</span>
+                  <span className="text-xs text-[var(--color-text-muted)] opacity-50">No data</span>
                 ) : (
                   <>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
-                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold rounded-full">{row.total}</span>
+                      <span className="text-xs text-[var(--color-text-muted)]">Total</span>
+                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] text-xs font-bold rounded-full">{row.total}</span>
                     </div>
                     {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full">{row.pending}</span>}
                     {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">{row.approved}</span>}
@@ -596,9 +600,9 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
           ))}
           {/* Subtotal */}
           <div className={`px-5 py-3 ${style.lightBg} flex items-center justify-between`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{program} Total</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{program} Total</span>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-bold text-gray-800 dark:text-white">{progTotal}</span>
+              <span className="text-sm font-bold text-[var(--color-text-primary)]">{progTotal}</span>
               <div className="flex items-center gap-1.5 text-xs">
                 {progPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{progPending} pending</span>}
                 {progApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{progApproved} approved</span>}
@@ -629,19 +633,19 @@ function PaymentGradeRow({ label, payments }) {
   return (
     <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
       <div className="w-32 flex-shrink-0">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
-        <p className="text-xs text-gray-400 dark:text-gray-500">{payments.length} student{payments.length !== 1 ? 's' : ''}</p>
+        <span className="text-sm font-medium text-[var(--color-text-primary)]">{label}</span>
+        <p className="text-xs text-[var(--color-text-muted)]">{payments.length} student{payments.length !== 1 ? 's' : ''}</p>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+          <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2.5 overflow-hidden">
             {totalFee > 0 ? (
               <div className="h-full flex rounded-full overflow-hidden">
                 <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(revenue / totalFee) * 100}%` }} />
-                <div className="bg-gray-300 dark:bg-gray-600 h-full transition-all duration-500" style={{ width: `${(outstanding / totalFee) * 100}%` }} />
+                <div className="bg-[var(--color-border-strong)] h-full transition-all duration-500" style={{ width: `${(outstanding / totalFee) * 100}%` }} />
               </div>
             ) : (
-              <div className="h-full w-full bg-gray-200 dark:bg-gray-600 rounded-full" />
+              <div className="h-full w-full bg-[var(--color-border)] rounded-full" />
             )}
           </div>
           <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
@@ -665,7 +669,7 @@ function PaymentGradeRow({ label, payments }) {
         {paid    > 0 && <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">{paid} paid</span>}
         {partial > 0 && <span className="text-xs font-semibold bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full">{partial} partial</span>}
         {overdue > 0 && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full">{overdue} overdue</span>}
-        {pending > 0 && <span className="text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{pending} unpaid</span>}
+        {pending > 0 && <span className="text-xs font-semibold bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded-full">{pending} unpaid</span>}
       </div>
     </div>
   )
@@ -695,7 +699,7 @@ export function DeptPaymentCard({ group, payments }) {
   if (deptPayments.length === 0) return null
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+    <div className={`bg-[var(--color-bg-card)] rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
       <div onClick={() => setExpanded(e => !e)}
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
@@ -704,7 +708,7 @@ export function DeptPaymentCard({ group, payments }) {
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{deptPayments.length} student{deptPayments.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{deptPayments.length} student{deptPayments.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -723,7 +727,7 @@ export function DeptPaymentCard({ group, payments }) {
       </div>
 
       {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-[var(--color-border)]">
           {group.options.map(grade => {
             const gradePayments = payments.filter(p => p.gradeLevel === grade)
             if (gradePayments.length === 0) return null
@@ -731,9 +735,9 @@ export function DeptPaymentCard({ group, payments }) {
           })}
           {/* Dept total footer */}
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{group.label} Total</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{group.label} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(deptTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
               <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
               <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
             </div>
@@ -765,7 +769,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
   if (progPayments.length === 0) return null
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
+    <div className={`bg-[var(--color-bg-card)] rounded-2xl shadow-sm border ${style.border} overflow-hidden`}>
       <div onClick={() => setExpanded(e => !e)}
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
@@ -774,7 +778,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{progPayments.length} student{progPayments.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{progPayments.length} student{progPayments.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -793,7 +797,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
       </div>
 
       {expanded && (
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+        <div className="divide-y divide-[var(--color-border)]">
           {COLLEGE_YEAR_LEVELS.map(yr => {
             const key = `${program} - ${yr}`
             const yrPayments = payments.filter(p => p.gradeLevel === key)
@@ -802,9 +806,9 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
           })}
           {/* Program total footer */}
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{program} Total</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{program} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-gray-700 dark:text-gray-200">{php(progTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
               <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
               <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
             </div>
@@ -829,30 +833,32 @@ export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-p
     <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment data found.</p>
   )
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-700/50">
+    <div className="min-w-0 -mx-1">
+      <div className="overflow-x-auto rounded-lg">
+      <table className="w-full text-sm min-w-[520px]">
+        <thead className="bg-[var(--color-bg-subtle)]/50">
           <tr>
             {['Reference','Student','Level / Program','Type','Status','Date'].map(h => (
-              <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+              <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-[var(--color-border)]">
           {rows.map(e => (
-            <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+            <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
               <td className={`px-4 py-3 font-mono text-xs ${accentColor} whitespace-nowrap`}>{e.referenceNumber}</td>
-              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{e.enrollment.gradeLevel}</td>
-              <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{e.enrollment.studentType}</td>
+              <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
+              <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
+              <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{e.enrollment.studentType}</td>
               <td className="px-4 py-3 whitespace-nowrap"><EnrollmentStatusPill status={e.status} /></td>
-              <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">
+              <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap text-xs">
                 {new Date(e.submittedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
@@ -864,31 +870,32 @@ export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-p
  */
 export function CampusEnrollmentTable({ campusStats }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-700/50">
+    <div className="min-w-0">
+    <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+      <table className="w-full text-sm min-w-[560px]">
+        <thead className="bg-[var(--color-bg-subtle)]/50">
           <tr>{['Campus','Total','Awaiting Payment','Payment Received','Approved','Rejected','Approval Rate'].map(h => (
-            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-[var(--color-border)]">
           {campusStats.map(c => {
             const rate = c.enrollments > 0 ? Math.round((c.approved / c.enrollments) * 100) : 0
             const paymentReceived = c.payment_received ?? 0
             return (
-              <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-                <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-200">{c.enrollments}</td>
+              <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+                <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
+                <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.enrollments}</td>
                 <td className="px-4 py-3 text-yellow-600 dark:text-yellow-400 font-semibold">{c.pending}</td>
                 <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-semibold">{paymentReceived}</td>
                 <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{c.approved}</td>
                 <td className="px-4 py-3 text-red-500 dark:text-red-400 font-semibold">{c.rejected}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
+                    <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
                       <div className="h-full bg-green-500 rounded-full" style={{ width: `${rate}%` }} />
                     </div>
-                    <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 w-9">{rate}%</span>
+                    <span className="text-xs font-semibold text-[var(--color-text-secondary)] w-9">{rate}%</span>
                   </div>
                 </td>
               </tr>
@@ -896,6 +903,7 @@ export function CampusEnrollmentTable({ campusStats }) {
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
@@ -907,28 +915,29 @@ export function CampusEnrollmentTable({ campusStats }) {
  */
 export function CampusStudentTable({ campusStats, stuTotal }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-700/50">
+    <div className="min-w-0">
+    <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+      <table className="w-full text-sm min-w-[400px]">
+        <thead className="bg-[var(--color-bg-subtle)]/50">
           <tr>{['Campus','Total','Basic Ed','College','Share'].map(h => (
-            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-[var(--color-border)]">
           {campusStats.map(c => {
             const share = stuTotal > 0 ? Math.round((c.students / stuTotal) * 100) : 0
             return (
-              <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-                <td className="px-4 py-3 font-bold text-gray-800 dark:text-white">{c.students}</td>
+              <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+                <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
+                <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.students}</td>
                 <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{c.basicStu}</td>
                 <td className="px-4 py-3 text-blue-600 dark:text-blue-400">{c.collegeStu}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
+                    <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
                       <div className="h-full bg-blue-500 rounded-full" style={{ width: `${share}%` }} />
                     </div>
-                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 w-9">{share}%</span>
+                    <span className="text-xs font-semibold text-[var(--color-text-muted)] w-9">{share}%</span>
                   </div>
                 </td>
               </tr>
@@ -936,6 +945,7 @@ export function CampusStudentTable({ campusStats, stuTotal }) {
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }
@@ -947,38 +957,82 @@ export function CampusStudentTable({ campusStats, stuTotal }) {
  */
 export function CampusPaymentTable({ campusStats }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-700/50">
+    <div className="min-w-0">
+    <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
+      <table className="w-full text-sm min-w-[500px]">
+        <thead className="bg-[var(--color-bg-subtle)]/50">
           <tr>{['Campus','Expected','Collected','Outstanding','Collection Rate','Overdue'].map(h => (
-            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+            <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
         </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody className="divide-y divide-[var(--color-border)]">
           {campusStats.map(c => (
-            <tr key={c.name} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-              <td className="px-4 py-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{c.name}</td>
-              <td className="px-4 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap">{php(c.totalFee)}</td>
+            <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+              <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
+              <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{php(c.totalFee)}</td>
               <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold whitespace-nowrap">{php(c.revenue)}</td>
               <td className="px-4 py-3 text-red-500 dark:text-red-400 whitespace-nowrap">{php(c.outstanding)}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden min-w-[60px]">
+                  <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
                     <div className={`h-full rounded-full ${c.collectionRate >= 75 ? 'bg-green-500' : c.collectionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
                       style={{ width: `${c.collectionRate}%` }} />
                   </div>
-                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 w-9">{c.collectionRate}%</span>
+                  <span className="text-xs font-semibold text-[var(--color-text-secondary)] w-9">{c.collectionRate}%</span>
                 </div>
               </td>
               <td className="px-4 py-3">
                 {c.overdue > 0
                   ? <span className="text-xs font-semibold text-red-500">{c.overdue} accts</span>
-                  : <span className="text-xs text-gray-300 dark:text-gray-600">—</span>}
+                  : <span className="text-xs text-[var(--color-text-muted)] opacity-50">—</span>}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────────
+// DEPT TOGGLE
+// A reusable segmented toggle for filtering by department.
+// Sized to match GroupedSelect (py-2, text-sm, rounded-lg border).
+//
+// Usage:
+//   <DeptToggle value={deptFilter} onChange={setDeptFilter} />
+//
+// Props:
+//   value    — 'all' | 'basic_ed' | 'college'
+//   onChange — (newValue: string) => void
+//   options  — optional override of the three segments
+//              default: [{ val:'all', label:'All' }, { val:'basic_ed', label:'Basic Ed' }, { val:'college', label:'College' }]
+// ────────────────────────────────────────────────────────────────
+const DEFAULT_DEPT_OPTIONS = [
+  { val: 'all',      label: 'All'      },
+  { val: 'basic_ed', label: 'Basic Ed' },
+  { val: 'college',  label: 'College'  },
+]
+
+export function DeptToggle({ value = 'all', onChange, options = DEFAULT_DEPT_OPTIONS }) {
+  return (
+    <div className="inline-flex rounded-lg overflow-hidden border border-[var(--color-border)] text-sm font-semibold flex-shrink-0">
+      {options.map((opt, idx) => (
+        <button
+          key={opt.val}
+          onClick={() => onChange(opt.val)}
+          className={[
+            'px-3 py-2 transition-colors whitespace-nowrap',
+            idx > 0 && 'border-l border-[var(--color-border)]',
+            value === opt.val
+              ? 'bg-primary text-white'
+              : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
+          ].filter(Boolean).join(' ')}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   )
 }

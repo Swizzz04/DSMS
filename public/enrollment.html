@@ -12,7 +12,7 @@
     <!-- Navigation (same as main page) -->
     <nav>
         <a href="index.html" class="logo">
-            <img src="logo.png" alt="Cebu Sacred Heart College, Inc." class="logo-img">
+            <img src="assets/logo.png" alt="Cebu Sacred Heart College, Inc." class="logo-img">
         </a>
         
         <ul class="nav-links-simple">
@@ -26,7 +26,7 @@
     <div class="container">
         <div class="enrollment-header">
             <h1>Online Enrollment Form</h1>
-            <p class="enrollment-subtitle">Academic Year 2025-2026</p>
+            <p class="enrollment-subtitle">Academic Year 2026-2027</p>
             
         </div>
 
@@ -87,15 +87,32 @@
                     </div>
                 </div>
 
-                <div class="form-group">
+                <div class="form-group" id="studentTypeGroup">
                     <div class="floating-input">
                         <select id="studentType" name="studentType" required>
                             <option value="">Select Student Type</option>
-                            <option value="new">New Student</option>
-                            <option value="transferee">Transferee</option>
-                            <option value="returnee">Returnee</option>
+                            <!-- Basic Ed options -->
+                            <option value="new" class="basic-ed-type college-type">New Student</option>
+                            <option value="transferee" class="basic-ed-type college-type">Transferee</option>
+                            <option value="returnee" class="basic-ed-type college-type">Returnee</option>
+                            <!-- College-only options -->
+                            <option value="shifty" class="college-type-only" style="display:none">Shifty (Changing Course)</option>
                         </select>
                         <label for="studentType">Student Type <span class="required">*</span></label>
+                    </div>
+                    <p class="field-hint" id="studentTypeHint" style="display:none"></p>
+                </div>
+
+                <!-- Semester selection — shown only for college programs -->
+                <div class="form-group" id="semesterGroup" style="display:none">
+                    <div class="floating-input">
+                        <select id="semester" name="semester">
+                            <option value="">Select Semester</option>
+                            <option value="1st">1st Semester</option>
+                            <option value="2nd">2nd Semester</option>
+                            <option value="summer">Summer Semester</option>
+                        </select>
+                        <label for="semester">Semester <span class="required">*</span></label>
                     </div>
                 </div>
 
@@ -236,7 +253,7 @@
                     title="Please enter a valid email address (e.g., user@example.com)">
                 <label for="email">Email Address <span class="required">*</span></label>
             </div>
-            <small class="input-hint">Use a valid email (e.g., juan@example.com)</small>
+            <small class="input-hint">Use a valid email (e.g., <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1b716e7a755b7e637a766b777e35787476">[email&#160;protected]</a>)</small>
         </div>
 
         <div class="form-group">
@@ -511,23 +528,71 @@
                     <div class="review-content" id="reviewSchool"></div>
                 </div>
 
-                <div class="form-group checkbox-group">
+                <!-- School Policy Agreement -->
+                <div class="policy-agreement-box">
+                    <div class="policy-header">
+                        <img src="assets/logo.png" alt="CSHC" class="policy-logo">
+                        <div>
+                            <h4>Cebu Sacred Heart College, Inc.</h4>
+                            <p>Enrollment Policy &amp; Agreement</p>
+                        </div>
+                    </div>
+                    <div class="policy-scroll" id="policyScroll">
+                        <h5>I. ENROLLMENT POLICY</h5>
+                        <p>Enrollment at Cebu Sacred Heart College, Inc. (CSHC) is subject to the following terms and conditions. By enrolling, the student and parent/guardian agree to abide by all school policies, rules, and regulations as set forth by the school administration.</p>
+
+                        <h5>II. ACADEMIC STANDARDS</h5>
+                        <p>Students are expected to maintain satisfactory academic performance. A student who fails to meet the minimum passing grade requirements may be subject to academic probation or dismissal. Regular attendance is required. Absences beyond the allowable limit may result in a failing grade or disqualification from examinations.</p>
+
+                        <h5>III. PAYMENT OF FEES</h5>
+                        <p>All school fees must be paid according to the payment schedule set by the Accounting Department. Failure to settle financial obligations may result in the withholding of academic records, certificates, and clearances. The school reserves the right to refuse enrollment to students with outstanding balances from previous school years.</p>
+
+                        <h5>IV. CONDUCT AND DISCIPLINE</h5>
+                        <p>Students are expected to conduct themselves with integrity and respect at all times. Acts of misconduct, dishonesty, disrespect toward teachers and staff, or violation of school rules may result in disciplinary action, suspension, or expulsion as deemed appropriate by the school administration.</p>
+
+                        <h5>V. USE OF SCHOOL FACILITIES</h5>
+                        <p>Students are responsible for the proper use and care of school facilities, equipment, and property. Any damage caused by negligence or misconduct will be the financial responsibility of the student and/or parent/guardian.</p>
+
+                        <h5>VI. DATA PRIVACY</h5>
+                        <p>In compliance with Republic Act No. 10173 (Data Privacy Act of 2012), CSHC collects and processes personal information solely for enrollment, academic, and administrative purposes. Student data will not be shared with third parties without consent, except as required by law.</p>
+
+                        <h5>VII. HEALTH AND SAFETY</h5>
+                        <p>Students must comply with all health and safety protocols set by the school and applicable government agencies. The school reserves the right to implement additional health measures as necessary.</p>
+
+                        <h5>VIII. AMENDMENT OF POLICIES</h5>
+                        <p>The school reserves the right to amend, update, or revise these policies at any time. Students and parents/guardians will be duly notified of any changes through official school communication channels.</p>
+
+                        <div class="policy-scroll-indicator" id="policyIndicator">
+                            <span>↓ Please scroll down to read the complete policy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agreement checkboxes — enabled after scrolling policy -->
+                <div class="form-group checkbox-group" id="policyCheckGroup" style="opacity:0.5;pointer-events:none">
                     <label class="checkbox-label">
                         <input type="checkbox" id="termsAccept" name="termsAccept" required>
-                        <span>I hereby certify that all information provided above is true and correct. <span class="required">*</span></span>
+                        <span>I have read and understood the Enrollment Policy and Agreement of Cebu Sacred Heart College, Inc., and I agree to abide by all the rules and regulations of the school. <span class="required">*</span></span>
                     </label>
                 </div>
 
-                <div class="form-group checkbox-group">
+                <div class="form-group checkbox-group" id="certifyCheckGroup" style="opacity:0.5;pointer-events:none">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="certifyInfo" name="certifyInfo" required>
+                        <span>I hereby certify that all information provided in this enrollment form is true, correct, and complete to the best of my knowledge. I understand that any false information may result in the cancellation of my enrollment. <span class="required">*</span></span>
+                    </label>
+                </div>
+
+                <div class="form-group checkbox-group" id="privacyCheckGroup" style="opacity:0.5;pointer-events:none">
                     <label class="checkbox-label">
                         <input type="checkbox" id="dataPrivacy" name="dataPrivacy" required>
-                        <span>I consent to the collection and processing of my personal data in accordance with the Data Privacy Act. <span class="required">*</span></span>
+                        <span>I consent to the collection, processing, and storage of my personal data by CSHC in accordance with the Data Privacy Act of 2012 (R.A. 10173). <span class="required">*</span></span>
                     </label>
                 </div>
 
                 <div class="step-buttons">
                     <button type="button" class="btn-prev" onclick="prevStep()">← Previous</button>
-                    <button type="submit" class="btn-submit">Submit Enrollment</button>
+                    <button type="submit" class="btn-submit" id="submitBtn" disabled>Submit Enrollment</button>
                 </div>
             </div>
 
@@ -613,9 +678,42 @@
         </div>
     </footer>
 
-    <!-- Security bridge: load BEFORE enrollment.js -->
+        <!-- Security bridge: load BEFORE enrollment.js -->
     <script src="enrollmentBridge.website.js"></script>
     <script src="enrollment.js"></script>
+
+    <script>
+    document.getElementById('studentType')?.addEventListener('change', function() {
+        var hints = {
+            new: 'First-time enrollee — no previous records in this school.',
+            transferee: 'Previously enrolled in another school and transferring to CSHC.',
+            returnee: 'Previously enrolled at CSHC, stopped or transferred out, and is returning.',
+            shifty: 'Enrolled in another school with a different course, shifting to a CSHC program.',
+        }
+        var hint = document.getElementById('studentTypeHint')
+        if (hint) { var txt = hints[this.value]; hint.textContent = txt||''; hint.style.display = txt?'block':'none' }
+    })
+    ;(function() {
+        var policyBox = document.getElementById('policyScroll')
+        var indicator = document.getElementById('policyIndicator')
+        var groups = ['policyCheckGroup','certifyCheckGroup','privacyCheckGroup']
+        var submitBtn = document.getElementById('submitBtn')
+        var read = false
+        function unlock() {
+            if (read) return; read = true
+            if (indicator) indicator.classList.add('hidden')
+            groups.forEach(function(id){ var el=document.getElementById(id); if(el){el.style.opacity='1';el.style.pointerEvents='all'} })
+        }
+        if (policyBox) policyBox.addEventListener('scroll', function() {
+            if (policyBox.scrollHeight - policyBox.scrollTop - policyBox.clientHeight < 30) unlock()
+        })
+        function checkAll() {
+            var ok = ['termsAccept','certifyInfo','dataPrivacy'].every(function(id){ var el=document.getElementById(id); return el&&el.checked })
+            if (submitBtn) submitBtn.disabled = !ok
+        }
+        ;['termsAccept','certifyInfo','dataPrivacy'].forEach(function(id){ document.getElementById(id)?.addEventListener('change', checkAll) })
+    })()
+    </script>
 
 </body>
 </html>
