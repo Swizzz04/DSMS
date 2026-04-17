@@ -167,7 +167,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {/* Discount Name */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+              <label className="form-label">
                 Discount Name <span className="text-red-500">*</span>
               </label>
               <input type="text" value={newDiscount.name}
@@ -181,7 +181,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
 
             {/* Discount Type toggle + Value */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+              <label className="form-label">
                 Discount Type &amp; Value <span className="text-red-500">*</span>
               </label>
               {/* Type toggle */}
@@ -235,7 +235,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
 
             {/* Description */}
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Description (optional)</label>
+              <label className="form-label">Description (optional)</label>
               <input type="text" value={newDiscount.description}
                 onChange={e => setNewDiscount(p => ({ ...p, description: e.target.value }))}
                 placeholder="Brief description of who qualifies"
@@ -245,11 +245,11 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => { setShowAdd(false); setErrors({}) }}
-              className="px-4 py-2 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition">
+              className="btn-cancel" style={{ flex: 'none' }}>
               Cancel
             </button>
             <button onClick={handleAdd}
-              className="flex items-center gap-2 px-5 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-accent-burgundy transition">
+              className="btn-action flex items-center gap-2" style={{ flex: 'none' }}>
               <Check className="w-4 h-4"/> Add Discount
             </button>
           </div>
@@ -1788,7 +1788,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <svg className="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input
               type="text"
               placeholder="Search name or email…"
@@ -1857,7 +1857,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
               <thead className="bg-[var(--color-bg-subtle)]/50">
                 <tr>
                   {['Name','Email','Role','Campus','Status','Last Login','Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    <th key={h} className="th">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1915,10 +1915,10 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
       {/* ── Add / Edit Modal ─────────────────────────────────────── */}
       {showModal && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+        <div className="modal-backdrop">
           <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92vh] flex flex-col shadow-[var(--shadow-modal)]">
             {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+            <div className="modal-header">
               <div>
                 <h3 className="text-base font-bold text-[var(--color-text-primary)]">
                   {editingUser ? 'Edit User' : 'Add New User'}
@@ -1927,7 +1927,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
                   {editingUser ? `Editing ${editingUser.name}` : 'Create a new system account'}
                 </p>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+              <button onClick={() => setShowModal(false)} className="icon-btn-ghost">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1936,7 +1936,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                <label className="form-label">
                   Full Name <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1952,7 +1952,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
 
               {/* Email */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                <label className="form-label">
                   Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -1968,7 +1968,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
 
               {/* Role */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                <label className="form-label">
                   Role <span className="text-red-500">*</span>
                 </label>
                 <GroupedSelect
@@ -1988,7 +1988,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
               {/* Campus — only for campus-scoped roles */}
               {needsCampus && (
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                  <label className="form-label">
                     Campus <span className="text-red-500">*</span>
                   </label>
                   <GroupedSelect
@@ -2006,7 +2006,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
 
               {/* Password */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                <label className="form-label">
                   {editingUser ? 'New Password' : 'Password'} {!editingUser && <span className="text-red-500">*</span>}
                   {editingUser && <span className="text-gray-400 font-normal"> (leave blank to keep current)</span>}
                 </label>
@@ -2024,7 +2024,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
               {/* Confirm Password */}
               {(form.password || !editingUser) && (
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+                  <label className="form-label">
                     Confirm Password {!editingUser && <span className="text-red-500">*</span>}
                   </label>
                   <input
@@ -2041,10 +2041,10 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
             </div>
 
             {/* Modal footer */}
-            <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+            <div className="modal-footer">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium"
+                className="btn-cancel"
               >
                 Cancel
               </button>
@@ -2070,7 +2070,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
         const isActive = target?.status === 'active'
         return (
           <ModalPortal>
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+          <div className="modal-backdrop-center">
             <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm p-6 shadow-[var(--shadow-modal)]">
               <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-2">
                 {isActive ? 'Deactivate User?' : 'Reactivate User?'}
@@ -2084,7 +2084,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeactivateId(null)}
-                  className="flex-1 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium"
+                  className="btn-cancel"
                 >
                   Cancel
                 </button>

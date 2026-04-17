@@ -100,10 +100,10 @@ function TxDetailModal({ tx, onClose, onPrint }) {
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+      <div className="modal-backdrop">
         <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[92vh] flex flex-col shadow-[var(--shadow-modal)]">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <div className="modal-header">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                 <Receipt className="w-4 h-4 text-primary"/>
@@ -261,9 +261,9 @@ function TxDetailModal({ tx, onClose, onPrint }) {
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+          <div className="modal-footer">
             <button onClick={onClose}
-              className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+              className="btn-cancel">
               Close
             </button>
             <button onClick={() => onPrint(tx)}
@@ -388,9 +388,9 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+      <div className="modal-backdrop">
         <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <div className="modal-header">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                 <Receipt className="w-4 h-4 text-green-600 dark:text-green-400"/>
@@ -411,9 +411,9 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
               <div className="flex-1"><ReceiptCopy copyLabel="Student Copy"/></div>
             </div>
           </div>
-          <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+          <div className="modal-footer">
             <button onClick={onClose}
-              className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+              className="btn-cancel">
               Close
             </button>
             <button onClick={handlePrint}
