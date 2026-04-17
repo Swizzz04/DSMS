@@ -99,14 +99,14 @@ export default function Dashboard() {
 
   // Initial load shimmer
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 800)
+    const t = setTimeout(() => setLoading(false), 150)
     return () => clearTimeout(t)
   }, [])
 
   // Campus filter change shimmer
   useEffect(() => {
     setLoading(true)
-    const t = setTimeout(() => setLoading(false), 400)
+    const t = setTimeout(() => setLoading(false), 100)
     return () => clearTimeout(t)
   }, [campusFilter])
 

@@ -660,6 +660,432 @@ body.modal-open {
   overflow: hidden;
 }
 
+/* ── Icon buttons ─────────────────────────────── */
+.icon-btn {
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn-primary {
+  padding: 8px;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--t-base);
+}
+.icon-btn-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+.icon-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.icon-btn-ghost {
+  padding: 8px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border-radius: var(--radius-lg);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--t-base), color var(--t-base);
+}
+.icon-btn-ghost:hover {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+/* ── Modal structure ──────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .modal-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+}
+.modal-backdrop-center {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+}
+
+.modal-panel {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  width: 100%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-modal);
+}
+@media (min-width: 640px) {
+  .modal-panel {
+    border-radius: var(--radius-2xl);
+    max-width: 32rem;   /* sm:max-w-lg default — override with inline max-width */
+  }
+}
+
+.modal-panel-sm {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-2xl);
+  width: 100%;
+  max-width: 24rem;
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-5);
+}
+
+/* Medium modal — teacher pickers, form modals */
+.modal-panel-md {
+  max-width: 28rem;
+}
+@media (min-width: 640px) {
+  .modal-panel.modal-panel-md {
+    max-width: 28rem;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.modal-footer {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+  display: flex;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+/* ── Cancel / action button pair ──────────────── */
+.action-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.btn-cancel {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--t-base);
+}
+.btn-cancel:hover { background-color: var(--color-bg-subtle); }
+
+.btn-action,
+.btn-submit {
+  flex: 1;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: background-color var(--t-base);
+}
+.btn-action:hover:not(:disabled),
+.btn-submit:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+.btn-action:disabled,
+.btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Table header cell ────────────────────────── */
+.th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* ── Table body cell ──────────────────────────── */
+.td {
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* ── Form label ───────────────────────────────── */
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+/* ── Search input with icon ───────────────────── */
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-muted);
+}
+
+/* ── Card container (table wrapper) ───────────── */
+.card-section {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* ── Page title row ───────────────────────────── */
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+.page-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+/* ── Icon buttons ─────────────────────────────── */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition:
+    background-color var(--t-base),
+    color            var(--t-base),
+    opacity          var(--t-base);
+}
+.icon-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.icon-btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+.icon-btn-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+
+.icon-btn-ghost {
+  background-color: transparent;
+  color: var(--color-text-muted);
+}
+.icon-btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+.icon-btn-bordered {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+}
+.icon-btn-bordered:hover:not(:disabled) {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+/* ── Modal primitives ─────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .modal-backdrop {
+    align-items: center;
+    padding: var(--space-4);
+  }
+}
+
+.modal-backdrop-dark {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: 0;
+}
+@media (min-width: 640px) {
+  .modal-backdrop-dark {
+    align-items: center;
+    padding: var(--space-4);
+  }
+}
+
+.modal-backdrop-center {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-modal);
+  padding: var(--space-4);
+}
+
+.modal-panel {
+  background-color: var(--color-bg-card);
+  border-radius: var(--radius-2xl);
+  width: 100%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-modal);
+}
+/* Mobile: flat bottom, round top */
+@media (max-width: 639px) {
+  .modal-panel {
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  }
+}
+
+.modal-panel-sm { max-width: 24rem; }  /* 384px — small dialogs */
+.modal-panel-md { max-width: 28rem; }  /* 448px — teacher picker */
+.modal-panel-lg { max-width: 32rem; }  /* 512px — edit forms */
+.modal-panel-xl { max-width: 64rem; }  /* 1024px — student profile */
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.modal-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: var(--space-5);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.modal-footer-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* ── Action button row (modal footers, form actions) */
+.action-row {
+  display: flex;
+  gap: var(--space-2);
+}
+.action-row > * { flex: 1; }
+
+/* ── Cancel / ghost text button (full-width in action rows) */
+.btn-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--t-base),
+    border-color     var(--t-base);
+}
+.btn-cancel:hover {
+  background-color: var(--color-bg-subtle);
+  border-color: var(--color-border-strong);
+}
+
+/* ── Submit / confirm button (full-width in action rows) */
+.btn-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: var(--color-primary);
+  border: none;
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition:
+    background-color var(--t-base),
+    opacity          var(--t-base);
+}
+.btn-submit:hover:not(:disabled) { background-color: var(--color-primary-hover); }
+.btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Table header cell ────────────────────────── */
+.th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+/* ── Table body cell ──────────────────────────── */
+.td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
 
 /* ─────────────────────────────────────────────────────────────────
    8. PAGE & LAYOUT UTILITIES

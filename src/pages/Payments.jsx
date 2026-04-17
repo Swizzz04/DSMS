@@ -433,10 +433,10 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999] p-4">
+    <div className="modal-backdrop-center">
       <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-3xl max-h-[94vh] flex flex-col shadow-[var(--shadow-modal)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+        <div className="modal-header">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-primary" />
             <h2 className="text-base font-bold text-[var(--color-text-primary)]">Receipt Preview</h2>
@@ -462,7 +462,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
 
         {/* Actions */}
         <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex justify-between items-center flex-shrink-0">
-          <button onClick={onClose} className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+          <button onClick={onClose} className="btn-cancel">
             Close
           </button>
           <button onClick={handlePrint}
@@ -550,10 +550,10 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9998] p-0 sm:p-4">
+    <div className="modal-backdrop">
       <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg max-h-[94vh] flex flex-col shadow-[var(--shadow-modal)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+        <div className="modal-header">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0">
               <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -596,7 +596,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* Amount input */}
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+            <label className="form-label">
               Amount to Record <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -627,7 +627,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* Payment method */}
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Payment Method</label>
+            <label className="form-label">Payment Method</label>
             <div className="flex gap-2">
               {['Cash', 'Bank Transfer'].map(m => (
                 <button key={m} onClick={() => setMethod(m)}
@@ -644,7 +644,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* OR Number */}
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+            <label className="form-label">
               OR Number <span className="text-red-500">*</span>
             </label>
             <div className="flex gap-2">
@@ -663,7 +663,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* Payment For */}
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+            <label className="form-label">
               Payment For <span className="text-red-500">*</span>
               <span className="ml-1 font-normal text-gray-400">(select all that apply)</span>
             </label>
@@ -701,7 +701,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Notes (optional)</label>
+            <label className="form-label">Notes (optional)</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="e.g. Monthly installment — March, Down payment..."
               className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
@@ -718,8 +718,8 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
-          <button onClick={onClose} className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+        <div className="modal-footer">
+          <button onClick={onClose} className="btn-cancel">
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
@@ -1930,7 +1930,7 @@ export default function Payments() {
               </div>
               {/* Search — grows to fill remaining space */}
               <div className="relative flex-1 min-w-[160px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="search-icon" />
                 <input type="text" placeholder="Search student name or ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition" />
               </div>
@@ -1940,7 +1940,7 @@ export default function Payments() {
           </div>
 
           {/* Payment list */}
-          <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+          <div className="card-section">
             {filtered.length === 0 ? <EmptyState type="search" /> : (
               <>
                 {/* Mobile cards */}
@@ -1985,7 +1985,7 @@ export default function Payments() {
                       <thead className="bg-[var(--color-bg-subtle)]">
                         <tr>
                           {['Student','Dept',!isAccountingLocked?'Campus':null,'Grade / Program','Total Fee','Paid','Balance','Status','Last Payment','Actions'].filter(Boolean).map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                            <th key={h} className="th">{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -2055,9 +2055,9 @@ export default function Payments() {
           {/* Payment detail modal */}
           {showModal && selectedPayment && (
             <ModalPortal>
-            <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+            <div className="modal-backdrop">
               <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[92vh] flex flex-col">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+                <div className="modal-header">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                       <Receipt className="w-5 h-5 text-primary" />
@@ -2068,7 +2068,7 @@ export default function Payments() {
                     </div>
                   </div>
                   <button onClick={() => setShowModal(false)}
-                    className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                    className="icon-btn-ghost">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -2154,7 +2154,7 @@ export default function Payments() {
 
                 <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex justify-between items-center gap-3 flex-shrink-0">
                   <button onClick={() => setShowModal(false)}
-                    className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+                    className="btn-cancel">
                     Close
                   </button>
                   {(user?.role === 'accounting' || (user?.role === 'admin' || user?.role === 'technical_admin')) && selectedPayment.status !== 'paid' && (

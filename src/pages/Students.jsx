@@ -135,7 +135,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
           {groupStats.map((group) => {
             const maxVal = Math.max(...Object.values(group.byGrade), 1)
             return (
-              <div key={group.label} className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+              <div key={group.label} className="card-section">
                 <div className={`${group.bg} px-4 py-3 text-white`}>
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wider opacity-90">{group.label}</p>
@@ -185,7 +185,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
       </div>
 
       {/* Recent enrollments table — same as registrar_basic */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+      <div className="card-section">
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-600" /> Recent Enrollment Applications
@@ -343,7 +343,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
             const color = progColors[idx % progColors.length]
             const maxCount = Math.max(...YEAR_LEVELS.map(y => pd.byYear[y]), 1)
             return (
-              <div key={prog} className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+              <div key={prog} className="card-section">
                 <div className={`${color} px-5 py-4 text-white`}>
                   <div className="flex items-center justify-between">
                     <div>
@@ -395,7 +395,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
       </div>
 
       {/* Recent enrollments */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+      <div className="card-section">
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
             <FileText className="w-4 h-4 text-primary" /> Recent Enrollment Applications
@@ -840,7 +840,7 @@ export default function Students() {
       </div>
 
       {programBreakdown && Object.keys(programBreakdown).length > 0 && (
-        <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+        <div className="card-section">
           <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
             <GraduationCap className="w-4 h-4 text-primary" />
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Students by Program & Year Level</h2>
@@ -881,7 +881,7 @@ export default function Students() {
       )}
 
       {basicBreakdown && (
-        <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+        <div className="card-section">
           <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-emerald-600" />
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Students by Department & Grade Level</h2>
@@ -946,7 +946,7 @@ export default function Students() {
       {/* Filters */}
       <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow-sm space-y-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="search-icon" />
           <input type="text" placeholder="Search by name or Student ID…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition" />
         </div>
@@ -974,7 +974,7 @@ export default function Students() {
       </div>
 
       {/* Student table */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+      <div className="card-section">
         {filtered.length === 0 ? <EmptyState type={hasFilters ? 'search' : 'students'} onClear={hasFilters ? clearFilters : undefined} /> : (
           <>
             <ul className="md:hidden divide-y divide-[var(--color-border)]">
@@ -1006,7 +1006,7 @@ export default function Students() {
                 <thead className="bg-[var(--color-bg-subtle)]">
                   <tr>
                     {['Student ID','Student Name',user?.role==='registrar_college'?'Program & Year':'Grade Level','Section',!isCampusLocked?'Campus':null,'Status','Enrolled','Actions'].filter(Boolean).map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      <th key={h} className="th">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -1050,9 +1050,9 @@ export default function Students() {
 
       {showModal && selectedStudent && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+        <div className="modal-backdrop">
           <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-5xl max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+            <div className="modal-header">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-6 h-6 text-primary" /></div>
                 <div className="min-w-0">
@@ -1072,7 +1072,7 @@ export default function Students() {
                     : <Download className="w-4 h-4" />
                   }
                 </button>
-                <button onClick={() => setShowModal(false)} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowModal(false)} className="icon-btn-ghost"><X className="w-5 h-5" /></button>
               </div>
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
@@ -1112,7 +1112,7 @@ export default function Students() {
               </Section>
             </div>
             <div className="px-5 py-4 border-t border-[var(--color-border)] flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-[var(--color-bg-subtle)] flex-shrink-0">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">Close</button>
+              <button onClick={() => setShowModal(false)} className="btn-cancel">Close</button>
               <button onClick={() => handlePrintClick(selectedStudent)} className="px-5 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition flex items-center justify-center gap-2 font-medium">
                 <Printer className="w-4 h-4" /> Print PDF
               </button>

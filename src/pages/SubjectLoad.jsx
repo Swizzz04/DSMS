@@ -31,14 +31,14 @@ function TeacherPickerModal({ teachers, title, subtitle, currentTeacherId, onSel
   )
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
-      <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[85vh] flex flex-col shadow-[var(--shadow-modal)]">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+    <div className="modal-backdrop">
+      <div className="modal-panel modal-panel-md" style={{ maxHeight: '85vh' }}>
+        <div className="modal-header">
           <div className="min-w-0">
             <h3 className="text-base font-bold text-[var(--color-text-primary)]">{title}</h3>
             {subtitle && <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition ml-2 flex-shrink-0">
+          <button onClick={onClose} className="icon-btn icon-btn-ghost ml-2 flex-shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -88,8 +88,8 @@ function AddSubjectModal({ title, existing, onAdd, onClose }) {
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm shadow-[var(--shadow-modal)] p-5">
+    <div className="modal-backdrop-center">
+      <div className="modal-panel modal-panel-sm p-5">
         <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Add Subject</h3>
         <p className="text-xs text-[var(--color-text-muted)] mb-4">{title}</p>
         <input autoFocus type="text" placeholder="e.g. Philippine History"
@@ -98,10 +98,9 @@ function AddSubjectModal({ title, existing, onAdd, onClose }) {
           className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition mb-1
             ${isDupe ? 'border-red-400' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
         {isDupe && <p className="text-xs text-red-500 mb-2">Subject already exists in this level.</p>}
-        <div className="flex gap-2 mt-3">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">Cancel</button>
-          <button onClick={() => canAdd && (onAdd(trimmed), onClose())} disabled={!canAdd}
-            className="flex-1 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold disabled:opacity-40">
+        <div className="action-row mt-3">
+          <button onClick={onClose} className="btn-cancel">Cancel</button>
+          <button onClick={() => canAdd && (onAdd(trimmed), onClose())} disabled={!canAdd} className="btn-submit">
             Add Subject
           </button>
         </div>
@@ -115,8 +114,8 @@ function RenameSectionModal({ section, onRename, onClose }) {
   const [value, setValue] = useState(section.displayName)
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm shadow-[var(--shadow-modal)] p-5">
+    <div className="modal-backdrop-center">
+      <div className="modal-panel modal-panel-sm p-5">
         <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Rename Section</h3>
         <p className="text-xs text-[var(--color-text-muted)] mb-4">Default: {section.defaultName}</p>
         <input autoFocus type="text" placeholder={section.defaultName}
@@ -126,10 +125,9 @@ function RenameSectionModal({ section, onRename, onClose }) {
         <p className="text-xs text-[var(--color-text-muted)] mb-3">
           e.g. "Grade 7 Peridot", "Grade 7 Sapphire"
         </p>
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">Cancel</button>
-          <button onClick={() => { onRename(value.trim() || section.defaultName); onClose() }}
-            className="flex-1 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold">
+        <div className="action-row">
+          <button onClick={onClose} className="btn-cancel">Cancel</button>
+          <button onClick={() => { onRename(value.trim() || section.defaultName); onClose() }} className="btn-submit">
             Save Name
           </button>
         </div>
@@ -599,8 +597,8 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-sm shadow-[var(--shadow-modal)] p-5">
+    <div className="modal-backdrop-center">
+      <div className="modal-panel modal-panel-sm p-5">
         <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Section Settings</h3>
         <p className="text-xs text-[var(--color-text-muted)] mb-5">Sections are auto-calculated based on approved enrollments.</p>
 
@@ -616,18 +614,14 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
           Example: 40 students → 2 sections if max is 25, 1 section if max is 40.
         </p>
 
-        <div className="flex gap-2">
-          <button onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
-            Cancel
-          </button>
+        <div className="action-row">
+          <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button disabled={!valid} onClick={() => {
             setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, n)
             onDataChange()
             addToast(`Max per section updated to ${n}`, 'success')
             onClose()
-          }}
-            className="flex-1 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold disabled:opacity-40">
+          }} className="btn-submit">
             Save
           </button>
         </div>

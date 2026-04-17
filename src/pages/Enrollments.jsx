@@ -4,7 +4,7 @@ import {
   Download, User, ChevronRight, GraduationCap, MapPin,
   BookOpen, X, Filter, Users, TrendingUp, ChevronDown, ChevronUp, Globe, DollarSign, CreditCard,
   Printer, Receipt, Percent, Tag, AlertCircle, Info, History, ArrowRight, Banknote, Phone, Mail,
-  CalendarDays, BadgeCheck, CircleDollarSign, Wallet, ClipboardList
+  CalendarDays, RefreshCw, BadgeCheck, CircleDollarSign, Wallet, ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
@@ -392,10 +392,10 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+      <div className="modal-backdrop">
         <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <div className="modal-header">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                 <Receipt className="w-5 h-5 text-green-600 dark:text-green-400"/>
@@ -435,9 +435,9 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+          <div className="modal-footer">
             <button onClick={onClose}
-              className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+              className="btn-cancel">
               Close
             </button>
             <button onClick={handlePrint}
@@ -466,10 +466,10 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
 
   return (
     <ModalPortal>
-      <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+      <div className="modal-backdrop">
         <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-xl max-h-[92vh] flex flex-col shadow-[var(--shadow-modal)]">
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+          <div className="modal-header">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                 <User className="w-5 h-5 text-primary"/>
@@ -680,9 +680,9 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+          <div className="modal-footer">
             <button onClick={onClose}
-              className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+              className="btn-cancel">
               Close
             </button>
             {e.status === 'payment_received' && e.paymentHistory?.length > 0 && (
@@ -835,10 +835,10 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/65 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+    <div className="modal-backdrop">
       <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+        <div className="modal-header">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
               <Receipt className="w-5 h-5 text-primary"/>
@@ -1004,7 +1004,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
             {/* Amount */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+              <label className="form-label">
                 Amount Paid Now <span className="text-red-500">*</span>
                 {bill && <span className="ml-1 font-normal text-gray-400">(grand total: {php(bill.grandTotal)})</span>}
               </label>
@@ -1058,7 +1058,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
             {/* Payment method */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Payment Method</label>
+              <label className="form-label">Payment Method</label>
               <div className="flex gap-2">
                 {['Cash','Bank Transfer'].map(m => (
                   <button key={m} onClick={() => setPayMethod(m)}
@@ -1072,7 +1072,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
             {/* OR number */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
+              <label className="form-label">
                 OR Number <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-2">
@@ -1091,7 +1091,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
             {/* Notes */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Notes (optional)</label>
+              <label className="form-label">Notes (optional)</label>
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="e.g. Down payment, Monthly installment — March..."
                 className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
@@ -1101,9 +1101,9 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex gap-3 flex-shrink-0">
+        <div className="modal-footer">
           <button onClick={onClose}
-            className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">
+            className="btn-cancel">
             Cancel
           </button>
           <button onClick={handleConfirm}
@@ -1523,6 +1523,12 @@ export default function Enrollments() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
+          {/* Refresh button */}
+          <button onClick={loadBridge}
+            className="p-2 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"
+            title="Refresh">
+            <RefreshCw className="w-4 h-4"/>
+          </button>
           <button onClick={handleExport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-[#4a0009] transition font-medium">
             <Download className="w-4 h-4" /> Export
@@ -1613,7 +1619,7 @@ export default function Enrollments() {
       {/* ── Search + Filters ── */}
       <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow-sm space-y-3">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="search-icon" />
           <input type="text" placeholder="Search by name or reference number…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition" />
         </div>
@@ -1670,7 +1676,7 @@ export default function Enrollments() {
       </div>
 
       {/* ── Enrollment List ── */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
+      <div className="card-section">
         {sorted.length === 0 ? <EmptyState type={hasFilters ? 'search' : 'enrollments'} onClear={hasFilters ? clearFilters : undefined} /> : (
           <>
             {/* ── Mobile card list ── */}
@@ -1765,10 +1771,10 @@ export default function Enrollments() {
                     <tr>
                       {user?.role === 'accounting'
                         ? ['Reference','Student Name','Grade / Program','Date Submitted','Status','Fee / Paid','Actions'].map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                            <th key={h} className="th">{h}</th>
                           ))
-                        : ['Reference','Student Name',!isCampusLocked?'Campus':null,'Grade / Program','Date Submitted','Status','Actions'].filter(Boolean).map(h => (
-                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        : ['Reference','Student Name','Campus','Grade / Program','Date Submitted','Status','Actions'].map(h => (
+                            <th key={h} className="th">{h}</th>
                           ))
                       }
                     </tr>
@@ -1790,8 +1796,8 @@ export default function Enrollments() {
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">{e.student.email}</p>
                         </td>
-                        {/* Campus — only non-accounting and non-campus-locked */}
-                        {user?.role !== 'accounting' && !isCampusLocked && (
+                        {/* Campus — only non-accounting */}
+                        {user?.role !== 'accounting' && (
                           <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.campus}</td>
                         )}
                         {/* Grade / Program */}
@@ -1864,9 +1870,9 @@ export default function Enrollments() {
       {/* ── Detail modal (registrar / admin view) ── */}
       {showModal && selectedEnrollment && user?.role !== 'accounting' && (
         <ModalPortal>
-        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-[9999] p-0 sm:p-4">
+        <div className="modal-backdrop">
           <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[92vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] flex-shrink-0">
+            <div className="modal-header">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-primary" /></div>
                 <div className="min-w-0">
@@ -1881,7 +1887,7 @@ export default function Enrollments() {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setShowModal(false)} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowModal(false)} className="icon-btn-ghost"><X className="w-5 h-5" /></button>
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
@@ -1924,7 +1930,7 @@ export default function Enrollments() {
               </InfoSection>
             </div>
             <div className="px-5 py-4 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)] flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 flex-shrink-0">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-medium">Close</button>
+              <button onClick={() => setShowModal(false)} className="btn-cancel">Close</button>
               <div className="flex gap-2">
                 {canMarkPayment(selectedEnrollment) && (
                   <button onClick={() => handleMarkPayment(selectedEnrollment.id)}
