@@ -45,9 +45,9 @@ function RoleRoute({ children, allowedRoles }) {
   )
 }
 
-// Full operational access (everyone except school owner)
+// Full operational access (everyone except school owner and technical_admin)
 const OPERATIONAL = [
-  'technical_admin', 'registrar_basic', 'registrar_college',
+  'registrar_basic', 'registrar_college',
   'accounting', 'principal_basic', 'program_head',
 ]
 
@@ -70,37 +70,37 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Enrollments — admin (read-only overview) + all operational roles */}
+        {/* Enrollments — admin (read-only) + operational roles (NOT technical_admin) */}
         <Route path="/enrollments" element={
           <RoleRoute allowedRoles={['admin', ...OPERATIONAL]}>
             <Enrollments />
           </RoleRoute>
         } />
 
-        {/* Students — operational roles only */}
+        {/* Students — operational roles only (NOT technical_admin) */}
         <Route path="/students" element={
           <RoleRoute allowedRoles={OPERATIONAL}>
             <Students />
           </RoleRoute>
         } />
 
-        {/* Payments — accounting + technical_admin only */}
+        {/* Payments — accounting only */}
         <Route path="/payments" element={
-          <RoleRoute allowedRoles={['technical_admin', 'accounting']}>
+          <RoleRoute allowedRoles={['accounting']}>
             <Payments />
           </RoleRoute>
         } />
 
-        {/* Reports — school owner + technical_admin + accounting */}
+        {/* Reports — school owner + accounting */}
         <Route path="/reports" element={
-          <RoleRoute allowedRoles={['admin', 'technical_admin', 'accounting']}>
+          <RoleRoute allowedRoles={['admin', 'accounting']}>
             <Reports />
           </RoleRoute>
         } />
 
-        {/* Settings — technical_admin (all tabs) + accounting (fee/discount/receipt tabs) */}
+        {/* Settings — technical_admin (all tabs) + accounting (fee/discount/receipt) + principal/program_head (school year/grades) */}
         <Route path="/settings" element={
-          <RoleRoute allowedRoles={['technical_admin', 'accounting']}>
+          <RoleRoute allowedRoles={['technical_admin', 'accounting', 'principal_basic', 'program_head']}>
             <Settings />
           </RoleRoute>
         } />

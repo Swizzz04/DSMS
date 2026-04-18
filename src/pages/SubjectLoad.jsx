@@ -666,7 +666,7 @@ export default function SubjectLoad() {
 
   useEffect(() => {
     reload()
-    const t = setTimeout(() => setLoading(false), 500)
+    const t = setTimeout(() => setLoading(false), 100)
     return () => clearTimeout(t)
   }, [reload])
 

@@ -40,9 +40,21 @@ export const SCHOOL_INFO = {
 // SCHOOL YEARS
 // ─────────────────────────────────────────────────────────────────────
 export const SCHOOL_YEARS = [
-  { id: 1, year: '2025-2026', startDate: '2025-08-01', endDate: '2026-05-31', status: 'completed', isCurrent: false },
-  { id: 2, year: '2026-2027', startDate: '2026-08-01', endDate: '2027-05-31', status: 'active',    isCurrent: true  },
-  { id: 3, year: '2027-2028', startDate: '2027-08-01', endDate: '2028-05-31', status: 'upcoming',  isCurrent: false },
+  {
+    id: 1, year: '2025-2026', status: 'completed', isCurrent: false,
+    basicEd: { startDate: '2025-06-01', endDate: '2026-03-31', events: [] },
+    college: { startDate: '2025-08-01', endDate: '2026-05-31', events: [] },
+  },
+  {
+    id: 2, year: '2026-2027', status: 'active', isCurrent: true,
+    basicEd: { startDate: '2026-06-01', endDate: '2027-03-31', events: [] },
+    college: { startDate: '2026-08-01', endDate: '2027-05-31', events: [] },
+  },
+  {
+    id: 3, year: '2027-2028', status: 'upcoming', isCurrent: false,
+    basicEd: { startDate: '2027-06-01', endDate: '2028-03-31', events: [] },
+    college: { startDate: '2027-08-01', endDate: '2028-05-31', events: [] },
+  },
 ]
 
 

@@ -1663,7 +1663,7 @@ export default function Payments() {
         }))
         if (paid.length > 0) setPayments(paid)
       } catch {}
-      const t = setTimeout(() => setLoading(false), 500)
+      const t = setTimeout(() => setLoading(false), 100)
       return () => clearTimeout(t)
     }
     load()
@@ -1679,7 +1679,7 @@ export default function Payments() {
   }, [baseCampusFilter])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
-    const t = setTimeout(() => setLoading(false), 400)
+    const t = setTimeout(() => setLoading(false), 100)
     return () => clearTimeout(t)
   }, [campusFilter])
 

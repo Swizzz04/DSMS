@@ -22,7 +22,9 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Download, Users, FileText, GraduationCap,
   MapPin, BookOpen, Clock, CheckCircle, DollarSign,
-  AlertCircle, BarChart2, TrendingUp
+  AlertCircle, BarChart2, TrendingUp,
+  Ticket, MessageSquare, Shield, HelpCircle, Bug, UserPlus,
+  ChevronRight, Eye, X
 } from 'lucide-react'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
@@ -36,7 +38,9 @@ import { useAuth } from '../context/AuthContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { exportMultipleSheets } from '../utils/exportToExcel'
-import { SkeletonDashboard } from '../components/UIComponents'
+import { SkeletonDashboard, ModalPortal, useToast, ToastContainer } from '../components/UIComponents'
+import { getAllTickets, getTicketStats, updateTicketStatus, updateTicketPriority, addTicketNote } from '../utils/ticketBridge'
+import GroupedSelect from '../components/GroupedSelect'
 import {
   StatCard, CampusMiniCard, SectionPanel, CollectionRateBar, CampusBanner,
   EnrollmentStatusPill,
@@ -340,6 +344,11 @@ export default function Dashboard() {
 
   // ── Loading state ─────────────────────────────────────────────
   if (loading) return <SkeletonDashboard />
+
+  // ── Tech Admin Dashboard — Ticket System ────────────────────
+  if (user?.role === 'technical_admin') {
+    return <TechAdminDashboard />
+  }
 
   // ── Registrar dashboards ──────────────────────────────────────
   if (isCollegeReg || isBasicReg) {
@@ -937,6 +946,260 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
         )}
       </div>
 
+    </div>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════
+// TECH ADMIN DASHBOARD — Support Ticket System
+// ═════════════════════════════════════════════════════════════════
+function TechAdminDashboard() {
+  const [tickets, setTickets] = useState([])
+  const [stats, setStats] = useState({ total: 0, open: 0, inProgress: 0, onHold: 0, resolved: 0, closed: 0, urgent: 0, high: 0 })
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterType, setFilterType] = useState('all')
+  const [noteText, setNoteText] = useState('')
+  const { toasts, addToast, removeToast } = useToast()
+  const { systemUsers } = useAppConfig()
+
+  const reload = useCallback(() => {
+    setTickets(getAllTickets())
+    setStats(getTicketStats())
+  }, [])
+
+  useEffect(() => {
+    reload()
+    window.addEventListener('cshc_ticket_updated', reload)
+    const handleStorage = (e) => { if (e.key === 'cshc_tickets' || e.key === null) reload() }
+    window.addEventListener('storage', handleStorage)
+    return () => {
+      window.removeEventListener('cshc_ticket_updated', reload)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }, [reload])
+
+  const typeLabels = { account: 'Account Issue', bug: 'System Bug', access: 'Access Request', inquiry: 'General Inquiry' }
+  const typeIcons = { account: Shield, bug: Bug, access: UserPlus, inquiry: HelpCircle }
+  const typeColors = {
+    account: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+    bug:     'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+    access:  'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    inquiry: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+  }
+  const priorityColors = {
+    low:    'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]',
+    medium: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    high:   'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+    urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+  }
+  const statusColors = {
+    open:        'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400',
+    in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+    on_hold:     'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400',
+    resolved:    'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+    closed:      'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]',
+  }
+  const statusLabels = { open: 'Open', in_progress: 'In Progress', on_hold: 'On Hold', resolved: 'Resolved', closed: 'Closed' }
+  const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const fmtTime = (d) => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+
+  const filtered = tickets.filter(t => {
+    if (filterStatus !== 'all' && t.status !== filterStatus) return false
+    if (filterType !== 'all' && t.type !== filterType) return false
+    return true
+  })
+
+  const handleStatusChange = (ticketId, newStatus) => {
+    updateTicketStatus(ticketId, newStatus)
+    reload()
+    if (selectedTicket?.id === ticketId) setSelectedTicket({ ...selectedTicket, status: newStatus, updatedDate: new Date().toISOString() })
+    addToast(`Ticket updated to ${statusLabels[newStatus]}`, 'success')
+  }
+
+  const handleAddNote = (ticketId) => {
+    if (!noteText.trim()) return
+    const updated = addTicketNote(ticketId, noteText.trim(), 'Technical Admin')
+    reload()
+    if (updated) setSelectedTicket(updated)
+    setNoteText('')
+    addToast('Note added', 'success')
+  }
+
+  return (
+    <div className="page-enter space-y-5">
+      <div>
+        <h1 className="text-display text-[var(--color-text-primary)]">System Administration</h1>
+        <p className="text-body text-[var(--color-text-muted)] mt-1">Support tickets and system management</p>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 stagger">
+        {[
+          { label: 'Open Tickets',    value: stats.open,       border: 'border-yellow-500', sub: 'Awaiting action',     icon: <AlertCircle className="w-5 h-5 text-yellow-500" /> },
+          { label: 'In Progress',     value: stats.inProgress, border: 'border-blue-500',   sub: 'Being worked on',     icon: <Clock className="w-5 h-5 text-blue-500" /> },
+          { label: 'Urgent / High',   value: stats.urgent + stats.high, border: 'border-red-500', sub: 'Needs attention', icon: <AlertCircle className="w-5 h-5 text-red-500" /> },
+          { label: 'Resolved',        value: stats.resolved,   border: 'border-green-500',  sub: 'Completed',           icon: <CheckCircle className="w-5 h-5 text-green-500" /> },
+        ].map(s => (
+          <div key={s.label} className={`stat-card ${s.border} animate-fade-in`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-[var(--color-text-muted)]">{s.label}</span>
+              {s.icon}
+            </div>
+            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{s.value}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="card p-4 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <GroupedSelect value={filterStatus} onChange={setFilterStatus} allLabel="All Status"
+            options={[
+              { value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In Progress' },
+              { value: 'on_hold', label: 'On Hold' }, { value: 'resolved', label: 'Resolved' }, { value: 'closed', label: 'Closed' },
+            ]} />
+        </div>
+        <div className="flex-1">
+          <GroupedSelect value={filterType} onChange={setFilterType} allLabel="All Types"
+            options={[
+              { value: 'account', label: 'Account Issue' }, { value: 'bug', label: 'System Bug' },
+              { value: 'access', label: 'Access Request' }, { value: 'inquiry', label: 'General Inquiry' },
+            ]} />
+        </div>
+      </div>
+
+      {/* Ticket list */}
+      <div className="card-section">
+        {filtered.length === 0 ? (
+          <div className="text-center py-12">
+            <Ticket className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {tickets.length === 0 ? 'No support tickets yet' : 'No tickets match the current filters'}
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-[var(--color-border)]">
+            {filtered.map(t => {
+              const TypeIcon = typeIcons[t.type] || HelpCircle
+              return (
+                <button key={t.id} onClick={() => setSelectedTicket(t)}
+                  className="w-full text-left p-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${typeColors[t.type]}`}>
+                    <TypeIcon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{t.subject}</span>
+                      <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${statusColors[t.status]}`}>{statusLabels[t.status]}</span>
+                      <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${priorityColors[t.priority]}`}>{t.priority}</span>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)]">
+                      {t.ticketNumber} · {t.submittedBy.name} ({t.submittedBy.role}) · {fmtDate(t.submittedDate)}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-2" />
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
+          Showing {filtered.length} of {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Ticket Detail Modal */}
+      {selectedTicket && (
+        <ModalPortal>
+        <div className="modal-backdrop">
+          <div className="modal-panel" style={{ maxWidth: '40rem' }}>
+            <div className="modal-header">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)] truncate">{selectedTicket.subject}</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{selectedTicket.ticketNumber} · {fmtDate(selectedTicket.submittedDate)}</p>
+              </div>
+              <button onClick={() => { setSelectedTicket(null); setNoteText('') }} className="icon-btn-ghost ml-2 flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Status + Priority controls */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label mb-1.5">Status</label>
+                  <GroupedSelect value={selectedTicket.status} allLabel={null}
+                    onChange={v => handleStatusChange(selectedTicket.id, v)}
+                    options={[
+                      { value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In Progress' },
+                      { value: 'on_hold', label: 'On Hold' }, { value: 'resolved', label: 'Resolved' }, { value: 'closed', label: 'Closed' },
+                    ]} />
+                </div>
+                <div>
+                  <label className="form-label mb-1.5">Priority</label>
+                  <GroupedSelect value={selectedTicket.priority} allLabel={null}
+                    onChange={v => { updateTicketPriority(selectedTicket.id, v); reload(); setSelectedTicket({ ...selectedTicket, priority: v }); addToast('Priority updated', 'success') }}
+                    options={[
+                      { value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' },
+                      { value: 'high', label: 'High' }, { value: 'urgent', label: 'Urgent' },
+                    ]} />
+                </div>
+              </div>
+
+              {/* Ticket info */}
+              <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><span className="text-xs text-[var(--color-text-muted)]">Type</span><p className="font-medium text-[var(--color-text-primary)]">{typeLabels[selectedTicket.type]}</p></div>
+                  <div><span className="text-xs text-[var(--color-text-muted)]">Submitted by</span><p className="font-medium text-[var(--color-text-primary)]">{selectedTicket.submittedBy.name}</p></div>
+                  <div><span className="text-xs text-[var(--color-text-muted)]">Role</span><p className="font-medium text-[var(--color-text-primary)] capitalize">{selectedTicket.submittedBy.role.replace('_', ' ')}</p></div>
+                  <div><span className="text-xs text-[var(--color-text-muted)]">Campus</span><p className="font-medium text-[var(--color-text-primary)]">{selectedTicket.submittedBy.campus || 'All'}</p></div>
+                </div>
+                <div className="border-t border-[var(--color-border)] pt-3">
+                  <span className="text-xs text-[var(--color-text-muted)]">Description</span>
+                  <p className="text-sm text-[var(--color-text-primary)] mt-1 whitespace-pre-wrap">{selectedTicket.description || 'No description provided.'}</p>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-[var(--color-text-muted)]" />
+                  Notes ({selectedTicket.notes?.length || 0})
+                </h4>
+                {(selectedTicket.notes || []).length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {selectedTicket.notes.map(note => (
+                      <div key={note.id} className="p-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-primary">{note.author}</span>
+                          <span className="text-[10px] text-[var(--color-text-muted)]">{fmtDate(note.date)} {fmtTime(note.date)}</span>
+                        </div>
+                        <p className="text-sm text-[var(--color-text-primary)]">{note.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input type="text" value={noteText} onChange={e => setNoteText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddNote(selectedTicket.id)}
+                    placeholder="Add a note..."
+                    className="flex-1 px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  <button onClick={() => handleAddNote(selectedTicket.id)}
+                    disabled={!noteText.trim()}
+                    className="btn-action" style={{ flex: 'none', padding: '0.625rem 1rem' }}>
+                    Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }

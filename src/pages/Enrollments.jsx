@@ -4,7 +4,7 @@ import {
   Download, User, ChevronRight, GraduationCap, MapPin,
   BookOpen, X, Filter, Users, TrendingUp, ChevronDown, ChevronUp, Globe, DollarSign, CreditCard,
   Printer, Receipt, Percent, Tag, AlertCircle, Info, History, ArrowRight, Banknote, Phone, Mail,
-  CalendarDays, RefreshCw, BadgeCheck, CircleDollarSign, Wallet, ClipboardList
+  CalendarDays, BadgeCheck, CircleDollarSign, Wallet, ClipboardList
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
@@ -1260,10 +1260,10 @@ export default function Enrollments() {
   const { campusFilter } = useCampusFilter()
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 700); return () => clearTimeout(t) }, [])
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 150); return () => clearTimeout(t) }, [])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
-    const t = setTimeout(() => setLoading(false), 400)
+    const t = setTimeout(() => setLoading(false), 100)
     return () => clearTimeout(t)
   }, [campusFilter])
 
@@ -1523,12 +1523,6 @@ export default function Enrollments() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {/* Refresh button */}
-          <button onClick={loadBridge}
-            className="p-2 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"
-            title="Refresh">
-            <RefreshCw className="w-4 h-4"/>
-          </button>
           <button onClick={handleExport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-[#4a0009] transition font-medium">
             <Download className="w-4 h-4" /> Export
@@ -1773,7 +1767,7 @@ export default function Enrollments() {
                         ? ['Reference','Student Name','Grade / Program','Date Submitted','Status','Fee / Paid','Actions'].map(h => (
                             <th key={h} className="th">{h}</th>
                           ))
-                        : ['Reference','Student Name','Campus','Grade / Program','Date Submitted','Status','Actions'].map(h => (
+                        : ['Reference','Student Name',!isCampusLocked?'Campus':null,'Grade / Program','Date Submitted','Status','Actions'].filter(Boolean).map(h => (
                             <th key={h} className="th">{h}</th>
                           ))
                       }
@@ -1796,8 +1790,8 @@ export default function Enrollments() {
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">{e.student.email}</p>
                         </td>
-                        {/* Campus — only non-accounting */}
-                        {user?.role !== 'accounting' && (
+                        {/* Campus — only for non-accounting, non-campus-locked */}
+                        {user?.role !== 'accounting' && !isCampusLocked && (
                           <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.campus}</td>
                         )}
                         {/* Grade / Program */}
