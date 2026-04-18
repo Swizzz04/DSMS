@@ -554,10 +554,10 @@ export default function Students() {
   const { campusFilter } = useCampusFilter()
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { const t = setTimeout(() => setLoading(false), 700); return () => clearTimeout(t) }, [])
+  useEffect(() => { const t = setTimeout(() => setLoading(false), 150); return () => clearTimeout(t) }, [])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
-    const t = setTimeout(() => setLoading(false), 400)
+    const t = setTimeout(() => setLoading(false), 100)
     return () => clearTimeout(t)
   }, [campusFilter])
 

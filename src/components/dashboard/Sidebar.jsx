@@ -131,10 +131,6 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
         { id: 'reports',     label: 'Reports',     icon: BarChart2, path: '/reports',     roles: ['admin'] },
       ],
       technical_admin: [
-        { id: 'enrollments', label: 'Enrollments', icon: FileText,   path: '/enrollments', roles: ['technical_admin'] },
-        { id: 'students',    label: 'Students',    icon: Users,      path: '/students',    roles: ['technical_admin'] },
-        { id: 'payments',    label: 'Payments',    icon: DollarSign, path: '/payments',    roles: ['technical_admin'] },
-        { id: 'reports',     label: 'Reports',     icon: BarChart2,  path: '/reports',     roles: ['technical_admin'] },
         { id: 'settings',    label: 'Settings',    icon: Settings,   path: '/settings',    roles: ['technical_admin'] },
       ],
       registrar_basic: [
@@ -155,10 +151,12 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       principal_basic: [
         { id: 'students',     label: 'Students',     icon: GraduationCap, path: '/students',     roles: ['principal_basic'] },
         { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load', roles: ['principal_basic'] },
+        { id: 'settings',     label: 'Settings',     icon: Settings,      path: '/settings',     roles: ['principal_basic'] },
       ],
       program_head: [
-        { id: 'students',     label: 'Students',     icon: Users,  path: '/students',     roles: ['program_head'] },
-        { id: 'subject-load', label: 'Subject Load', icon: Layers, path: '/subject-load', roles: ['program_head'] },
+        { id: 'students',     label: 'Students',     icon: Users,    path: '/students',     roles: ['program_head'] },
+        { id: 'subject-load', label: 'Subject Load', icon: Layers,   path: '/subject-load', roles: ['program_head'] },
+        { id: 'settings',     label: 'Settings',     icon: Settings,  path: '/settings',     roles: ['program_head'] },
       ],
     }
     const role = user?.role || 'admin'

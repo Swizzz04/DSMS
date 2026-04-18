@@ -14,7 +14,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { User, Menu, LogOut, ChevronDown, MapPin, X } from 'lucide-react'
+import { User, Menu, LogOut, ChevronDown, MapPin, X, HelpCircle, Send } from 'lucide-react'
 import ThemeToggle from '../ThemeToggle'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -23,6 +23,9 @@ import { useAvatar } from '../../hooks/useAvatar'
 import ProfileModal from './ProfileModal'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { useCampusFilter } from '../../context/CampusFilterContext'
+import { ModalPortal, useToast, ToastContainer } from '../UIComponents'
+import GroupedSelect from '../GroupedSelect'
+import { submitTicket, getTicketsByUser } from '../../utils/ticketBridge'
 
 // ── Dropdown visibility — uses .dropdown-in keyframe from index.css ─
 const dropdownVis = (open) =>
@@ -44,11 +47,19 @@ export default function Header({ toggleSidebar }) {
   const [showDropdown,     setShowDropdown]     = useState(false)
   const [showProfile,      setShowProfile]      = useState(false)
   const [showCampusPicker, setShowCampusPicker] = useState(false)
+  const [showTicketModal,  setShowTicketModal]  = useState(false)
+  const [ticketType, setTicketType]       = useState('inquiry')
+  const [ticketPriority, setTicketPriority] = useState('medium')
+  const [ticketSubject, setTicketSubject] = useState('')
+  const [ticketDesc, setTicketDesc]       = useState('')
+  const [ticketSending, setTicketSending] = useState(false)
+  const { toasts, addToast, removeToast } = useToast()
   const dropdownRef = useRef(null)
   const campusRef   = useRef(null)
   const [avatar]    = useAvatar(user?.id)
   const { activeCampuses } = useAppConfig()
   const { campusFilter, setCampusFilter } = useCampusFilter()
+  const isTechAdmin = user?.role === 'technical_admin'
 
   const selectedCampus = activeCampuses.find(c => c.key === campusFilter)
   const campusLabel    = selectedCampus ? selectedCampus.name : 'All Campuses'
@@ -186,6 +197,20 @@ export default function Header({ toggleSidebar }) {
             </div>
           )}
 
+          {/* ── Support Ticket Button (hidden for tech admin) ── */}
+          {!isTechAdmin && (
+            <button
+              onClick={() => setShowTicketModal(true)}
+              className="relative p-2 rounded-lg transition-colors"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--color-text-muted)' }}
+              title="Submit a support ticket"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+          )}
+
           {/* ── Theme Toggle ──────────────────────────────────── */}
           <ThemeToggle />
 
@@ -265,6 +290,104 @@ export default function Header({ toggleSidebar }) {
       </header>
 
       {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+
+      {/* Submit Ticket Modal */}
+      {showTicketModal && (
+        <ModalPortal>
+        <div className="modal-backdrop">
+          <div className="modal-panel" style={{ maxWidth: '32rem' }}>
+            <div className="modal-header">
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)]">Submit Support Ticket</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Report an issue or request to the tech admin</p>
+              </div>
+              <button onClick={() => setShowTicketModal(false)} className="icon-btn-ghost ml-2 flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Type */}
+              <div>
+                <label className="form-label mb-1.5">Issue Type</label>
+                <GroupedSelect value={ticketType} onChange={setTicketType} allLabel={null}
+                  options={[
+                    { value: 'account', label: 'Account Issue (login, password, lockout)' },
+                    { value: 'bug',     label: 'System Bug (error, page not loading)' },
+                    { value: 'access',  label: 'Access Request (permissions, new account)' },
+                    { value: 'inquiry', label: 'General Inquiry (how-to, training)' },
+                  ]} />
+              </div>
+
+              {/* Priority */}
+              <div>
+                <label className="form-label mb-1.5">Priority</label>
+                <GroupedSelect value={ticketPriority} onChange={setTicketPriority} allLabel={null}
+                  options={[
+                    { value: 'low',    label: 'Low — not urgent, can wait' },
+                    { value: 'medium', label: 'Medium — affects my work' },
+                    { value: 'high',   label: 'High — blocking my tasks' },
+                    { value: 'urgent', label: 'Urgent — system down / critical' },
+                  ]} />
+              </div>
+
+              {/* Subject */}
+              <div>
+                <label className="form-label">Subject</label>
+                <input type="text" value={ticketSubject} onChange={e => setTicketSubject(e.target.value)}
+                  placeholder="Brief summary of your issue"
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="form-label">Description</label>
+                <textarea value={ticketDesc} onChange={e => setTicketDesc(e.target.value)}
+                  placeholder="Describe the issue in detail. Include any error messages, steps to reproduce, or screenshots references."
+                  rows={4}
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition resize-none" />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button onClick={() => { setShowTicketModal(false); setTicketSubject(''); setTicketDesc(''); setTicketType('inquiry'); setTicketPriority('medium') }} className="btn-cancel">Cancel</button>
+              <button
+                disabled={ticketSending || !ticketSubject.trim()}
+                className="btn-action flex items-center justify-center gap-2"
+                onClick={() => {
+                  if (!ticketSubject.trim()) { addToast('Please enter a subject', 'error'); return }
+                  setTicketSending(true)
+                  const ticket = submitTicket({
+                    type: ticketType,
+                    priority: ticketPriority,
+                    subject: ticketSubject.trim(),
+                    description: ticketDesc.trim(),
+                    submittedBy: {
+                      name: user?.name || 'Unknown',
+                      email: user?.email || '',
+                      role: user?.role || '',
+                      campus: user?.campus || 'All',
+                    },
+                  })
+                  setTicketSending(false)
+                  setShowTicketModal(false)
+                  setTicketSubject(''); setTicketDesc(''); setTicketType('inquiry'); setTicketPriority('medium')
+                  addToast(`Ticket ${ticket.ticketNumber} submitted! Tech admin will review it.`, 'success')
+                }}
+              >
+                {ticketSending
+                  ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  : <Send className="w-4 h-4" />
+                }
+                Submit Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+        </ModalPortal>
+      )}
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </>
   )
 }

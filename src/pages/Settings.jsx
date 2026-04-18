@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import {
   Calendar, DollarSign, Building2, GraduationCap,
-  Users, Plus, Edit, Palette, Moon, Sun, Check, Save, Receipt,
-  X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen
+  Users, Plus, Edit, Check, Save, Receipt,
+  X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen,
+  ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload
 } from 'lucide-react'
-import { PageSkeleton, useToast, ModalPortal } from '../components/UIComponents'
+import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
@@ -998,13 +999,31 @@ export default function Settings() {
   } = useAppConfig()
 
   const [loading, setLoading] = useState(true)
+  const { toasts, addToast, removeToast } = useToast()
+  const [showAddSY, setShowAddSY] = useState(false)
+  const [expandedSY, setExpandedSY] = useState(null)
+  const [showAddEvent, setShowAddEvent] = useState(null)  // { syId, dept }
+  const [newEvtName, setNewEvtName] = useState('')
+  const [newEvtType, setNewEvtType] = useState('academic')
+  const [newEvtStart, setNewEvtStart] = useState('')
+  const [newEvtEnd, setNewEvtEnd] = useState('')
+  const [editSY, setEditSY] = useState(null)
+  const [syDeptView, setSyDeptView] = useState(() =>
+    user?.role === 'program_head' ? 'college' : 'basic_ed'
+  )
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 600)
+    const t = setTimeout(() => setLoading(false), 150)
     return () => clearTimeout(t)
   }, [])
 
-  const [activeTab, setActiveTab] = useState(() => user?.role === 'accounting' ? 'fees' : user?.role === 'technical_admin' ? 'users' : 'appearance')
+  const [activeTab, setActiveTab] = useState(() => {
+    const role = user?.role
+    if (role === 'accounting') return 'fees'
+    if (role === 'technical_admin') return 'users'
+    if (role === 'principal_basic' || role === 'program_head') return 'schoolYear'
+    return 'fees'
+  })
 
   // Local editable copies — committed to context on Save
   const [editSchoolYears, setEditSchoolYears] = useState(() => schoolYears)
@@ -1062,32 +1081,21 @@ export default function Settings() {
   }
 
 
-  // Available color themes
-  const colorThemes = [
-    { id: 'red', name: 'Classic Red', primary: '#750014', secondary: '#4a0009', color: 'bg-red-700' },
-    { id: 'blue', name: 'Ocean Blue', primary: '#1e40af', secondary: '#1e3a8a', color: 'bg-blue-700' },
-    { id: 'green', name: 'Emerald Green', primary: '#047857', secondary: '#065f46', color: 'bg-green-700' },
-    { id: 'purple', name: 'Royal Purple', primary: '#7c3aed', secondary: '#6d28d9', color: 'bg-purple-600' },
-    { id: 'pink', name: 'Rose Pink', primary: '#db2777', secondary: '#be185d', color: 'bg-pink-600' },
-    { id: 'orange', name: 'Amber Gold', primary: '#ea580c', secondary: '#c2410c', color: 'bg-orange-600' },
-    { id: 'gray', name: 'Graphite', primary: '#475569', secondary: '#334155', color: 'bg-gray-600' },
-    { id: 'teal', name: 'Teal', primary: '#0d9488', secondary: '#0f766e', color: 'bg-teal-600' }
-  ]
-
-  const [selectedColor, setSelectedColor] = useState('red')
-
   // Tab configuration
   const isAccounting = user?.role === 'accounting'
 
   const allTabs = [
-    { id: 'appearance', label: 'Appearance',    icon: Palette,      roles: ['admin', 'technical_admin'] },
-    { id: 'schoolYear', label: 'School Year',   icon: Calendar,     roles: ['admin', 'technical_admin'] },
-    { id: 'fees',       label: 'Fee Structure', icon: DollarSign,   roles: ['admin', 'technical_admin', 'accounting'] },
-    { id: 'campuses',   label: 'Campuses',      icon: Building2,    roles: ['admin', 'technical_admin'] },
-    { id: 'grades',     label: 'Grade Levels',  icon: GraduationCap,roles: ['admin', 'technical_admin'] },
-    { id: 'discounts',  label: 'Discounts',     icon: Tag,          roles: ['accounting', 'admin'] },
-    { id: 'receipt',    label: 'Receipt',        icon: Receipt,      roles: ['accounting'] },
-    { id: 'users',      label: 'Users',          icon: Users,        roles: ['admin', 'technical_admin'] },
+    // Tech admin — system management
+    { id: 'users',       label: 'Users',            icon: Users,         roles: ['technical_admin'] },
+    { id: 'branding',    label: 'System Branding',  icon: Paintbrush,    roles: ['technical_admin'] },
+    { id: 'schoolInfo',  label: 'School Info',      icon: School,        roles: ['technical_admin'] },
+    // Principal / Program Head — academic config
+    { id: 'schoolYear', label: 'School Year',       icon: Calendar,      roles: ['principal_basic', 'program_head'] },
+    { id: 'grades',     label: 'Grade Levels',      icon: GraduationCap, roles: ['principal_basic', 'program_head'] },
+    // Accounting — financial config
+    { id: 'fees',       label: 'Fee Structure',     icon: DollarSign,    roles: ['accounting'] },
+    { id: 'discounts',  label: 'Discounts',         icon: Tag,           roles: ['accounting'] },
+    { id: 'receipt',    label: 'Receipt',            icon: Receipt,       roles: ['accounting'] },
   ]
   const tabs = allTabs.filter(t => t.roles.includes(user?.role || 'technical_admin'))
 
@@ -1097,11 +1105,6 @@ export default function Settings() {
       currency: 'PHP',
       minimumFractionDigits: 0
     }).format(amount)
-  }
-
-  const handleColorChange = (colorId) => {
-    setSelectedColor(colorId)
-    alert(`Color theme "${colorThemes.find(c => c.id === colorId).name}" selected! (This will be implemented globally)`)
   }
 
   if (loading) return <PageSkeleton title="Settings" />
@@ -1142,197 +1145,427 @@ export default function Settings() {
 
       {/* Tab Content */}
       <div className="space-y-6">
-        
-        {/* Appearance Tab */}
-        {activeTab === 'appearance' && (
-          <>
-            {/* Accent Color Theme */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Palette className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
-                    Accent Color Theme
-                  </h2>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    Personalize the primary highlight colors of your dashboard
-                  </p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {colorThemes.map((color) => (
-                  <button
-                    key={color.id}
-                    onClick={() => handleColorChange(color.id)}
-                    className={`
-                      relative p-4 border-2 rounded-lg transition-all 
-                      ${selectedColor === color.id
-                        ? 'border-primary shadow-lg'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
-                      }
-                    `}
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className={`w-16 h-16 ${color.color} rounded-full flex items-center justify-center`}>
-                        {selectedColor === color.id && (
-                          <Check className="w-8 h-8 text-white" />
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                        {color.name}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Background Mode */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Moon className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-[var(--color-text-primary)]">
-                    Background Mode
-                  </h2>
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    Choose your preferred application background lighting
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {/* Light Mode */}
-                <button
-                  onClick={() => theme === 'dark' && toggleTheme()}
-                  className={`
-                    p-6 border-2 rounded-lg transition-all 
-                    ${theme === 'light'
-                      ? 'border-primary shadow-lg bg-gray-50'
-                      : 'border-[var(--color-border)] hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-16 h-16 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center">
-                      <Sun className="w-8 h-8 text-yellow-500" />
-                    </div>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                      Light
-                    </span>
-                  </div>
-                </button>
-
-                {/* Dark Mode */}
-                <button
-                  onClick={() => theme === 'light' && toggleTheme()}
-                  className={`
-                    p-6 border-2 rounded-lg transition-all 
-                    ${theme === 'dark'
-                      ? 'border-primary shadow-lg bg-gray-900'
-                      : 'border-[var(--color-border)] hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-16 h-16 bg-gray-900 border-2 border-gray-700 rounded-full flex items-center justify-center">
-                      <Moon className="w-8 h-8 text-blue-400" />
-                    </div>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                      Dark
-                    </span>
-                  </div>
-                </button>
-
-                {/* Auto Mode (Coming Soon) */}
-                <button
-                  disabled
-                  className="p-6 border-2 border-[var(--color-border)] rounded-lg opacity-50 cursor-not-allowed"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-16 h-16 bg-gradient-to-br from-white to-gray-900 rounded-full flex items-center justify-center">
-                      <Sun className="w-6 h-6 text-yellow-500" />
-                    </div>
-                    <span className="text-sm font-medium text-[var(--color-text-primary)]">
-                      Auto
-                    </span>
-                    <span className="text-xs text-gray-500">Coming Soon</span>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
 
         {/* School Year Tab */}
-        {activeTab === 'schoolYear' && (
+        {activeTab === 'schoolYear' && (() => {
+          const role = user?.role
+          const canSeeBoth = role === 'technical_admin'
+          const visibleDept = role === 'principal_basic' ? 'basic_ed' : role === 'program_head' ? 'college' : syDeptView
+          const deptLabel = { basic_ed: 'Basic Education', college: 'College' }
+          const deptKey = visibleDept === 'college' ? 'college' : 'basicEd'
+          const sorted = editSchoolYears.slice().sort((a, b) => b.year.localeCompare(a.year))
+
+          return (
           <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
-                School Year Management
-              </h2>
-              <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add School Year
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+              <div>
+                <h2 className="text-xl font-bold text-[var(--color-text-primary)]">School Year Management</h2>
+                <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                  {canSeeBoth ? 'Manage academic calendars per department' : `Manage ${deptLabel[visibleDept]} academic calendar`}
+                </p>
+              </div>
+              <button onClick={() => setShowAddSY(true)}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold self-start sm:self-auto">
+                <Plus className="w-4 h-4" /> Add School Year
               </button>
             </div>
 
-            <div className="space-y-4">
-              {editSchoolYears.map((year) => (
-                <div
-                  key={year.id}
-                  className="border border-[var(--color-border)] rounded-lg p-4 hover:border-primary transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-bold text-[var(--color-text-primary)]">
-                          {year.year}
-                        </h3>
-                        {year.isCurrent && (
-                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 text-xs font-medium rounded-full">
-                            Current
-                          </span>
-                        )}
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${
-                          year.status === 'active' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' :
-                          year.status === 'completed' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]' :
-                          'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400'
-                        }`}>
-                          {year.status}
-                        </span>
+            {/* Department tabs — tech admin only */}
+            {canSeeBoth && (
+              <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl mb-5 w-fit">
+                {[
+                  { key: 'basic_ed', label: 'Basic Education', icon: BookOpen },
+                  { key: 'college',  label: 'College',         icon: GraduationCap },
+                ].map(dept => (
+                  <button key={dept.key} onClick={() => { setSyDeptView(dept.key); setExpandedSY(null) }}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                      syDeptView === dept.key ? 'bg-primary text-white shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                    }`}>
+                    <dept.icon className="w-4 h-4" /> {dept.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Department label for locked roles */}
+            {!canSeeBoth && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--color-bg-subtle)] rounded-lg w-fit">
+                {visibleDept === 'basic_ed' ? <BookOpen className="w-4 h-4 text-primary" /> : <GraduationCap className="w-4 h-4 text-primary" />}
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">{deptLabel[visibleDept]} Department</span>
+              </div>
+            )}
+
+            {sorted.length === 0 ? (
+              <div className="text-center py-12">
+                <Calendar className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
+                <p className="text-sm text-[var(--color-text-muted)]">No school years configured yet.</p>
+                <button onClick={() => setShowAddSY(true)} className="mt-3 text-sm text-primary font-medium hover:underline">Add your first school year</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sorted.map((sy) => {
+                  const isExpanded = expandedSY === sy.id
+                  const cal = sy[deptKey] || { startDate: '', endDate: '', events: [] }
+                  const events = cal.events || []
+                  const eventTypeColors = {
+                    academic: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
+                    holiday:  'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+                    special:  'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
+                  }
+                  return (
+                  <div key={sy.id} className={`border rounded-xl overflow-hidden transition-colors ${sy.isCurrent ? 'border-primary/40 bg-primary/5' : 'border-[var(--color-border)]'}`}>
+                    {/* Header */}
+                    <button onClick={() => setExpandedSY(isExpanded ? null : sy.id)}
+                      className="w-full text-left p-4 flex items-center justify-between hover:bg-[var(--color-bg-subtle)]/50 transition">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <h3 className="text-base font-bold text-[var(--color-text-primary)]">{sy.year}</h3>
+                          {sy.isCurrent && (
+                            <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-semibold rounded-full uppercase tracking-wider">Current</span>
+                          )}
+                          <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wider ${
+                            sy.status === 'active'    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
+                            sy.status === 'completed' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]' :
+                            'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                          }`}>{sy.status}</span>
+                          {events.length > 0 && (
+                            <span className="text-[10px] text-[var(--color-text-muted)]">{events.length} event{events.length !== 1 ? 's' : ''}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {cal.startDate
+                            ? `${new Date(cal.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} — ${new Date(cal.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                            : 'No dates configured for this department'
+                          }
+                        </p>
                       </div>
-                      <p className="text-sm text-[var(--color-text-secondary)]">
-                        {new Date(year.startDate).toLocaleDateString()} - {new Date(year.endDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button className="p-2 text-[var(--color-text-secondary)] hover:text-primary">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); setEditSY({ ...sy, _dept: visibleDept }) }} className="icon-btn-ghost" title="Edit school year">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+                    </button>
+
+                    {/* Expanded — events */}
+                    {isExpanded && (
+                      <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)]/30">
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-[var(--color-text-muted)]" /> {deptLabel[visibleDept]} Events
+                            </h4>
+                            <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                              <Plus className="w-3.5 h-3.5" /> Add Event
+                            </button>
+                          </div>
+
+                          {events.length === 0 ? (
+                            <div className="text-center py-6 border border-dashed border-[var(--color-border)] rounded-lg">
+                              <p className="text-xs text-[var(--color-text-muted)]">No events scheduled</p>
+                              <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="mt-2 text-xs text-primary font-medium hover:underline">Add your first event</button>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {events.slice().sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).map((evt) => (
+                                <div key={evt.id} className="flex items-start gap-3 p-3 bg-[var(--color-bg-card)] rounded-lg border border-[var(--color-border)]">
+                                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <Calendar className="w-4 h-4 text-primary" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{evt.name}</span>
+                                      <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${eventTypeColors[evt.type] || eventTypeColors.special}`}>{evt.type}</span>
+                                    </div>
+                                    <p className="text-xs text-[var(--color-text-muted)]">
+                                      {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      {evt.endDate && evt.endDate !== evt.startDate && (<> — {new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>)}
+                                      {(!evt.endDate || evt.endDate === evt.startDate) && (<>, {new Date(evt.startDate).getFullYear()}</>)}
+                                    </p>
+                                  </div>
+                                  <button onClick={() => {
+                                    setEditSchoolYears(editSchoolYears.map(s => s.id === sy.id ? { ...s, [deptKey]: { ...s[deptKey], events: (s[deptKey]?.events || []).filter(e => e.id !== evt.id) } } : s))
+                                    addToast(`"${evt.name}" removed`, 'success')
+                                  }} className="icon-btn-ghost flex-shrink-0" title="Remove event">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
-            {/* Save bar */}
+                )})}
+              </div>
+            )}
+
             <div className="mt-6 flex items-center justify-between border-t border-[var(--color-border)] pt-4">
-              <p className="text-xs text-gray-400">Changes affect all pages immediately</p>
-              <button
-                onClick={() => saveSection('schoolYears', editSchoolYears)}
-                className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"
-              >
+              <p className="text-xs text-[var(--color-text-muted)]">{sorted.length} school year{sorted.length !== 1 ? 's' : ''} · {deptLabel[visibleDept]}</p>
+              <button onClick={() => saveSection('schoolYears', editSchoolYears)}
+                className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold">
                 {savedSection === 'schoolYears' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                 {savedSection === 'schoolYears' ? 'Saved!' : 'Save Changes'}
               </button>
             </div>
           </div>
-        )}
+          )
+        })()}
+
+        {/* Add School Year Modal */}
+        {showAddSY && (() => {
+          const existingYears = editSchoolYears.map(y => y.year)
+          const latestYear = editSchoolYears.length > 0
+            ? Math.max(...editSchoolYears.map(y => parseInt(y.year.split('-')[1])))
+            : new Date().getFullYear()
+          const suggestedYear = `${latestYear}-${latestYear + 1}`
+          const defaultYear = existingYears.includes(suggestedYear) ? '' : suggestedYear
+
+          return (
+            <ModalPortal>
+            <div className="modal-backdrop-center">
+              <div className="modal-panel-sm">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Add School Year</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-5">Create a new academic year with department calendars</p>
+
+                <label className="form-label">School Year</label>
+                <input id="add-sy-year" type="text" defaultValue={defaultYear} placeholder="e.g. 2028-2029"
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="form-label flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</label>
+                    <input id="add-sy-be-start" type="date" defaultValue={`${latestYear}-06-01`}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                  <div>
+                    <label className="form-label">Basic Ed End</label>
+                    <input id="add-sy-be-end" type="date" defaultValue={`${latestYear + 1}-03-31`}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="form-label flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</label>
+                    <input id="add-sy-col-start" type="date" defaultValue={`${latestYear}-08-01`}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                  <div>
+                    <label className="form-label">College End</label>
+                    <input id="add-sy-col-end" type="date" defaultValue={`${latestYear + 1}-05-31`}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                </div>
+
+                <label className="form-label mb-1.5">Status</label>
+                <div className="mb-5">
+                  <GroupedSelect value="upcoming" onChange={() => {}} allLabel={null} options={[
+                    { value: 'upcoming', label: 'Upcoming' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' },
+                  ]} />
+                </div>
+
+                <div className="action-row">
+                  <button onClick={() => setShowAddSY(false)} className="btn-cancel">Cancel</button>
+                  <button className="btn-action" onClick={() => {
+                    const year = document.getElementById('add-sy-year').value.trim()
+                    if (!year) { addToast('Please enter a school year', 'error'); return }
+                    if (!/^\d{4}-\d{4}$/.test(year)) { addToast('Format must be YYYY-YYYY', 'error'); return }
+                    const [sY, eY] = year.split('-').map(Number)
+                    if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
+                    if (existingYears.includes(year)) { addToast(`${year} already exists`, 'error'); return }
+
+                    const beStart = document.getElementById('add-sy-be-start').value
+                    const beEnd = document.getElementById('add-sy-be-end').value
+                    const colStart = document.getElementById('add-sy-col-start').value
+                    const colEnd = document.getElementById('add-sy-col-end').value
+
+                    if (!beStart || !beEnd || !colStart || !colEnd) { addToast('Please set all dates', 'error'); return }
+
+                    setEditSchoolYears(prev => [...prev, {
+                      id: Date.now(), year, status: 'upcoming', isCurrent: false,
+                      basicEd: { startDate: beStart, endDate: beEnd, events: [] },
+                      college: { startDate: colStart, endDate: colEnd, events: [] },
+                    }])
+                    setShowAddSY(false)
+                    addToast(`School year ${year} added! Click "Save Changes" to apply.`, 'success')
+                  }}>Add School Year</button>
+                </div>
+              </div>
+            </div>
+            </ModalPortal>
+          )
+        })()}
+
+        {/* Add Event Modal */}
+        {showAddEvent && (() => {
+          const targetSY = editSchoolYears.find(sy => sy.id === showAddEvent.syId)
+          if (!targetSY) return null
+          const dept = showAddEvent.dept
+          const deptName = dept === 'basicEd' ? 'Basic Education' : 'College'
+
+          const presetEvents = [
+            { name: 'Enrollment Period',    type: 'academic' },
+            { name: 'Midterm Examinations', type: 'academic' },
+            { name: 'Final Examinations',   type: 'academic' },
+            { name: 'Semestral Break',      type: 'holiday' },
+            { name: 'Summer Break',         type: 'holiday' },
+            { name: 'Graduation Ceremony',  type: 'special' },
+            { name: 'Foundation Day',       type: 'special' },
+          ]
+          const existingEvents = targetSY[dept]?.events || []
+
+          return (
+            <ModalPortal>
+            <div className="modal-backdrop-center">
+              <div className="modal-panel-sm" style={{ maxWidth: '28rem' }}>
+                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-0.5">Add Event</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-5">
+                  {deptName} · <span className="font-semibold text-[var(--color-text-primary)]">{targetSY.year}</span>
+                </p>
+
+                <label className="form-label">Quick Add</label>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {presetEvents.map(preset => {
+                    const exists = existingEvents.some(e => e.name === preset.name)
+                    return (
+                      <button key={preset.name} disabled={exists}
+                        onClick={() => { setNewEvtName(preset.name); setNewEvtType(preset.type) }}
+                        className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
+                          exists ? 'border-[var(--color-border)] text-[var(--color-text-muted)] opacity-40 cursor-not-allowed line-through'
+                            : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary hover:text-primary cursor-pointer'
+                        }`}>{preset.name}</button>
+                    )
+                  })}
+                </div>
+
+                <label className="form-label">Event Name</label>
+                <input type="text" value={newEvtName} onChange={e => setNewEvtName(e.target.value)}
+                  placeholder="e.g. Enrollment Period"
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                <label className="form-label mb-1.5">Event Type</label>
+                <div className="mb-4">
+                  <GroupedSelect value={newEvtType} onChange={setNewEvtType} allLabel={null}
+                    options={[
+                      { value: 'academic', label: 'Academic' },
+                      { value: 'holiday',  label: 'Holiday / Break' },
+                      { value: 'special',  label: 'Special Event' },
+                    ]} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div>
+                    <label className="form-label">Start Date</label>
+                    <input type="date" value={newEvtStart} onChange={e => setNewEvtStart(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                  <div>
+                    <label className="form-label">End Date</label>
+                    <input type="date" value={newEvtEnd} onChange={e => setNewEvtEnd(e.target.value)}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                </div>
+
+                <div className="action-row">
+                  <button onClick={() => { setShowAddEvent(null); setNewEvtName(''); setNewEvtType('academic'); setNewEvtStart(''); setNewEvtEnd('') }} className="btn-cancel">Cancel</button>
+                  <button className="btn-action" onClick={() => {
+                    const name = newEvtName.trim()
+                    if (!name) { addToast('Please enter an event name', 'error'); return }
+                    if (!newEvtStart) { addToast('Please set a start date', 'error'); return }
+                    const endDate = newEvtEnd || newEvtStart
+                    if (new Date(endDate) < new Date(newEvtStart)) { addToast('End date cannot be before start', 'error'); return }
+
+                    setEditSchoolYears(editSchoolYears.map(sy =>
+                      sy.id === showAddEvent.syId
+                        ? { ...sy, [dept]: { ...sy[dept], events: [...(sy[dept]?.events || []), { id: Date.now(), name, type: newEvtType, startDate: newEvtStart, endDate }] } }
+                        : sy
+                    ))
+                    setShowAddEvent(null); setNewEvtName(''); setNewEvtType('academic'); setNewEvtStart(''); setNewEvtEnd('')
+                    addToast(`"${name}" added to ${targetSY.year}`, 'success')
+                  }}>Add Event</button>
+                </div>
+              </div>
+            </div>
+            </ModalPortal>
+          )
+        })()}
+
+        {/* Edit School Year Modal */}
+        {editSY && (() => {
+          const dept = editSY._dept || 'basic_ed'
+          const deptKey = dept === 'college' ? 'college' : 'basicEd'
+          const cal = editSY[deptKey] || { startDate: '', endDate: '' }
+
+          return (
+            <ModalPortal>
+            <div className="modal-backdrop-center">
+              <div className="modal-panel-sm">
+                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Edit School Year</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-5">
+                  Editing <span className="font-semibold text-[var(--color-text-primary)]">{editSY.year}</span> · {dept === 'college' ? 'College' : 'Basic Education'} dates
+                </p>
+
+                <label className="form-label">School Year</label>
+                <input type="text" value={editSY.year} onChange={e => setEditSY({ ...editSY, year: e.target.value })}
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                <label className="form-label">Start Date ({dept === 'college' ? 'College' : 'Basic Ed'})</label>
+                <input type="date" value={cal.startDate} onChange={e => setEditSY({ ...editSY, [deptKey]: { ...cal, startDate: e.target.value } })}
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                <label className="form-label">End Date ({dept === 'college' ? 'College' : 'Basic Ed'})</label>
+                <input type="date" value={cal.endDate} onChange={e => setEditSY({ ...editSY, [deptKey]: { ...cal, endDate: e.target.value } })}
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                <label className="form-label mb-1.5">Status</label>
+                <div className="mb-4">
+                  <GroupedSelect value={editSY.status} onChange={v => setEditSY({ ...editSY, status: v })} allLabel={null}
+                    options={[
+                      { value: 'upcoming', label: 'Upcoming' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' },
+                    ]} />
+                </div>
+
+                <label className="flex items-center gap-3 mb-5 cursor-pointer">
+                  <input type="checkbox" checked={editSY.isCurrent || false}
+                    onChange={e => setEditSY({ ...editSY, isCurrent: e.target.checked })}
+                    className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                  <span className="text-sm text-[var(--color-text-secondary)]">Set as current school year</span>
+                </label>
+
+                <div className="action-row">
+                  <button onClick={() => setEditSY(null)} className="btn-cancel">Cancel</button>
+                  <button className="btn-action" onClick={() => {
+                    const year = editSY.year.trim()
+                    if (!year || !/^\d{4}-\d{4}$/.test(year)) { addToast('Format must be YYYY-YYYY', 'error'); return }
+                    const [sY, eY] = year.split('-').map(Number)
+                    if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
+                    const dupe = editSchoolYears.find(sy => sy.year === year && sy.id !== editSY.id)
+                    if (dupe) { addToast(`${year} already exists`, 'error'); return }
+                    const updatedCal = editSY[deptKey]
+                    if (!updatedCal?.startDate || !updatedCal?.endDate) { addToast('Please set both dates', 'error'); return }
+                    if (new Date(updatedCal.endDate) <= new Date(updatedCal.startDate)) { addToast('End date must be after start', 'error'); return }
+
+                    setEditSchoolYears(editSchoolYears.map(sy => {
+                      if (sy.id === editSY.id) {
+                        const updated = { ...editSY }
+                        delete updated._dept
+                        return updated
+                      }
+                      if (editSY.isCurrent) return { ...sy, isCurrent: false }
+                      return sy
+                    }))
+                    setEditSY(null)
+                    addToast(`${year} updated! Click "Save Changes" to apply.`, 'success')
+                  }}>Save Changes</button>
+                </div>
+              </div>
+            </div>
+            </ModalPortal>
+          )
+        })()}
 
         {/* Fee Structure Tab */}
         {activeTab === 'fees' && (
@@ -1568,6 +1801,173 @@ export default function Settings() {
             saved={savedSection === 'systemUsers'}
           />
         )}
+
+        {/* System Branding Tab */}
+        {activeTab === 'branding' && (
+          <div className="space-y-6">
+            {/* School Logo */}
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Image className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">School Logo</h3>
+                  <p className="text-sm text-[var(--color-text-muted)]">Logo appears on login page, sidebar, printed documents, and receipts</p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start gap-5">
+                <div className="w-24 h-24 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0">
+                  <img src="/assets/cshclogo.png" alt="School Logo" className="w-20 h-20 object-contain rounded-lg"
+                    onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }} />
+                  <div className="hidden w-full h-full items-center justify-center">
+                    <School className="w-10 h-10 text-[var(--color-text-muted)] opacity-40" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                    Recommended: 512×512px PNG with transparent background. Max file size: 2MB.
+                  </p>
+                  <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-secondary)]"
+                    onClick={() => addToast('Logo upload will be available when backend is connected', 'info')}>
+                    <Upload className="w-4 h-4" /> Upload New Logo
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* School Banner */}
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Image className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">School Banner</h3>
+                  <p className="text-sm text-[var(--color-text-muted)]">Banner image shown on the enrollment website and login page</p>
+                </div>
+              </div>
+              <div className="w-full h-32 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center mb-4 overflow-hidden">
+                <img src="/assets/bg-image.jpg" alt="Banner" className="w-full h-full object-cover rounded-lg"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }} />
+                <div className="hidden w-full h-full items-center justify-center">
+                  <p className="text-sm text-[var(--color-text-muted)]">No banner uploaded</p>
+                </div>
+              </div>
+              <button className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-secondary)]"
+                onClick={() => addToast('Banner upload will be available when backend is connected', 'info')}>
+                <Upload className="w-4 h-4" /> Upload New Banner
+              </button>
+            </div>
+
+            {/* System Colors */}
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Paintbrush className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">System Colors</h3>
+                  <p className="text-sm text-[var(--color-text-muted)]">Primary and secondary brand colors used across the entire system</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Primary Color (Burgundy Red)</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg border border-[var(--color-border)]" style={{ backgroundColor: '#750014' }} />
+                    <input type="text" value="#750014" readOnly
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-mono outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="form-label">Secondary Color (Dark Blue)</label>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg border border-[var(--color-border)]" style={{ backgroundColor: '#080c42' }} />
+                    <input type="text" value="#080c42" readOnly
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] font-mono outline-none" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)] mt-4 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" /> Color customization will be available when backend is connected. Changes will apply system-wide.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* School Information Tab */}
+        {activeTab === 'schoolInfo' && (
+          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <School className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-[var(--color-text-primary)]">School Information</h3>
+                <p className="text-sm text-[var(--color-text-muted)]">General details displayed across the system and on printed documents</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="form-label">School Name</label>
+                <input type="text" value="Cebu Sacred Heart College, Inc." readOnly
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none" />
+              </div>
+
+              <div>
+                <label className="form-label">School Motto</label>
+                <input type="text" value="Where Children Grow In Love and Knowledge." readOnly
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none" />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="form-label">Contact Email</label>
+                  <input type="email" value="info@cshc.edu.ph" readOnly
+                    className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none" />
+                </div>
+                <div>
+                  <label className="form-label">Contact Number</label>
+                  <input type="text" value="(032) 123-4567" readOnly
+                    className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="form-label">Website</label>
+                <input type="text" value="www.cshc.edu.ph" readOnly
+                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none" />
+              </div>
+
+              <div className="border-t border-[var(--color-border)] pt-4 mt-4">
+                <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3">Campus Addresses</h4>
+                <div className="space-y-3">
+                  {activeCampuses.map(campus => (
+                    <div key={campus.key} className="flex items-start gap-3 p-3 bg-[var(--color-bg-subtle)] rounded-lg">
+                      <MapPin className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-[var(--color-text-primary)]">{campus.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)]">{campus.key} Campus</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-[var(--color-border)] pt-4">
+              <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5" /> Editing will be available when backend is connected
+              </p>
+              <button disabled className="px-5 py-2 bg-primary/50 text-white rounded-lg flex items-center gap-2 text-sm font-semibold cursor-not-allowed opacity-60">
+                <Save className="w-4 h-4" /> Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
@@ -1617,7 +2017,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [showDeactivateId, setShowDeactivateId] = useState(null)
-  const { addToast } = useToast()
+  const { toasts, addToast, removeToast } = useToast()
 
   const needsCampus = CAMPUS_SCOPED_ROLES.includes(form.role)
 
@@ -2102,6 +2502,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
           </ModalPortal>
         )
       })()}
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }
