@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, LogIn, Shield, BookOpen, Users } from 'lucide-react'
+import { Eye, EyeOff, LogIn } from 'lucide-react'
 
 export default function Login({ onLoginSuccess, error, loading = false }) {
   const [email,        setEmail]        = useState('')
@@ -26,7 +26,8 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         style={{
           display: 'none',
           flexDirection: 'column',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
+          alignItems: 'center',
           padding: '3rem',
           flex: '0 0 42%',
           background: 'linear-gradient(160deg, var(--color-secondary-light) 0%, var(--color-secondary) 55%, #04062a 100%)',
@@ -55,18 +56,18 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           background: 'linear-gradient(to bottom, transparent, var(--color-primary), transparent)',
         }} />
 
-        {/* Logo + school name */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', animation: 'loginFadeUp 0.7s ease both' }}>
+        {/* Logo + school name — centered */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', animation: 'loginFadeUp 0.7s ease both', textAlign: 'center' }}>
           <div style={{
-            width: 88, height: 88, borderRadius: '50%',
+            width: 200, height: 200, borderRadius: '50%',
             background: '#fff',
             border: '3px solid var(--color-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 0 8px rgba(117,0,20,0.12), 0 16px 40px rgba(0,0,0,0.4)',
             overflow: 'hidden', flexShrink: 0,
           }}>
-            <img src="/cshclogo.png" alt="Cebu Sacred Heart College Logo"
-              style={{ width: 78, height: 78, objectFit: 'contain', padding: 6 }} />
+            <img src="/assets/cshclogo.png" alt="Cebu Sacred Heart College Logo"
+              style={{ width: 200, height: 200  , objectFit: 'contain', padding: 8 }} />
           </div>
           <div>
             <div style={{
@@ -77,49 +78,26 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               Cebu Sacred Heart College, Inc.
             </div>
             <div style={{
-              fontSize: '0.7rem', fontWeight: 600,
-              color: 'var(--primary-light)',
+              fontSize: '0.78rem', fontWeight: 500,
+              color: 'rgba(255,255,255,0.7)',
+              fontStyle: 'italic',
+              marginTop: '0.5rem',
+              lineHeight: 1.4,
+            }}>
+              "Where Children Grow In Love and Knowledge."
+            </div>
+            <div style={{
+              fontSize: '0.65rem', fontWeight: 600,
+              color: 'rgba(255,255,255,0.35)',
               letterSpacing: '0.15em', textTransform: 'uppercase',
-              marginTop: '0.35rem',
+              marginTop: '0.75rem',
             }}>
               School Management System
             </div>
           </div>
         </div>
 
-        {/* Feature pills */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', animation: 'loginFadeUp 0.7s 0.15s ease both' }}>
-          {[
-            { icon: <Shield size={15} />,   title: 'Secure Access',         desc: 'Role-based permissions for all staff' },
-            { icon: <Users size={15} />,    title: 'Enrollment Management', desc: 'Streamline student records & enrollment' },
-            { icon: <BookOpen size={15} />, title: 'Academic Tools',        desc: 'Grades, schedules, and reporting in one place' },
-          ].map(({ icon, title, desc }) => (
-            <div key={title} style={{
-              display: 'flex', alignItems: 'center', gap: '0.875rem',
-              padding: '0.8rem 1rem',
-              borderRadius: 'var(--radius-lg)',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(6px)',
-            }}>
-              <div style={{
-                width: 34, height: 34, borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-bg-card)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--color-primary-light)', flexShrink: 0,
-              }}>
-                {icon}
-              </div>
-              <div>
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff', marginBottom: 2 }}>{title}</div>
-                <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.42)', lineHeight: 1.4 }}>{desc}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ fontSize: '0.66rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
+        <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
           © 2026 Cebu Sacred Heart College, Inc.
         </div>
       </aside>
@@ -183,7 +161,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--color-primary)', marginBottom: '0.35rem',
               }}>
-                Administrator Portal
+                School Management Portal
               </div>
               <h1 style={{
                 fontSize: '1.6rem', fontWeight: 700,
