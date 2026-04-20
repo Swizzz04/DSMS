@@ -356,12 +356,13 @@ function SingleToast({ id, type = 'success', message, onRemove }) {
   )
 }
 
-export function ToastContainer({ toasts, onRemove }) {
+export function ToastContainer({ toasts, onRemove, removeToast }) {
+  const remove = onRemove || removeToast
   return (
     <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[10000] flex flex-col-reverse gap-2 pointer-events-none">
       {toasts.map(t => (
         <div key={t.id} className="pointer-events-auto">
-          <SingleToast {...t} onRemove={onRemove} />
+          <SingleToast {...t} onRemove={remove} />
         </div>
       ))}
     </div>
