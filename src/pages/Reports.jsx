@@ -457,7 +457,7 @@ function TxRow({ tx, onView, onPrint }) {
                 </span>
               ))}
             </div>
-          : <span className="text-xs text-gray-400">—</span>
+          : <span className="text-xs text-[var(--color-text-muted)]">—</span>
         }
       </td>
       <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{tx.method || '—'}</td>
@@ -488,7 +488,7 @@ function TxRow({ tx, onView, onPrint }) {
 // ─────────────────────────────────────────────────────────────────────
 function GradeBreakdownTable({ rows }) {
   if (!rows.length) return (
-    <div className="text-center py-8 text-gray-400 text-sm">No payment data for this period</div>
+    <div className="text-center py-8 text-[var(--color-text-muted)] text-sm">No payment data for this period</div>
   )
   return (
     <div className="min-w-0">
@@ -551,11 +551,11 @@ function MethodBreakdown({ transactions }) {
               <div className="flex items-center gap-2">
                 <span className="text-lg">{method === 'Cash' ? '💵' : '🏦'}</span>
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">{method}</span>
-                <span className="text-xs text-gray-400">{data.count} transaction{data.count !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-[var(--color-text-muted)]">{data.count} transaction{data.count !== 1 ? 's' : ''}</span>
               </div>
               <div className="text-right">
                 <span className="text-sm font-bold text-[var(--color-text-primary)]">{php(data.total)}</span>
-                <span className="text-xs text-gray-400 ml-2">{pct}%</span>
+                <span className="text-xs text-[var(--color-text-muted)] ml-2">{pct}%</span>
               </div>
             </div>
             <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-2">
@@ -566,7 +566,7 @@ function MethodBreakdown({ transactions }) {
         )
       })}
       {Object.keys(groups).length === 0 && (
-        <p className="text-sm text-gray-400 text-center py-4">No transactions in this period</p>
+        <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No transactions in this period</p>
       )}
     </div>
   )
@@ -919,7 +919,7 @@ export default function Reports() {
                 {/* Clear filter */}
                 {(deptFilter !== 'all' || gradeFilter !== 'all') && (
                   <button onClick={() => { setDeptFilter('all'); setGradeFilter('all') }}
-                    className="text-xs px-2 py-1 bg-[var(--color-bg-subtle)] text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition flex items-center gap-1">
+                    className="text-xs px-2 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] rounded-lg hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition flex items-center gap-1">
                     ✕ Clear
                   </button>
                 )}
@@ -927,13 +927,13 @@ export default function Reports() {
             </div>
             {/* Active filter label */}
             {(deptFilter !== 'all' || gradeFilter !== 'all') && (
-              <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+              <p className="text-xs text-[var(--color-text-muted)] mt-2 flex items-center gap-1">
                 <Filter className="w-3 h-3"/>
                 Filtered by: <span className="font-semibold text-primary dark:text-red-400 ml-0.5">
                   {deptFilter === 'basic_ed' ? 'Basic Education' : 'College'}
                   {gradeFilter !== 'all' ? ` · ${gradeFilter}` : ''}
                 </span>
-                <span className="ml-1 text-gray-400">
+                <span className="ml-1 text-[var(--color-text-muted)]">
                   · {gradeRows.reduce((s,r)=>s+r.students,0)} student{gradeRows.reduce((s,r)=>s+r.students,0)!==1?'s':''}
                 </span>
               </p>
@@ -982,7 +982,7 @@ export default function Reports() {
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-primary"/>
               <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Individual Transactions</h3>
-              <span className="text-xs text-gray-400 bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
                 {filteredTxs.length}
               </span>
             </div>
@@ -1013,7 +1013,7 @@ export default function Reports() {
           {/* Search + active filter label row */}
           <div className="flex flex-col sm:flex-row gap-2 mt-3 pt-3 border-t border-[var(--color-border)]">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
               <input
                 value={txSearch} onChange={e => setTxSearch(e.target.value)}
                 placeholder="Search student name or OR #..."
@@ -1023,13 +1023,13 @@ export default function Reports() {
             {(txSearch || feeTypeFilter !== 'all') && (
               <button
                 onClick={() => { setTxSearch(''); setFeeTypeFilter('all') }}
-                className="text-xs px-3 py-1.5 text-gray-400 hover:text-red-500 border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
+                className="text-xs px-3 py-1.5 text-[var(--color-text-muted)] hover:text-red-500 border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
                 ✕ Clear filters
               </button>
             )}
           </div>
           {feeTypeFilter !== 'all' && (
-            <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+            <p className="text-xs text-[var(--color-text-muted)] mt-2 flex items-center gap-1">
               <Filter className="w-3 h-3"/>
               Showing transactions with <span className="font-semibold text-secondary dark:text-blue-300 ml-0.5">{
                 { tuition: 'Tuition', misc: 'Misc Fee', lab: 'Lab Fee', books: 'Books' }[feeTypeFilter]
@@ -1051,7 +1051,7 @@ export default function Reports() {
           <div className="py-12 text-center">
             <BarChart2 className="w-10 h-10 text-[var(--color-text-muted)] opacity-50 mx-auto mb-3"/>
             <p className="text-sm text-[var(--color-text-muted)]">No transactions found for this period</p>
-            <p className="text-xs text-gray-400 mt-1">Try selecting a different period or check that payments have been recorded</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1">Try selecting a different period or check that payments have been recorded</p>
           </div>
         ) : (
           <div className="min-w-0">
@@ -1108,4 +1108,4 @@ export default function Reports() {
       <ToastContainer toasts={toasts} onRemove={removeToast}/>
     </div>
   )
-} 
+}

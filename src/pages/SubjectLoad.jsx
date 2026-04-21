@@ -44,7 +44,7 @@ function TeacherPickerModal({ teachers, title, subtitle, currentTeacherId, onSel
         </div>
         <div className="px-4 pt-3 pb-2 flex-shrink-0">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input autoFocus type="text" placeholder="Search teacher…" value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
@@ -58,7 +58,7 @@ function TeacherPickerModal({ teachers, title, subtitle, currentTeacherId, onSel
             </button>
           )}
           {filtered.length === 0 && (
-            <p className="text-center text-sm text-gray-400 py-8">No teachers found.</p>
+            <p className="text-center text-sm text-[var(--color-text-muted)] py-8">No teachers found.</p>
           )}
           {filtered.map(t => (
             <button key={t.id} onClick={() => onSelect(t)}
@@ -249,7 +249,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                 ) : groupTotalSubj > 0 ? (
                   <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
                 ) : null}
-                {isGroupOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                {isGroupOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
               </div>
             </button>
 
@@ -286,7 +286,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                 ) : subjects.length > 0 ? (
                   <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
                 ) : null}
-                {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
               </div>
             </button>
 
@@ -298,7 +298,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                     Subject Teachers <span className="font-normal normal-case">(applies to all sections)</span>
                   </p>
                   {subjects.length === 0 && (
-                    <p className="text-sm text-gray-400 py-2 text-center">No subjects yet.</p>
+                    <p className="text-sm text-[var(--color-text-muted)] py-2 text-center">No subjects yet.</p>
                   )}
                   {subjects.map(subject => {
                     const load = loads.find(l => l.subject === subject)
@@ -332,7 +332,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{sec.displayName}</p>
                                 <button onClick={() => setRenameModal({ gradeLevel: grade, section: sec })}
-                                  className="p-0.5 text-gray-400 hover:text-primary dark:hover:text-red-400 transition flex-shrink-0" title="Rename section">
+                                  className="p-0.5 text-[var(--color-text-muted)] hover:text-primary dark:hover:text-red-400 transition flex-shrink-0" title="Rename section">
                                   <Pencil className="w-3 h-3" />
                                 </button>
                               </div>
@@ -508,7 +508,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                     ) : subjects.length > 0 && sections.length > 0 ? (
                       <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
                     ) : null}
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
                   </div>
                 </button>
 
@@ -528,15 +528,15 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                         return (
                           <div key={sec.id} className="border-b border-[var(--color-border)] last:border-0">
                             <div className="flex items-center gap-2 px-4 py-2 bg-[var(--color-bg-subtle)]">
-                              <Users className="w-3.5 h-3.5 text-gray-400" />
+                              <Users className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
                               <p className="text-xs font-semibold text-[var(--color-text-secondary)]">
                                 {sec.displayName}
                               </p>
-                              <span className="text-xs text-gray-400">· {sec.studentCount} students</span>
+                              <span className="text-xs text-[var(--color-text-muted)]">· {sec.studentCount} students</span>
                             </div>
                             <div className="px-4 pt-1 pb-2">
                               {subjects.length === 0 && (
-                                <p className="text-sm text-gray-400 py-2 text-center">No subjects yet.</p>
+                                <p className="text-sm text-[var(--color-text-muted)] py-2 text-center">No subjects yet.</p>
                               )}
                               {subjects.map(subject => {
                                 const load = secLoads.find(l => l.subject === subject)
