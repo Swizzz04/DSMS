@@ -170,17 +170,17 @@ export function CampusMiniCard({ campusStat: c }) {
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.students}</p>
-          <p className="text-xs text-gray-400">Students</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Students</p>
         </div>
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.enrollments}</p>
-          <p className="text-xs text-gray-400">Enrolled</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Enrolled</p>
         </div>
         <div>
           <p className="text-lg font-bold text-green-600 dark:text-green-400">
             {c.collectionRate != null ? `${c.collectionRate}%` : '—'}
           </p>
-          <p className="text-xs text-gray-400">Collected</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
         </div>
       </div>
       {c.collectionRate != null && (
@@ -376,7 +376,7 @@ export function CollectionRateBar({ rate, collected, expected }) {
       <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${rate}%` }} />
       </div>
-      <div className="flex justify-between text-xs text-gray-400 mt-1.5">
+      <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1.5">
         <span>Collected: {php(collected)}</span>
         <span>Expected: {php(expected)}</span>
       </div>
@@ -444,7 +444,7 @@ export function DeptEnrollmentCard({ group, enrollments }) {
             {deptApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{deptApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{deptTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -556,7 +556,7 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
             {progApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{progApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{progTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -648,19 +648,19 @@ function PaymentGradeRow({ label, payments }) {
               <div className="h-full w-full bg-[var(--color-border)] rounded-full" />
             )}
           </div>
-          <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
+          <span className="text-xs text-[var(--color-text-muted)] w-10 text-right flex-shrink-0">
             {totalFee > 0 ? Math.round((revenue / totalFee) * 100) : 0}%
           </span>
         </div>
       </div>
       <div className="flex items-center gap-4 flex-shrink-0 sm:w-64 justify-between">
         <div className="text-right">
-          <p className="text-xs text-gray-400">Collected</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
           <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(revenue)}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-400">Outstanding</p>
-          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}`}>
+          <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>
             {outstanding > 0 ? php(outstanding) : '—'}
           </p>
         </div>
@@ -713,16 +713,16 @@ export function DeptPaymentCard({ group, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
             <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
           </div>
           {deptOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
               <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(deptOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -737,9 +737,9 @@ export function DeptPaymentCard({ group, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{group.label} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -783,16 +783,16 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
             <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
           </div>
           {progOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
               <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(progOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -808,9 +808,9 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{program} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -830,7 +830,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
 export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-primary dark:text-red-400' }) {
   const rows = limit ? enrollments.slice(0, limit) : enrollments
   if (rows.length === 0) return (
-    <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment data found.</p>
+    <p className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">No enrollment data found.</p>
   )
   return (
     <div className="min-w-0 -mx-1">

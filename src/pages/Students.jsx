@@ -89,7 +89,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
   return (
     <div className="space-y-4">
       {/* Campus identity card — emerald, same as registrar_basic */}
-      <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 rounded-2xl p-5 text-white shadow-lg">
+      <div className="bg-emerald-700 rounded-2xl p-5 text-white shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -179,7 +179,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
               <Doughnut data={enrollStatusData} options={pieOpts} />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-56 text-sm text-gray-400">No enrollment data</div>
+            <div className="flex items-center justify-center h-56 text-sm text-[var(--color-text-muted)]">No enrollment data</div>
           )}
         </div>
       </div>
@@ -190,10 +190,10 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
             <FileText className="w-4 h-4 text-emerald-600" /> Recent Enrollment Applications
           </h3>
-          <span className="text-xs text-gray-400">{campusEnrollments.length} total</span>
+          <span className="text-xs text-[var(--color-text-muted)]">{campusEnrollments.length} total</span>
         </div>
         {campusEnrollments.length === 0 ? (
-          <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment applications found for this campus.</p>
+          <p className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">No enrollment applications found for this campus.</p>
         ) : (
           <>
             {/* Mobile */}
@@ -293,7 +293,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
   return (
     <div className="space-y-4">
       {/* Campus identity card — dark blue, same as registrar_college */}
-      <div className="bg-gradient-to-r from-secondary to-light-secondary rounded-2xl p-5 text-white shadow-lg">
+      <div className="bg-secondary rounded-2xl p-5 text-white shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -389,7 +389,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
               <Doughnut data={enrollStatusData} options={pieOpts} />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-60 text-sm text-gray-400">No enrollment data</div>
+            <div className="flex items-center justify-center h-60 text-sm text-[var(--color-text-muted)]">No enrollment data</div>
           )}
         </div>
       </div>
@@ -400,10 +400,10 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
             <FileText className="w-4 h-4 text-primary" /> Recent Enrollment Applications
           </h3>
-          <span className="text-xs text-gray-400">{campusEnrollments.length} total</span>
+          <span className="text-xs text-[var(--color-text-muted)]">{campusEnrollments.length} total</span>
         </div>
         {campusEnrollments.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-gray-400">No enrollment applications found for this campus.</div>
+          <div className="px-5 py-12 text-center text-sm text-[var(--color-text-muted)]">No enrollment applications found for this campus.</div>
         ) : (
           <>
             {/* Mobile */}
@@ -996,7 +996,7 @@ export default function Students() {
                         </>)}
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0" />
                   </button>
                 </li>
               ))}

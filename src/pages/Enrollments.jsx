@@ -131,7 +131,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Enrollments', value: grandTotal,    border: 'border-primary',    sub: isSingleCampus ? selectedCampus.name : 'All Campuses',          cls: 'text-gray-400' },
+          { label: 'Total Enrollments', value: grandTotal,    border: 'border-primary',    sub: isSingleCampus ? selectedCampus.name : 'All Campuses',          cls: 'text-[var(--color-text-muted)]' },
           { label: 'Pending Review',    value: grandPending,  border: 'border-yellow-500', sub: grandTotal > 0 ? `${Math.round(grandPending/grandTotal*100)}% needs action` : '—', cls: 'text-yellow-600 dark:text-yellow-400' },
           { label: 'Approved',          value: grandApproved, border: 'border-green-500',  sub: grandTotal > 0 ? `${Math.round(grandApproved/grandTotal*100)}% approval rate` : '—', cls: 'text-green-600 dark:text-green-400' },
           { label: 'Rejected',          value: grandRejected, border: 'border-red-400',    sub: grandTotal > 0 ? `${Math.round(grandRejected/grandTotal*100)}% rejection rate` : '—', cls: 'text-red-500 dark:text-red-400' },
@@ -517,18 +517,18 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
               </h3>
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"/>
+                  <User className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0"/>
                   <span className="font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student)}</span>
                 </div>
                 {e.student.contactNumber && (
                   <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                    <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"/>
+                    <Phone className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0"/>
                     <span>{e.student.contactNumber}</span>
                   </div>
                 )}
                 {e.student.email && (
                   <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                    <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"/>
+                    <Mail className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0"/>
                     <span className="truncate">{e.student.email}</span>
                   </div>
                 )}
@@ -619,7 +619,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                   )}
                   <div className="grid grid-cols-3 gap-2 text-center text-xs mt-2">
                     <div className="bg-[var(--color-bg-subtle)] rounded-lg p-2">
-                      <p className="text-gray-400">Total Fee</p>
+                      <p className="text-[var(--color-text-muted)]">Total Fee</p>
                       <p className="font-semibold font-mono text-[var(--color-text-primary)] text-sm">{php(e.totalFee || 0)}</p>
                     </div>
                     <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
@@ -889,7 +889,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
-                    Lecture Units <span className="text-gray-400">(typical: {feeEntry.typicalUnits})</span>
+                    Lecture Units <span className="text-[var(--color-text-muted)]">(typical: {feeEntry.typicalUnits})</span>
                   </label>
                   <input type="number" min="0" max="40" value={actualUnits}
                     onChange={e => setActualUnits(Number(e.target.value))}
@@ -898,7 +898,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 </div>
                 <div>
                   <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
-                    Lab Units <span className="text-gray-400">(typical: {feeEntry.typicalLabUnits})</span>
+                    Lab Units <span className="text-[var(--color-text-muted)]">(typical: {feeEntry.typicalLabUnits})</span>
                   </label>
                   <input type="number" min="0" max="20" value={actualLabUnits}
                     onChange={e => setActualLabUnits(Number(e.target.value))}
@@ -941,7 +941,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 { label: 'Other Fees', val: bill.other },
               ].filter(f => f.val > 0).map(f => (
                 <div key={f.label} className="flex justify-between text-sm">
-                  <span className="text-[var(--color-text-secondary)]">{f.label} <span className="text-xs text-gray-400">(fixed)</span></span>
+                  <span className="text-[var(--color-text-secondary)]">{f.label} <span className="text-xs text-[var(--color-text-muted)]">(fixed)</span></span>
                   <span className="font-mono">{php(f.val)}</span>
                 </div>
               ))}
@@ -967,7 +967,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
           {campusDiscounts?.filter(d => d.isActive).length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5"/> Apply Discounts <span className="font-normal text-gray-400">(optional)</span>
+                <Tag className="w-3.5 h-3.5"/> Apply Discounts <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {campusDiscounts.filter(d => d.isActive).map(d => {
@@ -987,7 +987,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                         <p className={`font-semibold ${selected ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-primary)]'}`}>
                           {d.name}
                         </p>
-                        <p className="text-gray-400">
+                        <p className="text-[var(--color-text-muted)]">
                           {d.type === 'fixed' ? `₱${d.defaultRate.toLocaleString()} off tuition` : `${d.defaultRate}% off tuition`}
                         </p>
                       </div>
@@ -1006,7 +1006,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
             <div>
               <label className="form-label">
                 Amount Paid Now <span className="text-red-500">*</span>
-                {bill && <span className="ml-1 font-normal text-gray-400">(grand total: {php(bill.grandTotal)})</span>}
+                {bill && <span className="ml-1 font-normal text-[var(--color-text-muted)]">(grand total: {php(bill.grandTotal)})</span>}
               </label>
               {bill?.enrollment > 0 && (
                 <div className="flex items-center gap-1.5 mb-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
@@ -1015,7 +1015,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 </div>
               )}
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">₱</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-semibold text-sm">₱</span>
                 <input type="number" min="1" value={amountPaid}
                   onChange={e => setAmountPaid(e.target.value)}
                   placeholder="Enter amount"
@@ -1048,7 +1048,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               {/* Live balance */}
               {bill && amountPaid && parseFloat(amountPaid) > 0 && (
                 <div className="mt-2 flex justify-between text-xs">
-                  <span className="text-gray-400">Remaining balance after this payment:</span>
+                  <span className="text-[var(--color-text-muted)]">Remaining balance after this payment:</span>
                   <span className={`font-mono font-semibold ${balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
                     {balance > 0 ? php(balance) : 'Fully paid ✓'}
                   </span>
@@ -1536,7 +1536,7 @@ export default function Enrollments() {
       {/* ── Accounting: Today's collection summary ── */}
       {user?.role === 'accounting' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="col-span-2 sm:col-span-2 bg-gradient-to-br from-primary to-[#4a0009] rounded-xl p-4 text-white shadow-sm">
+          <div className="col-span-2 sm:col-span-2 bg-primary rounded-xl p-4 text-white shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <Banknote className="w-4 h-4 opacity-80"/>
               <p className="text-xs font-medium opacity-80">Today's Collection</p>
@@ -1561,7 +1561,7 @@ export default function Enrollments() {
       {user?.role !== 'accounting' && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { label:'Total Enrollments',  value:stats.total,            border:'border-primary',    sub:'All submissions',     cls:'text-gray-400' },
+            { label:'Total Enrollments',  value:stats.total,            border:'border-primary',    sub:'All submissions',     cls:'text-[var(--color-text-muted)]' },
             { label:'Awaiting Payment',   value:stats.pending,          border:'border-yellow-500', sub:'Pending payment at Accounting', cls:'text-yellow-600 dark:text-yellow-400' },
             { label:'Payment Received',   value:stats.payment_received, border:'border-blue-500',   sub:'Ready for registrar review', cls:'text-blue-600 dark:text-blue-400' },
             { label:'Approved',           value:stats.approved,         border:'border-green-500',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-green-600 dark:text-green-400' },
@@ -1750,7 +1750,7 @@ export default function Enrollments() {
                           <span>{e.enrollment.gradeLevel}</span><span>•</span><span>{e.enrollment.campus.replace(' Campus','')}</span>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                      <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
                     </button>
                   )}
                 </li>
@@ -1805,7 +1805,7 @@ export default function Enrollments() {
                           <td className="px-4 py-3 whitespace-nowrap">
                             {e.totalFee > 0 ? (
                               <div className="text-xs">
-                                <p className="font-mono text-[var(--color-text-secondary)]">{php(e.amountPaid || 0)} <span className="text-gray-400">of {php(e.totalFee)}</span></p>
+                                <p className="font-mono text-[var(--color-text-secondary)]">{php(e.amountPaid || 0)} <span className="text-[var(--color-text-muted)]">of {php(e.totalFee)}</span></p>
                                 {(e.balance || 0) > 0 && (
                                   <p className="text-amber-600 dark:text-amber-400 font-medium">{php(e.balance)} balance</p>
                                 )}
@@ -1814,7 +1814,7 @@ export default function Enrollments() {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-[var(--color-text-muted)]">—</span>
                             )}
                           </td>
                         )}

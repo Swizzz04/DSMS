@@ -124,7 +124,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
           { label: 'Total Revenue',     value: php(grandRevenue),    border: 'border-green-500',  icon: <TrendingUp className="w-5 h-5 text-green-500"/>, sub: `${grandTotalFee > 0 ? Math.round((grandRevenue/grandTotalFee)*100) : 0}% collected`, cls: 'text-green-600 dark:text-green-400' },
           { label: 'Outstanding',       value: php(grandOutstanding),border: 'border-red-400',    icon: <Banknote className="w-5 h-5 text-red-400"/>,    sub: 'Pending collection', cls: 'text-red-500 dark:text-red-400' },
           { label: 'Fully Paid',        value: grandPaid,            border: 'border-blue-500',   icon: <CheckCircle className="w-5 h-5 text-blue-500"/>, sub: `${allShown.length > 0 ? Math.round((grandPaid/allShown.length)*100) : 0}% of students`, cls: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Overdue Accounts',  value: grandOverdue,         border: 'border-orange-400', icon: <AlertCircle className="w-5 h-5 text-orange-400"/>,sub: 'Requires follow-up', cls: grandOverdue > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-gray-400' },
+          { label: 'Overdue Accounts',  value: grandOverdue,         border: 'border-orange-400', icon: <AlertCircle className="w-5 h-5 text-orange-400"/>,sub: 'Requires follow-up', cls: grandOverdue > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-[var(--color-text-muted)]' },
         ].map(({ label, value, border, icon, sub, cls }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <div className="flex items-center justify-between mb-2">
@@ -150,7 +150,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
             <div className="bg-green-500 h-full rounded-full transition-all duration-700"
               style={{ width: `${(grandRevenue / grandTotalFee) * 100}%` }} />
           </div>
-          <div className="flex justify-between mt-2 text-xs text-gray-400">
+          <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
             <span>Collected: <span className="font-semibold text-green-600 dark:text-green-400">{php(grandRevenue)}</span></span>
             <span>Total Expected: <span className="font-semibold text-[var(--color-text-secondary)]">{php(grandTotalFee)}</span></span>
           </div>
@@ -218,7 +218,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
                 { label: 'Collection Rate',value: `${campusTotalFee>0?Math.round((campusRevenue/campusTotalFee)*100):0}%`, cls: 'text-blue-600 dark:text-blue-400' },
               ].map(({ label, value, cls }) => (
                 <div key={label} className="bg-[var(--color-bg-card)] rounded-xl p-3 shadow-sm text-center">
-                  <p className="text-xs text-gray-400 mb-1">{label}</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
                   <p className={`text-base font-bold ${cls}`}>{value}</p>
                 </div>
               ))}
@@ -265,7 +265,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
             )}
 
             {!campus.hasCollege && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-bg-subtle)] rounded-xl text-sm text-gray-400">
+              <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-bg-subtle)] rounded-xl text-sm text-[var(--color-text-muted)]">
                 <GraduationCap className="w-4 h-4" /> No college department at this campus
               </div>
             )}
@@ -577,7 +577,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               { label: 'Balance',     value: `₱${(payment.totalFee - payment.amountPaid).toLocaleString()}`, cls: 'text-red-500 dark:text-red-400' },
             ].map(({ label, value, cls }) => (
               <div key={label} className="bg-[var(--color-bg-subtle)] rounded-xl p-3 text-center">
-                <p className="text-[10px] text-gray-400 mb-0.5 uppercase tracking-wide">{label}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5 uppercase tracking-wide">{label}</p>
                 <p className={`text-sm font-bold ${cls}`}>{value}</p>
               </div>
             ))}
@@ -585,7 +585,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
           {/* Progress bar — live preview */}
           <div>
-            <div className="flex justify-between text-xs text-gray-400 mb-1">
+            <div className="flex justify-between text-xs text-[var(--color-text-muted)] mb-1">
               <span>Payment progress</span>
               <span>{newPct}%</span>
             </div>
@@ -600,7 +600,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               Amount to Record <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold text-sm">₱</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-semibold text-sm">₱</span>
               <input
                 type="number" min="1" max={maxAmount} step="0.01"
                 value={amount} onChange={e => setAmount(e.target.value)}
@@ -665,7 +665,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
           <div>
             <label className="form-label">
               Payment For <span className="text-red-500">*</span>
-              <span className="ml-1 font-normal text-gray-400">(select all that apply)</span>
+              <span className="ml-1 font-normal text-[var(--color-text-muted)]">(select all that apply)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               {feeOptions.map(opt => {
@@ -687,7 +687,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                         {opt.label}
                       </p>
                       {opt.amount > 0 && (
-                        <p className="text-[10px] text-gray-400 font-mono">₱{opt.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)] font-mono">₱{opt.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
                       )}
                     </div>
                   </button>
@@ -914,7 +914,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
             />
           </div>
           <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search student or OR #..."
               className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
@@ -925,19 +925,19 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
         {/* Date range row */}
         <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-[var(--color-border)]">
           <div className="flex items-center gap-2 flex-1">
-            <Calendar className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"/>
-            <label className="text-xs text-gray-400 whitespace-nowrap">From:</label>
+            <Calendar className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0"/>
+            <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">From:</label>
             <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
               className="flex-1 px-2 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
           </div>
           <div className="flex items-center gap-2 flex-1">
-            <label className="text-xs text-gray-400 whitespace-nowrap">To:</label>
+            <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">To:</label>
             <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
               className="flex-1 px-2 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
           </div>
           {hasFilters && (
             <button onClick={clearAll}
-              className="text-xs px-3 py-1.5 text-gray-400 hover:text-red-500 border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
+              className="text-xs px-3 py-1.5 text-[var(--color-text-muted)] hover:text-red-500 border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
               ✕ Clear all
             </button>
           )}
@@ -966,7 +966,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
             <span className="text-sm font-semibold text-[var(--color-text-primary)]">
               {deptFilter === 'basic' ? 'Basic Ed Transactions' : deptFilter === 'college' ? 'College Transactions' : 'All Transactions'}
             </span>
-            <span className="text-xs bg-[var(--color-bg-subtle)] text-gray-500 px-2 py-0.5 rounded-full">{filtered.length}</span>
+            <span className="text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] px-2 py-0.5 rounded-full">{filtered.length}</span>
             {yearFilter !== 'all' && (
               <span className="text-xs bg-primary/10 text-primary dark:text-red-300 px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
             )}
@@ -974,7 +974,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
           <span className="text-sm font-bold text-green-600 dark:text-green-400 font-mono">{phpFmt(totalFiltered)}</span>
         </div>
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-gray-400">
+          <div className="py-12 text-center text-[var(--color-text-muted)]">
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-30"/>
             <p className="text-sm">No transactions match your filters</p>
           </div>
@@ -1166,7 +1166,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
             />
           </div>
           <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search student name or reference #..."
               className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
@@ -1201,7 +1201,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
           )}
         </div>
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-gray-400">
+          <div className="py-12 text-center text-[var(--color-text-muted)]">
             <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400 opacity-60"/>
             <p className="text-sm font-medium text-green-600 dark:text-green-400">
               {yearFilter !== 'all' ? `No students with balance in ${yearFilter}` : deptFilter !== 'all' ? `No ${deptFilter === 'basic' ? 'Basic Ed' : 'College'} students with balance` : 'All students are fully paid!'}
@@ -1228,7 +1228,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                     <tr key={i} className={`transition ${isOld ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-[var(--color-text-primary)]">{p.studentName}</p>
-                        <p className="text-xs text-gray-400 font-mono">{p.studentId}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] font-mono">{p.studentId}</p>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
@@ -1413,7 +1413,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
         <div className="px-4 py-3 border-b border-[var(--color-border)]">
           <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Select Student</p>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search name or ref #..."
               className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
@@ -1433,9 +1433,9 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 <p className={`text-xs font-semibold truncate ${selectedStudent?.studentId===p.studentId ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-primary)]'}`}>
                   {p.studentName}
                 </p>
-                <p className="text-[10px] text-gray-400 truncate">{p.gradeLevel}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)] truncate">{p.gradeLevel}</p>
                 <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-[10px] font-mono text-gray-400">{p.studentId}</span>
+                  <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{p.studentId}</span>
                   <span className={`text-[10px] font-bold font-mono ${p.balance<=0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
                     {p.balance<=0 ? 'PAID' : `Bal: ${php(p.balance)}`}
                   </span>
@@ -1444,7 +1444,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
             </button>
           ))}
           {filtered.length===0 && (
-            <div className="py-8 text-center text-gray-400 text-sm">No students found</div>
+            <div className="py-8 text-center text-[var(--color-text-muted)] text-sm">No students found</div>
           )}
         </div>
       </div>
@@ -1453,7 +1453,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
       <div className="lg:col-span-2">
         {!selectedStudent ? (
           <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm h-full flex items-center justify-center py-20">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-[var(--color-text-muted)]">
               <FileText className="w-12 h-12 mx-auto mb-3 opacity-30"/>
               <p className="text-sm font-medium">Select a student to view SOA</p>
               <p className="text-xs mt-1">Choose from the list on the left</p>
@@ -1467,7 +1467,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
           return (
             <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
               {/* SOA Header */}
-              <div className="bg-gradient-to-r from-primary to-accent-burgundy px-6 py-5 text-white">
+              <div className="bg-primary px-6 py-5 text-white">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-[3px] opacity-70 mb-1">Statement of Account</p>
@@ -1519,7 +1519,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 <div>
                   <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3">Payment History</h3>
                   {hist.length===0 ? (
-                    <p className="text-sm text-gray-400 text-center py-4">No payments recorded yet</p>
+                    <p className="text-sm text-[var(--color-text-muted)] text-center py-4">No payments recorded yet</p>
                   ) : (
                     <div className="min-w-0">
                     <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
@@ -1569,7 +1569,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                     <p className={`text-xs font-semibold uppercase tracking-wide ${p.balance<=0 ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
                       {p.balance<=0 ? '✓ Account Fully Settled' : 'Remaining Balance'}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">Total paid: {php(p.amountPaid)}</p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Total paid: {php(p.amountPaid)}</p>
                   </div>
                   <span className={`text-2xl font-bold font-mono ${p.balance<=0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
                     {php(p.balance)}
@@ -1874,7 +1874,7 @@ export default function Payments() {
               { label:'Total Revenue',    value:php(stats.revenue),     border:'border-green-500', icon:<TrendingUp className="w-5 h-5 text-green-500"/>, sub:'Collected payments',   cls:'text-green-600 dark:text-green-400' },
               { label:'Outstanding',      value:php(stats.outstanding), border:'border-amber-400', icon:<Clock className="w-5 h-5 text-amber-400"/>,      sub:'Pending collection',   cls:'text-amber-500 dark:text-amber-400' },
               { label:'Fully Paid',       value:stats.paid,             border:'border-blue-500',  icon:<CheckCircle className="w-5 h-5 text-blue-500"/>, sub:'Students',             cls:'text-blue-600 dark:text-blue-400' },
-              { label:'Overdue',          value:stats.overdue,          border:'border-red-400',   icon:<AlertCircle className="w-5 h-5 text-red-400"/>,  sub:'Requires follow-up',   cls:stats.overdue > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400' },
+              { label:'Overdue',          value:stats.overdue,          border:'border-red-400',   icon:<AlertCircle className="w-5 h-5 text-red-400"/>,  sub:'Requires follow-up',   cls:stats.overdue > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]' },
             ].map(({ label, value, border, icon, sub, cls }) => (
               <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
                 <div className="flex items-center justify-between mb-2">
@@ -1972,7 +1972,7 @@ export default function Payments() {
                             <span className="text-sm font-bold text-green-600 dark:text-green-400">{php(p.amountPaid)}</span>
                           </div>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                        <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
                       </button>
                     </li>
                   ))}
@@ -2012,7 +2012,7 @@ export default function Payments() {
                             <td className="px-4 py-3 text-sm text-[var(--color-text-primary)] whitespace-nowrap font-medium">{php(p.totalFee)}</td>
                             <td className="px-4 py-3 text-sm text-green-600 dark:text-green-400 whitespace-nowrap font-semibold">{php(p.amountPaid)}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap font-semibold">
-                              <span className={p.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
+                              <span className={p.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={p.status} /></td>
                             <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">
@@ -2039,7 +2039,7 @@ export default function Payments() {
                     </table>
                   </div>
                 </div>
-                <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-gray-400 flex items-center gap-2 flex-wrap">
+                <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] flex items-center gap-2 flex-wrap">
                   Showing {filtered.length} of {payments.length} records
                   {yearFilter !== 'all' && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary dark:text-red-300 rounded-full font-medium">
@@ -2090,10 +2090,10 @@ export default function Payments() {
                     {[
                       { label: 'Total Fee',    value: php(selectedPayment.totalFee),    cls: 'text-[var(--color-text-primary)]'        },
                       { label: 'Amount Paid',  value: php(selectedPayment.amountPaid),  cls: 'text-green-600 dark:text-green-400'   },
-                      { label: 'Balance',      value: php(selectedPayment.balance),     cls: selectedPayment.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400' },
+                      { label: 'Balance',      value: php(selectedPayment.balance),     cls: selectedPayment.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]' },
                     ].map(({ label, value, cls }) => (
                       <div key={label} className="bg-[var(--color-bg-subtle)] rounded-xl p-3 text-center">
-                        <p className="text-xs text-gray-400 mb-1">{label}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
                         <p className={`text-base font-bold ${cls}`}>{value}</p>
                       </div>
                     ))}
@@ -2124,7 +2124,7 @@ export default function Payments() {
                         ['Installments', selectedPayment.paymentHistory.length],
                       ].map(([label, value]) => (
                         <div key={label}>
-                          <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                          <p className="text-xs text-[var(--color-text-muted)] mb-0.5">{label}</p>
                           <p className="font-medium text-[var(--color-text-primary)]">{value}</p>
                         </div>
                       ))}
@@ -2142,7 +2142,7 @@ export default function Payments() {
                             <div>
                               <p className="text-xs font-mono text-primary dark:text-red-400">{h.orNumber}</p>
                               <p className="text-xs text-[var(--color-text-muted)]">{h.method} · {new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
-                              {h.notes && <p className="text-xs text-gray-400 italic mt-0.5">{h.notes}</p>}
+                              {h.notes && <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{h.notes}</p>}
                             </div>
                             <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(h.amount)}</p>
                           </div>
