@@ -170,17 +170,17 @@ export function CampusMiniCard({ campusStat: c }) {
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.students}</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Students</p>
+          <p className="text-xs text-gray-400">Students</p>
         </div>
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.enrollments}</p>
-          <p className="text-xs text-[var(--color-text-muted)]">Enrolled</p>
+          <p className="text-xs text-gray-400">Enrolled</p>
         </div>
         <div>
           <p className="text-lg font-bold text-green-600 dark:text-green-400">
             {c.collectionRate != null ? `${c.collectionRate}%` : '—'}
           </p>
-          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+          <p className="text-xs text-gray-400">Collected</p>
         </div>
       </div>
       {c.collectionRate != null && (
@@ -210,59 +210,43 @@ export function CampusMiniCard({ campusStat: c }) {
 export function CampusBanner({ user }) {
   if (!user) return null
 
-  const isRegistrarBasic   = user.role === 'registrar_basic'
-  const isRegistrarCollege = user.role === 'registrar_college'
-  const isAccounting       = user.role === 'accounting' && user.campus !== 'all'
+  const isLocked =
+    user.role === 'registrar_basic'   ||
+    user.role === 'registrar_college' ||
+    user.role === 'principal_basic'   ||
+    user.role === 'program_head'      ||
+    user.role === 'system_admin'      ||
+    (user.role === 'accounting' && user.campus !== 'all')
 
-  if (!isRegistrarBasic && !isRegistrarCollege && !isAccounting) return null
+  if (!isLocked) return null
 
-  const config = {
-    registrar_basic: {
-      bg:      'bg-emerald-50 dark:bg-emerald-900/20',
-      border:  'border-emerald-200 dark:border-emerald-700',
-      iconBg:  'bg-emerald-600',
-      title:   `text-emerald-800 dark:text-emerald-200`,
-      sub:     `text-emerald-600 dark:text-emerald-400`,
-      label:   'Basic Education Registrar',
-      message: 'Showing Basic Education enrollments for your assigned campus only',
-    },
-    registrar_college: {
-      bg:      'bg-purple-50 dark:bg-purple-900/20',
-      border:  'border-purple-200 dark:border-purple-700',
-      iconBg:  'bg-purple-600',
-      title:   'text-purple-800 dark:text-purple-200',
-      sub:     'text-purple-600 dark:text-purple-400',
-      label:   'College Registrar',
-      message: 'Showing College enrollments for your assigned campus only',
-    },
-    accounting: {
-      bg:      'bg-amber-50 dark:bg-amber-900/20',
-      border:  'border-amber-200 dark:border-amber-700',
-      iconBg:  'bg-amber-500',
-      title:   'text-amber-800 dark:text-amber-200',
-      sub:     'text-amber-600 dark:text-amber-400',
-      label:   'Accounting Officer',
-      message: 'You are only authorized to view and manage data for this campus',
-    },
+  const roleLabels = {
+    registrar_basic:   'Basic Education Registrar',
+    registrar_college: 'College Registrar',
+    accounting:        'Accounting Officer',
+    principal_basic:   'Basic Ed Principal',
+    program_head:      'Program Head (College)',
+    system_admin:      'System Admin',
   }
 
-  const cfg = config[user.role] || config.accounting
+  // Campus-based colors — uniform across all roles per campus
+  const label = roleLabels[user.role] || user.role?.replace('_', ' ')
 
   return (
-    <div className={`${cfg.bg} border ${cfg.border} rounded-xl px-5 py-3.5 flex items-center gap-3`}>
-      <div className={`w-9 h-9 ${cfg.iconBg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+    <div className="rounded-xl px-5 py-3.5 flex items-center gap-3 border bg-[var(--color-primary-light)] border-primary/20">
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary">
         <MapPin className="w-4 h-4 text-white" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm font-semibold ${cfg.title}`}>
+        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
           {user.campus}
-          <span className="font-normal opacity-70"> — {cfg.label}</span>
+          <span className="font-normal opacity-70"> — {label}</span>
         </p>
-        <p className={`text-xs mt-0.5 ${cfg.sub}`}>{cfg.message}</p>
+        <p className="text-xs mt-0.5 text-[var(--color-text-muted)]">You are only authorized to view and manage data for this campus</p>
       </div>
-      <div className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${cfg.iconBg} bg-opacity-10`}>
-        <Building2 className={`w-3.5 h-3.5 ${cfg.sub}`} />
-        <span className={`text-xs font-semibold ${cfg.sub}`}>Campus Locked</span>
+      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10">
+        <Building2 className="w-3.5 h-3.5 text-primary" />
+        <span className="text-xs font-semibold text-primary">Campus Locked</span>
       </div>
     </div>
   )
@@ -292,19 +276,21 @@ export function CampusChip({ user }) {
     user.role === 'registrar_college' ||
     user.role === 'principal_basic'   ||
     user.role === 'program_head'      ||
+    user.role === 'system_admin'      ||
     (user.role === 'accounting' && user.campus !== 'all')
 
   if (!isLocked) return null
 
-  const colors = {
-    registrar_basic:   'bg-emerald-500 border-emerald-500 text-white',
-    registrar_college: 'bg-purple-600  border-purple-600  text-white',
-    principal_basic:   'bg-orange-500  border-orange-500  text-white',
-    program_head:      'bg-violet-600  border-violet-600  text-white',
-    accounting:        'bg-amber-500   border-amber-500   text-white',
-  }
-
-  const cls = colors[user.role] || colors.accounting
+  // Use system primary color for all campuses
+  return (
+    <div
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white border bg-primary border-primary"
+    >
+      <MapPin className="w-3 h-3" />
+      <span className="hidden sm:inline">{user.campus}</span>
+      <span className="sm:hidden">{user.campusKey || user.campus?.replace(' City Campus', '').replace(' Campus', '') || ''}</span>
+    </div>
+  )
 
   // Shorten campus name to fit the chip
   const shortName = user.campus
@@ -376,7 +362,7 @@ export function CollectionRateBar({ rate, collected, expected }) {
       <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${rate}%` }} />
       </div>
-      <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1.5">
+      <div className="flex justify-between text-xs text-gray-400 mt-1.5">
         <span>Collected: {php(collected)}</span>
         <span>Expected: {php(expected)}</span>
       </div>
@@ -444,7 +430,7 @@ export function DeptEnrollmentCard({ group, enrollments }) {
             {deptApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{deptApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{deptTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </div>
 
@@ -556,7 +542,7 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
             {progApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{progApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{progTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </div>
 
@@ -648,19 +634,19 @@ function PaymentGradeRow({ label, payments }) {
               <div className="h-full w-full bg-[var(--color-border)] rounded-full" />
             )}
           </div>
-          <span className="text-xs text-[var(--color-text-muted)] w-10 text-right flex-shrink-0">
+          <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
             {totalFee > 0 ? Math.round((revenue / totalFee) * 100) : 0}%
           </span>
         </div>
       </div>
       <div className="flex items-center gap-4 flex-shrink-0 sm:w-64 justify-between">
         <div className="text-right">
-          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+          <p className="text-xs text-gray-400">Collected</p>
           <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(revenue)}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
-          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>
+          <p className="text-xs text-gray-400">Outstanding</p>
+          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}`}>
             {outstanding > 0 ? php(outstanding) : '—'}
           </p>
         </div>
@@ -713,16 +699,16 @@ export function DeptPaymentCard({ group, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+            <p className="text-xs text-gray-400">Collected</p>
             <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
           </div>
           {deptOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+              <p className="text-xs text-gray-400">Outstanding</p>
               <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(deptOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </div>
 
@@ -737,9 +723,9 @@ export function DeptPaymentCard({ group, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{group.label} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -783,16 +769,16 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+            <p className="text-xs text-gray-400">Collected</p>
             <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
           </div>
           {progOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+              <p className="text-xs text-gray-400">Outstanding</p>
               <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(progOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
         </div>
       </div>
 
@@ -808,9 +794,9 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{program} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -830,7 +816,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
 export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-primary dark:text-red-400' }) {
   const rows = limit ? enrollments.slice(0, limit) : enrollments
   if (rows.length === 0) return (
-    <p className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">No enrollment data found.</p>
+    <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment data found.</p>
   )
   return (
     <div className="min-w-0 -mx-1">

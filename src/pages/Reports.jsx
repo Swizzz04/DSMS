@@ -13,6 +13,7 @@ import { useToast, ToastContainer, PageSkeleton, ModalPortal } from '../componen
 import { CampusBanner, DeptToggle } from '../components/SchoolComponents'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
+import DatePicker from '../components/DatePicker'
 
 // ─────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -844,15 +845,11 @@ export default function Reports() {
         {/* Custom date range */}
         {showCustom && (
           <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-[var(--color-border)]">
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">From:</label>
-              <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+            <div className="flex-1">
+              <DatePicker label="From" value={customStart} onChange={setCustomStart} placeholder="Start date" />
             </div>
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">To:</label>
-              <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+            <div className="flex-1">
+              <DatePicker label="To" value={customEnd} onChange={setCustomEnd} placeholder="End date" />
             </div>
           </div>
         )}

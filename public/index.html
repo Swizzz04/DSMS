@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="">
+  <title>Loading...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── NAV ─────────────────────────────────────────── -->
+<nav>
+  <a href="#home" class="logo" id="navLogo"></a>
+  <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+    <span></span><span></span><span></span>
+  </button>
+  <ul class="nav-links" id="navLinks"></ul>
+</nav>
+
+<!-- ── HERO ────────────────────────────────────────── -->
+<section class="hero" id="home">
+  <div class="hero-pattern" aria-hidden="true"></div>
+  <div class="hero-content" id="heroContent"></div>
+</section>
+
+<!-- ── ABOUT ───────────────────────────────────────── -->
+<section class="about" id="about">
+  <div id="aboutSection"></div>
+</section>
+
+<!-- ── CAMPUSES ────────────────────────────────────── -->
+<section class="campuses" id="campuses">
+  <div class="container">
+    <p class="section-label">Our Locations</p>
+    <h2 class="section-title">Our Campuses</h2>
+    <p class="section-subtitle">Three branches committed to excellence across Cebu and Bohol.</p>
+  </div>
+  <div class="campus-grid" id="campusGrid"></div>
+</section>
+
+<!-- ── PROGRAMS ────────────────────────────────────── -->
+<section class="programs" id="programs">
+  <div class="container">
+    <p class="section-label">What We Offer</p>
+    <h2 class="section-title">Academic Programs</h2>
+    <p class="section-subtitle">Quality education from early childhood to college.</p>
+    <div class="program-grid" id="programGrid"></div>
+  </div>
+</section>
+
+<!-- ── ADMISSIONS ──────────────────────────────────── -->
+<section class="admissions" id="admissions">
+  <div class="container">
+    <p class="section-label">Join Our Family</p>
+    <h2 class="section-title">Admission</h2>
+    <p class="section-subtitle">Enrollment is now open — take the first step today.</p>
+    <div class="admission-content reveal">
+      <div class="requirements">
+        <h3>Enrollment Requirements</h3>
+        <div class="requirement-list" id="requirementList"></div>
+      </div>
+      <div class="enrollment-steps">
+        <h3>How to Enroll</h3>
+        <div class="steps" id="stepsList"></div>
+        <div class="cta-box">
+          <p>"Start your journey with us today!"</p>
+          <a href="#" class="btn cta-btn">Enroll Online Now &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CONTACT ──────────────────────────────────────── -->
+<section class="contact" id="contact">
+  <div class="container">
+    <p class="section-label">Reach Out</p>
+    <h2 class="section-title">Get in Touch</h2>
+    <p class="section-subtitle">We'd love to hear from you.</p>
+    <div class="contact-wrapper reveal">
+      <div class="contact-form-section">
+        <h3>Send Us a Message</h3>
+        <form class="contact-form" id="contactForm" novalidate>
+          <div class="form-group">
+            <input type="text" name="fullName" placeholder="Your Name" autocomplete="name" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <input type="email" name="emailAddress" placeholder="Your Email" autocomplete="email" required maxlength="100">
+          </div>
+          <div class="form-group">
+            <input type="tel" name="phoneNumber" placeholder="Phone Number (e.g. 09XX XXX XXXX)" autocomplete="tel" maxlength="13">
+          </div>
+          <div class="form-group">
+            <select name="campusSelect" required id="contactCampusSelect">
+              <option value="">Select Campus</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <textarea name="message" rows="5" placeholder="Your Message" required maxlength="1000"></textarea>
+          </div>
+          <button type="submit" class="submit-btn">Send Message &rarr;</button>
+        </form>
+      </div>
+      <div class="contact-info-section">
+        <h3>Campus Locations</h3>
+        <div id="contactCards"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ──────────────────────────────────────────── -->
+<section class="faq" id="faq">
+  <div class="container">
+    <p class="section-label">Help Center</p>
+    <h2 class="section-title">Frequently Asked Questions</h2>
+    <p class="section-subtitle">Common questions about our school and programs.</p>
+    <div class="faq-grid" id="faqGrid"></div>
+  </div>
+</section>
+
+<!-- ── FOOTER ───────────────────────────────────────── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-col footer-col--wide">
+        <h3 id="footerSchoolName"></h3>
+        <p class="footer-tagline" id="footerTagline"></p>
+        <div class="social-links" id="footerSocial"></div>
+        <p class="footer-text" id="footerEmail"></p>
+        <p class="footer-text" id="footerPhone"></p>
+      </div>
+      <div class="footer-col">
+        <h4>Quick Links</h4>
+        <ul class="footer-links" id="footerQuickLinks"></ul>
+      </div>
+      <div class="footer-col">
+        <h4>Our Campuses</h4>
+        <ul class="footer-links" id="footerCampuses"></ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; <span id="footerYear"></span> Cebu Sacred Heart College, Inc. All rights reserved.</p>
+      <p id="footerCredit"></p>
+    </div>
+  </div>
+</footer>
+
+<!-- ── GALLERY MODAL ─────────────────────────────────── -->
+<div class="gallery-modal" id="galleryModal" role="dialog" aria-modal="true">
+  <div class="modal-overlay" id="modalOverlay"></div>
+  <div class="modal-content">
+    <button class="modal-close" id="closeModal" aria-label="Close">&times;</button>
+    <h2 id="modalCampusName">Campus Gallery</h2>
+    <div class="gallery-slider">
+      <button class="slider-btn" id="prevBtn" aria-label="Previous">&#10094;</button>
+      <div class="gallery-image-container">
+        <img src="" alt="Campus Facility" id="galleryImage">
+        <p class="image-caption" id="imageCaption"></p>
+      </div>
+      <button class="slider-btn" id="nextBtn" aria-label="Next">&#10095;</button>
+    </div>
+    <p class="image-counter"><span id="currentImage">1</span> / <span id="totalImages">1</span></p>
+    <div class="thumbnail-nav" id="thumbnailNav"></div>
+  </div>
+</div>
+
+<!-- Load data first, then renderer, then gallery script -->
+<script src="site_data.js"></script>
+<script src="site_render.js"></script>
+<script>
+// Populate campus select in contact form from data
+const sel = document.getElementById('contactCampusSelect');
+SITE_DATA.campuses.forEach(c => {
+  const o = document.createElement('option');
+  o.value = c.key;
+  o.textContent = c.name;
+  sel.appendChild(o);
+});
+
+// Contact form submit
+document.getElementById('contactForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  this.innerHTML = '<p style="text-align:center;color:var(--primary);font-family:\'Playfair Display\',serif;font-size:1.1rem;padding:2rem">✅ Message sent! We\'ll get back to you soon.</p>';
+});
+</script>
+<script src="script.js"></script>
+</body>
+</html>

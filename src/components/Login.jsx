@@ -1,11 +1,29 @@
 import { useState } from 'react'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
 
+// Read school branding from localStorage (set by super admin in Settings → School Info)
+function getSchoolConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
+    return {
+      name:       saved.schoolName   || 'School Management System',
+      motto:      saved.motto        || '',
+      email:      saved.email        || '',
+      logo:       saved.logoUrl      || '/assets/cshclogo.png',
+      portalLabel: saved.portalLabel || 'School Management Portal',
+      supportLabel: saved.supportLabel || 'Contact IT Support',
+    }
+  } catch {
+    return { name: 'School Management System', motto: '', email: '', logo: '/assets/cshclogo.png', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support' }
+  }
+}
+
 export default function Login({ onLoginSuccess, error, loading = false }) {
   const [email,        setEmail]        = useState('')
   const [password,     setPassword]     = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe,   setRememberMe]   = useState(false)
+  const school = getSchoolConfig()
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -39,13 +57,13 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         <div style={{
           position: 'absolute', top: -80, left: -80,
           width: 420, height: 420, borderRadius: '50%',
-          border: '60px solid rgba(117,0,20,0.08)',
+          border: '60px solid var(--color-primary-muted)',
           pointerEvents: 'none',
         }} />
         <div style={{
           position: 'absolute', bottom: -60, right: -60,
           width: 300, height: 300, borderRadius: '50%',
-          border: '40px solid rgba(117,0,20,0.05)',
+          border: '40px solid var(--color-primary-muted)',
           pointerEvents: 'none',
         }} />
 
@@ -66,7 +84,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             boxShadow: '0 0 0 8px rgba(117,0,20,0.12), 0 16px 40px rgba(0,0,0,0.4)',
             overflow: 'hidden', flexShrink: 0,
           }}>
-            <img src="/assets/cshclogo.png" alt="Cebu Sacred Heart College Logo"
+            <img src={school.logo} alt="School Logo"
               style={{ width: 200, height: 200  , objectFit: 'contain', padding: 8 }} />
           </div>
           <div>
@@ -75,7 +93,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               fontWeight: 700, color: '#fff',
               lineHeight: 1.25, letterSpacing: '0.01em',
             }}>
-              Cebu Sacred Heart College, Inc.
+              {school.name}
             </div>
             <div style={{
               fontSize: '0.78rem', fontWeight: 500,
@@ -84,7 +102,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               marginTop: '0.5rem',
               lineHeight: 1.4,
             }}>
-              "Where Children Grow In Love and Knowledge."
+              {school.motto ? `"${school.motto}"` : ''}
             </div>
             <div style={{
               fontSize: '0.65rem', fontWeight: 600,
@@ -92,13 +110,13 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               letterSpacing: '0.15em', textTransform: 'uppercase',
               marginTop: '0.75rem',
             }}>
-              School Management System
+              {school.portalLabel}
             </div>
           </div>
         </div>
 
         <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
-          © 2026 Cebu Sacred Heart College, Inc.
+          {'\u00A9'} {new Date().getFullYear()} {school.name}
         </div>
       </aside>
 
@@ -114,7 +132,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         {/* Dot grid texture */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(circle, rgba(8,12,66,0.06) 1px, transparent 1px)',
+          backgroundImage: 'radial-gradient(circle, var(--color-secondary-muted) 1px, transparent 1px)',
           backgroundSize: '24px 24px',
         }} />
 
@@ -130,18 +148,18 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               boxShadow: 'var(--shadow-md)', overflow: 'hidden',
               marginBottom: '0.75rem',
             }}>
-              <img src="/cshclogo.png" alt="CSHC Logo"
+              <img src={school.logo} alt="School Logo"
                 style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#080c42', display: 'block' }}>
-              Cebu Sacred Heart College
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary)', display: 'block' }}>
+              {school.name}
             </div>
             <div style={{
               fontSize: '0.68rem', fontWeight: 600,
               color: 'var(--color-primary)',
               letterSpacing: '0.12em', textTransform: 'uppercase',
             }}>
-              School Management System
+              {school.portalLabel}
             </div>
           </div>
 
@@ -151,8 +169,8 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             borderRadius: '20px',
             background: '#ffffff',
             border: '1px solid #e8e8e4',
-            borderTop: '3px solid #750014',
-            boxShadow: '0 4px 6px rgba(8,12,66,0.04), 0 20px 60px rgba(8,12,66,0.10)',
+            borderTop: '3px solid var(--color-primary)',
+            boxShadow: '0 4px 6px var(--color-secondary-muted), 0 20px 60px var(--color-secondary-muted)',
           }}>
             {/* Eyebrow + heading */}
             <div style={{ marginBottom: '1.75rem' }}>
@@ -161,11 +179,11 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                 letterSpacing: '0.18em', textTransform: 'uppercase',
                 color: 'var(--color-primary)', marginBottom: '0.35rem',
               }}>
-                School Management Portal
+                {school.portalLabel}
               </div>
               <h1 style={{
                 fontSize: '1.6rem', fontWeight: 700,
-                color: '#080c42',
+                color: 'var(--color-secondary)',
                 lineHeight: 1.2, marginBottom: '0.3rem',
               }}>
                 Welcome back.
@@ -270,7 +288,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                     onChange={e => setRememberMe(e.target.checked)}
                     style={{
                       width: 15, height: 15, borderRadius: 4,
-                      accentColor: '#080c42', cursor: 'pointer',
+                      accentColor: 'var(--color-secondary)', cursor: 'pointer',
                     }}
                   />
                   Remember me
@@ -338,12 +356,12 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#8a8a8a' }}>
               Need help?{' '}
               <a
-                href="mailto:it@cshc.edu.ph"
+                href={`mailto:${school.email || 'support@school.edu'}`}
                 style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}
                 onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                 onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
               >
-                Contact IT Support
+                {school.supportLabel}
               </a>
             </div>
           </div>
@@ -353,7 +371,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             textAlign: 'center', fontSize: '0.68rem',
             color: '#8a8a8a', marginTop: '1.5rem',
           }}>
-            © 2026 Cebu Sacred Heart College, Inc. All rights reserved.
+            {'\u00A9'} {new Date().getFullYear()} {school.name}. All rights reserved.
           </p>
         </div>
       </main>

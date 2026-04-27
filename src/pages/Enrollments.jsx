@@ -46,81 +46,54 @@ function StatusBadge({ status }) {
 
 // ── Admin Overview ─────────────────────────────────────────────────
 function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
+  const [collapsed, setCollapsed] = useState({})
+  const toggle = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
+
   const shownCampuses = campusFilter !== 'all'
     ? activeCampuses.filter(c => c.key === campusFilter)
     : activeCampuses
 
   const isSingleCampus = shownCampuses.length === 1
-  const selectedCampus = isSingleCampus ? shownCampuses[0] : null
-
-  const getCampusEnr = (campusName) =>
-    enrollments.filter(e => e.enrollment.campus === campusName)
-
+  const getCampusEnr = (campusName) => enrollments.filter(e => e.enrollment.campus === campusName)
   const allShownEnr = shownCampuses.flatMap(c => getCampusEnr(c.name))
-  const grandTotal    = allShownEnr.length
-  const grandPending  = allShownEnr.filter(e => e.status === 'pending').length
-  const grandApproved = allShownEnr.filter(e => e.status === 'approved').length
-  const grandRejected = allShownEnr.filter(e => e.status === 'rejected').length
 
   const handleExport = () => {
     const sheets = shownCampuses.flatMap(campus => {
       const campusEnr = getCampusEnr(campus.name)
       const result = []
-
       if (campus.hasBasicEd) {
         const rows = []
         BASIC_ED_GROUPS.forEach(group => {
           group.options.forEach(grade => {
-            const gradeEnr = campusEnr.filter(e => e.enrollment.gradeLevel === grade)
-            rows.push({
-              Department: group.label, 'Grade Level': grade,
-              Total: gradeEnr.length,
-              Pending:  gradeEnr.filter(e => e.status === 'pending').length,
-              Approved: gradeEnr.filter(e => e.status === 'approved').length,
-              Rejected: gradeEnr.filter(e => e.status === 'rejected').length,
-            })
+            rows.push({ Department: group.label, 'Grade Level': grade, Enrolled: campusEnr.filter(e => e.enrollment.gradeLevel === grade).length })
           })
         })
         result.push({ data: rows, sheetName: `${campus.key}_BasicEd` })
       }
-
       if (campus.hasCollege && campus.collegePrograms?.length) {
         const rows = []
         campus.collegePrograms.forEach(prog => {
           COLLEGE_YEAR_LEVELS.forEach(yr => {
-            const key = `${prog} - ${yr}`
-            const yrEnr = campusEnr.filter(e => e.enrollment.gradeLevel === key)
-            rows.push({
-              Program: prog, 'Year Level': yr,
-              Total: yrEnr.length,
-              Pending:  yrEnr.filter(e => e.status === 'pending').length,
-              Approved: yrEnr.filter(e => e.status === 'approved').length,
-              Rejected: yrEnr.filter(e => e.status === 'rejected').length,
-            })
+            rows.push({ Program: prog, 'Year Level': yr, Enrolled: campusEnr.filter(e => e.enrollment.gradeLevel === `${prog} - ${yr}`).length })
           })
         })
         result.push({ data: rows, sheetName: `${campus.key}_College` })
       }
-
       return result
     })
-
     if (sheets.length) {
-      exportMultipleSheets(sheets, `CSHC_Enrollment_${campusFilter !== 'all' ? campusFilter : 'All'}_${new Date().toISOString().split('T')[0]}`)
-      addToast('Enrollment summary exported!', 'success')
+      exportMultipleSheets(sheets, `CSHC_Enrollment_Count_${new Date().toISOString().split('T')[0]}`)
+      addToast('Enrollment count exported!', 'success')
     }
   }
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Enrollments</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Enrollment Count</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            {currentSchoolYear} ·{' '}
-            {isSingleCampus
-              ? `${selectedCampus.name} enrollment overview`
-              : 'School-wide enrollment overview across all campuses'}
+            {currentSchoolYear} · {isSingleCampus ? shownCampuses[0].name : 'All Campuses'} · {allShownEnr.length} total enrollments
           </p>
         </div>
         <button onClick={handleExport}
@@ -129,94 +102,106 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
         </button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {[
-          { label: 'Total Enrollments', value: grandTotal,    border: 'border-primary',    sub: isSingleCampus ? selectedCampus.name : 'All Campuses',          cls: 'text-[var(--color-text-muted)]' },
-          { label: 'Pending Review',    value: grandPending,  border: 'border-yellow-500', sub: grandTotal > 0 ? `${Math.round(grandPending/grandTotal*100)}% needs action` : '—', cls: 'text-yellow-600 dark:text-yellow-400' },
-          { label: 'Approved',          value: grandApproved, border: 'border-green-500',  sub: grandTotal > 0 ? `${Math.round(grandApproved/grandTotal*100)}% approval rate` : '—', cls: 'text-green-600 dark:text-green-400' },
-          { label: 'Rejected',          value: grandRejected, border: 'border-red-400',    sub: grandTotal > 0 ? `${Math.round(grandRejected/grandTotal*100)}% rejection rate` : '—', cls: 'text-red-500 dark:text-red-400' },
-        ].map(({ label, value, border, sub, cls }) => (
-          <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
-            <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
-            <p className="text-2xl font-bold text-[var(--color-text-primary)]">{value}</p>
-            <p className={`text-xs mt-1 font-medium ${cls}`}>{sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
-        <span className="font-medium">Progress bar legend:</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> Payment Received</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Approved</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /> Pending</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> Rejected</span>
-      </div>
-
       {shownCampuses.map(campus => {
         const campusEnr = getCampusEnr(campus.name)
-        const basicEnr  = campusEnr.filter(e => isBasicEd(e.enrollment.gradeLevel))
+        const basicEnr = campusEnr.filter(e => isBasicEd(e.enrollment.gradeLevel))
         const collegeEnr = campusEnr.filter(e => isCollege(e.enrollment.gradeLevel))
 
         return (
           <div key={campus.key} className="space-y-4">
-            {!isSingleCampus && (
-              <div className="flex items-center gap-3 pt-2">
-                <div className="flex-1 h-px bg-[var(--color-border)]" />
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-bg-subtle)] rounded-full">
-                  <MapPin className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-                  <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-secondary)]">
-                    {campus.name}
-                  </span>
-                  <span className="text-xs text-[var(--color-text-muted)]">· {campusEnr.length} enrollments</span>
-                </div>
-                <div className="flex-1 h-px bg-[var(--color-border)]" />
+            {/* Campus header */}
+            <div className="flex items-center gap-3">
+              <div className="w-1 h-8 rounded-full bg-primary" />
+              <div>
+                <h2 className="text-base font-bold text-[var(--color-text-primary)]">{campus.name}</h2>
+                <p className="text-xs text-[var(--color-text-muted)]">{campusEnr.length} total enrollments · {basicEnr.length} Basic Ed · {collegeEnr.length} College</p>
               </div>
-            )}
+            </div>
 
+            {/* Basic Education */}
             {campus.hasBasicEd && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <div className="card overflow-hidden">
+                <button onClick={() => toggle(`${campus.key}-basic`)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Basic Education</h3>
+                    <span className="text-xs text-[var(--color-text-muted)]">· {basicEnr.length} enrolled</span>
                   </div>
-                  <h2 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wider">
-                    Basic Education
-                  </h2>
-                  <span className="text-xs text-[var(--color-text-muted)]">· {basicEnr.length} total enrollments</span>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${!collapsed[`${campus.key}-basic`] ? 'rotate-180' : ''}`} />
+                </button>
+                {!collapsed[`${campus.key}-basic`] && (
+                  <div className="px-4 pb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {BASIC_ED_GROUPS.map(group => (
-                    <DeptCard key={group.label} group={group} enrollments={basicEnr} />
+                    <div key={group.label} className="bg-[var(--color-bg-subtle)] rounded-lg p-3">
+                      <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">{group.label}</p>
+                      <div className="space-y-1">
+                        {group.options.map(grade => {
+                          const count = campusEnr.filter(e => e.enrollment.gradeLevel === grade).length
+                          return (
+                            <div key={grade} className="flex items-center justify-between py-0.5">
+                              <span className="text-xs text-[var(--color-text-secondary)]">{grade}</span>
+                              <span className={`text-xs font-bold ${count > 0 ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>{count}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </div>
+                  </div>
+                )}
               </div>
             )}
 
+            {/* College */}
             {campus.hasCollege && campus.collegePrograms?.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
-                    <GraduationCap className="w-3.5 h-3.5 text-primary" />
+              <div className="card overflow-hidden">
+                <button onClick={() => toggle(`${campus.key}-college`)}
+                  className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-bold text-[var(--color-text-primary)]">College</h3>
+                    <span className="text-xs text-[var(--color-text-muted)]">· {collegeEnr.length} enrolled</span>
                   </div>
-                  <h2 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wider">
-                    College
-                  </h2>
-                  <span className="text-xs text-[var(--color-text-muted)]">
-                    · {campus.collegePrograms.length} program{campus.collegePrograms.length !== 1 ? 's' : ''} · {collegeEnr.length} total enrollments
-                  </span>
+                  <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${!collapsed[`${campus.key}-college`] ? 'rotate-180' : ''}`} />
+                </button>
+                {!collapsed[`${campus.key}-college`] && (
+                  <div className="px-4 pb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {campus.collegePrograms.map(prog => {
+                    const progEnr = campusEnr.filter(e => e.enrollment.gradeLevel?.startsWith(prog))
+                    return (
+                      <div key={prog} className="bg-[var(--color-bg-subtle)] rounded-lg p-3">
+                        <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">{prog}</p>
+                        <div className="space-y-1">
+                          {COLLEGE_YEAR_LEVELS.map(yr => {
+                            const count = campusEnr.filter(e => e.enrollment.gradeLevel === `${prog} - ${yr}`).length
+                            return (
+                              <div key={yr} className="flex items-center justify-between py-0.5">
+                                <span className="text-xs text-[var(--color-text-secondary)]">{yr}</span>
+                                <span className={`text-xs font-bold ${count > 0 ? 'text-[var(--color-text-primary)]' : 'text-[var(--color-text-muted)]'}`}>{count}</span>
+                              </div>
+                            )
+                          })}
+                          <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)]">
+                            <span className="text-xs font-semibold text-[var(--color-text-secondary)]">Total</span>
+                            <span className="text-xs font-bold text-primary">{progEnr.length}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {campus.collegePrograms.map((prog, idx) => (
-                    <ProgramCard key={prog} program={prog} colorIdx={idx} enrollments={collegeEnr} />
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
             {!campus.hasCollege && (
-              <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-bg-subtle)] rounded-xl text-sm text-[var(--color-text-muted)]">
-                <GraduationCap className="w-4 h-4" />
-                No college department at this campus
+              <div className="flex items-center gap-2 px-4 py-3 bg-[var(--color-bg-subtle)] rounded-xl text-xs text-[var(--color-text-muted)]">
+                <GraduationCap className="w-4 h-4" /> No college department at this campus
               </div>
             )}
           </div>

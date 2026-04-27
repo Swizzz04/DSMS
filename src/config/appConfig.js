@@ -132,11 +132,18 @@ export const ROLE_DEFINITIONS = {
     campusScoped: false,
   },
   technical_admin: {
-    label:       'Technical Administrator',
-    description: 'Full system access — manages users, settings, and all operational pages',
+    label:       'Super Admin',
+    description: 'System-wide access — manages all campus users, school website content, branding, and system configuration',
     color:       'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-    permissions: ['dashboard', 'enrollments', 'students', 'payments', 'reports', 'settings', 'users'],
+    permissions: ['dashboard', 'settings', 'users', 'website_cms'],
     campusScoped: false,
+  },
+  system_admin: {
+    label:       'System Admin',
+    description: 'Campus-level IT support — manages user accounts and settings for their assigned campus only',
+    color:       'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+    permissions: ['dashboard', 'settings', 'users'],
+    campusScoped: true,
   },
   principal_basic: {
     label:       'Basic Ed Principal',
@@ -197,7 +204,51 @@ export const ROLE_DEFINITIONS = {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// GRADE LEVEL DEFINITIONS
+// PERMISSION SYSTEM
+// Default page + tab access per role. Super admin can customize per user.
+// If user.permissions exists, it overrides these defaults.
+// ─────────────────────────────────────────────────────────────────────
+
+/** All available pages in the system */
+export const ALL_PAGES = [
+  { id: 'dashboard',    label: 'Dashboard',    icon: 'LayoutDashboard' },
+  { id: 'enrollments',  label: 'Enrollments',  icon: 'FileText' },
+  { id: 'students',     label: 'Students',     icon: 'Users' },
+  { id: 'payments',     label: 'Payments',     icon: 'DollarSign' },
+  { id: 'reports',      label: 'Reports',      icon: 'BarChart2' },
+  { id: 'settings',     label: 'Settings',     icon: 'Settings' },
+  { id: 'subject-load', label: 'Subject Load', icon: 'BookOpen' },
+]
+
+/** All available settings tabs */
+export const ALL_TABS = [
+  { id: 'users',      label: 'Users',          forRoles: ['technical_admin', 'system_admin'] },
+  { id: 'schoolInfo', label: 'School Info',     forRoles: ['technical_admin'] },
+  { id: 'schoolYear', label: 'School Year',     forRoles: ['principal_basic', 'program_head'] },
+  { id: 'grades',     label: 'Grade Levels',    forRoles: ['principal_basic', 'program_head'] },
+  { id: 'fees',       label: 'Fee Structure',   forRoles: ['accounting'] },
+  { id: 'discounts',  label: 'Discounts',       forRoles: ['accounting'] },
+  { id: 'receipt',    label: 'Receipt',          forRoles: ['accounting'] },
+]
+
+/** Default permissions per role — used when user.permissions is not set */
+export const DEFAULT_PERMISSIONS = {
+  admin:             { pages: ['dashboard', 'enrollments', 'reports'],                                         tabs: [] },
+  technical_admin:   { pages: ['dashboard', 'settings'],                                                       tabs: ['users', 'schoolInfo'] },
+  system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
+  registrar_basic:   { pages: ['dashboard', 'enrollments', 'students'],                                        tabs: [] },
+  registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load'],                        tabs: [] },
+  accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'reports', 'settings'],                 tabs: ['fees', 'discounts', 'receipt'] },
+  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
+  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
+}
+
+/** Get effective permissions for a user (custom or default) */
+export function getUserPermissions(user) {
+  if (!user) return { pages: [], tabs: [] }
+  if (user.permissions) return user.permissions
+  return DEFAULT_PERMISSIONS[user.role] || { pages: ['dashboard'], tabs: [] }
+}
 // ─────────────────────────────────────────────────────────────────────
 export const COLLEGE_YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
@@ -679,6 +730,34 @@ export const SYSTEM_USERS = [
     email: 'techadmin@cshc.edu.ph',
     passwordHash: '06b1a9074f0294f16e452d437b6d5ef1072de4080c67a11924cb6256f0a3768b',
     role: 'technical_admin', campus: 'all', status: 'active', lastLogin: null,
+  },
+  // ── System Admins (campus-locked) ─────────────────────────────
+  {
+    // System Admin — Carcar campus IT
+    // Email: sysadmin.carcar@cshc.edu.ph  Password: sysadmin123
+    id: 30, name: 'Carcar System Admin',
+    email: 'sysadmin.carcar@cshc.edu.ph',
+    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
+    role: 'system_admin', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    status: 'active', lastLogin: null,
+  },
+  {
+    // System Admin — Talisay campus IT
+    // Email: sysadmin.talisay@cshc.edu.ph  Password: sysadmin123
+    id: 31, name: 'Talisay System Admin',
+    email: 'sysadmin.talisay@cshc.edu.ph',
+    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
+    role: 'system_admin', campus: 'Talisay City Campus', campusKey: 'Talisay',
+    status: 'active', lastLogin: null,
+  },
+  {
+    // System Admin — Bohol campus IT
+    // Email: sysadmin.bohol@cshc.edu.ph  Password: sysadmin123
+    id: 32, name: 'Bohol System Admin',
+    email: 'sysadmin.bohol@cshc.edu.ph',
+    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
+    role: 'system_admin', campus: 'Bohol Campus', campusKey: 'Bohol',
+    status: 'active', lastLogin: null,
   },
   // ── Talisay ─────────────────────────────────────────────────────
   {
