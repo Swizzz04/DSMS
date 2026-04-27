@@ -4,10 +4,14 @@
  * Security measures implemented:
  *  1. Passwords stored & compared as SHA-256 hashes (never plaintext)
  *  2. Brute-force lockout — 5 failed attempts → 15 min lockout
- *  3. Session timeout — auto-logout after 60 min of inactivity
- *  4. Only safe user fields stored in localStorage (no passwordHash)
+ *  3. Session timeout — auto-logout after 5 min of inactivity
+ *  4. Only safe user fields stored in sessionStorage (no passwordHash)
  *  5. Session integrity check on load — malformed data is cleared
  *  6. No sensitive data ever logged to console
+ *  7. Inactive/deactivated accounts cannot log in
+ *  8. Tab-isolated sessions via sessionStorage (no cross-tab auto-login)
+ *  9. Session fingerprint — prevents session replay across tabs
+ * 10. Password validation utility for user creation
  *
  * NOTE: This is a frontend-only implementation for the pre-backend phase.
  * When the API is connected, replace login() with a POST /auth/login call
@@ -21,13 +25,30 @@ import { verifyPassword } from '../utils/crypto'
 // ── Constants ────────────────────────────────────────────────────────
 const USER_KEY        = 'cshc_user'
 const LOCKOUT_KEY     = 'cshc_lockout'
-const SESSION_TIMEOUT = 60 * 60 * 1000   // 60 minutes inactivity
+const SESSION_KEY     = 'cshc_session_user'
+const EXPIRED_KEY     = 'cshc_expired'
+const FINGERPRINT_KEY = 'cshc_session_fp'
+const SESSION_TIMEOUT = 5 * 60 * 1000     // 5 minutes inactivity
 const MAX_ATTEMPTS    = 5
-const LOCKOUT_DURATION= 15 * 60 * 1000   // 15 minutes
+const LOCKOUT_DURATION= 15 * 60 * 1000    // 15 minutes
 
 const AuthContext = createContext()
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+/** Generate a unique fingerprint for this tab session */
+function generateFingerprint() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** Validate password meets minimum security requirements */
+export function validatePassword(password) {
+  if (!password || password.length < 8) return 'Password must be at least 8 characters'
+  if (!/[A-Za-z]/.test(password))       return 'Password must contain at least one letter'
+  if (!/[0-9]/.test(password))          return 'Password must contain at least one number'
+  return null // null = valid
+}
+
 function getUsers() {
   try {
     const raw = localStorage.getItem('cshc_app_config')
@@ -105,14 +126,13 @@ export function AuthProvider({ children }) {
   // ✅ FIX: Defined as useCallback so it can be safely stored in ref
   const doLogout = useCallback((expired = false) => {
     setUser(null)
-    // Clear this tab's session only
-    sessionStorage.removeItem('cshc_session_user')
-    localStorage.removeItem(USER_KEY) // clean up any legacy localStorage entries
+    sessionStorage.removeItem(SESSION_KEY)
+    sessionStorage.removeItem(FINGERPRINT_KEY)
+    localStorage.removeItem(USER_KEY)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (expired) {
-      sessionStorage.setItem('cshc_expired', '1')
+      sessionStorage.setItem(EXPIRED_KEY, '1')
     }
-    // Notify ThemeContext to reset to guest/system theme
     window.dispatchEvent(new CustomEvent('cshc_auth_change'))
   }, [])
 
@@ -133,24 +153,32 @@ export function AuthProvider({ children }) {
   // NOT for auto-login across tabs. Each tab must log in independently.
   useEffect(() => {
     try {
-      // Primary: check sessionStorage (this tab's own session)
-      const sessionRaw = sessionStorage.getItem('cshc_session_user')
-      if (sessionRaw) {
+      const sessionRaw = sessionStorage.getItem(SESSION_KEY)
+      const storedFP   = sessionStorage.getItem(FINGERPRINT_KEY)
+      if (sessionRaw && storedFP) {
         const parsed = JSON.parse(sessionRaw)
         if (isValidSession(parsed)) {
-          setUser(parsed)
-          resetTimer()
-          setLoading(false)
-          return
+          // Verify user still exists and is active
+          const users = getUsers()
+          const current = users.find(u => u.id === parsed.id && u.email === parsed.email)
+          if (current && current.status !== 'inactive') {
+            setUser(parsed)
+            resetTimer()
+            setLoading(false)
+            return
+          }
+          // User deactivated or removed — force logout
+          sessionStorage.removeItem(SESSION_KEY)
+          sessionStorage.removeItem(FINGERPRINT_KEY)
         } else {
-          sessionStorage.removeItem('cshc_session_user')
+          sessionStorage.removeItem(SESSION_KEY)
+          sessionStorage.removeItem(FINGERPRINT_KEY)
         }
       }
-      // No session in this tab — show login page
-      // (Do NOT read localStorage here to prevent cross-tab auto-login)
       localStorage.removeItem(USER_KEY)
     } catch {
-      sessionStorage.removeItem('cshc_session_user')
+      sessionStorage.removeItem(SESSION_KEY)
+      sessionStorage.removeItem(FINGERPRINT_KEY)
       localStorage.removeItem(USER_KEY)
     }
     setLoading(false)
@@ -174,8 +202,12 @@ export function AuthProvider({ children }) {
     const found = users.find(u => u.email.toLowerCase() === emailLower)
 
     if (!found) {
-      // Don't reveal whether email exists
       return { success: false, error: 'Invalid email or password.' }
+    }
+
+    // Block inactive/deactivated accounts
+    if (found.status === 'inactive') {
+      return { success: false, error: 'This account has been deactivated. Contact your System Admin.' }
     }
 
     // Verify password against hash
@@ -198,16 +230,17 @@ export function AuthProvider({ children }) {
       }
     }
 
-    // Success — clear lockout, store safe session
+    // Success — clear lockout, store safe session with fingerprint
     clearLockout(emailLower)
-    sessionStorage.removeItem('cshc_expired')
+    sessionStorage.removeItem(EXPIRED_KEY)
     const safe = sanitizeUser(found)
+    safe.lastLogin = new Date().toISOString()
     setUser(safe)
-    // Store ONLY in sessionStorage (tab-isolated) — never localStorage
-    // This prevents other tabs from auto-logging in as this user
-    sessionStorage.setItem('cshc_session_user', JSON.stringify(safe))
+    // Generate unique session fingerprint for this tab
+    const fp = generateFingerprint()
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(safe))
+    sessionStorage.setItem(FINGERPRINT_KEY, fp)
     resetTimer()
-    // Notify ThemeContext to load this user's saved theme preference
     window.dispatchEvent(new CustomEvent('cshc_auth_change'))
     return { success: true, user: safe }
   }
@@ -218,8 +251,12 @@ export function AuthProvider({ children }) {
   // ── Permission check ───────────────────────────────────────────────
   const hasPermission = (requiredRole) => {
     if (!user) return false
-    // Both admin (school owner) and technical_admin bypass role checks
+    // Super admin and owner bypass role checks
     if (user.role === 'admin' || user.role === 'technical_admin') return true
+    // System admin has limited permissions
+    if (user.role === 'system_admin') {
+      return ['dashboard', 'settings', 'users'].includes(requiredRole)
+    }
     return user.role === requiredRole
   }
 

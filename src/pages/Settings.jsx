@@ -3,16 +3,18 @@ import {
   Calendar, DollarSign, Building2, GraduationCap,
   Users, Plus, Edit, Check, Save, Receipt,
   X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen,
-  ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload, Ticket,
+  ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload,
   Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send
 } from 'lucide-react'
 import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
-import { getAllTickets, getTicketStats, updateTicketStatus, updateTicketPriority, addTicketNote } from '../utils/ticketBridge'
+import DatePicker from '../components/DatePicker'
+import ColorPicker from '../components/ColorPicker'
+import { applyTheme } from '../utils/themeInitializer'
 
 
 
@@ -1003,6 +1005,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const { toasts, addToast, removeToast } = useToast()
   const [showAddSY, setShowAddSY] = useState(false)
+  const [addSYForm, setAddSYForm] = useState({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' })
   const [expandedSY, setExpandedSY] = useState(null)
   const [showAddEvent, setShowAddEvent] = useState(null)  // { syId, dept }
   const [newEvtName, setNewEvtName] = useState('')
@@ -1016,11 +1019,11 @@ export default function Settings() {
   const [showAddCampus, setShowAddCampus] = useState(false)
   const [editCampusId, setEditCampusId] = useState(null)       // campus id being edited
   const [campusForm, setCampusForm] = useState({               // shared form for add/edit
-    name: '', key: '', address: '', contactNumber: '', email: '',
+    name: '', key: '', address: '', contactNumber: '', email: '', color: '#6b7280',
     hasBasicEd: true, hasCollege: false, collegePrograms: [], newProgram: '',
   })
   // Collapsible sections for School Info tab
-  const [infoSections, setInfoSections] = useState({ general: true, branding: false, campuses: false, faq: false, about: false, programs: false, admissions: false })
+  const [infoSections, setInfoSections] = useState({ general: true, branding: false, loginPage: false, campuses: false, faq: false, about: false, programs: false, admissions: false })
   const toggleInfoSection = (key) => setInfoSections(prev => ({ ...prev, [key]: !prev[key] }))
 
   // Website content — CMS for school website (stored in localStorage cshc_website_content)
@@ -1034,6 +1037,9 @@ export default function Settings() {
         phone:       saved.phone       || '(032) 123-4567',
         website:     saved.website     || 'www.cshc.edu.ph',
         schoolYear:  saved.schoolYear  || '2025-2026',
+        portalLabel: saved.portalLabel || 'School Management Portal',
+        supportLabel:saved.supportLabel|| 'Contact IT Support',
+        logoUrl:     saved.logoUrl     || '/assets/cshclogo.png',
         faq:         saved.faq         || [
           { id: 1, q: 'What are the tuition fees?', a: 'Tuition fees vary by campus and program. Please contact the Registrar\'s Office or visit any campus for detailed fee schedules.' },
           { id: 2, q: 'Do you offer scholarships?', a: 'Yes, we offer various scholarships based on academic performance and financial need. Please inquire at the Admissions Office for eligibility criteria.' },
@@ -1065,7 +1071,7 @@ export default function Settings() {
           { id: 4, title: 'Registrar Approval', desc: 'Receive your class schedule once enrollment is approved.' },
         ],
       }
-    } catch { return { schoolName: 'Cebu Sacred Heart College, Inc.', motto: '', email: '', phone: '', website: '', schoolYear: '2025-2026', faq: [], mission: '', vision: '', goals: [], coreValues: [], programs: [], requirements: [], steps: [] } }
+    } catch { return { schoolName: 'Cebu Sacred Heart College, Inc.', motto: '', email: '', phone: '', website: '', schoolYear: '2025-2026', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support', logoUrl: '/assets/cshclogo.png', faq: [], mission: '', vision: '', goals: [], coreValues: [], programs: [], requirements: [], steps: [] } }
   })
   const [newFaqQ, setNewFaqQ] = useState('')
   const [newFaqA, setNewFaqA] = useState('')
@@ -1079,16 +1085,10 @@ export default function Settings() {
 
   const saveWebsiteContent = () => {
     localStorage.setItem('cshc_website_content', JSON.stringify(websiteContent))
-    addToast('Website content saved! Changes will appear on the school website.', 'success')
+    // Apply brand colors immediately — no refresh needed
+    applyTheme({ primaryColor: websiteContent.primaryColor, secondaryColor: websiteContent.secondaryColor })
+    addToast('Website content saved! Changes applied to the system.', 'success')
   }
-
-  // Tickets tab state
-  const [tickets, setTickets] = useState([])
-  const [ticketStats, setTicketStats] = useState({ total: 0, open: 0, inProgress: 0, onHold: 0, resolved: 0, closed: 0, urgent: 0, high: 0 })
-  const [selectedTicket, setSelectedTicket] = useState(null)
-  const [ticketFilterStatus, setTicketFilterStatus] = useState('all')
-  const [ticketFilterType, setTicketFilterType] = useState('all')
-  const [ticketNote, setTicketNote] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 150)
@@ -1096,23 +1096,22 @@ export default function Settings() {
   }, [])
 
   const [activeTab, setActiveTab] = useState(() => {
-    const role = user?.role
-    if (role === 'accounting') return 'fees'
-    if (role === 'technical_admin') return 'users'
-    if (role === 'principal_basic' || role === 'program_head') return 'schoolYear'
-    return 'fees'
+    // Restore last active tab from sessionStorage (survives refresh)
+    const saved = sessionStorage.getItem('cshc_settings_tab')
+    const perms = getUserPermissions(user)
+    const availTabs = perms.tabs || []
+    // Use saved tab if it's still available for this user
+    if (saved && availTabs.includes(saved)) return saved
+    // Otherwise pick first available
+    if (availTabs.includes('users')) return 'users'
+    if (availTabs.includes('fees')) return 'fees'
+    if (availTabs.includes('schoolYear')) return 'schoolYear'
+    return availTabs[0] || 'users'
   })
 
-  // Load tickets when tab is active
+  // Save active tab to sessionStorage whenever it changes
   useEffect(() => {
-    if (activeTab === 'tickets') {
-      setTickets(getAllTickets())
-      setTicketStats(getTicketStats())
-    }
-    const handleUpdate = () => { setTickets(getAllTickets()); setTicketStats(getTicketStats()) }
-    window.addEventListener('cshc_ticket_updated', handleUpdate)
-    window.addEventListener('storage', (e) => { if (e.key === 'cshc_tickets' || e.key === null) handleUpdate() })
-    return () => window.removeEventListener('cshc_ticket_updated', handleUpdate)
+    sessionStorage.setItem('cshc_settings_tab', activeTab)
   }, [activeTab])
 
   // Local editable copies — committed to context on Save
@@ -1171,23 +1170,21 @@ export default function Settings() {
   }
 
 
-  // Tab configuration
+  // Tab configuration — filtered by user's permissions
   const isAccounting = user?.role === 'accounting'
+  const userPerms = getUserPermissions(user)
+  const userTabs = userPerms.tabs || []
 
   const allTabs = [
-    // Tech admin — system management
-    { id: 'users',       label: 'Users',            icon: Users,         roles: ['technical_admin'] },
-    { id: 'schoolInfo',  label: 'School Info',       icon: School,        roles: ['technical_admin'] },
-    { id: 'tickets',     label: 'Tickets',           icon: Ticket,        roles: ['technical_admin'] },
-    // Principal / Program Head — academic config
-    { id: 'schoolYear', label: 'School Year',       icon: Calendar,      roles: ['principal_basic', 'program_head'] },
-    { id: 'grades',     label: 'Grade Levels',      icon: GraduationCap, roles: ['principal_basic', 'program_head'] },
-    // Accounting — financial config
-    { id: 'fees',       label: 'Fee Structure',     icon: DollarSign,    roles: ['accounting'] },
-    { id: 'discounts',  label: 'Discounts',         icon: Tag,           roles: ['accounting'] },
-    { id: 'receipt',    label: 'Receipt',            icon: Receipt,       roles: ['accounting'] },
+    { id: 'users',       label: 'Users',            icon: Users },
+    { id: 'schoolInfo',  label: 'School Info',       icon: School },
+    { id: 'schoolYear',  label: 'School Year',       icon: Calendar },
+    { id: 'grades',      label: 'Grade Levels',      icon: GraduationCap },
+    { id: 'fees',        label: 'Fee Structure',     icon: DollarSign },
+    { id: 'discounts',   label: 'Discounts',         icon: Tag },
+    { id: 'receipt',     label: 'Receipt',            icon: Receipt },
   ]
-  const tabs = allTabs.filter(t => t.roles.includes(user?.role || 'technical_admin'))
+  const tabs = allTabs.filter(t => userTabs.includes(t.id))
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PH', {
@@ -1411,7 +1408,11 @@ export default function Settings() {
             ? Math.max(...editSchoolYears.map(y => parseInt(y.year.split('-')[1])))
             : new Date().getFullYear()
           const suggestedYear = `${latestYear}-${latestYear + 1}`
-          const defaultYear = existingYears.includes(suggestedYear) ? '' : suggestedYear
+
+          // Init form on first open
+          if (!addSYForm.year && !existingYears.includes(suggestedYear)) {
+            setTimeout(() => setAddSYForm({ year: suggestedYear, beStart: `${latestYear}-06-01`, beEnd: `${latestYear + 1}-03-31`, colStart: `${latestYear}-08-01`, colEnd: `${latestYear + 1}-05-31` }), 0)
+          }
 
           return (
             <ModalPortal>
@@ -1421,33 +1422,17 @@ export default function Settings() {
                 <p className="text-xs text-[var(--color-text-muted)] mb-5">Create a new academic year with department calendars</p>
 
                 <label className="form-label">School Year</label>
-                <input id="add-sy-year" type="text" defaultValue={defaultYear} placeholder="e.g. 2028-2029"
+                <input type="text" value={addSYForm.year} onChange={e => setAddSYForm(f => ({ ...f, year: e.target.value }))} placeholder="e.g. 2028-2029"
                   className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="form-label flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</label>
-                    <input id="add-sy-be-start" type="date" defaultValue={`${latestYear}-06-01`}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
-                  <div>
-                    <label className="form-label">Basic Ed End</label>
-                    <input id="add-sy-be-end" type="date" defaultValue={`${latestYear + 1}-03-31`}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
+                  <DatePicker label={<span className="flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</span>} value={addSYForm.beStart} onChange={v => setAddSYForm(f => ({ ...f, beStart: v }))} />
+                  <DatePicker label="Basic Ed End" value={addSYForm.beEnd} onChange={v => setAddSYForm(f => ({ ...f, beEnd: v }))} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="form-label flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</label>
-                    <input id="add-sy-col-start" type="date" defaultValue={`${latestYear}-08-01`}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
-                  <div>
-                    <label className="form-label">College End</label>
-                    <input id="add-sy-col-end" type="date" defaultValue={`${latestYear + 1}-05-31`}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
+                  <DatePicker label={<span className="flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</span>} value={addSYForm.colStart} onChange={v => setAddSYForm(f => ({ ...f, colStart: v }))} />
+                  <DatePicker label="College End" value={addSYForm.colEnd} onChange={v => setAddSYForm(f => ({ ...f, colEnd: v }))} />
                 </div>
 
                 <label className="form-label mb-1.5">Status</label>
@@ -1458,28 +1443,22 @@ export default function Settings() {
                 </div>
 
                 <div className="action-row">
-                  <button onClick={() => setShowAddSY(false)} className="btn-cancel">Cancel</button>
+                  <button onClick={() => { setShowAddSY(false); setAddSYForm({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' }) }} className="btn-cancel">Cancel</button>
                   <button className="btn-action" onClick={() => {
-                    const year = document.getElementById('add-sy-year').value.trim()
+                    const year = addSYForm.year.trim()
                     if (!year) { addToast('Please enter a school year', 'error'); return }
                     if (!/^\d{4}-\d{4}$/.test(year)) { addToast('Format must be YYYY-YYYY', 'error'); return }
                     const [sY, eY] = year.split('-').map(Number)
                     if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
                     if (existingYears.includes(year)) { addToast(`${year} already exists`, 'error'); return }
-
-                    const beStart = document.getElementById('add-sy-be-start').value
-                    const beEnd = document.getElementById('add-sy-be-end').value
-                    const colStart = document.getElementById('add-sy-col-start').value
-                    const colEnd = document.getElementById('add-sy-col-end').value
-
-                    if (!beStart || !beEnd || !colStart || !colEnd) { addToast('Please set all dates', 'error'); return }
+                    if (!addSYForm.beStart || !addSYForm.beEnd || !addSYForm.colStart || !addSYForm.colEnd) { addToast('Please set all dates', 'error'); return }
 
                     setEditSchoolYears(prev => [...prev, {
                       id: Date.now(), year, status: 'upcoming', isCurrent: false,
-                      basicEd: { startDate: beStart, endDate: beEnd, events: [] },
-                      college: { startDate: colStart, endDate: colEnd, events: [] },
+                      basicEd: { startDate: addSYForm.beStart, endDate: addSYForm.beEnd, events: [] },
+                      college: { startDate: addSYForm.colStart, endDate: addSYForm.colEnd, events: [] },
                     }])
-                    setShowAddSY(false)
+                    setShowAddSY(false); setAddSYForm({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' })
                     addToast(`School year ${year} added! Click "Save Changes" to apply.`, 'success')
                   }}>Add School Year</button>
                 </div>
@@ -1547,16 +1526,8 @@ export default function Settings() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-5">
-                  <div>
-                    <label className="form-label">Start Date</label>
-                    <input type="date" value={newEvtStart} onChange={e => setNewEvtStart(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
-                  <div>
-                    <label className="form-label">End Date</label>
-                    <input type="date" value={newEvtEnd} onChange={e => setNewEvtEnd(e.target.value)}
-                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                  </div>
+                  <DatePicker label="Start Date" value={newEvtStart} onChange={setNewEvtStart} />
+                  <DatePicker label="End Date" value={newEvtEnd} onChange={setNewEvtEnd} />
                 </div>
 
                 <div className="action-row">
@@ -1602,13 +1573,13 @@ export default function Settings() {
                 <input type="text" value={editSY.year} onChange={e => setEditSY({ ...editSY, year: e.target.value })}
                   className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
 
-                <label className="form-label">Start Date ({dept === 'college' ? 'College' : 'Basic Ed'})</label>
-                <input type="date" value={cal.startDate} onChange={e => setEditSY({ ...editSY, [deptKey]: { ...cal, startDate: e.target.value } })}
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+                <div className="mb-4">
+                  <DatePicker label={`Start Date (${dept === 'college' ? 'College' : 'Basic Ed'})`} value={cal.startDate} onChange={v => setEditSY({ ...editSY, [deptKey]: { ...cal, startDate: v } })} />
+                </div>
 
-                <label className="form-label">End Date ({dept === 'college' ? 'College' : 'Basic Ed'})</label>
-                <input type="date" value={cal.endDate} onChange={e => setEditSY({ ...editSY, [deptKey]: { ...cal, endDate: e.target.value } })}
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+                <div className="mb-4">
+                  <DatePicker label={`End Date (${dept === 'college' ? 'College' : 'Basic Ed'})`} value={cal.endDate} onChange={v => setEditSY({ ...editSY, [deptKey]: { ...cal, endDate: v } })} />
+                </div>
 
                 <label className="form-label mb-1.5">Status</label>
                 <div className="mb-4">
@@ -1729,17 +1700,154 @@ export default function Settings() {
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><Paintbrush className="w-4 h-4 text-[var(--color-text-muted)]" /> System Colors</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-lg border border-[var(--color-border)]" style={{ backgroundColor: '#750014' }} /><div><p className="text-xs text-[var(--color-text-muted)]">Primary</p><p className="text-sm font-mono text-[var(--color-text-primary)]">#750014</p></div></div>
-                      <div className="flex items-center gap-3"><div className="w-9 h-9 rounded-lg border border-[var(--color-border)]" style={{ backgroundColor: '#080c42' }} /><div><p className="text-xs text-[var(--color-text-muted)]">Secondary</p><p className="text-sm font-mono text-[var(--color-text-primary)]">#080c42</p></div></div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-3">These colors are used throughout the system and the school website.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#750014'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} />
+                        <div className="mt-2 space-y-1">
+                          <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar active navigation</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Buttons (login, save, submit, approve)</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Campus chip badge on the header</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Campus locked banner strip</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Card left-border accents (stat cards)</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Page headings and section titles</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Active tab indicators</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Website header, footer, and CTA buttons</p>
+                        </div>
+                      </div>
+                      <div>
+                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#080c42'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} />
+                        <div className="mt-2 space-y-1">
+                          <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar background</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Secondary buttons and links</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Input focus ring color</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Secondary headings and subtext</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Chart colors (bar charts, doughnut)</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">• Website navigation and section headers</p>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Color customization available when backend is connected</p>
                   </div>
+
+                  {/* Hero Gradient */}
+                  <div className="pt-4 border-t border-[var(--color-border)]">
+                    <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2"><Paintbrush className="w-4 h-4 text-[var(--color-text-muted)]" /> Hero Gradient</h4>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-3">This gradient is applied to the hero section of the school website.</p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <ColorPicker label="Gradient Start" value={websiteContent.gradientStart || '#080c42'} onChange={v => setWebsiteContent({ ...websiteContent, gradientStart: v })} />
+                      <ColorPicker label="Gradient End" value={websiteContent.gradientEnd || '#750014'} onChange={v => setWebsiteContent({ ...websiteContent, gradientEnd: v })} />
+                    </div>
+
+                    {/* Direction selector */}
+                    <div className="mb-4">
+                      <label className="form-label mb-1.5">Direction</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { value: 'to right', label: '→', title: 'Left to Right' },
+                          { value: 'to left', label: '←', title: 'Right to Left' },
+                          { value: 'to bottom', label: '↓', title: 'Top to Bottom' },
+                          { value: 'to top', label: '↑', title: 'Bottom to Top' },
+                          { value: 'to bottom right', label: '↘', title: 'Diagonal ↘' },
+                          { value: 'to bottom left', label: '↙', title: 'Diagonal ↙' },
+                          { value: 'to top right', label: '↗', title: 'Diagonal ↗' },
+                          { value: 'to top left', label: '↖', title: 'Diagonal ↖' },
+                        ].map(dir => (
+                          <button
+                            key={dir.value}
+                            type="button"
+                            title={dir.title}
+                            onClick={() => setWebsiteContent({ ...websiteContent, gradientDirection: dir.value })}
+                            className={`w-9 h-9 rounded-lg text-sm font-medium flex items-center justify-center transition ${
+                              (websiteContent.gradientDirection || 'to right') === dir.value
+                                ? 'bg-primary text-white shadow-sm'
+                                : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
+                            }`}
+                          >{dir.label}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Live preview */}
+                    <div>
+                      <label className="form-label mb-1.5">Preview</label>
+                      <div
+                        className="w-full h-24 rounded-xl border border-[var(--color-border)] overflow-hidden flex items-center justify-center"
+                        style={{
+                          background: `linear-gradient(${websiteContent.gradientDirection || 'to right'}, ${websiteContent.gradientStart || '#080c42'}, ${websiteContent.gradientEnd || '#750014'})`,
+                        }}
+                      >
+                        <div className="text-center">
+                          <p className="text-white text-sm font-bold drop-shadow">{websiteContent.schoolName || 'School Name'}</p>
+                          <p className="text-white/70 text-[10px] drop-shadow">{websiteContent.motto || 'School motto here'}</p>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5 font-mono">
+                        linear-gradient({websiteContent.gradientDirection || 'to right'}, {websiteContent.gradientStart || '#080c42'}, {websiteContent.gradientEnd || '#750014'})
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Color and gradient changes will take full effect when backend is connected</p>
                 </div>
               )}
             </div>
 
-            {/* ── Section 3: About — Mission, Vision, Goals, Core Values ── */}
+            {/* ── Section 3: Login Page ── */}
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('loginPage')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-primary" /></div>
+                  <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Login Page</h3><p className="text-xs text-[var(--color-text-muted)]">Customize the labels and text shown on the login screen</p></div>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.loginPage ? 'rotate-180' : ''}`} />
+              </button>
+              {infoSections.loginPage && (
+                <div className="border-t border-[var(--color-border)] p-5 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="form-label">Portal Label</label>
+                      <input type="text" value={websiteContent.portalLabel} onChange={e => setWebsiteContent({ ...websiteContent, portalLabel: e.target.value })} placeholder="e.g. School Management Portal" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Shown as header text on the login page and card eyebrow</p>
+                    </div>
+                    <div>
+                      <label className="form-label">Support Link Text</label>
+                      <input type="text" value={websiteContent.supportLabel} onChange={e => setWebsiteContent({ ...websiteContent, supportLabel: e.target.value })} placeholder="e.g. Contact IT Support" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Shown at the bottom of the login form as a help link</p>
+                    </div>
+                  </div>
+
+                  {/* Live preview */}
+                  <div>
+                    <label className="form-label mb-1.5">Preview</label>
+                    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+                      <div className="bg-secondary p-4 text-center">
+                        <div className="w-12 h-12 rounded-full bg-white border-2 border-primary mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                          <img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo" className="w-10 h-10 object-contain" onError={e => { e.target.style.display = 'none' }} />
+                        </div>
+                        <p className="text-white text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
+                        <p className="text-white/60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>
+                        <p className="text-white/30 text-[8px] uppercase tracking-widest mt-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                      </div>
+                      <div className="p-4 bg-[var(--color-bg-subtle)]">
+                        <p className="text-[9px] uppercase tracking-widest text-primary font-bold mb-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                        <p className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Welcome back.</p>
+                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-2" />
+                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-3" />
+                        <div className="h-7 bg-primary rounded-lg mb-2" />
+                        <p className="text-[9px] text-center text-[var(--color-text-muted)]">Need help? <span className="text-primary font-semibold">{websiteContent.supportLabel || 'Contact IT Support'}</span></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Section 4: About — Mission, Vision, Goals, Core Values ── */}
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('about')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
@@ -2154,134 +2262,6 @@ export default function Settings() {
         )}
 
         {/* ═══ TICKETS TAB ═══ */}
-        {activeTab === 'tickets' && (() => {
-          const typeLabels = { account: 'Account Issue', bug: 'System Bug', access: 'Access Request', inquiry: 'General Inquiry' }
-          const typeIcons = { account: Shield, bug: Bug, access: UserPlus, inquiry: HelpCircle }
-          const typeColors = { account: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', bug: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', access: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', inquiry: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' }
-          const priorityColors = { low: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]', medium: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', high: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', urgent: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' }
-          const statusColors = { open: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', in_progress: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', on_hold: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', resolved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', closed: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]' }
-          const statusLabels = { open: 'Open', in_progress: 'In Progress', on_hold: 'On Hold', resolved: 'Resolved', closed: 'Closed' }
-          const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-          const fmtTime = (d) => new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-
-          const filtered = tickets.filter(t => {
-            if (ticketFilterStatus !== 'all' && t.status !== ticketFilterStatus) return false
-            if (ticketFilterType !== 'all' && t.type !== ticketFilterType) return false
-            return true
-          })
-
-          return (
-          <div className="space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { label: 'Open', value: ticketStats.open, color: 'border-yellow-500' },
-                { label: 'In Progress', value: ticketStats.inProgress, color: 'border-blue-500' },
-                { label: 'Urgent/High', value: ticketStats.urgent + ticketStats.high, color: 'border-red-500' },
-                { label: 'Resolved', value: ticketStats.resolved, color: 'border-green-500' },
-              ].map(s => (
-                <div key={s.label} className={`stat-card ${s.color}`}>
-                  <p className="text-xs text-[var(--color-text-muted)]">{s.label}</p>
-                  <p className="text-2xl font-bold text-[var(--color-text-primary)]">{s.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Filters */}
-            <div className="card p-4 flex flex-col sm:flex-row gap-3">
-              <div className="flex-1"><GroupedSelect value={ticketFilterStatus} onChange={setTicketFilterStatus} allLabel="All Status" options={[{ value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In Progress' }, { value: 'on_hold', label: 'On Hold' }, { value: 'resolved', label: 'Resolved' }, { value: 'closed', label: 'Closed' }]} /></div>
-              <div className="flex-1"><GroupedSelect value={ticketFilterType} onChange={setTicketFilterType} allLabel="All Types" options={[{ value: 'account', label: 'Account Issue' }, { value: 'bug', label: 'System Bug' }, { value: 'access', label: 'Access Request' }, { value: 'inquiry', label: 'General Inquiry' }]} /></div>
-            </div>
-
-            {/* Ticket list */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              {filtered.length === 0 ? (
-                <div className="text-center py-12">
-                  <Ticket className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
-                  <p className="text-sm text-[var(--color-text-muted)]">{tickets.length === 0 ? 'No support tickets yet' : 'No tickets match current filters'}</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-[var(--color-border)]">
-                  {filtered.map(t => {
-                    const TypeIcon = typeIcons[t.type] || HelpCircle
-                    return (
-                      <button key={t.id} onClick={() => setSelectedTicket(t)} className="w-full text-left p-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${typeColors[t.type]}`}><TypeIcon className="w-4 h-4" /></div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{t.subject}</span>
-                            <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${statusColors[t.status]}`}>{statusLabels[t.status]}</span>
-                            <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${priorityColors[t.priority]}`}>{t.priority}</span>
-                          </div>
-                          <p className="text-xs text-[var(--color-text-muted)]">{t.ticketNumber} · {t.submittedBy.name} · {fmtDate(t.submittedDate)}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-2" />
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-              <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
-                {filtered.length} of {tickets.length} ticket{tickets.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            {/* Ticket Detail Modal */}
-            {selectedTicket && (
-              <ModalPortal>
-              <div className="modal-backdrop">
-                <div className="modal-panel" style={{ maxWidth: '40rem' }}>
-                  <div className="modal-header">
-                    <div className="min-w-0">
-                      <h3 className="text-base font-bold text-[var(--color-text-primary)] truncate">{selectedTicket.subject}</h3>
-                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{selectedTicket.ticketNumber} · {fmtDate(selectedTicket.submittedDate)}</p>
-                    </div>
-                    <button onClick={() => { setSelectedTicket(null); setTicketNote('') }} className="icon-btn-ghost ml-2 flex-shrink-0"><X className="w-5 h-5" /></button>
-                  </div>
-                  <div className="overflow-y-auto flex-1 p-5 space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="form-label mb-1.5">Status</label><GroupedSelect value={selectedTicket.status} allLabel={null} onChange={v => { updateTicketStatus(selectedTicket.id, v); setSelectedTicket({ ...selectedTicket, status: v }); setTickets(getAllTickets()); setTicketStats(getTicketStats()); addToast(`Status → ${statusLabels[v]}`, 'success') }} options={[{ value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In Progress' }, { value: 'on_hold', label: 'On Hold' }, { value: 'resolved', label: 'Resolved' }, { value: 'closed', label: 'Closed' }]} /></div>
-                      <div><label className="form-label mb-1.5">Priority</label><GroupedSelect value={selectedTicket.priority} allLabel={null} onChange={v => { updateTicketPriority(selectedTicket.id, v); setSelectedTicket({ ...selectedTicket, priority: v }); setTickets(getAllTickets()); setTicketStats(getTicketStats()); addToast('Priority updated', 'success') }} options={[{ value: 'low', label: 'Low' }, { value: 'medium', label: 'Medium' }, { value: 'high', label: 'High' }, { value: 'urgent', label: 'Urgent' }]} /></div>
-                    </div>
-                    <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4 space-y-3">
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div><span className="text-xs text-[var(--color-text-muted)]">Type</span><p className="font-medium text-[var(--color-text-primary)]">{typeLabels[selectedTicket.type]}</p></div>
-                        <div><span className="text-xs text-[var(--color-text-muted)]">Submitted by</span><p className="font-medium text-[var(--color-text-primary)]">{selectedTicket.submittedBy.name}</p></div>
-                        <div><span className="text-xs text-[var(--color-text-muted)]">Role</span><p className="font-medium text-[var(--color-text-primary)] capitalize">{selectedTicket.submittedBy.role?.replace('_', ' ')}</p></div>
-                        <div><span className="text-xs text-[var(--color-text-muted)]">Campus</span><p className="font-medium text-[var(--color-text-primary)]">{selectedTicket.submittedBy.campus || 'All'}</p></div>
-                      </div>
-                      <div className="border-t border-[var(--color-border)] pt-3">
-                        <span className="text-xs text-[var(--color-text-muted)]">Description</span>
-                        <p className="text-sm text-[var(--color-text-primary)] mt-1 whitespace-pre-wrap">{selectedTicket.description || 'No description.'}</p>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-[var(--color-text-muted)]" /> Notes ({selectedTicket.notes?.length || 0})</h4>
-                      {(selectedTicket.notes || []).map(note => (
-                        <div key={note.id} className="p-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-lg mb-2">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-primary">{note.author}</span>
-                            <span className="text-[10px] text-[var(--color-text-muted)]">{fmtDate(note.date)} {fmtTime(note.date)}</span>
-                          </div>
-                          <p className="text-sm text-[var(--color-text-primary)]">{note.text}</p>
-                        </div>
-                      ))}
-                      <div className="flex gap-2 mt-2">
-                        <input type="text" value={ticketNote} onChange={e => setTicketNote(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' && ticketNote.trim()) { const updated = addTicketNote(selectedTicket.id, ticketNote.trim(), 'Technical Admin'); if (updated) setSelectedTicket(updated); setTicketNote(''); setTickets(getAllTickets()); addToast('Note added', 'success') } }}
-                          placeholder="Add a note..." className="flex-1 px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
-                        <button onClick={() => { if (!ticketNote.trim()) return; const updated = addTicketNote(selectedTicket.id, ticketNote.trim(), 'Technical Admin'); if (updated) setSelectedTicket(updated); setTicketNote(''); setTickets(getAllTickets()); addToast('Note added', 'success') }}
-                          disabled={!ticketNote.trim()} className="btn-action" style={{ flex: 'none', padding: '0.625rem 1rem' }}><Send className="w-4 h-4" /></button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              </ModalPortal>
-            )}
-          </div>
-          )
-        })()}
 
         {activeTab === 'grades' && (
           <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
@@ -2432,6 +2412,7 @@ export default function Settings() {
             campuses={editCampuses}
             onSave={() => saveSection('systemUsers', editUsers)}
             saved={savedSection === 'systemUsers'}
+            currentUser={user}
           />
         )}
 
@@ -2454,8 +2435,9 @@ const CAMPUS_SCOPED_ROLES = [
 
 // Roles available to assign (excluding student/teacher — future features)
 const ASSIGNABLE_ROLES = [
-  { value: 'technical_admin',   label: 'Technical Administrator' },
-  { value: 'registrar_basic',   label: 'Basic Ed Registrar'      },
+  { value: 'technical_admin',   label: 'Super Admin'              },
+  { value: 'system_admin',      label: 'System Admin'             },
+  { value: 'registrar_basic',   label: 'Basic Ed Registrar'       },
   { value: 'registrar_college', label: 'College Registrar'        },
   { value: 'accounting',        label: 'Accounting Officer'       },
   { value: 'principal_basic',   label: 'Basic Ed Principal'       },
@@ -2474,9 +2456,11 @@ async function hashPassword(password) {
 const EMPTY_FORM = {
   name: '', email: '', role: 'registrar_basic',
   campus: '', campusKey: '', password: '', confirmPassword: '',
+  customPermissions: false, // whether to use custom permissions
+  permissions: { pages: [], tabs: [] },
 }
 
-function UsersTab({ users, setUsers, campuses, onSave, saved }) {
+function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null) // null = adding new
   const [form, setForm] = useState(EMPTY_FORM)
@@ -2487,14 +2471,33 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
   const [showDeactivateId, setShowDeactivateId] = useState(null)
   const { toasts, addToast, removeToast } = useToast()
 
+  // System admin can only see/manage users from their own campus
+  const isSystemAdmin = currentUser?.role === 'system_admin'
+  const myCampus = currentUser?.campus
+
+  // System admin can't create super admins, other system admins, or owners
+  const assignableRoles = isSystemAdmin
+    ? ASSIGNABLE_ROLES.filter(r => !['technical_admin', 'system_admin', 'admin'].includes(r.value))
+    : ASSIGNABLE_ROLES
+
   const needsCampus = CAMPUS_SCOPED_ROLES.includes(form.role)
 
   const activeCampusOptions = (campuses || [])
     .filter(c => c.isActive !== false)
+    .filter(c => !isSystemAdmin || c.name === myCampus) // system admin only sees their campus
     .map(c => ({ value: c.name, label: c.name, key: c.key }))
 
   // ── Filtering ─────────────────────────────────────────────────
-  const filtered = users.filter(u => {
+  // Base list: campus-filtered for system admin, all for super admin
+  const campusUsers = users.filter(u => {
+    if (isSystemAdmin) {
+      if (u.role === 'technical_admin' || u.role === 'admin') return false
+      if (u.campus && u.campus !== 'all' && u.campus !== myCampus) return false
+    }
+    return true
+  })
+
+  const filtered = campusUsers.filter(u => {
     const matchSearch = !searchQuery ||
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       u.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -2505,7 +2508,11 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
   // ── Open Add modal ─────────────────────────────────────────────
   const handleAdd = () => {
     setEditingUser(null)
-    setForm(EMPTY_FORM)
+    // System admin: auto-set campus to their own
+    const defaultForm = isSystemAdmin
+      ? { ...EMPTY_FORM, campus: myCampus, campusKey: currentUser?.campusKey || '' }
+      : EMPTY_FORM
+    setForm(defaultForm)
     setErrors({})
     setShowModal(true)
   }
@@ -2513,10 +2520,13 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
   // ── Open Edit modal ────────────────────────────────────────────
   const handleEdit = (u) => {
     setEditingUser(u)
+    const hasCustom = !!u.permissions
     setForm({
       name: u.name, email: u.email, role: u.role,
       campus: u.campus || '', campusKey: u.campusKey || '',
       password: '', confirmPassword: '',
+      customPermissions: hasCustom,
+      permissions: hasCustom ? { ...u.permissions } : { ...(DEFAULT_PERMISSIONS[u.role] || { pages: ['dashboard'], tabs: [] }) },
     })
     setErrors({})
     setShowModal(true)
@@ -2563,6 +2573,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
       const campusObj = activeCampusOptions.find(c => c.value === form.campus)
       const campusKey = campusObj?.key || ''
 
+      // Build permissions — only store if customized, otherwise use defaults
+      const permissionsObj = form.customPermissions ? form.permissions : undefined
+
       if (editingUser) {
         // Edit existing
         const updates = {
@@ -2575,9 +2588,18 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
         if (form.password) {
           updates.passwordHash = await hashPassword(form.password)
         }
-        setUsers(prev => prev.map(u =>
-          u.id === editingUser.id ? { ...u, ...updates } : u
-        ))
+        // Set or clear custom permissions
+        if (form.customPermissions) {
+          updates.permissions = form.permissions
+        } else {
+          updates.permissions = undefined
+        }
+        setUsers(prev => prev.map(u => {
+          if (u.id !== editingUser.id) return u
+          const updated = { ...u, ...updates }
+          if (!form.customPermissions) delete updated.permissions
+          return updated
+        }))
       } else {
         // Add new
         const passwordHash = await hashPassword(form.password)
@@ -2593,6 +2615,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
           status: 'active',
           lastLogin: null,
         }
+        if (form.customPermissions) newUser.permissions = form.permissions
         setUsers(prev => [...prev, newUser])
       }
 
@@ -2642,7 +2665,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">User Management</h2>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              {users.filter(u => u.status === 'active').length} active · {users.filter(u => u.status !== 'active').length} inactive
+              {campusUsers.filter(u => u.status === 'active').length} active · {campusUsers.filter(u => u.status !== 'active').length} inactive
             </p>
           </div>
           <button
@@ -2669,7 +2692,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
             value={roleFilter}
             onChange={setRoleFilter}
             allLabel="All Roles"
-            options={ASSIGNABLE_ROLES}
+            options={assignableRoles}
             className="sm:w-52"
           />
         </div>
@@ -2702,12 +2725,6 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
                 <div className="flex gap-2 flex-shrink-0">
                   <button onClick={() => handleEdit(u)} className="p-2 text-[var(--color-text-muted)] hover:text-primary rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                     <Edit className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => setShowDeactivateId(u.id)} className={`p-2 rounded-lg transition ${u.status === 'active' ? 'text-[var(--color-text-muted)] hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-[var(--color-text-muted)] hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20'}`}>
-                    {u.status === 'active'
-                      ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
-                      : <Check className="w-4 h-4" />
-                    }
                   </button>
                 </div>
               </div>
@@ -2749,21 +2766,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
                     </td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap text-xs">{fmtDate(u.lastLogin)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => handleEdit(u)} className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
-                          <Edit className="w-3.5 h-3.5" /> Edit
-                        </button>
-                        <button
-                          onClick={() => setShowDeactivateId(u.id)}
-                          className={`inline-flex items-center gap-1 text-sm font-medium transition ${
-                            u.status === 'active'
-                              ? 'text-amber-600 dark:text-amber-400 hover:text-amber-800'
-                              : 'text-green-600 dark:text-green-400 hover:text-green-800'
-                          }`}
-                        >
-                          {u.status === 'active' ? 'Deactivate' : 'Reactivate'}
-                        </button>
-                      </div>
+                      <button onClick={() => handleEdit(u)} className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                        <Edit className="w-3.5 h-3.5" /> Edit
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -2776,7 +2781,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
         </div>
 
         <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
-          Showing {filtered.length} of {users.length} users · Changes take effect on next login
+          Showing {filtered.length} of {campusUsers.length} users · Changes take effect on next login
         </div>
       </div>
 
@@ -2841,9 +2846,15 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
                 </label>
                 <GroupedSelect
                   value={form.role}
-                  onChange={v => setForm(f => ({ ...f, role: v, campus: '', campusKey: '' }))}
+                  onChange={v => {
+                    const defaults = DEFAULT_PERMISSIONS[v] || { pages: ['dashboard'], tabs: [] }
+                    setForm(f => ({
+                      ...f, role: v, campus: '', campusKey: '',
+                      permissions: form.customPermissions ? { ...defaults } : f.permissions,
+                    }))
+                  }}
                   allLabel="Select role…"
-                  options={ASSIGNABLE_ROLES}
+                  options={assignableRoles}
                 />
                 {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
                 {form.role && ROLE_DEFINITIONS?.[form.role] && (
@@ -2904,6 +2915,112 @@ function UsersTab({ users, setUsers, campuses, onSave, saved }) {
                       ${errors.confirmPassword ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
                   />
                   {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
+                </div>
+              )}
+
+              {/* ── Permissions Section ── */}
+              {form.role && form.role !== 'admin' && (
+                <div className="border-t border-[var(--color-border)] pt-4 mt-1">
+
+                  {/* Deactivate / Reactivate — only when editing existing user */}
+                  {editingUser && (
+                    <div className={`mb-4 p-3 rounded-xl border ${editingUser.status === 'active' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10' : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10'}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-[var(--color-text-primary)]">Account Status</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">
+                            {editingUser.status === 'active' ? 'This account is currently active' : 'This account is deactivated'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => { setShowModal(false); setShowDeactivateId(editingUser.id) }}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                            editingUser.status === 'active'
+                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200'
+                          }`}
+                        >
+                          {editingUser.status === 'active' ? 'Deactivate Account' : 'Reactivate Account'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <label className="flex items-center gap-3 cursor-pointer mb-3">
+                    <input type="checkbox" checked={form.customPermissions}
+                      onChange={e => {
+                        const custom = e.target.checked
+                        const defaults = DEFAULT_PERMISSIONS[form.role] || { pages: ['dashboard'], tabs: [] }
+                        setForm(f => ({
+                          ...f,
+                          customPermissions: custom,
+                          permissions: custom ? { pages: [...defaults.pages], tabs: [...defaults.tabs] } : { pages: [], tabs: [] },
+                        }))
+                      }}
+                      className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                    <div>
+                      <span className="text-sm font-medium text-[var(--color-text-primary)]">Custom Permissions</span>
+                      <p className="text-[10px] text-[var(--color-text-muted)]">Override default access for this user</p>
+                    </div>
+                  </label>
+
+                  {form.customPermissions && (
+                    <div className="space-y-4 pl-1">
+                      {/* Page access */}
+                      <div>
+                        <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Page Access</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {ALL_PAGES.filter(p => p.id !== 'dashboard').map(page => (
+                            <label key={page.id} className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                              <input type="checkbox"
+                                checked={form.permissions.pages.includes(page.id)}
+                                onChange={e => {
+                                  setForm(f => ({
+                                    ...f,
+                                    permissions: {
+                                      ...f.permissions,
+                                      pages: e.target.checked
+                                        ? [...f.permissions.pages, page.id]
+                                        : f.permissions.pages.filter(p => p !== page.id),
+                                    }
+                                  }))
+                                }}
+                                className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                              <span className="text-xs text-[var(--color-text-primary)]">{page.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tab access — only show if Settings page is enabled */}
+                      {form.permissions.pages.includes('settings') && (
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Settings Tabs</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {ALL_SETTINGS_TABS.map(tab => (
+                              <label key={tab.id} className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                                <input type="checkbox"
+                                  checked={form.permissions.tabs.includes(tab.id)}
+                                  onChange={e => {
+                                    setForm(f => ({
+                                      ...f,
+                                      permissions: {
+                                        ...f.permissions,
+                                        tabs: e.target.checked
+                                          ? [...f.permissions.tabs, tab.id]
+                                          : f.permissions.tabs.filter(t => t !== tab.id),
+                                      }
+                                    }))
+                                  }}
+                                  className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                                <span className="text-xs text-[var(--color-text-primary)]">{tab.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

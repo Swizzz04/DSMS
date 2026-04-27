@@ -378,26 +378,6 @@ function updateSchoolForm() {
     const isCollege = selectedGradeLevel.includes('bsnursing') || 
                       selectedGradeLevel.includes('bscrim');
     
-    // Show/hide semester field for college programs
-    const semesterGroup  = document.getElementById('semesterGroup')
-    const semesterSelect = document.getElementById('semester')
-    const shiftyOption   = document.querySelector('option[value="shifty"]')
-    const typeHint       = document.getElementById('studentTypeHint')
-
-    if (isCollege) {
-        // Show semester selector
-        if (semesterGroup)  { semesterGroup.style.display = 'block'; semesterSelect.required = true }
-        // Show Shifty option
-        if (shiftyOption)   shiftyOption.style.display = 'block'
-    } else {
-        // Hide semester selector
-        if (semesterGroup)  { semesterGroup.style.display = 'none'; semesterSelect.required = false; semesterSelect.value = '' }
-        // Hide Shifty option — reset if selected
-        if (shiftyOption)   shiftyOption.style.display = 'none'
-        const typeEl = document.getElementById('studentType')
-        if (typeEl && typeEl.value === 'shifty') typeEl.value = ''
-    }
-
     if (isCollege) {
         // Show detailed education history for college students
         simpleSchoolForm.style.display = 'none';
@@ -1158,14 +1138,9 @@ function safeField(label, value) {
         const gradeLevelText = gradeLevelSelect.options[gradeLevelSelect.selectedIndex]?.text || '';
         const studentTypeText = document.getElementById('studentType').options[document.getElementById('studentType').selectedIndex]?.text || '';
         
-        const semesterEl  = document.getElementById('semester')
-        const semesterVal = semesterEl && semesterEl.value
-        const semesterMap = { '1st':'1st Semester', '2nd':'2nd Semester', 'summer':'Summer Semester' }
-        const semesterTxt = semesterMap[semesterVal] || ''
         document.getElementById('reviewCampus').innerHTML = `
             <p><strong>Campus:</strong> ${campusName}</p>
-            <p><strong>Grade Level / Program:</strong> ${gradeLevelText}</p>
-            ${semesterTxt ? `<p><strong>Semester:</strong> ${semesterTxt}</p>` : ''}
+            <p><strong>Grade Level:</strong> ${gradeLevelText}</p>
             <p><strong>Student Type:</strong> ${studentTypeText}</p>
             <p><strong>School Year:</strong> ${document.getElementById('schoolYear').value}</p>
         `;

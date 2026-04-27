@@ -12,6 +12,7 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, ExportButton } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import DatePicker from '../components/DatePicker'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 import {
   DeptPaymentCard,
@@ -924,16 +925,11 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
 
         {/* Date range row */}
         <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-[var(--color-border)]">
-          <div className="flex items-center gap-2 flex-1">
-            <Calendar className="w-3.5 h-3.5 text-[var(--color-text-muted)] flex-shrink-0"/>
-            <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">From:</label>
-            <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)}
-              className="flex-1 px-2 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+          <div className="flex-1">
+            <DatePicker label="From" value={dateFrom} onChange={setDateFrom} placeholder="Start date" />
           </div>
-          <div className="flex items-center gap-2 flex-1">
-            <label className="text-xs text-[var(--color-text-muted)] whitespace-nowrap">To:</label>
-            <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)}
-              className="flex-1 px-2 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+          <div className="flex-1">
+            <DatePicker label="To" value={dateTo} onChange={setDateTo} placeholder="End date" />
           </div>
           {hasFilters && (
             <button onClick={clearAll}

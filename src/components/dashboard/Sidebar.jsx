@@ -5,6 +5,15 @@ import {
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { getUserPermissions } from '../../config/appConfig'
+
+// Read school branding
+function getSchoolConfig() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
+    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '/assets/cshclogo.png' }
+  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '/assets/cshclogo.png' } }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────
 const isBasicGrade   = g => g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
@@ -34,13 +43,10 @@ function computeBadges(user) {
   if (role === 'admin') {
     enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
   }
-  if (role === 'technical_admin') {
-    enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
-    payBadge = webSubs.filter(s =>
-      (s.status === 'payment_received' || s.status === 'approved') &&
-      (s.balance || 0) > 0 && s.submittedDate &&
-      Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
-    ).length
+  if (role === 'technical_admin' || role === 'system_admin') {
+    // Super admin and system admin don't see enrollment badges
+    enrBadge = 0
+    payBadge = 0
   }
   if (role === 'registrar_basic') {
     enrBadge = allEnr.filter(e => e.status === 'payment_received' && isBasicGrade(e.enrollment?.gradeLevel || '')).length
@@ -100,6 +106,7 @@ function NavBadge({ count, active }) {
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
   const { user }  = useAuth()
+  const school    = getSchoolConfig()
   const [badges, setBadges] = useState({})
 
   const refreshBadges = useCallback(() => setBadges(computeBadges(user)), [user])
@@ -120,47 +127,23 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   }, [refreshBadges])
 
   const getNavItems = () => {
-    const base = [{
-      id: 'dashboard', label: 'Dashboard',
-      icon: LayoutDashboard, path: '/dashboard',
-      roles: ['admin','technical_admin','registrar_basic','registrar_college','accounting','principal_basic','program_head']
-    }]
-    const roleItems = {
-      admin: [
-        { id: 'enrollments', label: 'Enrollments', icon: FileText,  path: '/enrollments', roles: ['admin'] },
-        { id: 'reports',     label: 'Reports',     icon: BarChart2, path: '/reports',     roles: ['admin'] },
-      ],
-      technical_admin: [
-        { id: 'settings',    label: 'Settings',    icon: Settings,   path: '/settings',    roles: ['technical_admin'] },
-      ],
-      registrar_basic: [
-        { id: 'enrollments', label: 'Basic Ed Enrollments', icon: FileText,      path: '/enrollments', roles: ['registrar_basic'] },
-        { id: 'students',    label: 'Basic Ed Students',    icon: GraduationCap, path: '/students',    roles: ['registrar_basic'] },
-      ],
-      registrar_college: [
-        { id: 'enrollments',  label: 'College Enrollments', icon: FileText, path: '/enrollments',  roles: ['registrar_college'] },
-        { id: 'students',     label: 'College Students',    icon: Users,    path: '/students',     roles: ['registrar_college'] },
-        { id: 'subject-load', label: 'Subject Load',        icon: Layers,   path: '/subject-load', roles: ['registrar_college'] },
-      ],
-      accounting: [
-        { id: 'payments',    label: 'Payments',    icon: DollarSign, path: '/payments',    roles: ['accounting'] },
-        { id: 'reports',     label: 'Reports',     icon: BarChart2,  path: '/reports',     roles: ['accounting', 'admin'] },
-        { id: 'enrollments', label: 'Enrollments', icon: FileText,   path: '/enrollments', roles: ['accounting'] },
-        { id: 'settings',    label: 'Settings',    icon: Settings,   path: '/settings',    roles: ['accounting'] },
-      ],
-      principal_basic: [
-        { id: 'students',     label: 'Students',     icon: GraduationCap, path: '/students',     roles: ['principal_basic'] },
-        { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load', roles: ['principal_basic'] },
-        { id: 'settings',     label: 'Settings',     icon: Settings,      path: '/settings',     roles: ['principal_basic'] },
-      ],
-      program_head: [
-        { id: 'students',     label: 'Students',     icon: Users,    path: '/students',     roles: ['program_head'] },
-        { id: 'subject-load', label: 'Subject Load', icon: Layers,   path: '/subject-load', roles: ['program_head'] },
-        { id: 'settings',     label: 'Settings',     icon: Settings,  path: '/settings',     roles: ['program_head'] },
-      ],
+    const perms = getUserPermissions(user)
+    const pages = perms.pages || []
+
+    const pageNavMap = {
+      enrollments:    { id: 'enrollments',  label: 'Enrollments',  icon: FileText,   path: '/enrollments' },
+      students:       { id: 'students',     label: 'Students',     icon: Users,      path: '/students' },
+      payments:       { id: 'payments',     label: 'Payments',     icon: DollarSign, path: '/payments' },
+      reports:        { id: 'reports',      label: 'Reports',      icon: BarChart2,  path: '/reports' },
+      settings:       { id: 'settings',     label: 'Settings',     icon: Settings,   path: '/settings' },
+      'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,     path: '/subject-load' },
     }
-    const role = user?.role || 'admin'
-    return [...base, ...(roleItems[role] || [])].filter(i => i.roles.includes(role))
+
+    const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
+    pages.forEach(pageId => {
+      if (pageId !== 'dashboard' && pageNavMap[pageId]) items.push(pageNavMap[pageId])
+    })
+    return items
   }
 
   const navItems = getNavItems()
@@ -168,7 +151,8 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
   const getRoleLabel = () => ({
     admin:             'Owner Dashboard',
-    technical_admin:   'Admin Portal',
+    technical_admin:   'Super Admin Portal',
+    system_admin:      'System Admin',
     registrar_basic:   'Basic Ed Registrar',
     registrar_college: 'College Registrar',
     accounting:        'Accounting Portal',
@@ -239,7 +223,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
               backgroundColor: '#fff',
               boxShadow:    '0 0 0 3px var(--color-primary-muted)',
             }}>
-              <img src="/cshclogo.png" alt="CSHC" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
+              <img src={school.logo} alt={school.shortName} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
             </div>
             <div>
               <div style={{
@@ -386,7 +370,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           color:         'var(--color-text-muted)',
           letterSpacing: '0.04em',
         }}>
-          © 2026 CSHC · All rights reserved
+          {'00A9 ' + new Date().getFullYear() + ' ' + school.shortName}
         </div>
       </aside>
     </>
