@@ -295,7 +295,7 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
     <div className="receipt-copy border border-gray-300 rounded-lg p-5 bg-white text-gray-900" style={{fontFamily:'Georgia,serif',fontSize:'13px'}}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
-        <p className="font-bold text-sm uppercase tracking-wide" style={{color:'#750014'}}>Cebu Sacred Heart College, Inc.</p>
+        <p className="font-bold text-sm uppercase tracking-wide" style={{color:'var(--color-primary)'}}>{'Cebu Sacred Heart College, Inc.'}</p>
         <p className="text-xs text-gray-500">{tx.campus}</p>
         <p className="text-xs text-gray-500">School Year {schoolYear}</p>
         <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -338,8 +338,8 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
       <div className="border-t border-gray-300 pt-2 mb-3 space-y-1 text-xs">
         {tx.totalFee > 0 && <div className="flex justify-between"><span className="text-gray-500">Total Assessment:</span><span className="font-mono">{php(tx.totalFee)}</span></div>}
         <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
-          <span style={{color:'#750014'}}>Amount This Payment:</span>
-          <span className="font-mono" style={{color:'#750014'}}>{php(tx.amount)}</span>
+          <span style={{color:'var(--color-primary)'}}>Amount This Payment:</span>
+          <span className="font-mono" style={{color:'var(--color-primary)'}}>{php(tx.amount)}</span>
         </div>
         {tx.totalFee > 0 && <div className="flex justify-between"><span className="text-gray-500">Total Paid to Date:</span><span className="font-mono font-semibold text-green-700">{php(totalPaidSoFar)}</span></div>}
         {tx.totalFee > 0 && <div className="flex justify-between"><span className="text-gray-500">Remaining Balance:</span><span className={`font-mono font-semibold ${(tx.balance||0) > 0 ? 'text-red-600' : 'text-green-700'}`}>{(tx.balance||0) > 0 ? php(tx.balance) : '₱0.00 — Fully Paid ✓'}</span></div>}

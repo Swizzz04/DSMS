@@ -30,9 +30,9 @@ const BASIC_GROUPS = [
   { label: 'Elementary', short: 'Elem', grades: ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'],
     bg: 'bg-blue-600', light: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', bar: '#2563eb' },
   { label: 'Junior High School', short: 'JHS', grades: ['Grade 7','Grade 8','Grade 9','Grade 10'],
-    bg: 'bg-secondary', light: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', bar: '#080c42' },
+    bg: 'bg-secondary', light: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', bar: 'var(--color-secondary)' },
   { label: 'Senior High School', short: 'SHS', grades: ['Grade 11','Grade 12'],
-    bg: 'bg-primary', light: 'bg-red-100 dark:bg-red-900/30', text: 'text-primary dark:text-red-300', bar: '#750014' },
+    bg: 'bg-primary', light: 'bg-red-100 dark:bg-red-900/30', text: 'text-primary dark:text-red-300', bar: 'var(--color-primary)' },
 ]
 const YEAR_LEVELS = ['1st Year','2nd Year','3rd Year','4th Year']
 
@@ -277,8 +277,8 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
   const programBarData = {
     labels: programs,
     datasets: [
-      { label: '1st Year', data: programs.map(p => programStats[p]?.byYear['1st Year'] || 0), backgroundColor: '#750014' },
-      { label: '2nd Year', data: programs.map(p => programStats[p]?.byYear['2nd Year'] || 0), backgroundColor: '#080c42' },
+      { label: '1st Year', data: programs.map(p => programStats[p]?.byYear['1st Year'] || 0), backgroundColor: 'var(--color-primary)' },
+      { label: '2nd Year', data: programs.map(p => programStats[p]?.byYear['2nd Year'] || 0), backgroundColor: 'var(--color-secondary)' },
       { label: '3rd Year', data: programs.map(p => programStats[p]?.byYear['3rd Year'] || 0), backgroundColor: '#202682' },
       { label: '4th Year', data: programs.map(p => programStats[p]?.byYear['4th Year'] || 0), backgroundColor: '#6b7280' },
     ],

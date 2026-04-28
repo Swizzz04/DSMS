@@ -306,7 +306,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
         <div className="flex justify-center mb-1">
           <img src="/cshclogo.png" alt="CSHC" style={{ height: 52, width: 52, objectFit: 'contain' }} />
         </div>
-        <p className="font-bold text-sm uppercase tracking-wide" style={{ color: '#750014' }}>{schoolName}</p>
+        <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName}</p>
         <p className="text-xs text-gray-500">{payment.campus}</p>
         <p className="text-xs text-gray-500">School Year {schoolYear}</p>
         <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -373,8 +373,8 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
           <span className="font-mono">₱{payment.amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
-          <span style={{ color: '#750014' }}>Amount This Payment:</span>
-          <span className="font-mono" style={{ color: '#750014' }}>₱{newTransaction.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          <span style={{ color: 'var(--color-primary)' }}>Amount This Payment:</span>
+          <span className="font-mono" style={{ color: 'var(--color-primary)' }}>₱{newTransaction.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Total Paid:</span>
@@ -761,10 +761,10 @@ function DeptToggle({ value, onChange }) {
             idx > 0 && 'border-l border-[var(--color-border)]',
             value === t.id
               ? t.id === 'all'
-                ? 'bg-[#750014] text-white'
+                ? 'bg-primary text-white'
                 : t.id === 'basic'
                   ? 'bg-emerald-600 text-white'
-                  : 'bg-[#080c42] text-white'
+                  : 'bg-secondary text-white'
               : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
           ].filter(Boolean).join(' ')}
         >
@@ -947,7 +947,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
               Basic Ed: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(basicTotal)}</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="w-2 h-2 rounded-full bg-[#080c42] dark:bg-blue-400 inline-block"/>
+              <span className="w-2 h-2 rounded-full bg-secondary dark:bg-blue-400 inline-block"/>
               College: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(collegeTotal)}</span>
             </div>
           </div>
@@ -1177,7 +1177,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               Basic Ed: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(basicOut)}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#080c42] dark:bg-blue-400 inline-block"/>
+              <span className="w-2 h-2 rounded-full bg-secondary dark:bg-blue-400 inline-block"/>
               College: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(collegeOut)}</span>
             </span>
           </div>
