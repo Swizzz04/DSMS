@@ -216,6 +216,7 @@ export function CampusBanner({ user }) {
     user.role === 'principal_basic'   ||
     user.role === 'program_head'      ||
     user.role === 'system_admin'      ||
+    user.role === 'teacher'           ||
     (user.role === 'accounting' && user.campus !== 'all')
 
   if (!isLocked) return null
@@ -227,6 +228,7 @@ export function CampusBanner({ user }) {
     principal_basic:   'Basic Ed Principal',
     program_head:      'Program Head (College)',
     system_admin:      'System Admin',
+    teacher:           'Teacher',
   }
 
   // Campus-based colors — uniform across all roles per campus
@@ -277,6 +279,7 @@ export function CampusChip({ user }) {
     user.role === 'principal_basic'   ||
     user.role === 'program_head'      ||
     user.role === 'system_admin'      ||
+    user.role === 'teacher'           ||
     (user.role === 'accounting' && user.campus !== 'all')
 
   if (!isLocked) return null

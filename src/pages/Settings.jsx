@@ -1689,7 +1689,7 @@ export default function Settings() {
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><Image className="w-4 h-4 text-[var(--color-text-muted)]" /> School Logo</h4>
                     <div className="flex flex-col sm:flex-row items-start gap-4">
-                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><img src="/assets/cshclogo.png" alt="Logo" className="w-16 h-16 object-contain" onError={(e) => { e.target.style.display='none' }} /></div>
+                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo" className="w-16 h-16 object-contain" onError={(e) => { e.target.style.display='none' }} /></div>
                       <div><p className="text-xs text-[var(--color-text-muted)] mb-2">512×512px PNG, transparent background. Max 2MB.</p><button className="flex items-center gap-2 px-3 py-2 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-secondary)]" onClick={() => addToast('Logo upload available when backend is connected', 'info')}><Upload className="w-3.5 h-3.5" /> Upload Logo</button></div>
                     </div>
                   </div>
@@ -2359,7 +2359,7 @@ export default function Settings() {
                   <Receipt className="w-3.5 h-3.5" /> Receipt Preview
                 </p>
                 <div className="text-xs space-y-1.5 text-[var(--color-text-secondary)]">
-                  <p className="font-bold text-sm text-[var(--color-text-primary)] text-center">Cebu Sacred Heart College, Inc.</p>
+                  <p className="font-bold text-sm text-[var(--color-text-primary)] text-center">{websiteContent.schoolName || 'School Name'}</p>
                   <p className="text-center text-gray-400">{user?.campus || 'Campus'}</p>
                   <div className="border-t border-[var(--color-border)] mt-2 pt-2">
                     <div className="flex justify-between"><span className="text-gray-400">OR No.:</span><span className="font-mono">OR-2526-XXXX</span></div>
@@ -2430,13 +2430,13 @@ export default function Settings() {
 // Roles that require a campus assignment
 const CAMPUS_SCOPED_ROLES = [
   'registrar_basic', 'registrar_college', 'accounting',
-  'principal_basic', 'program_head',
+  'principal_basic', 'program_head', 'teacher',
 ]
 
-// Roles available to assign (excluding student/teacher — future features)
 const ASSIGNABLE_ROLES = [
   { value: 'technical_admin',   label: 'Super Admin'              },
   { value: 'system_admin',      label: 'System Admin'             },
+  { value: 'teacher',           label: 'Teacher'                  },
   { value: 'registrar_basic',   label: 'Basic Ed Registrar'       },
   { value: 'registrar_college', label: 'College Registrar'        },
   { value: 'accounting',        label: 'Accounting Officer'       },

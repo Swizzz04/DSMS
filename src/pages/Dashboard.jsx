@@ -23,7 +23,7 @@ import {
   Download, Users, FileText, GraduationCap,
   MapPin, BookOpen, Clock, CheckCircle, DollarSign,
   AlertCircle, BarChart2, TrendingUp,
-  Settings, Shield
+  Settings, Shield, ClipboardList
 } from 'lucide-react'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
@@ -286,7 +286,7 @@ export default function Dashboard() {
     labels: campusStats.map(c => campusShortName(c.name)),
     datasets: [
       { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: '#2563eb', borderRadius: 4 },
-      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: '#750014', borderRadius: 4 },
+      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: 'var(--color-primary)', borderRadius: 4 },
     ],
   }
 
@@ -413,11 +413,64 @@ export default function Dashboard() {
     )
   }
 
-  // ── Owner Dashboard — Cross-Campus Executive Overview ────
+  // ── Teacher Dashboard — My Assignments Overview ────────────
+  if (user?.role === 'teacher') {
+    return (
+      <div className="page-enter space-y-5">
+        <div>
+          <h1 className="text-display text-[var(--color-text-primary)]">Welcome, {user.name?.split(' ')[0] || 'Teacher'}</h1>
+          <p className="text-body text-[var(--color-text-muted)] mt-1">Teacher Portal · {user.campus}</p>
+        </div>
+
+        <CampusBanner user={user} />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger">
+          <button onClick={() => window.location.href = '/students'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-primary" /></div>
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">My Students</p>
+                <p className="text-xs text-[var(--color-text-muted)]">View students in your assigned sections</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => window.location.href = '/subject-load'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-5 h-5 text-secondary" /></div>
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Subject Load</p>
+                <p className="text-xs text-[var(--color-text-muted)]">View your assigned subjects and sections</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => window.location.href = '/grades'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center"><ClipboardList className="w-5 h-5 text-amber-500" /></div>
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Grade Submission</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Enter and submit student grades</p>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <div className="card p-5">
+          <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Quick Guide</h3>
+          <div className="space-y-2">
+            <p className="text-xs text-[var(--color-text-secondary)]">• Check your subject assignments in <span className="font-semibold">Subject Load</span></p>
+            <p className="text-xs text-[var(--color-text-secondary)]">• View your students' profiles and records in <span className="font-semibold">Students</span></p>
+            <p className="text-xs text-[var(--color-text-secondary)]">• Grade submission will be available once the grading period opens</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (user?.role === 'admin') {
     // Use primary color for all campus indicators
-    const primaryColor = '#750014'
-    const secondaryColor = '#080c42'
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#750014'
+    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#080c42'
 
     // Chart.js data — Students per campus (bar)
     const studentBarData = {
@@ -426,13 +479,13 @@ export default function Dashboard() {
         {
           label: 'Basic Ed',
           data: campusStats.map(c => c.basicStu),
-          backgroundColor: '#750014',
+          backgroundColor: 'var(--color-primary)',
           borderRadius: 6,
         },
         {
           label: 'College',
           data: campusStats.map(c => c.collegeStu),
-          backgroundColor: '#080c42',
+          backgroundColor: 'var(--color-secondary)',
           borderRadius: 6,
         },
       ],
@@ -486,7 +539,7 @@ export default function Dashboard() {
 
         {/* Grand totals */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: '#2563eb' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-info)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Students</span>
               <Users className="w-5 h-5 text-blue-500" />
@@ -495,7 +548,7 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Across {campusStats.length} campuses</p>
           </div>
 
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: '#16a34a' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-success)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Income</span>
               <DollarSign className="w-5 h-5 text-green-500" />
@@ -504,7 +557,7 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Collection rate: {collectionRate}%</p>
           </div>
 
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: '#750014' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-primary)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Enrollments</span>
               <FileText className="w-5 h-5 text-primary" />
@@ -513,7 +566,7 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-muted)] mt-1">This school year</p>
           </div>
 
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: '#080c42' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-secondary)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Outstanding Balance</span>
               <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -613,7 +666,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
 
         {/* Total Students */}
-        <div className="stat-card animate-fade-in" style={{ borderLeftColor: '#2563eb' }}>
+        <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-info)' }}>
           <div className="flex items-center justify-between mb-2">
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Total Students

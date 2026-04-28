@@ -232,7 +232,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
     <div className="receipt-copy border border-gray-300 rounded-lg p-5 bg-white text-gray-900" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
-        <p className="font-bold text-sm uppercase tracking-wide" style={{ color: '#750014' }}>Cebu Sacred Heart College, Inc.</p>
+        <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName || 'School Name'}</p>
         <p className="text-xs text-gray-500">{campus}</p>
         <p className="text-xs text-gray-500">School Year {schoolYear}</p>
         <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -321,8 +321,8 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
           <span className="font-mono">{php(totalFee)}</span>
         </div>
         <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
-          <span style={{ color: '#750014' }}>Amount Received:</span>
-          <span className="font-mono" style={{ color: '#750014' }}>{php(amtPaid)}</span>
+          <span style={{ color: 'var(--color-primary)' }}>Amount Received:</span>
+          <span className="font-mono" style={{ color: 'var(--color-primary)' }}>{php(amtPaid)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Remaining Balance:</span>
@@ -1573,7 +1573,7 @@ export default function Enrollments() {
                 {websiteCount} enrollment{websiteCount !== 1 ? 's' : ''} paid and ready for your approval
               </p>
               <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                Payment has been confirmed by Accounting — please review and approve or reject below
+                Payment has been confirmed by Accounting — please review and approve
               </p>
             </div>
           </div>

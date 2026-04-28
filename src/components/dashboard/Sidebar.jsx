@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   LayoutDashboard, FileText, Users, DollarSign,
-  Settings, X, GraduationCap, BarChart2, Layers
+  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -136,7 +136,8 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       payments:       { id: 'payments',     label: 'Payments',     icon: DollarSign, path: '/payments' },
       reports:        { id: 'reports',      label: 'Reports',      icon: BarChart2,  path: '/reports' },
       settings:       { id: 'settings',     label: 'Settings',     icon: Settings,   path: '/settings' },
-      'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,     path: '/subject-load' },
+      'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load' },
+      grades:         { id: 'grades',       label: 'Grades',       icon: ClipboardList, path: '/grades' },
     }
 
     const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
@@ -158,6 +159,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     accounting:        'Accounting Portal',
     principal_basic:   'Basic Ed Principal',
     program_head:      'Program Head',
+    teacher:           'Teacher Portal',
   }[user?.role] || 'Portal')
 
   // ── Section label helper (visual grouping within long nav lists) ──

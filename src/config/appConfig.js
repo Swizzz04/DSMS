@@ -180,18 +180,11 @@ export const ROLE_DEFINITIONS = {
     permissions: ['dashboard', 'payments', 'reports', 'settings'],
     campusScoped: true,
   },
-  teacher_basic: {
-    label:       'Basic Ed Teacher',
-    description: 'Teaches assigned subjects, may serve as class adviser or special role',
+  teacher: {
+    label:       'Teacher',
+    description: 'Teaches assigned subjects in Basic Ed and/or College. Submits grades, views student records, and checks subject load assignments.',
     color:       'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
-    permissions: ['dashboard', 'grades', 'my_subjects'],
-    campusScoped: true,
-  },
-  instructor_college: {
-    label:       'College Instructor',
-    description: 'Teaches major college subjects and submits grades to college registrar',
-    color:       'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300',
-    permissions: ['dashboard', 'grades', 'my_subjects'],
+    permissions: ['dashboard', 'grades', 'students', 'subject_load'],
     campusScoped: true,
   },
   student: {
@@ -218,6 +211,7 @@ export const ALL_PAGES = [
   { id: 'reports',      label: 'Reports',      icon: 'BarChart2' },
   { id: 'settings',     label: 'Settings',     icon: 'Settings' },
   { id: 'subject-load', label: 'Subject Load', icon: 'BookOpen' },
+  { id: 'grades',       label: 'Grades',       icon: 'ClipboardList' },
 ]
 
 /** All available settings tabs */
@@ -241,6 +235,7 @@ export const DEFAULT_PERMISSIONS = {
   accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'reports', 'settings'],                 tabs: ['fees', 'discounts', 'receipt'] },
   principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
   program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
+  teacher:           { pages: ['dashboard', 'grades', 'students', 'subject-load'],                      tabs: [] },
 }
 
 /** Get effective permissions for a user (custom or default) */
@@ -861,35 +856,66 @@ export const SYSTEM_USERS = [
     role: 'principal_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: null,
   },
-  // ── Sample teacher accounts (for Subject Load simulation) ────────
+  // ── Teacher accounts (all campuses) ────────────────────────────
   // Password for all: teacher123
-  // SHA-256 of 'teacher123': ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f
+  // SHA-256 of 'teacher123': cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416
+  // Carcar teachers
   {
     id: 19, name: 'Maria Santos',
     email: 'teacher.santos@cshc.edu.ph',
-    passwordHash: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f',
-    role: 'teacher_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     id: 20, name: 'Juan dela Cruz',
     email: 'teacher.delacruz@cshc.edu.ph',
-    passwordHash: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f',
-    role: 'teacher_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     id: 21, name: 'Ana Reyes',
-    email: 'instructor.reyes@cshc.edu.ph',
-    passwordHash: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f',
-    role: 'instructor_college', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    email: 'teacher.reyes@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     id: 22, name: 'Pedro Bautista',
-    email: 'instructor.bautista@cshc.edu.ph',
-    passwordHash: 'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f',
-    role: 'instructor_college', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    email: 'teacher.bautista@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
+    status: 'active', lastLogin: null,
+  },
+  // Talisay teachers
+  {
+    id: 40, name: 'Rosa Fernandez',
+    email: 'teacher.fernandez@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Talisay City Campus', campusKey: 'Talisay',
+    status: 'active', lastLogin: null,
+  },
+  {
+    id: 41, name: 'Carlos Mendoza',
+    email: 'teacher.mendoza@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Talisay City Campus', campusKey: 'Talisay',
+    status: 'active', lastLogin: null,
+  },
+  // Bohol teachers
+  {
+    id: 42, name: 'Elena Villanueva',
+    email: 'teacher.villanueva@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Bohol Campus', campusKey: 'Bohol',
+    status: 'active', lastLogin: null,
+  },
+  {
+    id: 43, name: 'Ramon Espinosa',
+    email: 'teacher.espinosa@cshc.edu.ph',
+    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
+    role: 'teacher', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: null,
   },
 ]
@@ -921,6 +947,7 @@ export function campusHasRole(campusKey, roleKey, override) {
     accounting:          campus.roles?.hasAccounting,
     teacher_basic:       campus.hasBasicEd,
     instructor_college:  campus.hasCollege,
+    teacher:             true,  // teachers can teach both Basic Ed and College
   }
   return roleMap[roleKey] ?? false
 }

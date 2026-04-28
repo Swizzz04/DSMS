@@ -31,13 +31,6 @@ const dropdownVis = (open) =>
     : 'pointer-events-none opacity-0'
 
 // Campus dot colors — brand-first palette, one per campus slot
-const CAMPUS_DOTS = [
-  'var(--color-primary)',
-  '#2563eb',
-  '#10b981',
-  '#7c3aed',
-]
-
 export default function Header({ toggleSidebar }) {
   const { user, logout }   = useAuth()
   const navigate           = useNavigate()
