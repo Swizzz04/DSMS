@@ -14,7 +14,8 @@ const Payments    = lazy(() => import('./pages/Payments'))
 const Reports     = lazy(() => import('./pages/Reports'))
 const Settings    = lazy(() => import('./pages/Settings'))
 const SubjectLoad = lazy(() => import('./pages/SubjectLoad'))
-const Grades      = lazy(() => import('./pages/Grades'))
+const Grades      = lazy(() => import('./pages/EClassRecord'))
+const TeacherForms = lazy(() => import('./pages/TeacherForms'))
 
 function PageLoader() {
   return (
@@ -71,7 +72,8 @@ function App() {
         <Route path="/reports"      element={<PermRoute page="reports"><Reports /></PermRoute>} />
         <Route path="/settings"     element={<PermRoute page="settings"><Settings /></PermRoute>} />
         <Route path="/subject-load" element={<PermRoute page="subject-load"><SubjectLoad /></PermRoute>} />
-        <Route path="/grades"       element={<PermRoute page="grades"><Grades /></PermRoute>} />
+        <Route path="/e-class-record" element={<PermRoute page="e-class-record"><Grades /></PermRoute>} />
+        <Route path="/teacher-forms"  element={<PermRoute page="teacher-forms"><TeacherForms /></PermRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/login" />} />

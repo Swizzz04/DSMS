@@ -42,16 +42,19 @@ export const SCHOOL_INFO = {
 export const SCHOOL_YEARS = [
   {
     id: 1, year: '2025-2026', status: 'completed', isCurrent: false,
+    gradingPeriodType: 'quarterly', // 'quarterly' or 'trimester'
     basicEd: { startDate: '2025-06-01', endDate: '2026-03-31', events: [] },
     college: { startDate: '2025-08-01', endDate: '2026-05-31', events: [] },
   },
   {
     id: 2, year: '2026-2027', status: 'active', isCurrent: true,
+    gradingPeriodType: 'quarterly',
     basicEd: { startDate: '2026-06-01', endDate: '2027-03-31', events: [] },
     college: { startDate: '2026-08-01', endDate: '2027-05-31', events: [] },
   },
   {
     id: 3, year: '2027-2028', status: 'upcoming', isCurrent: false,
+    gradingPeriodType: 'quarterly',
     basicEd: { startDate: '2027-06-01', endDate: '2028-03-31', events: [] },
     college: { startDate: '2027-08-01', endDate: '2028-05-31', events: [] },
   },
@@ -184,7 +187,7 @@ export const ROLE_DEFINITIONS = {
     label:       'Teacher',
     description: 'Teaches assigned subjects in Basic Ed and/or College. Submits grades, views student records, and checks subject load assignments.',
     color:       'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
-    permissions: ['dashboard', 'grades', 'students', 'subject_load'],
+    permissions: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject_load'],
     campusScoped: true,
   },
   student: {
@@ -211,31 +214,33 @@ export const ALL_PAGES = [
   { id: 'reports',      label: 'Reports',      icon: 'BarChart2' },
   { id: 'settings',     label: 'Settings',     icon: 'Settings' },
   { id: 'subject-load', label: 'Subject Load', icon: 'BookOpen' },
-  { id: 'grades',       label: 'Grades',       icon: 'ClipboardList' },
+  { id: 'e-class-record', label: 'e-Class Record', icon: 'ClipboardList' },
+  { id: 'teacher-forms',  label: 'Teacher Forms',  icon: 'FileText' },
 ]
 
 /** All available settings tabs */
 export const ALL_TABS = [
-  { id: 'users',      label: 'Users',          forRoles: ['technical_admin', 'system_admin'] },
-  { id: 'schoolInfo', label: 'School Info',     forRoles: ['technical_admin'] },
-  { id: 'schoolYear', label: 'School Year',     forRoles: ['principal_basic', 'program_head'] },
-  { id: 'grades',     label: 'Grade Levels',    forRoles: ['principal_basic', 'program_head'] },
-  { id: 'fees',       label: 'Fee Structure',   forRoles: ['accounting'] },
-  { id: 'discounts',  label: 'Discounts',       forRoles: ['accounting'] },
-  { id: 'receipt',    label: 'Receipt',          forRoles: ['accounting'] },
+  { id: 'users',         label: 'Users',          forRoles: ['technical_admin', 'system_admin'] },
+  { id: 'schoolInfo',    label: 'School Info',     forRoles: ['technical_admin'] },
+  { id: 'formTemplates', label: 'Form Templates',  forRoles: ['technical_admin'] },
+  { id: 'schoolYear',    label: 'School Year',     forRoles: ['principal_basic', 'program_head'] },
+  { id: 'grades',        label: 'Grade Levels',    forRoles: ['principal_basic', 'program_head'] },
+  { id: 'fees',          label: 'Fee Structure',   forRoles: ['accounting'] },
+  { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
+  { id: 'receipt',       label: 'Receipt',          forRoles: ['accounting'] },
 ]
 
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
   admin:             { pages: ['dashboard', 'enrollments', 'reports'],                                         tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'settings'],                                                       tabs: ['users', 'schoolInfo'] },
+  technical_admin:   { pages: ['dashboard', 'settings'],                                                       tabs: ['users', 'schoolInfo', 'formTemplates'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
   registrar_basic:   { pages: ['dashboard', 'enrollments', 'students'],                                        tabs: [] },
   registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load'],                        tabs: [] },
   accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'reports', 'settings'],                 tabs: ['fees', 'discounts', 'receipt'] },
   principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
   program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
-  teacher:           { pages: ['dashboard', 'grades', 'students', 'subject-load'],                      tabs: [] },
+  teacher:           { pages: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject-load'],                      tabs: [] },
 }
 
 /** Get effective permissions for a user (custom or default) */
