@@ -216,16 +216,25 @@ export default function EClassRecord() {
     const key = draftKey(subj || selectedSubject, period || gradingPeriod)
     const savedScores = allDrafts[key] || {}
 
+    // Helper: ensure score array matches activity count
+    const alignScores = (savedArr, actArr) => {
+      const target = (actArr || []).length
+      if (!savedArr || savedArr.length === 0) return Array(target).fill('')
+      if (savedArr.length === target) return [...savedArr]
+      if (savedArr.length < target) return [...savedArr, ...Array(target - savedArr.length).fill('')]
+      return savedArr.slice(0, target) // trim excess
+    }
+
     const rows = students.map(stu => {
       const saved = savedScores[stu.id]
       return {
         studentId: stu.id,
         studentName: stu.name,
         gender: stu.gender,
-        // Restore saved scores or empty
-        ww: saved?.ww || (acts.ww || []).map(() => ''),
-        pt: saved?.pt || (acts.pt || []).map(() => ''),
-        qa: saved?.qa || (acts.qa || []).map(() => ''),
+        // Always align saved scores to current activity count
+        ww: alignScores(saved?.ww, acts.ww),
+        pt: alignScores(saved?.pt, acts.pt),
+        qa: alignScores(saved?.qa, acts.qa),
         computed: null,
         status: saved?.status || 'draft',
       }
