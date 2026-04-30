@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useReactToPrint } from 'react-to-print'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+// jsPDF and html2canvas loaded dynamically when user clicks Download PDF
 import {
   Search, Users, Eye, Printer, Download,
   GraduationCap, MapPin, BookOpen, X, ChevronRight,
@@ -641,6 +640,12 @@ export default function Students() {
     await new Promise(resolve => setTimeout(resolve, 500))
 
     try {
+      // Load heavy PDF libraries only when needed (~1MB total, not on page load)
+      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
+
       const el = printRef.current
       if (!el) throw new Error('Print ref not ready')
 

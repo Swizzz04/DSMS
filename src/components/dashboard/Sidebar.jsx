@@ -374,7 +374,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
           color:         'var(--color-text-muted)',
           letterSpacing: '0.04em',
         }}>
-          {'00A9 ' + new Date().getFullYear() + ' ' + school.shortName}
+          {'\u00A9 ' + new Date().getFullYear() + ' ' + school.shortName}
         </div>
       </aside>
     </>
