@@ -4,7 +4,7 @@ import {
   Users, Plus, Edit, Check, Save, Receipt,
   X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen,
   ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload,
-  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send
+  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send, ClipboardList, FileText, FolderOpen
 } from 'lucide-react'
 import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
@@ -1090,6 +1090,83 @@ export default function Settings() {
     addToast('Website content saved! Changes applied to the system.', 'success')
   }
 
+  // ── Form Templates state ────────────────────────────────────
+  const [formTemplates, setFormTemplates] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cshc_form_templates') || '[]') } catch { return [] }
+  })
+
+  // Default form types + any custom ones the admin added
+  const DEFAULT_TEMPLATE_TYPES = [
+    { id: 'e-class-record', label: 'e-Class Record', description: 'Grade recording sheet per subject per quarter', isDefault: true },
+    { id: 'sf2', label: 'School Form 2 (SF2)', description: 'Daily attendance report per month', isDefault: true },
+    { id: 'sf5', label: 'School Form 5 (SF5)', description: 'Report on promotion and level of proficiency', isDefault: true },
+    { id: 'sf9', label: 'School Form 9 (SF9)', description: 'Learner progress report card', isDefault: true },
+    { id: 'sf10', label: 'School Form 10 (SF10)', description: 'Learner permanent academic record', isDefault: true },
+  ]
+
+  const [customFormTypes, setCustomFormTypes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('cshc_custom_form_types') || '[]') } catch { return [] }
+  })
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newFormName, setNewFormName] = useState('')
+  const [newFormDesc, setNewFormDesc] = useState('')
+
+  const TEMPLATE_TYPES = [...DEFAULT_TEMPLATE_TYPES, ...customFormTypes]
+
+  const addCustomFormType = () => {
+    const name = newFormName.trim()
+    if (!name) { addToast('Please enter a form name', 'error'); return }
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-')
+    if (TEMPLATE_TYPES.find(t => t.id === id)) { addToast('A form with this name already exists', 'error'); return }
+    const updated = [...customFormTypes, { id, label: name, description: newFormDesc.trim() || 'Custom form template', isDefault: false }]
+    setCustomFormTypes(updated)
+    localStorage.setItem('cshc_custom_form_types', JSON.stringify(updated))
+    setNewFormName('')
+    setNewFormDesc('')
+    setShowAddForm(false)
+    addToast(`Form type "${name}" added`, 'success')
+  }
+
+  const removeCustomFormType = (formId) => {
+    const updated = customFormTypes.filter(t => t.id !== formId)
+    setCustomFormTypes(updated)
+    localStorage.setItem('cshc_custom_form_types', JSON.stringify(updated))
+    // Also remove the uploaded template for this type
+    const updatedTemplates = formTemplates.filter(t => t.type !== formId)
+    setFormTemplates(updatedTemplates)
+    localStorage.setItem('cshc_form_templates', JSON.stringify(updatedTemplates))
+    addToast('Form type removed', 'success')
+  }
+
+  const handleTemplateUpload = (templateType, file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const base64 = e.target.result
+      const updated = formTemplates.filter(t => t.type !== templateType)
+      updated.push({
+        type: templateType,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
+        data: base64,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: user?.name || 'Admin',
+      })
+      setFormTemplates(updated)
+      localStorage.setItem('cshc_form_templates', JSON.stringify(updated))
+      addToast(`Template uploaded: ${file.name}`, 'success')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const removeTemplate = (templateType) => {
+    const updated = formTemplates.filter(t => t.type !== templateType)
+    setFormTemplates(updated)
+    localStorage.setItem('cshc_form_templates', JSON.stringify(updated))
+    addToast('Template removed', 'success')
+  }
+
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 150)
     return () => clearTimeout(t)
@@ -1176,13 +1253,14 @@ export default function Settings() {
   const userTabs = userPerms.tabs || []
 
   const allTabs = [
-    { id: 'users',       label: 'Users',            icon: Users },
-    { id: 'schoolInfo',  label: 'School Info',       icon: School },
-    { id: 'schoolYear',  label: 'School Year',       icon: Calendar },
-    { id: 'grades',      label: 'Grade Levels',      icon: GraduationCap },
-    { id: 'fees',        label: 'Fee Structure',     icon: DollarSign },
-    { id: 'discounts',   label: 'Discounts',         icon: Tag },
-    { id: 'receipt',     label: 'Receipt',            icon: Receipt },
+    { id: 'users',         label: 'Users',            icon: Users },
+    { id: 'schoolInfo',    label: 'School Info',       icon: School },
+    { id: 'formTemplates', label: 'Form Templates',    icon: FileText },
+    { id: 'schoolYear',    label: 'School Year',       icon: Calendar },
+    { id: 'grades',        label: 'Grade Levels',      icon: GraduationCap },
+    { id: 'fees',          label: 'Fee Structure',     icon: DollarSign },
+    { id: 'discounts',     label: 'Discounts',         icon: Tag },
+    { id: 'receipt',       label: 'Receipt',            icon: Receipt },
   ]
   const tabs = allTabs.filter(t => userTabs.includes(t.id))
 
@@ -2401,6 +2479,118 @@ export default function Settings() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Form Templates Tab */}
+        {activeTab === 'formTemplates' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Form Templates</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">Upload your school's Excel templates. When teachers export forms, the system will use these templates to produce files in your exact format.</p>
+              </div>
+              <button onClick={() => setShowAddForm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-lg hover:bg-accent-burgundy transition">
+                <Plus className="w-4 h-4" /> Add Form
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+              <Info className="w-4 h-4 flex-shrink-0" />
+              Templates are stored locally for now. When the backend is connected, they will be stored on the server and used automatically for all exports.
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {TEMPLATE_TYPES.map(tmpl => {
+                const existing = formTemplates.find(t => t.type === tmpl.id)
+                return (
+                  <div key={tmpl.id} className="card p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{tmpl.label}</h3>
+                          {tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] uppercase tracking-wider">Default</span>}
+                          {!tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 uppercase tracking-wider">Custom</span>}
+                        </div>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</p>
+
+                        {existing ? (
+                          <div className="mt-3 flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
+                            <FileText className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-green-700 dark:text-green-300 truncate">{existing.fileName}</p>
+                              <p className="text-[10px] text-green-600/70 dark:text-green-400/60">
+                                {(existing.fileSize / 1024).toFixed(1)} KB · Uploaded {new Date(existing.uploadedAt).toLocaleDateString()} by {existing.uploadedBy}
+                              </p>
+                            </div>
+                            <div className="flex gap-1.5">
+                              <label className="px-2.5 py-1 text-[10px] font-medium rounded-lg bg-[var(--color-bg-subtle)] hover:bg-[var(--color-bg-muted)] transition text-[var(--color-text-secondary)] cursor-pointer">
+                                Replace
+                                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleTemplateUpload(tmpl.id, e.target.files?.[0])} />
+                              </label>
+                              <button onClick={() => removeTemplate(tmpl.id)} className="px-2.5 py-1 text-[10px] font-medium rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3">
+                            <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl hover:border-primary/40 hover:bg-primary/5 transition cursor-pointer">
+                              <Upload className="w-4 h-4 text-[var(--color-text-muted)]" />
+                              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Upload Excel Template (.xlsx)</span>
+                              <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleTemplateUpload(tmpl.id, e.target.files?.[0])} />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                      {/* Delete button for custom forms only */}
+                      {!tmpl.isDefault && (
+                        <button onClick={() => removeCustomFormType(tmpl.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-muted)] hover:text-red-500 transition" title="Remove this form type">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">How Templates Work</h3>
+              <div className="space-y-2 text-xs text-[var(--color-text-secondary)]">
+                <p>1. Upload your school's existing Excel file as a template (e.g. your e-Class Record format)</p>
+                <p>2. When the backend is connected, the system will read your template's layout, colors, and formatting</p>
+                <p>3. When a teacher exports, the system fills your template with student data — preserving your exact design</p>
+                <p>4. Click <strong>"Add Form"</strong> to create custom form types specific to your school</p>
+              </div>
+            </div>
+
+            {/* Add Form Modal */}
+            {showAddForm && (
+              <ModalPortal><div className="modal-backdrop"><div className="modal-panel" style={{ maxWidth: '28rem' }}>
+                <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+                  <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Add Custom Form</h3>
+                  <button onClick={() => { setShowAddForm(false); setNewFormName(''); setNewFormDesc('') }} className="p-1.5 rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-4 h-4 text-[var(--color-text-muted)]" /></button>
+                </div>
+                <div className="p-4 space-y-4">
+                  <div>
+                    <label className="form-label">Form Name</label>
+                    <input type="text" value={newFormName} onChange={e => setNewFormName(e.target.value)} placeholder="e.g. Class Observation Form" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                  <div>
+                    <label className="form-label">Description</label>
+                    <input type="text" value={newFormDesc} onChange={e => setNewFormDesc(e.target.value)} placeholder="e.g. Teacher evaluation form used during class visits" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 p-4 border-t border-[var(--color-border)]">
+                  <button onClick={() => { setShowAddForm(false); setNewFormName(''); setNewFormDesc('') }} className="btn-cancel">Cancel</button>
+                  <button onClick={addCustomFormType} className="btn-action flex items-center gap-1.5"><Plus className="w-4 h-4" /> Add Form</button>
+                </div>
+              </div></div></ModalPortal>
+            )}
           </div>
         )}
 

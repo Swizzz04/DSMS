@@ -37,7 +37,7 @@ import { useAuth } from '../context/AuthContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { exportMultipleSheets } from '../utils/exportToExcel'
-import { SkeletonDashboard } from '../components/UIComponents'
+import { SkeletonDashboard, useToast, ToastContainer } from '../components/UIComponents'
 import {
   StatCard, CampusMiniCard, SectionPanel, CollectionRateBar, CampusBanner,
   EnrollmentStatusPill,
@@ -82,6 +82,7 @@ export default function Dashboard() {
   const { campusFilter = 'all' } = useCampusFilter()
   const [loading, setLoading] = useState(true)
   const [submissions, setSubmissions] = useState(loadSubmissions)
+  const { toasts, addToast, removeToast } = useToast()
 
   // ── Reload when any tab updates enrollments ───────────────────
   useEffect(() => {
@@ -445,12 +446,22 @@ export default function Dashboard() {
             </div>
           </button>
 
-          <button onClick={() => window.location.href = '/grades'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
+          <button onClick={() => window.location.href = '/e-class-record'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center"><ClipboardList className="w-5 h-5 text-amber-500" /></div>
               <div>
-                <p className="text-sm font-bold text-[var(--color-text-primary)]">Grade Submission</p>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">e-Class Record</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Enter and submit student grades</p>
+              </div>
+            </div>
+          </button>
+
+          <button onClick={() => window.location.href = '/teacher-forms'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-violet-500/10 rounded-lg flex items-center justify-center"><FileText className="w-5 h-5 text-violet-500" /></div>
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Teacher Forms</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Attendance, reports, and other forms</p>
               </div>
             </div>
           </button>
@@ -459,11 +470,24 @@ export default function Dashboard() {
         <div className="card p-5">
           <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-2">Quick Guide</h3>
           <div className="space-y-2">
+            <p className="text-xs text-[var(--color-text-secondary)]">• Enter student grades in <span className="font-semibold">e-Class Record</span></p>
+            <p className="text-xs text-[var(--color-text-secondary)]">• Fill out attendance and reports in <span className="font-semibold">Teacher Forms</span></p>
             <p className="text-xs text-[var(--color-text-secondary)]">• Check your subject assignments in <span className="font-semibold">Subject Load</span></p>
             <p className="text-xs text-[var(--color-text-secondary)]">• View your students' profiles and records in <span className="font-semibold">Students</span></p>
-            <p className="text-xs text-[var(--color-text-secondary)]">• Grade submission will be available once the grading period opens</p>
+          </div>
+          {/* Dev tool — seed mock data for testing (remove in production) */}
+          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+            <button onClick={() => {
+              import('../utils/seedGradeTestData').then(m => {
+                m.seedGradeTestData()
+                addToast('Test data seeded! Go to e-Class Record to test grade entry.', 'success')
+              }).catch(() => addToast('Seed file not found', 'error'))
+            }} className="text-[10px] text-[var(--color-text-muted)] hover:text-primary transition underline">
+              🧪 Seed test data (dev only)
+            </button>
           </div>
         </div>
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
     )
   }

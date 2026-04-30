@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   LayoutDashboard, FileText, Users, DollarSign,
-  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList
+  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -137,7 +137,9 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       reports:        { id: 'reports',      label: 'Reports',      icon: BarChart2,  path: '/reports' },
       settings:       { id: 'settings',     label: 'Settings',     icon: Settings,   path: '/settings' },
       'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load' },
-      grades:         { id: 'grades',       label: 'Grades',       icon: ClipboardList, path: '/grades' },
+      grades:             { id: 'grades',           label: 'Grades',         icon: ClipboardList, path: '/grades' },
+      'e-class-record':   { id: 'e-class-record',   label: 'e-Class Record', icon: ClipboardList, path: '/e-class-record' },
+      'teacher-forms':    { id: 'teacher-forms',    label: 'Teacher Forms',  icon: FolderOpen,    path: '/teacher-forms' },
     }
 
     const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
