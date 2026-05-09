@@ -19,7 +19,7 @@
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { SYSTEM_USERS } from '../config/appConfig'
+import { SYSTEM_USERS } from '../config/users'
 import { verifyPassword } from '../utils/crypto'
 
 // ── Constants ────────────────────────────────────────────────────────

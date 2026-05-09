@@ -1,4 +1,4 @@
-import { GRADING_PERIODS, WEIGHT_TABLES, transmute } from './gradingEngine'
+import { GRADING_PERIODS, WEIGHT_TABLES, transmute } from '../engines/gradingEngine'
 
 let XLSX = null
 async function getXLSX() {

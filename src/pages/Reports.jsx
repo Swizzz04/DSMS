@@ -10,7 +10,7 @@ import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { useToast, ToastContainer, PageSkeleton, ModalPortal } from '../components/UIComponents'
-import { CampusBanner, DeptToggle } from '../components/SchoolComponents'
+import { DeptToggle } from '../components/SchoolComponents'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
@@ -60,7 +60,7 @@ function filterByPeriod(transactions, period, customStart, customEnd) {
   if (period === 'custom' && customStart && customEnd) {
     range = {
       start: new Date(customStart),
-      end:   new Date(new Date(customEnd).getTime() + 86400000 - 1),
+      end:   new Date(new Date(customEnd).getTime() + 86400000 - 1)
     }
   } else {
     range = getPeriodRange(period)
@@ -439,7 +439,7 @@ function TxRow({ tx, onView, onPrint }) {
     misc:    'Misc Fee',
     lab:     'Lab Fee',
     books:   'Books',
-    other:   'Other Fees',
+    other:   'Other Fees'
   }
   const feeTags = tx.paymentFor && tx.paymentFor.length > 0
     ? tx.paymentFor.map(k => FEE_LABELS[k] || k)
@@ -656,7 +656,7 @@ export default function Reports() {
         studentType:      sub.enrollment?.studentType || '',
         schoolYear:       sub.enrollment?.schoolYear  || '',
         allPayments:      sub.paymentHistory   || [],
-        enrollmentFee:    sub.feeBreakdown?.enrollment || 0,
+        enrollmentFee:    sub.feeBreakdown?.enrollment || 0
       }))
     })
     return txs
@@ -764,7 +764,7 @@ export default function Reports() {
       'Fully Paid':        fullyPaid,
       'Partial':           partialPaid,
       'Cash':              cashTotal,
-      'Bank Transfer':     bankTotal,
+      'Bank Transfer':     bankTotal
     }]
 
     const txData = filteredTxs.map(tx => ({
@@ -773,7 +773,7 @@ export default function Reports() {
       'Grade/Program': tx.gradeLevel,
       'Method':        tx.method || '—',
       'Date':          new Date(tx.date || tx.paymentDate || '').toLocaleDateString('en-PH'),
-      'Amount':        tx.amount || 0,
+      'Amount':        tx.amount || 0
     }))
 
     const breakdownData = gradeRows.map(r => ({
@@ -781,7 +781,7 @@ export default function Reports() {
       'Students':      r.students,
       'Fully Paid':    r.paid,
       'Partial':       r.partial,
-      'Collected':     r.collected,
+      'Collected':     r.collected
 
     }))
 
@@ -811,7 +811,6 @@ export default function Reports() {
         </button>
       </div>
 
-      <CampusBanner user={user} />
 
       {/* Period selector */}
       <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] p-4 shadow-sm">
@@ -907,7 +906,7 @@ export default function Reports() {
                       deptFilter === 'basic_ed'
                         ? BASIC_ED_GROUPS.map(group => ({
                             label: group.label,
-                            options: (group.options || group.grades || []).map(g => ({ value: g, label: g })),
+                            options: (group.options || group.grades || []).map(g => ({ value: g, label: g }))
                           }))
                         : [{ label: 'College Programs', options: collegePrograms.map(p => ({ value: p, label: p })) }]
                     }

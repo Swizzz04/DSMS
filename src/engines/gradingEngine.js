@@ -173,29 +173,143 @@ export function computeGrade(scores, subjectArea) {
 
 
 // ═══════════════════════════════════════════════════════════════
-// 4. SPECIAL SUBJECT HANDLERS
+// 4. COMPOSITE SUBJECTS (MAPEH + TLE)
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Compute MAPEH grade — average of 4 sub-area transmuted grades
- * @param {Object} subGrades - { music: transmuted, arts: transmuted, pe: transmuted, health: transmuted }
- * @returns {number} Final MAPEH grade (rounded)
+ * Composite subject definitions
+ * These subjects are split into sub-subjects with different teachers.
+ * The system auto-merges their grades.
+ *
+ * MAPEH: All levels (Elementary, JHS, SHS)
+ * TLE: Junior High + Senior High only
+ * HELE: Elementary only (Home Economics & Livelihood Education)
  */
-export function computeMAPEH(subGrades) {
-  const { music, arts, pe, health } = subGrades
-  const grades = [music, arts, pe, health].filter(g => g != null && g > 0)
-  if (grades.length === 0) return 0
-  return Math.round(grades.reduce((a, b) => a + b, 0) / grades.length)
+export const COMPOSITE_SUBJECTS = {
+  MAPEH: {
+    label: 'MAPEH',
+    subSubjects: [
+      { id: 'music_arts', label: 'Music & Arts', weight: 0.50 },
+      { id: 'pe_health',  label: 'PE & Health',  weight: 0.50 },
+    ],
+    mergeMethod: 'average',
+    levels: ['elementary', 'jhs', 'shs'],
+  },
+  TLE: {
+    label: 'TLE',
+    subSubjects: [
+      { id: 'tle', label: 'TLE',       weight: 0.70 },
+      { id: 'computer', label: 'Computer',  weight: 0.30 },
+    ],
+    mergeMethod: 'weighted',
+    levels: ['jhs', 'shs'], // Junior High + Senior High only
+  },
+  HELE: {
+    label: 'HELE',
+    subSubjects: [
+      { id: 'hele', label: 'HELE',      weight: 0.70 },
+      { id: 'computer', label: 'Computer',  weight: 0.30 },
+    ],
+    mergeMethod: 'weighted',
+    levels: ['elementary'], // Elementary only
+  },
 }
 
 /**
- * Compute TLE/HELE grade — weighted: TLE/HELE=70% + Computer=30%
- * @param {number} tleGrade - TLE/HELE transmuted grade
- * @param {number} computerGrade - Computer transmuted grade
- * @returns {number} Final TLE grade (rounded)
+ * Detect education level from grade level string
+ * @param {string} gradeLevel - e.g. 'Grade 3', 'Grade 7', 'Grade 11'
+ * @returns {string} 'elementary' | 'jhs' | 'shs'
+ */
+export function detectEducationLevel(gradeLevel) {
+  const gl = (gradeLevel || '').toLowerCase()
+  const num = parseInt(gl.replace(/[^0-9]/g, '')) || 0
+  if (num >= 1 && num <= 6) return 'elementary'
+  if (num >= 7 && num <= 10) return 'jhs'
+  if (num >= 11 && num <= 12) return 'shs'
+  if (gl.includes('kinder') || gl.includes('nursery') || gl.includes('prep')) return 'elementary'
+  return 'jhs' // default
+}
+
+/**
+ * Check if a subject name is a composite subject
+ * @param {string} subjectName
+ * @returns {Object|null} The composite config or null
+ */
+export function getCompositeConfig(subjectName) {
+  return COMPOSITE_SUBJECTS[(subjectName || '').toUpperCase().trim()] ?? null
+}
+
+/**
+ * Get sub-subjects for a composite subject
+ * @param {string} subjectName - e.g. 'MAPEH', 'TLE', or 'HELE'
+ * @returns {Array} Sub-subject configs or empty array
+ */
+export function getSubSubjects(subjectName) {
+  const config = getCompositeConfig(subjectName)
+  return config ? config.subSubjects : []
+}
+
+/**
+ * Check if a subject is a sub-subject of a composite
+ * @param {string} subjectName - e.g. 'Music & Arts', 'TLE', 'HELE', 'Computer'
+ * @returns {Object|null} { parent: 'MAPEH', subSubject: {...} } or null
+ */
+export function getParentComposite(subjectName) {
+  const lower = (subjectName || '').toLowerCase().trim()
+  for (const [parentKey, config] of Object.entries(COMPOSITE_SUBJECTS)) {
+    const found = config.subSubjects.find(ss => ss.label.toLowerCase() === lower)
+    if (found) return { parent: parentKey, parentLabel: config.label, subSubject: found }
+  }
+  return null
+}
+
+/**
+ * Compute merged grade for a composite subject
+ * @param {Object} subGrades - { sub_id: transmutedGrade, ... }
+ * @param {string} compositeKey - 'MAPEH', 'TLE', or 'HELE'
+ * @returns {number} Merged transmuted grade
+ */
+export function computeCompositeGrade(subGrades, compositeKey) {
+  const config = COMPOSITE_SUBJECTS[compositeKey]
+  if (!config) return 0
+
+  if (config.mergeMethod === 'average') {
+    const grades = config.subSubjects.map(ss => subGrades[ss.id]).filter(g => g != null && g > 0)
+    if (grades.length === 0) return 0
+    return Math.round(grades.reduce((a, b) => a + b, 0) / grades.length)
+  }
+
+  if (config.mergeMethod === 'weighted') {
+    let total = 0, hasAny = false
+    config.subSubjects.forEach(ss => {
+      const g = subGrades[ss.id]
+      if (g != null && g > 0) { total += g * ss.weight; hasAny = true }
+    })
+    return hasAny ? Math.round(total) : 0
+  }
+
+  return 0
+}
+
+/**
+ * Compute MAPEH grade — average of sub-subject transmuted grades
+ */
+export function computeMAPEH(subGrades) {
+  return computeCompositeGrade(subGrades, 'MAPEH')
+}
+
+/**
+ * Compute TLE grade — TLE 70% + Computer 30% (Junior/Senior High)
  */
 export function computeTLE(tleGrade, computerGrade) {
-  return Math.round(tleGrade * 0.70 + computerGrade * 0.30)
+  return computeCompositeGrade({ tle: tleGrade, computer: computerGrade }, 'TLE')
+}
+
+/**
+ * Compute HELE grade — HELE 70% + Computer 30% (Elementary)
+ */
+export function computeHELE(heleGrade, computerGrade) {
+  return computeCompositeGrade({ hele: heleGrade, computer: computerGrade }, 'HELE')
 }
 
 
@@ -477,4 +591,269 @@ export function getStudentGradeSummary(studentId, schoolYear) {
   const general = computeGeneralAverage(allFinals)
 
   return { subjects, ...general }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 9. COLLEGE GRADING ENGINE (CHED Standard)
+//    Append this entire section to the END of gradingEngine.js
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * College Grade Scale — 1.00 to 5.00 (CHED-aligned)
+ * Each entry: { min, max, grade, descriptor }
+ * Percentage input is 0–100 (semester grade before conversion)
+ */
+export const COLLEGE_GRADE_SCALE = [
+  { min: 96, max: 100, grade: '1.00', descriptor: 'Excellent'         },
+  { min: 93, max: 95,  grade: '1.25', descriptor: 'Very Good'         },
+  { min: 90, max: 92,  grade: '1.50', descriptor: 'Very Good'         },
+  { min: 87, max: 89,  grade: '1.75', descriptor: 'Good'              },
+  { min: 84, max: 86,  grade: '2.00', descriptor: 'Good'              },
+  { min: 81, max: 83,  grade: '2.25', descriptor: 'Satisfactory'      },
+  { min: 78, max: 80,  grade: '2.50', descriptor: 'Satisfactory'      },
+  { min: 76, max: 77,  grade: '2.75', descriptor: 'Passing'           },
+  { min: 75, max: 75,  grade: '3.00', descriptor: 'Passing (Minimum)' },
+  { min: 0,  max: 74,  grade: '5.00', descriptor: 'Failed'            },
+]
+
+/** College semester options */
+export const COLLEGE_SEMESTERS = [
+  { id: '1st_sem', label: '1st Semester' },
+  { id: '2nd_sem', label: '2nd Semester' },
+  { id: 'summer',  label: 'Summer Term'  },
+]
+
+/** Special grade codes that override computed point grades */
+export const SPECIAL_GRADES = [
+  { value: 'INC',  label: 'INC — Incomplete'           },
+  { value: 'DRP',  label: 'DRP — Dropped'              },
+  { value: '4.00', label: '4.00 — Conditional Failure' },
+]
+
+/**
+ * Convert a semester grade (0–100) to a point grade row.
+ * Returns the matching COLLEGE_GRADE_SCALE entry or null if input is invalid.
+ *
+ * @param {number|string} semesterGrade
+ * @returns {{ grade: string, descriptor: string } | null}
+ */
+export function getPointGrade(semesterGrade) {
+  if (semesterGrade === null || semesterGrade === undefined || semesterGrade === '') return null
+  const num = Number(semesterGrade)
+  if (isNaN(num)) return null
+  for (const row of COLLEGE_GRADE_SCALE) {
+    if (num >= row.min && num <= row.max) return row
+  }
+  return { grade: '5.00', descriptor: 'Failed' }
+}
+
+/**
+ * Compute the college semester grade from Prelim, Midterm, and Finals.
+ * Weights: Prelim 30% + Midterm 30% + Finals 40%
+ *
+ * @param {number|string} prelim   — 0–100
+ * @param {number|string} midterm  — 0–100
+ * @param {number|string} finals   — 0–100
+ * @returns {{ semesterGrade, pointGrade, descriptor, passed } | null}
+ *   Returns null if any input is missing (allows partial entry without crashing)
+ */
+export function computeCollegeGrade(prelim, midterm, finals) {
+  const hasAll = prelim !== '' && prelim != null &&
+                 midterm !== '' && midterm != null &&
+                 finals !== '' && finals != null
+
+  if (!hasAll) return null
+
+  const p = Math.min(100, Math.max(0, Number(prelim)  || 0))
+  const m = Math.min(100, Math.max(0, Number(midterm) || 0))
+  const f = Math.min(100, Math.max(0, Number(finals)  || 0))
+
+  const semesterGrade = Math.round((p * 0.30 + m * 0.30 + f * 0.40) * 100) / 100
+  const scaleRow      = getPointGrade(semesterGrade)
+
+  return {
+    semesterGrade,
+    pointGrade:  scaleRow?.grade      ?? '5.00',
+    descriptor:  scaleRow?.descriptor ?? 'Failed',
+    passed:      scaleRow ? Number(scaleRow.grade) <= 3.00 : false,
+  }
+}
+
+/**
+ * Get Latin Honor classification from a GWA.
+ * @param {number} gwa
+ * @returns {string | null}
+ */
+export function getLatinHonor(gwa) {
+  const g = Number(gwa)
+  if (isNaN(g)) return null
+  if (g >= 1.00 && g <= 1.20) return 'Summa Cum Laude'
+  if (g >= 1.21 && g <= 1.45) return 'Magna Cum Laude'
+  if (g >= 1.46 && g <= 1.75) return 'Cum Laude'
+  return null
+}
+
+/**
+ * Compute General Weighted Average from subject grades.
+ * @param {Array<{ pointGrade: string, units: number }>} subjects
+ * @returns {number | null}
+ */
+export function computeGWA(subjects) {
+  let totalPoints = 0, totalUnits = 0
+  subjects.forEach(s => {
+    const grade = Number(s.pointGrade)
+    if (!isNaN(grade) && s.units > 0) {
+      totalPoints += grade * s.units
+      totalUnits  += s.units
+    }
+  })
+  if (totalUnits === 0) return null
+  return Math.round((totalPoints / totalUnits) * 100) / 100
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLLEGE GRADE BRIDGE (swap for API when backend is ready)
+// Storage key: cshc_college_grades
+// ─────────────────────────────────────────────────────────────────────────────
+
+const COLLEGE_GRADES_KEY = 'cshc_college_grades'
+const COLLEGE_DRAFT_KEY  = 'cshc_college_draft'
+
+function getCollegeGradesAll() {
+  try { return JSON.parse(localStorage.getItem(COLLEGE_GRADES_KEY) || '[]') }
+  catch { return [] }
+}
+
+function saveCollegeGradesAll(grades) {
+  localStorage.setItem(COLLEGE_GRADES_KEY, JSON.stringify(grades))
+  window.dispatchEvent(new CustomEvent('cshc_college_grades_updated'))
+}
+
+/** Get college grades with optional filters */
+export function getCollegeGrades(filters = {}) {
+  let grades = getCollegeGradesAll()
+  if (filters.teacherId)  grades = grades.filter(g => g.teacherId  === filters.teacherId)
+  if (filters.studentId)  grades = grades.filter(g => g.studentId  === filters.studentId)
+  if (filters.subjectId)  grades = grades.filter(g => g.subjectId  === filters.subjectId)
+  if (filters.sectionId)  grades = grades.filter(g => g.sectionId  === filters.sectionId)
+  if (filters.campusKey)  grades = grades.filter(g => g.campusKey  === filters.campusKey)
+  if (filters.schoolYear) grades = grades.filter(g => g.schoolYear === filters.schoolYear)
+  if (filters.semester)   grades = grades.filter(g => g.semester   === filters.semester)
+  if (filters.status)     grades = grades.filter(g => g.status     === filters.status)
+  return grades
+}
+
+/**
+ * Save or update a college grade record (draft).
+ * Auto-computes point grade from Prelim/Midterm/Finals.
+ * Special grades (INC, DRP, 4.00) override computed grade.
+ */
+export function saveCollegeGradeRecord(record) {
+  const grades = getCollegeGradesAll()
+  const now    = new Date().toISOString()
+
+  const idx = grades.findIndex(g =>
+    g.studentId  === record.studentId  &&
+    g.subjectId  === record.subjectId  &&
+    g.semester   === record.semester   &&
+    g.schoolYear === record.schoolYear
+  )
+
+  // Only compute if no special grade override
+  const computed = record.specialGrade
+    ? null
+    : computeCollegeGrade(record.prelim, record.midterm, record.finals)
+
+  const full = {
+    ...record,
+    department:    'college',
+    semesterGrade: computed?.semesterGrade ?? null,
+    pointGrade:    record.specialGrade || computed?.pointGrade || null,
+    descriptor:    record.specialGrade
+      ? SPECIAL_GRADES.find(s => s.value === record.specialGrade)?.label ?? record.specialGrade
+      : computed?.descriptor ?? null,
+    passed: record.specialGrade
+      ? false  // INC, DRP, 4.00 are all not fully passing
+      : (computed?.passed ?? false),
+    updatedAt: now,
+  }
+
+  if (idx >= 0) {
+    // Only update if record is still in draft
+    if (grades[idx].status !== 'draft') return grades[idx] // locked — no edit
+    grades[idx] = { ...grades[idx], ...full }
+  } else {
+    full.id          = `cgrade_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    full.createdAt   = now
+    full.status      = 'draft'
+    full.submittedAt = null
+    full.approvedAt  = null
+    full.approvedBy  = null
+    grades.push(full)
+  }
+
+  saveCollegeGradesAll(grades)
+  return full
+}
+
+/** Submit college grades for a subject+section+semester (instructor → program head) */
+export function submitCollegeGrades(teacherId, subjectId, sectionId, semester, schoolYear) {
+  const grades = getCollegeGradesAll()
+  const now = new Date().toISOString()
+  let count = 0
+
+  grades.forEach(g => {
+    if (
+      g.teacherId  === teacherId  &&
+      g.subjectId  === subjectId  &&
+      g.sectionId  === sectionId  &&
+      g.semester   === semester   &&
+      g.schoolYear === schoolYear &&
+      g.status     === 'draft'
+    ) {
+      g.status      = 'submitted'
+      g.submittedAt = now
+      count++
+    }
+  })
+
+  saveCollegeGradesAll(grades)
+  return count
+}
+
+/** Approve college grades (program head → registrar) */
+export function approveCollegeGrades(subjectId, sectionId, semester, schoolYear, approverName) {
+  const grades = getCollegeGradesAll()
+  const now = new Date().toISOString()
+  let count = 0
+
+  grades.forEach(g => {
+    if (
+      g.subjectId  === subjectId  &&
+      g.sectionId  === sectionId  &&
+      g.semester   === semester   &&
+      g.schoolYear === schoolYear &&
+      g.status     === 'submitted'
+    ) {
+      g.status     = 'approved'
+      g.approvedAt = now
+      g.approvedBy = approverName
+      count++
+    }
+  })
+
+  saveCollegeGradesAll(grades)
+  return count
+}
+
+/** Load college draft scores (auto-save, survives refresh) */
+export function loadCollegeDraftScores() {
+  try { return JSON.parse(localStorage.getItem(COLLEGE_DRAFT_KEY) || '{}') }
+  catch { return {} }
+}
+
+/** Save college draft scores */
+export function saveCollegeDraftScores(data) {
+  localStorage.setItem(COLLEGE_DRAFT_KEY, JSON.stringify(data))
 }

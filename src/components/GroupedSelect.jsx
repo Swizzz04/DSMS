@@ -103,31 +103,47 @@ function useDropdownPosition(triggerRef, open) {
 
   const updatePos = () => {
     if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const vw   = window.innerWidth
-    const vh   = window.innerHeight
-    const PAD  = 8
+    const rect       = triggerRef.current.getBoundingClientRect()
+    const vw         = window.innerWidth
+    const vh         = window.innerHeight
+    const PAD        = 8
+    const DROPDOWN_H = 300  // max dropdown height
+
     const mobile = vw < 640
 
     if (mobile) {
+      const spaceBelow = vh - rect.bottom - PAD
+      const spaceAbove = rect.top - PAD
+      // Flip upward when the dropdown won't fully fit below AND more room is above
+      const flipUp     = spaceBelow < DROPDOWN_H && spaceAbove > spaceBelow
+      const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
       setDropPos({
-        top:    rect.bottom + 4,
+        top:    flipUp ? rect.top - maxH - 4 : rect.bottom + 4,
         left:   PAD,
         width:  vw - PAD * 2,
-        maxH:   Math.min(vh * 0.6, vh - rect.bottom - PAD),
+        maxH,
         mobile: true,
+        flipUp,
       })
     } else {
-      const w = Math.max(Math.min(rect.width, vw - PAD * 2), Math.min(220, vw - PAD * 2))
-      let   l = rect.left
+      const w          = Math.max(Math.min(rect.width, vw - PAD * 2), Math.min(220, vw - PAD * 2))
+      let   l          = rect.left
       if (l + w > vw - PAD) l = vw - w - PAD
       if (l < PAD) l = PAD
+
+      const spaceBelow = vh - rect.bottom - PAD
+      const spaceAbove = rect.top - PAD
+      // Flip upward when the dropdown won't fully fit below AND more room is above
+      const flipUp     = spaceBelow < DROPDOWN_H && spaceAbove > spaceBelow
+      const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
+
       setDropPos({
-        top:    rect.bottom + 4,
+        top:    flipUp ? rect.top - maxH - 4 : rect.bottom + 4,
         left:   l,
         width:  w,
-        maxH:   Math.min(300, vh - rect.bottom - PAD),
+        maxH,
         mobile: false,
+        flipUp,
       })
     }
   }
@@ -263,8 +279,9 @@ export default function GroupedSelect({
             width:    dropPos.width,
             minWidth: dropPos.mobile ? undefined : 220,
           }}
-          className="z-[9999] bg-[var(--color-bg-card)] border border-[var(--color-border)]
-            rounded-xl shadow-[var(--shadow-modal)] overflow-hidden"
+          className={`z-[9999] bg-[var(--color-bg-card)] border border-[var(--color-border)]
+            shadow-[var(--shadow-modal)] overflow-hidden
+            ${dropPos.flipUp ? 'rounded-t-xl rounded-b-lg' : 'rounded-xl'}`}
         >
           {/* Reset / "All" option */}
           <button

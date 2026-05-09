@@ -4,7 +4,7 @@ import {
   Users, Plus, Edit, Check, Save, Receipt,
   X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen,
   ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload,
-  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send, ClipboardList, FileText, FolderOpen
+  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send, ClipboardList, FileText, FolderOpen, GitBranch
 } from 'lucide-react'
 import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
@@ -15,6 +15,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
 import { applyTheme } from '../utils/themeInitializer'
+import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
 
 
 
@@ -1261,6 +1262,7 @@ export default function Settings() {
     { id: 'fees',          label: 'Fee Structure',     icon: DollarSign },
     { id: 'discounts',     label: 'Discounts',         icon: Tag },
     { id: 'receipt',       label: 'Receipt',            icon: Receipt },
+    { id: 'workflow',      label: 'Workflow Config',   icon: GitBranch },
   ]
   const tabs = allTabs.filter(t => userTabs.includes(t.id))
 
@@ -1897,28 +1899,104 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* Live preview */}
-                  <div>
-                    <label className="form-label mb-1.5">Preview</label>
-                    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
-                      <div className="bg-secondary p-4 text-center">
-                        <div className="w-12 h-12 rounded-full bg-white border-2 border-primary mx-auto mb-2 flex items-center justify-center overflow-hidden">
-                          <img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo" className="w-10 h-10 object-contain" onError={e => { e.target.style.display = 'none' }} />
-                        </div>
-                        <p className="text-white text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
-                        <p className="text-white/60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>
-                        <p className="text-white/30 text-[8px] uppercase tracking-widest mt-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                  {/* ── Login Page Colors ── */}
+                  <div className="pt-2 border-t border-[var(--color-border)]">
+                    <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
+                      <Paintbrush className="w-4 h-4 text-[var(--color-text-muted)]" /> Login Page Colors
+                    </h4>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                      These colors control the left panel of both the admin and student portal login pages.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <ColorPicker
+                          label="Left Panel — Top Color"
+                          value={websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'}
+                          onChange={v => setWebsiteContent({ ...websiteContent, loginGradientStart: v })}
+                        />
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Top of the left panel gradient</p>
                       </div>
-                      <div className="p-4 bg-[var(--color-bg-subtle)]">
-                        <p className="text-[9px] uppercase tracking-widest text-primary font-bold mb-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
-                        <p className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Welcome back.</p>
-                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-2" />
-                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-3" />
-                        <div className="h-7 bg-primary rounded-lg mb-2" />
-                        <p className="text-[9px] text-center text-[var(--color-text-muted)]">Need help? <span className="text-primary font-semibold">{websiteContent.supportLabel || 'Contact IT Support'}</span></p>
+                      <div>
+                        <ColorPicker
+                          label="Left Panel — Bottom Color"
+                          value={websiteContent.loginGradientEnd || '#04062a'}
+                          onChange={v => setWebsiteContent({ ...websiteContent, loginGradientEnd: v })}
+                        />
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Bottom of the left panel gradient</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <ColorPicker
+                          label="Accent Bar Color"
+                          value={websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}
+                          onChange={v => setWebsiteContent({ ...websiteContent, loginAccentBar: v })}
+                        />
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">The vertical accent line on the left edge</p>
+                      </div>
+                      <div>
+                        <ColorPicker
+                          label="Card Top Border Color"
+                          value={websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014'}
+                          onChange={v => setWebsiteContent({ ...websiteContent, loginCardBorder: v })}
+                        />
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Top border of the login form card</p>
                       </div>
                     </div>
                   </div>
+
+                  {/* Live preview */}
+                  <div>
+                    <label className="form-label mb-1.5">Preview</label>
+                    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden flex" style={{ height: 160 }}>
+                      {/* Left panel preview */}
+                      <div className="flex-1 flex flex-col items-center justify-center p-3 relative overflow-hidden"
+                           style={{ background: `linear-gradient(160deg, ${websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'} 0%, ${websiteContent.loginGradientEnd || '#04062a'} 100%)` }}>
+                        {/* Accent bar */}
+                        <div className="absolute top-0 left-0 w-1 h-full"
+                             style={{ background: `linear-gradient(to bottom, transparent, ${websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}, transparent)` }} />
+                        {/* Decorative rings */}
+                        <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full border-8 border-white/5" />
+                        <div className="absolute -bottom-4 -right-4 w-14 h-14 rounded-full border-8 border-white/5" />
+                        {/* Logo + name */}
+                        <div className="w-10 h-10 rounded-full bg-white border-2 mb-2 flex items-center justify-center overflow-hidden"
+                             style={{ borderColor: websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014' }}>
+                          <img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo"
+                               className="w-8 h-8 object-contain"
+                               onError={e => { e.target.style.display='none' }} />
+                        </div>
+                        <p className="text-white text-[9px] font-bold text-center leading-tight">
+                          {websiteContent.schoolName || 'School Name'}
+                        </p>
+                        {websiteContent.motto && (
+                          <p className="text-white/50 text-[7px] italic text-center mt-0.5 leading-tight">
+                            "{websiteContent.motto}"
+                          </p>
+                        )}
+                      </div>
+                      {/* Right panel preview */}
+                      <div className="flex-1 p-3 bg-[#f4f5f0] flex flex-col justify-center" style={{ backgroundImage: 'radial-gradient(circle, rgba(8,12,66,0.05) 1px, transparent 1px)', backgroundSize: '12px 12px' }}>
+                        <div className="bg-white rounded-lg p-2.5"
+                             style={{ borderTop: `2.5px solid ${websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014'}` }}>
+                          <p className="text-[7px] font-bold uppercase tracking-widest mb-0.5"
+                             style={{ color: websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014' }}>
+                            {websiteContent.portalLabel || 'School Management Portal'}
+                          </p>
+                          <p className="text-[9px] font-bold text-gray-800 mb-2">Welcome back.</p>
+                          <div className="h-4 bg-gray-100 rounded mb-1.5 border border-gray-200" />
+                          <div className="h-4 bg-gray-100 rounded mb-2 border border-gray-200" />
+                          <div className="h-5 rounded text-center"
+                               style={{ background: websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014' }} />
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
+                      Left: <span className="font-mono">{websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'}</span> → <span className="font-mono">{websiteContent.loginGradientEnd || '#04062a'}</span>
+                      &nbsp;·&nbsp; Accent: <span className="font-mono">{websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}</span>
+                    </p>
+                  </div>
+
+                  
 
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
@@ -2607,6 +2685,7 @@ export default function Settings() {
         )}
 
       </div>
+      {activeTab === 'workflow' && <WorkflowConfigTab />}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
@@ -3277,6 +3356,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
           </ModalPortal>
         )
       })()}
+
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

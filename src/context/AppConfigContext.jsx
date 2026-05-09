@@ -8,7 +8,7 @@
  * Priority: localStorage overrides > appConfig.js defaults
  */
 
-import { createContext, useContext, useState, useCallback } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import {
   SCHOOL_INFO,
   SCHOOL_YEARS,
@@ -112,6 +112,15 @@ const AppConfigContext = createContext(null)
 
 export function AppConfigProvider({ children }) {
   const [config, setConfig] = useState(buildInitialState)
+
+  // Seed default workflow definitions once after mount.
+  // Using useEffect (not buildInitialState) so React StrictMode's double-invoke
+  // of the state initializer does not cause duplicate workflow entries.
+  useEffect(() => {
+    import('../utils/workflowConfigBridge').then(({ initializeDefaults }) => {
+      initializeDefaults('all')
+    })
+  }, [])
 
   const updateConfig = useCallback((section, value) => {
     setConfig(prev => {

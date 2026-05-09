@@ -14,7 +14,7 @@ import {
   FileText, CheckSquare, ChevronRight
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { CampusBanner } from '../components/SchoolComponents'
+import {} from '../components/SchoolComponents'
 import { PageSkeleton, useToast, ToastContainer } from '../components/UIComponents'
 
 export default function TeacherForms() {
@@ -37,7 +37,7 @@ export default function TeacherForms() {
       description: 'Record student attendance for your assigned sections',
       icon: CheckSquare,
       color: 'bg-emerald-500/10 text-emerald-600',
-      status: 'coming_soon',
+      status: 'coming_soon'
     },
     {
       id: 'sf2',
@@ -45,7 +45,7 @@ export default function TeacherForms() {
       description: 'Daily attendance report per month — DepEd standard form',
       icon: Calendar,
       color: 'bg-blue-500/10 text-blue-600',
-      status: 'coming_soon',
+      status: 'coming_soon'
     },
     {
       id: 'sf5',
@@ -53,7 +53,7 @@ export default function TeacherForms() {
       description: 'Report on promotion and level of proficiency',
       icon: ClipboardList,
       color: 'bg-purple-500/10 text-purple-600',
-      status: 'coming_soon',
+      status: 'coming_soon'
     },
     {
       id: 'sf9',
@@ -61,7 +61,7 @@ export default function TeacherForms() {
       description: 'Learner progress report card',
       icon: FileText,
       color: 'bg-amber-500/10 text-amber-600',
-      status: 'coming_soon',
+      status: 'coming_soon'
     },
     {
       id: 'sf10',
@@ -69,7 +69,7 @@ export default function TeacherForms() {
       description: "Learner's permanent academic record",
       icon: FolderOpen,
       color: 'bg-red-500/10 text-red-600',
-      status: 'coming_soon',
+      status: 'coming_soon'
     },
   ]
 
@@ -82,7 +82,6 @@ export default function TeacherForms() {
         </p>
       </div>
 
-      <CampusBanner user={user} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {forms.map(form => {

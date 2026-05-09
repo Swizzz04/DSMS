@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  LayoutDashboard, FileText, Users, DollarSign,
+  LayoutDashboard, FileText, FileEdit, Calendar, ShieldCheck, Users, DollarSign,
   Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
@@ -139,7 +139,10 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load' },
       grades:             { id: 'grades',           label: 'Grades',         icon: ClipboardList, path: '/grades' },
       'e-class-record':   { id: 'e-class-record',   label: 'e-Class Record', icon: ClipboardList, path: '/e-class-record' },
-      'teacher-forms':    { id: 'teacher-forms',    label: 'Teacher Forms',  icon: FolderOpen,    path: '/teacher-forms' },
+      'teacher-forms':       { id: 'teacher-forms',       label: 'Teacher Forms',      icon: FolderOpen,    path: '/teacher-forms' },
+      'document-requests':        { id: 'document-requests',        label: 'Doc Requests',    icon: FileText,      path: '/document-requests' },
+      'grade-change-requests':   { id: 'grade-change-requests',   label: 'Grade Changes',   icon: FileEdit,      path: '/grade-change-requests' },
+      'attendance':              { id: 'attendance',              label: 'Attendance',      icon: Calendar,      path: '/attendance' },
     }
 
     const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
@@ -166,12 +169,22 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
   // ── Section label helper (visual grouping within long nav lists) ──
   const getSectionLabel = (id) => ({
-    enrollments: 'Management',
-    payments:    'Management',
-    students:    'Management',
-    reports:     'Analytics',
-    settings:    'System',
-    'subject-load': 'Academic',
+    // Management
+    enrollments:          'Management',
+    students:             'Management',
+    payments:             'Management',
+    'document-requests':  'Management',
+    clearance:            'Management',
+    // Analytics
+    reports:              'Analytics',
+    // Academic
+    'subject-load':           'Academic',
+    'e-class-record':         'Academic',
+    'teacher-forms':          'Academic',
+    'grade-change-requests':  'Academic',
+    attendance:               'Academic',
+    // System
+    settings:             'System',
   }[id])
 
   // Insert section dividers

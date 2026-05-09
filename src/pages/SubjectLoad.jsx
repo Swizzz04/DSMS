@@ -14,8 +14,11 @@ import {
   addBasicEdSubject, removeBasicEdSubject,
   addCollegeSubject, removeCollegeSubject,
   assignBasicEdLoad, assignAdviser, assignCollegeLoad,
+  setBasicEdSubjectArea,
 } from '../utils/subjectLoadBridge'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { SUBJECT_AREAS } from '../engines/gradingEngine'
+import GroupedSelect from '../components/GroupedSelect'
 
 const SEMESTERS = ['1st', '2nd']
 
@@ -140,27 +143,61 @@ function RenameSectionModal({ section, onRename, onClose }) {
 // ─────────────────────────────────────────────────────────────────
 // SUBJECT ROW — reusable
 // ─────────────────────────────────────────────────────────────────
-function SubjectRow({ subject, teacherName, teacherId, onAssign, onRemove }) {
+function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
+  const areaLabel = SUBJECT_AREAS.find(a => a.id === subjectArea)?.label ?? null
+  // Shorten label for display — use the first meaningful word group
+  const shortArea = areaLabel
+    ? areaLabel.split('/')[0].trim()
+    : null
+
   return (
-    <div className="flex items-center gap-2 py-2.5 border-b border-[var(--color-border)]/50 last:border-0">
-      <p className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{subject}</p>
-      {teacherId ? (
-        <button onClick={onAssign}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium hover:bg-green-200 dark:hover:bg-green-800/40 transition max-w-[160px]">
-          <Check className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{teacherName}</span>
-          <Pencil className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
+    <div className="py-2.5 border-b border-[var(--color-border)]/50 last:border-0 space-y-1.5">
+      {/* Row 1: subject name + teacher + remove */}
+      <div className="flex items-center gap-2">
+        <p className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{subject}</p>
+        {teacherId ? (
+          <button onClick={onAssign}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium hover:bg-green-200 dark:hover:bg-green-800/40 transition max-w-[160px]">
+            <Check className="w-3 h-3 flex-shrink-0" />
+            <span className="truncate">{teacherName}</span>
+            <Pencil className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
+          </button>
+        ) : (
+          <button onClick={onAssign}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium hover:bg-amber-100 transition">
+            <User className="w-3 h-3" /> Assign
+          </button>
+        )}
+        <button onClick={onRemove} title="Remove subject"
+          className="p-1.5 text-[var(--color-text-muted)] opacity-50 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition flex-shrink-0">
+          <X className="w-3.5 h-3.5" />
         </button>
-      ) : (
-        <button onClick={onAssign}
-          className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium hover:bg-amber-100 transition">
-          <User className="w-3 h-3" /> Assign
-        </button>
-      )}
-      <button onClick={onRemove} title="Remove subject"
-        className="p-1.5 text-[var(--color-text-muted)] opacity-50 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition flex-shrink-0">
-        <X className="w-3.5 h-3.5" />
-      </button>
+      </div>
+      {/* Row 2: subject area — auto-locked for composite sub-subjects, selectable for others */}
+      <div className="flex items-center gap-2 pl-0">
+        <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">Subject Area:</span>
+        {isCompositeChild ? (
+          // Composite sub-subjects always use hele_mapeh — show as auto badge
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+            HELE / MAPEH / TLE — Auto
+          </span>
+        ) : (
+          <div className="flex-1 max-w-xs flex items-center gap-2">
+            <div className="flex-1">
+              <GroupedSelect
+                value={subjectArea || 'all'}
+                onChange={v => onSubjectAreaChange(v === 'all' ? null : v)}
+                options={SUBJECT_AREAS.map(a => ({ value: a.id, label: a.label }))}
+                allLabel="— not set —"
+                placeholder="— not set —"
+              />
+            </div>
+            {!subjectArea && (
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Required</span>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -302,11 +339,26 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                   )}
                   {subjects.map(subject => {
                     const load = loads.find(l => l.subject === subject)
+                    // Composite sub-subjects always use hele_mapeh — auto-set on first render
+                    const COMPOSITE_SUBS = { 'Music & Arts': 'hele_mapeh', 'PE & Health': 'hele_mapeh', 'TLE': 'hele_mapeh', 'HELE': 'hele_mapeh', 'Computer': 'hele_mapeh' }
+                    const isComposite = !!COMPOSITE_SUBS[subject]
+                    const effectiveArea = load?.subjectArea || (isComposite ? COMPOSITE_SUBS[subject] : null)
+                    // Auto-save composite area if not yet saved
+                    if (isComposite && !load?.subjectArea) {
+                      setBasicEdSubjectArea(campusKey, schoolYear, grade, subject, COMPOSITE_SUBS[subject])
+                    }
                     return (
                       <SubjectRow key={subject} subject={subject}
                         teacherName={load?.teacherName} teacherId={load?.teacherId}
+                        subjectArea={effectiveArea}
                         onAssign={() => setPicker({ type: 'subject', gradeLevel: grade, subject, load })}
                         onRemove={() => { removeBasicEdSubject(campusKey, schoolYear, grade, subject); onDataChange(); addToast(`"${subject}" removed`, 'success') }}
+                        onSubjectAreaChange={area => {
+                          setBasicEdSubjectArea(campusKey, schoolYear, grade, subject, area)
+                          onDataChange()
+                          addToast(`Subject area set for "${subject}"`, 'success')
+                        }}
+                        isCompositeChild={isComposite}
                       />
                     )
                   })}

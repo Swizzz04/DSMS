@@ -39,10 +39,10 @@ import { useAppConfig } from '../context/AppConfigContext'
 import { exportMultipleSheets } from '../utils/exportToExcel'
 import { SkeletonDashboard, useToast, ToastContainer } from '../components/UIComponents'
 import {
-  StatCard, CampusMiniCard, SectionPanel, CollectionRateBar, CampusBanner,
+  StatCard, CampusMiniCard, SectionPanel, CollectionRateBar,
   EnrollmentStatusPill,
   EnrollmentTable, CampusEnrollmentTable, CampusStudentTable, CampusPaymentTable,
-  php, isBasicGrade, isCollegeGrade,
+  php, isBasicGrade, isCollegeGrade
 } from '../components/SchoolComponents'
 
 ChartJS.register(
@@ -69,7 +69,7 @@ function chartTheme() {
     tooltipBg: dark ? '#1a1d27' : '#ffffff',
     tooltipBorder: dark ? '#2a2d3e' : '#e8e8e4',
     tooltipTitle: dark ? '#f0f0ee' : '#1a1a1a',
-    tooltipBody: dark ? '#a8a8b0' : '#4a4a4a',
+    tooltipBody: dark ? '#a8a8b0' : '#4a4a4a'
   }
 }
 
@@ -162,7 +162,7 @@ export default function Dashboard() {
       totalFee:   s.totalFee   || 0,
       amountPaid: s.amountPaid || 0,
       balance:    s.balance    || 0,
-      status:     (s.balance || 0) <= 0 ? 'paid' : 'partial',
+      status:     (s.balance || 0) <= 0 ? 'paid' : 'partial'
     }))
 
   const filteredStudents = submissions
@@ -170,7 +170,7 @@ export default function Dashboard() {
     .map(s => ({
       academic: {
         campus:     s.enrollment?.campus || '',
-        gradeLevel: s.enrollment?.gradeLevel || '',
+        gradeLevel: s.enrollment?.gradeLevel || ''
       }
     }))
 
@@ -217,7 +217,7 @@ export default function Dashboard() {
       outstanding:      cp.reduce((s, p) => s + p.balance, 0),
       totalFee:         tot,
       collectionRate:   tot > 0 ? Math.round((rev / tot) * 100) : 0,
-      overdue:          cp.filter(p => p.status === 'overdue').length,
+      overdue:          cp.filter(p => p.status === 'overdue').length
     }
   })
 
@@ -234,7 +234,7 @@ export default function Dashboard() {
           font: { size: 11, family: 'Inter, sans-serif' },
           boxWidth: 10,
           boxHeight: 10,
-          padding: 14,
+          padding: 14
         }
       },
       tooltip: { mode: 'index', intersect: false }
@@ -242,14 +242,14 @@ export default function Dashboard() {
     scales: {
       x: {
         ticks: { color: tickClr, font: { size: 11 } },
-        grid:  { color: gridClr },
+        grid:  { color: gridClr }
       },
       y: {
         ticks: { color: tickClr, font: { size: 11 } },
         grid:  { color: gridClr },
-        beginAtZero: true,
-      },
-    },
+        beginAtZero: true
+      }
+    }
   }
 
   const pieOpts = {
@@ -264,7 +264,7 @@ export default function Dashboard() {
           padding: 14,
           font: { size: 11, family: 'Inter, sans-serif' },
           boxWidth: 10,
-          boxHeight: 10,
+          boxHeight: 10
         }
       },
       tooltip: { mode: 'index', intersect: false }
@@ -279,8 +279,8 @@ export default function Dashboard() {
       data: [enrApproved, enrPaymentReceived, enrPending, enrRejected],
       backgroundColor: ['#16a34a', '#2563eb', '#d97706', '#dc2626'],
       borderWidth: 0,
-      hoverOffset: 6,
-    }],
+      hoverOffset: 6
+    }]
   }
 
   const campusBarData = {
@@ -288,7 +288,7 @@ export default function Dashboard() {
     datasets: [
       { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: '#2563eb', borderRadius: 4 },
       { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: 'var(--color-primary)', borderRadius: 4 },
-    ],
+    ]
   }
 
   const revenueBarData = {
@@ -296,7 +296,7 @@ export default function Dashboard() {
     datasets: [
       { label: 'Collected',   data: campusStats.map(c => c.revenue),    backgroundColor: '#16a34a', borderRadius: 4 },
       { label: 'Outstanding', data: campusStats.map(c => c.outstanding), backgroundColor: '#dc2626', borderRadius: 4 },
-    ],
+    ]
   }
 
   // ── Export ────────────────────────────────────────────────────
@@ -318,7 +318,7 @@ export default function Dashboard() {
           { Metric: 'Collection Rate',     Value: `${collectionRate}%` },
           { Metric: 'Overdue Accounts',    Value: payOverdue },
         ],
-        sheetName: 'Summary',
+        sheetName: 'Summary'
       },
       {
         data: campusStats.map(c => ({
@@ -333,9 +333,9 @@ export default function Dashboard() {
           'Revenue Collected':  c.revenue,
           'Outstanding':        c.outstanding,
           'Collection Rate':    `${c.collectionRate}%`,
-          'Overdue':            c.overdue,
+          'Overdue':            c.overdue
         })),
-        sheetName: 'Per Campus',
+        sheetName: 'Per Campus'
       },
     ], `CSHC_Dashboard_${campusFilter}_${new Date().toISOString().split('T')[0]}`)
   }
@@ -423,7 +423,6 @@ export default function Dashboard() {
           <p className="text-body text-[var(--color-text-muted)] mt-1">Teacher Portal · {user.campus}</p>
         </div>
 
-        <CampusBanner user={user} />
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger">
           <button onClick={() => window.location.href = '/students'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
@@ -504,15 +503,15 @@ export default function Dashboard() {
           label: 'Basic Ed',
           data: campusStats.map(c => c.basicStu),
           backgroundColor: 'var(--color-primary)',
-          borderRadius: 6,
+          borderRadius: 6
         },
         {
           label: 'College',
           data: campusStats.map(c => c.collegeStu),
           backgroundColor: 'var(--color-secondary)',
-          borderRadius: 6,
+          borderRadius: 6
         },
-      ],
+      ]
     }
 
     // Chart.js data — Income per campus (doughnut)
@@ -522,8 +521,8 @@ export default function Dashboard() {
         data: campusStats.map(c => c.revenue),
         backgroundColor: campusStats.map(c => primaryColor),
         borderWidth: 0,
-        hoverOffset: 8,
-      }],
+        hoverOffset: 8
+      }]
     }
 
     // Chart.js data — Enrollment per campus (bar)
@@ -533,22 +532,22 @@ export default function Dashboard() {
         label: 'Enrollments',
         data: campusStats.map(c => c.enrollments),
         backgroundColor: campusStats.map(c => primaryColor),
-        borderRadius: 6,
-      }],
+        borderRadius: 6
+      }]
     }
 
     const barOptions = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11 } } } },
-      scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,.04)' } }, x: { ticks: { font: { size: 11 } }, grid: { display: false } } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,.04)' } }, x: { ticks: { font: { size: 11 } }, grid: { display: false } } }
     }
 
     const doughnutOptions = {
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11 } } } },
-      cutout: '65%',
+      cutout: '65%'
     }
 
     return (
@@ -684,7 +683,6 @@ export default function Dashboard() {
       </div>
 
       {/* ── Campus-locked banner ──────────────────────────────── */}
-      <CampusBanner user={user} />
 
       {/* ── Grand stat cards ──────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
@@ -828,10 +826,10 @@ export default function Dashboard() {
                       ...baseOpts.scales.y,
                       ticks: {
                         ...baseOpts.scales.y.ticks,
-                        callback: (v) => `₱${(v / 1000).toFixed(0)}k`,
-                      },
-                    },
-                  },
+                        callback: (v) => `₱${(v / 1000).toFixed(0)}k`
+                      }
+                    }
+                  }
                 }}
               />
             </div>
@@ -857,25 +855,25 @@ export default function Dashboard() {
                 label: 'Total',
                 val:   enrTotal,
                 color: 'text-[var(--color-text-primary)]',
-                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]',
+                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]'
               },
               {
                 label: 'Awaiting Payment',
                 val:   enrPending,
                 color: 'text-[var(--color-warning)]',
-                bg:    'bg-[var(--color-warning-light)] dark:bg-yellow-900/20',
+                bg:    'bg-[var(--color-warning-light)] dark:bg-yellow-900/20'
               },
               {
                 label: 'Payment Received',
                 val:   enrPaymentReceived,
                 color: 'text-[var(--color-info)]',
-                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20',
+                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20'
               },
               {
                 label: 'Approved',
                 val:   enrApproved,
                 color: 'text-[var(--color-success)]',
-                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20',
+                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20'
               },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-[var(--radius-lg)] p-3 text-center`}>
@@ -891,12 +889,12 @@ export default function Dashboard() {
               {
                 label: 'Basic Education',
                 icon:  <BookOpen className="w-4 h-4 text-[var(--color-success)]" />,
-                enr:   basicEnr,
+                enr:   basicEnr
               },
               {
                 label: 'College',
                 icon:  <GraduationCap className="w-4 h-4 text-[var(--color-info)]" />,
-                enr:   collegeEnr,
+                enr:   collegeEnr
               },
             ].map(d => (
               <div
@@ -985,25 +983,25 @@ export default function Dashboard() {
                 label: 'Expected',
                 val:   php(payTotalFee),
                 color: 'text-[var(--color-text-primary)]',
-                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]',
+                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]'
               },
               {
                 label: 'Collected',
                 val:   php(payRevenue),
                 color: 'text-[var(--color-success)]',
-                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20',
+                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20'
               },
               {
                 label: 'Outstanding',
                 val:   php(payOutstanding),
                 color: 'text-[var(--color-error)]',
-                bg:    'bg-[var(--color-error-light)] dark:bg-red-900/20',
+                bg:    'bg-[var(--color-error-light)] dark:bg-red-900/20'
               },
               {
                 label: 'Fully Paid',
                 val:   `${payPaid}`,
                 color: 'text-[var(--color-info)]',
-                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20',
+                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20'
               },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-[var(--radius-lg)] p-3 text-center`}>
@@ -1035,10 +1033,10 @@ export default function Dashboard() {
                       ...baseOpts.scales.y,
                       ticks: {
                         ...baseOpts.scales.y.ticks,
-                        callback: (v) => `₱${(v / 1000).toFixed(0)}k`,
-                      },
-                    },
-                  },
+                        callback: (v) => `₱${(v / 1000).toFixed(0)}k`
+                      }
+                    }
+                  }
                 }}
               />
             </div>
@@ -1100,7 +1098,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
     total:            enrollments.length,
     pending:          enrollments.filter(e => e.status === 'pending').length,
     payment_received: enrollments.filter(e => e.status === 'payment_received').length,
-    approved:         enrollments.filter(e => e.status === 'approved').length,
+    approved:         enrollments.filter(e => e.status === 'approved').length
   }
 
   const pct = (n) => stats.total > 0 ? Math.round((n / stats.total) * 100) : 0
@@ -1222,7 +1220,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
                     </td>
                     <td className="px-4 py-3 text-caption text-[var(--color-text-muted)] whitespace-nowrap">
                       {new Date(e.submittedDate).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric', year: 'numeric',
+                        month: 'short', day: 'numeric', year: 'numeric'
                       })}
                     </td>
                   </tr>
