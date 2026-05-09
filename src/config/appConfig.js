@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ╔══════════════════════════════════════════════════════════════════╗
  * ║               CSHC CENTRAL CONFIGURATION FILE                   ║
  * ║                                                                  ║
@@ -215,7 +215,10 @@ export const ALL_PAGES = [
   { id: 'settings',     label: 'Settings',     icon: 'Settings' },
   { id: 'subject-load', label: 'Subject Load', icon: 'BookOpen' },
   { id: 'e-class-record', label: 'e-Class Record', icon: 'ClipboardList' },
-  { id: 'teacher-forms',  label: 'Teacher Forms',  icon: 'FileText' },
+  { id: 'teacher-forms',      label: 'Teacher Forms',      icon: 'FileText'     },
+  { id: 'document-requests',      label: 'Document Requests',      icon: 'FileText' },
+  { id: 'grade-change-requests',  label: 'Grade Change Requests',  icon: 'FileEdit'   },
+  { id: 'attendance',               label: 'Attendance',              icon: 'Calendar'   },
 ]
 
 /** All available settings tabs */
@@ -228,26 +231,55 @@ export const ALL_TABS = [
   { id: 'fees',          label: 'Fee Structure',   forRoles: ['accounting'] },
   { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
   { id: 'receipt',       label: 'Receipt',          forRoles: ['accounting'] },
+  { id: 'workflow',         label: 'Workflow Config',  forRoles: ['technical_admin'] },
+  { id: 'rolePermissions',  label: 'Role Permissions', forRoles: ['technical_admin'] },
 ]
 
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
   admin:             { pages: ['dashboard', 'enrollments', 'reports'],                                         tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'settings'],                                                       tabs: ['users', 'schoolInfo', 'formTemplates'] },
+  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'subject-load', 'e-class-record', 'teacher-forms', 'settings'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow', 'rolePermissions'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
-  registrar_basic:   { pages: ['dashboard', 'enrollments', 'students'],                                        tabs: [] },
-  registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load'],                        tabs: [] },
-  accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'reports', 'settings'],                 tabs: ['fees', 'discounts', 'receipt'] },
-  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
-  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'settings'],            tabs: ['schoolYear', 'grades'] },
-  teacher:           { pages: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject-load'],                      tabs: [] },
+  registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'grade-change-requests'], tabs: [] },
+  registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'document-requests', 'grade-change-requests'], tabs: [] },
+  accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'document-requests', 'reports', 'settings'], tabs: ['fees', 'discounts', 'receipt'] },
+  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'grade-change-requests', 'attendance', 'settings'], tabs: ['schoolYear', 'grades'] },
+  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'grade-change-requests', 'attendance', 'settings'], tabs: ['schoolYear', 'grades'] },
+  teacher:           { pages: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject-load', 'grade-change-requests', 'attendance'], tabs: [] },
 }
 
-/** Get effective permissions for a user (custom or default) */
+/** Get effective permissions for a user (custom override → role config → hardcoded defaults) */
 export function getUserPermissions(user) {
   if (!user) return { pages: [], tabs: [] }
+  // 1. User-level custom override (set per-user in UsersTab)
   if (user.permissions) return user.permissions
+  // 2. Role-level config saved by super admin in Settings → Role Permissions
+  try {
+    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    if (cfg.rolePermissions?.[user.role]) return cfg.rolePermissions[user.role]
+  } catch {}
+  // 3. Hardcoded defaults (baseline — never changes without a code deploy)
   return DEFAULT_PERMISSIONS[user.role] || { pages: ['dashboard'], tabs: [] }
+}
+
+/** Save role-level permissions to cshc_app_config */
+export function saveRolePermissions(rolePermissions) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    cfg.rolePermissions = rolePermissions
+    localStorage.setItem('cshc_app_config', JSON.stringify(cfg))
+    window.dispatchEvent(new CustomEvent('cshc_app_config_updated'))
+    return true
+  } catch { return false }
+}
+
+/** Get current role permissions (from config or defaults) */
+export function getRolePermissions() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    if (cfg.rolePermissions) return cfg.rolePermissions
+  } catch {}
+  return DEFAULT_PERMISSIONS
 }
 // ─────────────────────────────────────────────────────────────────────
 export const COLLEGE_YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -716,214 +748,7 @@ export const FEE_STRUCTURE = [
 // ─────────────────────────────────────────────────────────────────────
 // SYSTEM USERS
 // ─────────────────────────────────────────────────────────────────────
-export const SYSTEM_USERS = [
-  {
-    id: 1, name: 'School Owner',
-    email: 'admin@cshc.edu.ph',
-    passwordHash: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9',
-    role: 'admin', campus: 'all', status: 'active', lastLogin: '2026-03-05T10:30:00',
-  },
-  {
-    // Technical Administrator — full system access
-    // Email: techadmin@cshc.edu.ph  Password: techadmin123
-    id: 17, name: 'Technical Administrator',
-    email: 'techadmin@cshc.edu.ph',
-    passwordHash: '06b1a9074f0294f16e452d437b6d5ef1072de4080c67a11924cb6256f0a3768b',
-    role: 'technical_admin', campus: 'all', status: 'active', lastLogin: null,
-  },
-  // ── System Admins (campus-locked) ─────────────────────────────
-  {
-    // System Admin — Carcar campus IT
-    // Email: sysadmin.carcar@cshc.edu.ph  Password: sysadmin123
-    id: 30, name: 'Carcar System Admin',
-    email: 'sysadmin.carcar@cshc.edu.ph',
-    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
-    role: 'system_admin', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    // System Admin — Talisay campus IT
-    // Email: sysadmin.talisay@cshc.edu.ph  Password: sysadmin123
-    id: 31, name: 'Talisay System Admin',
-    email: 'sysadmin.talisay@cshc.edu.ph',
-    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
-    role: 'system_admin', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  {
-    // System Admin — Bohol campus IT
-    // Email: sysadmin.bohol@cshc.edu.ph  Password: sysadmin123
-    id: 32, name: 'Bohol System Admin',
-    email: 'sysadmin.bohol@cshc.edu.ph',
-    passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
-    role: 'system_admin', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-  // ── Talisay ─────────────────────────────────────────────────────
-  {
-    id: 2, name: 'Talisay Basic Ed Registrar',
-    email: 'registrar.basic@cshc.edu.ph',
-    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
-    role: 'registrar_basic', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: '2026-03-05T09:15:00',
-  },
-  {
-    id: 3, name: 'Talisay College Registrar',
-    email: 'registrar.college.talisay@cshc.edu.ph',
-    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
-    role: 'registrar_college', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: '2026-03-04T14:20:00',
-  },
-  {
-    id: 9, name: 'Talisay Accounting Officer',
-    email: 'accounting.talisay@cshc.edu.ph',
-    passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
-    role: 'accounting', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 12, name: 'Talisay Principal',
-    email: 'principal.talisay@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'principal_basic', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 13, name: 'Talisay Program Head',
-    email: 'programhead.talisay@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'program_head', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  // ── Carcar ──────────────────────────────────────────────────────
-  {
-    id: 7, name: 'Carcar Basic Ed Registrar',
-    email: 'registrar.basic.carcar@cshc.edu.ph',
-    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
-    role: 'registrar_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: '2026-03-04T08:30:00',
-  },
-  {
-    id: 6, name: 'Carcar College Registrar',
-    email: 'registrar.college@cshc.edu.ph',
-    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
-    role: 'registrar_college', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: '2026-03-04T14:20:00',
-  },
-  {
-    id: 10, name: 'Carcar Accounting Officer',
-    email: 'accounting.carcar@cshc.edu.ph',
-    passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
-    role: 'accounting', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 14, name: 'Carcar Principal',
-    email: 'principal.carcar@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'principal_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 15, name: 'Carcar Program Head',
-    email: 'programhead.carcar@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'program_head', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  // ── Bohol ───────────────────────────────────────────────────────
-  {
-    id: 8, name: 'Bohol Basic Ed Registrar',
-    email: 'registrar.basic.bohol@cshc.edu.ph',
-    passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
-    role: 'registrar_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: '2026-03-03T07:45:00',
-  },
-  {
-    id: 11, name: 'Bohol Accounting Officer',
-    email: 'accounting.bohol@cshc.edu.ph',
-    passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
-    role: 'accounting', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 16, name: 'Bohol Principal',
-    email: 'principal.bohol@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'principal_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-  // ── Bohol Principal ─────────────────────────────────────────────
-  {
-    id: 18, name: 'Bohol Principal',
-    email: 'principal.bohol@cshc.edu.ph',
-    passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
-    role: 'principal_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-  // ── Teacher accounts (all campuses) ────────────────────────────
-  // Password for all: teacher123
-  // SHA-256 of 'teacher123': cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416
-  // Carcar teachers
-  {
-    id: 19, name: 'Maria Santos',
-    email: 'teacher.santos@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 20, name: 'Juan dela Cruz',
-    email: 'teacher.delacruz@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 21, name: 'Ana Reyes',
-    email: 'teacher.reyes@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 22, name: 'Pedro Bautista',
-    email: 'teacher.bautista@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Carcar City Campus', campusKey: 'Carcar',
-    status: 'active', lastLogin: null,
-  },
-  // Talisay teachers
-  {
-    id: 40, name: 'Rosa Fernandez',
-    email: 'teacher.fernandez@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 41, name: 'Carlos Mendoza',
-    email: 'teacher.mendoza@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Talisay City Campus', campusKey: 'Talisay',
-    status: 'active', lastLogin: null,
-  },
-  // Bohol teachers
-  {
-    id: 42, name: 'Elena Villanueva',
-    email: 'teacher.villanueva@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-  {
-    id: 43, name: 'Ramon Espinosa',
-    email: 'teacher.espinosa@cshc.edu.ph',
-    passwordHash: 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416',
-    role: 'teacher', campus: 'Bohol Campus', campusKey: 'Bohol',
-    status: 'active', lastLogin: null,
-  },
-]
+export { SYSTEM_USERS } from './users'
 
 // ─────────────────────────────────────────────────────────────────────
 // DERIVED HELPERS
@@ -1192,161 +1017,6 @@ export function buildCampusProgramsMap(campusesOverride) {
   )
 }
 // ─────────────────────────────────────────────────────────────────────
-// DEFAULT SUBJECTS
-// Starting curriculum for each level. Principal / Program Head can
-// add or remove subjects from the Subject Load page at any time.
-// Changes are saved to localStorage under cshc_subject_loads and
-// override these defaults automatically — same pattern as fee structure.
+// DEFAULT SUBJECTS — moved to ./defaultSubjects.js
 // ─────────────────────────────────────────────────────────────────────
-
-export const DEFAULT_BASIC_ED_SUBJECTS = {
-  'Nursery':       ['Language/Reading Readiness', 'Math Readiness', 'Values Education', 'Music, Arts, PE & Health (MAPEH)'],
-  'Kindergarten':  ['Mother Tongue', 'Language/Reading Readiness', 'Math Readiness', 'Values Education', 'Music, Arts, PE & Health (MAPEH)'],
-  'Preparatory':   ['Mother Tongue', 'Language/Reading Readiness', 'Math Readiness', 'Values Education', 'Music, Arts, PE & Health (MAPEH)'],
-  'Grade 1':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'Mother Tongue', 'MAPEH', 'Edukasyon sa Pagpapakatao (EsP)', 'Computer'],
-  'Grade 2':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'Mother Tongue', 'MAPEH', 'EsP', 'Computer'],
-  'Grade 3':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'Mother Tongue', 'MAPEH', 'EsP', 'Computer'],
-  'Grade 4':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'Computer'],
-  'Grade 5':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'Computer'],
-  'Grade 6':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'Computer'],
-  'Grade 7':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'TLE/EPP', 'Computer'],
-  'Grade 8':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'TLE/EPP', 'Computer'],
-  'Grade 9':       ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'TLE/EPP', 'Computer'],
-  'Grade 10':      ['Filipino', 'English', 'Mathematics', 'Araling Panlipunan', 'Science', 'MAPEH', 'EsP', 'TLE/EPP', 'Computer'],
-  'Grade 11':      ['Core English', 'Core Mathematics', 'Contemporary Philippine Arts', 'Physical Education', 'Personal Development', 'Earth and Life Science', 'Understanding Culture, Society and Politics', 'Empowerment Technology', 'Oral Communication', 'Reading and Writing', 'Komunikasyon at Pananaliksik'],
-  'Grade 12':      ['Core English', 'Core Mathematics', 'Physical Education', 'Inquiries, Investigations and Immersion', 'Philippine Politics and Governance', 'Media and Information Literacy', 'Research/Capstone Project'],
-}
-
-export const DEFAULT_COLLEGE_SUBJECTS = {
-  'BS Criminology': {
-    '1st Year': {
-      '1st': [
-        'Introduction to Criminology',
-        'Philippine Criminal Justice System',
-        'Criminal Law 1',
-        'Law Enforcement Administration',
-        'Sociology of Crimes and Ethics',
-        'Physical Fitness and Self-Defense 1',
-        'English Communication Arts',
-        'Mathematics in the Modern World',
-      ],
-      '2nd': [
-        'Criminal Law 2',
-        'Crime Detection and Investigation 1',
-        'Criminalistics 1 (Dactyloscopy)',
-        'Human Behavior and Crisis Management',
-        'Physical Fitness and Self-Defense 2',
-        'Purposive Communication',
-        'Readings in Philippine History',
-      ],
-    },
-    '2nd Year': {
-      '1st': [
-        'Crime Detection and Investigation 2',
-        'Criminalistics 2 (questioned documents)',
-        'Forensic Photography',
-        'Juvenile Delinquency and Juvenile Justice',
-        'Police Organization and Administration',
-        'Traffic Management and Accident Investigation',
-        'Science, Technology and Society',
-        'Art Appreciation',
-      ],
-      '2nd': [
-        'Criminalistics 3 (Firearms & Explosives)',
-        'Correctional Administration',
-        'Ethics and Human Rights',
-        'Public Safety Act and Other Related Laws',
-        'Intelligence and Counter-Intelligence',
-        'The Contemporary World',
-        'Gender and Society',
-      ],
-    },
-    '3rd Year': {
-      '1st': [
-        'Criminalistics 4 (Polygraphy)',
-        'Cyber Crime Investigation',
-        'Drug Education and Vice Control',
-        'Private Security Administration',
-        'Practical Shooting',
-        'Rizal and Other Heroes',
-        'Research Methods in Criminology',
-      ],
-      '2nd': [
-        'White Collar and Economic Crimes',
-        'Penology and Victimology',
-        'Special Crimes Investigation',
-        'Fire Technology and Arson Investigation',
-        'Legal Medicine, Psychiatry and Criminalistics',
-        'Research in Criminology (Thesis 1)',
-      ],
-    },
-    '4th Year': {
-      '1st': [
-        'Seminar in Criminology',
-        'Research in Criminology (Thesis 2)',
-        'On-The-Job Training / Practicum 1',
-        'Criminal Procedure and Court Testimonies',
-        'Review for Board Examination 1',
-      ],
-      '2nd': [
-        'On-The-Job Training / Practicum 2',
-        'Review for Board Examination 2',
-        'Seminar on Current Issues in Criminology',
-      ],
-    },
-  },
-  'BS Nursing': {
-    '1st Year': {
-      '1st': ['Anatomy and Physiology', 'Biochemistry', 'Nutrition and Diet Therapy', 'Fundamentals of Nursing', 'English for Academic Purposes', 'Mathematics in the Modern World'],
-      '2nd': ['Microbiology and Parasitology', 'Pharmacology 1', 'Health Assessment', 'Care of Mother and Child 1', 'Purposive Communication'],
-    },
-    '2nd Year': {
-      '1st': ['Pharmacology 2', 'Medical-Surgical Nursing 1', 'Care of Mother and Child 2', 'Psychiatric Nursing', 'Community Health Nursing 1'],
-      '2nd': ['Medical-Surgical Nursing 2', 'Pediatric Nursing', 'Communicable Disease Nursing', 'Community Health Nursing 2', 'Research in Nursing 1'],
-    },
-    '3rd Year': {
-      '1st': ['Medical-Surgical Nursing 3', 'Operating Room Nursing', 'Gerontological Nursing', 'Nursing Informatics', 'Research in Nursing 2'],
-      '2nd': ['Related Learning Experience (RLE) 1', 'Leadership and Management in Nursing', 'Legal and Ethical Aspects of Nursing'],
-    },
-    '4th Year': {
-      '1st': ['Related Learning Experience (RLE) 2', 'Community Health Nursing 3', 'Review for Nursing Board 1'],
-      '2nd': ['Related Learning Experience (RLE) 3', 'Review for Nursing Board 2', 'Capstone Project'],
-    },
-  },
-  'BS HRM': {
-    '1st Year': {
-      '1st': ['Introduction to Hospitality Industry', 'Food and Beverage Service 1', 'Culinary Arts 1', 'Hotel Operations 1', 'English Communication', 'Mathematics in the Modern World'],
-      '2nd': ['Food and Beverage Service 2', 'Culinary Arts 2', 'Front Office Operations', 'Housekeeping Operations', 'Purposive Communication'],
-    },
-    '2nd Year': {
-      '1st': ['Food and Beverage Service 3', 'Culinary Arts 3', 'Events Management 1', 'Tourism and Travel Management', 'Accounting for HRM'],
-      '2nd': ['Bar and Beverage Management', 'Events Management 2', 'Catering and Banquet Operations', 'Human Resource Management', 'Research Methods'],
-    },
-    '3rd Year': {
-      '1st': ['Strategic Hospitality Management', 'Revenue Management', 'Customer Relations Management', 'Safety and Sanitation', 'Research in HRM 1'],
-      '2nd': ['Practicum 1 (Hotel/Restaurant)', 'Quality Service Management', 'Entrepreneurship in HRM', 'Research in HRM 2'],
-    },
-    '4th Year': {
-      '1st': ['Practicum 2', 'Seminar in HRM', 'Capstone Project 1'],
-      '2nd': ['Practicum 3', 'Capstone Project 2', 'Review and Preparation for Industry'],
-    },
-  },
-  'BS Tourism': {
-    '1st Year': {
-      '1st': ['Introduction to Tourism', 'Tourism Geography', 'Tour Guiding', 'Travel Agency Operations 1', 'English for Tourism', 'Mathematics in the Modern World'],
-      '2nd': ['Travel Agency Operations 2', 'Tourism Marketing', 'Hotel and Restaurant Operations', 'Cultural Heritage Tourism', 'Purposive Communication'],
-    },
-    '2nd Year': {
-      '1st': ['Ecotourism', 'Events and Meetings Management', 'Airline Ticketing and Reservation', 'Tourism Economics', 'Research Methods'],
-      '2nd': ['Adventure and Sports Tourism', 'Tourism Product Development', 'Tourism Policy and Planning', 'Accounting for Tourism', 'Research in Tourism 1'],
-    },
-    '3rd Year': {
-      '1st': ['Medical and Wellness Tourism', 'Tourism Law and Ethics', 'Risk Management in Tourism', 'Practicum Preparation', 'Research in Tourism 2'],
-      '2nd': ['Practicum 1', 'Sustainable Tourism', 'Entrepreneurship in Tourism'],
-    },
-    '4th Year': {
-      '1st': ['Practicum 2', 'Seminar in Tourism', 'Capstone Project 1'],
-      '2nd': ['Practicum 3', 'Capstone Project 2', 'Industry Immersion'],
-    },
-  },
-}
+export { DEFAULT_BASIC_ED_SUBJECTS, DEFAULT_COLLEGE_SUBJECTS } from './defaultSubjects'

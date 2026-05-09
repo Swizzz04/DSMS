@@ -1,13 +1,12 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { useReactToPrint } from 'react-to-print'
 // jsPDF and html2canvas loaded dynamically when user clicks Download PDF
+// Chart.js loaded lazily — only renders when stats section is visible
 import {
   Search, Users, Eye, Printer, Download,
   GraduationCap, MapPin, BookOpen, X, ChevronRight,
   Clock, CheckCircle, XCircle, FileText
 } from 'lucide-react'
-import { Bar, Doughnut } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } from 'chart.js'
 // Students are derived from approved localStorage submissions
 // mockStudents / mockEnrollments are cleared — no longer imported
 import { useAuth } from '../context/AuthContext'
@@ -20,7 +19,21 @@ import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
 import { useCampusFilter } from '../context/CampusFilterContext'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
+// Lazy-loaded chart wrapper — only loads chart.js when stats section renders
+const LazyBar = lazy(() =>
+  Promise.all([import('react-chartjs-2'), import('chart.js')]).then(([m, ChartJS]) => {
+    const { Chart: CJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend } = ChartJS
+    CJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
+    return { default: m.Bar }
+  })
+)
+const LazyDoughnut = lazy(() =>
+  Promise.all([import('react-chartjs-2'), import('chart.js')]).then(([m, ChartJS]) => {
+    ChartJS.Chart.register(ChartJS.ArcElement, ChartJS.Tooltip, ChartJS.Legend)
+    return { default: m.Doughnut }
+  })
+)
+const ChartFallback = () => <div className="flex items-center justify-center h-40 text-xs text-[var(--color-text-muted)]">Loading chart...</div>
 
 // ── Shared grade helpers ─────────────────────────────────────────────
 const BASIC_GROUPS = [
@@ -168,14 +181,14 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
         <div className="bg-[var(--color-bg-card)] rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Students by Department</h3>
           <div style={{ height: 220 }}>
-            <Bar data={groupBarData} options={{ ...chartOpts, plugins: { legend: { display: false } }, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, beginAtZero: true } } }} />
+            <Suspense fallback={<ChartFallback />}><LazyBar data={groupBarData} options={{ ...chartOpts, plugins: { legend: { display: false } }, scales: { ...chartOpts.scales, y: { ...chartOpts.scales.y, beginAtZero: true } } }} /></Suspense>
           </div>
         </div>
         <div className="bg-[var(--color-bg-card)] rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Enrollment Status</h3>
           {enrollStats.total > 0 ? (
             <div style={{ height: 220 }} className="flex items-center justify-center">
-              <Doughnut data={enrollStatusData} options={pieOpts} />
+              <Suspense fallback={<ChartFallback />}><LazyDoughnut data={enrollStatusData} options={pieOpts} /></Suspense>
             </div>
           ) : (
             <div className="flex items-center justify-center h-56 text-sm text-[var(--color-text-muted)]">No enrollment data</div>
@@ -378,14 +391,14 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
         <div className="bg-[var(--color-bg-card)] rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Students by Program & Year</h3>
           <div style={{ height: 240 }}>
-            <Bar data={programBarData} options={{ ...chartOpts, scales: { ...chartOpts.scales, x: { ...chartOpts.scales.x, stacked: false }, y: { ...chartOpts.scales.y, stacked: false, beginAtZero: true } } }} />
+            <Suspense fallback={<ChartFallback />}><LazyBar data={programBarData} options={{ ...chartOpts, scales: { ...chartOpts.scales, x: { ...chartOpts.scales.x, stacked: false }, y: { ...chartOpts.scales.y, stacked: false, beginAtZero: true } } }} /></Suspense>
           </div>
         </div>
         <div className="bg-[var(--color-bg-card)] rounded-xl p-5 shadow-sm">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4">Enrollment Status</h3>
           {enrollStats.total > 0 ? (
             <div style={{ height: 240 }} className="flex items-center justify-center">
-              <Doughnut data={enrollStatusData} options={pieOpts} />
+              <Suspense fallback={<ChartFallback />}><LazyDoughnut data={enrollStatusData} options={pieOpts} /></Suspense>
             </div>
           ) : (
             <div className="flex items-center justify-center h-60 text-sm text-[var(--color-text-muted)]">No enrollment data</div>
@@ -586,7 +599,7 @@ export default function Students() {
       (name.includes(searchQuery.toLowerCase()) || s.studentId.toLowerCase().includes(searchQuery.toLowerCase())) &&
       (statusFilter === 'all' || s.status === statusFilter) &&
       (effectiveCampusFilter === 'all' || s.academic.campus.includes(effectiveCampusFilter)) &&
-      (gradeLevelFilter === 'all' || s.academic.gradeLevel.includes(gradeLevelFilter))
+      (gradeLevelFilter === 'all' || s.academic.gradeLevel === gradeLevelFilter)
     )
   })
 

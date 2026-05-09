@@ -287,7 +287,7 @@ export function CampusChip({ user }) {
   // Use system primary color for all campuses
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white border bg-primary border-primary"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-xs font-semibold text-white border bg-primary border-primary"
     >
       <MapPin className="w-3 h-3" />
       <span className="hidden sm:inline">{user.campus}</span>

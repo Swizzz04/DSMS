@@ -52,17 +52,29 @@ export function seedGradeTestData() {
 
   const syData = existingLoads[campusKey][schoolYear]
 
-  // Assign subjects to Maria Santos for Grade 7
-  const subjects = ['Filipino', 'English', 'Mathematics', 'Science']
-  subjects.forEach(subject => {
+  // Assign subjects to teachers for Grade 7
+  // Maria Santos (id: 19) = Filipino, English, Math, Science, Music & Arts
+  // Juan dela Cruz (id: 20) = PE & Health, TLE, Computer
+  const teacherAssignments = [
+    { subject: 'Filipino',       teacherId: 19, teacherName: 'Maria Santos' },
+    { subject: 'English',        teacherId: 19, teacherName: 'Maria Santos' },
+    { subject: 'Mathematics',    teacherId: 19, teacherName: 'Maria Santos' },
+    { subject: 'Science',        teacherId: 19, teacherName: 'Maria Santos' },
+    { subject: 'Music & Arts',   teacherId: 19, teacherName: 'Maria Santos' },
+    { subject: 'PE & Health',    teacherId: 20, teacherName: 'Juan dela Cruz' },
+    { subject: 'TLE',            teacherId: 20, teacherName: 'Juan dela Cruz' },
+    { subject: 'Computer',       teacherId: 20, teacherName: 'Juan dela Cruz' },
+  ]
+
+  teacherAssignments.forEach(({ subject, teacherId: tid, teacherName: tname }) => {
     const existing = syData.basicEdLoads.find(l => l.gradeLevel === 'Grade 7' && l.subject === subject)
     if (!existing) {
       syData.basicEdLoads.push({
         id: `be_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         gradeLevel: 'Grade 7',
         subject,
-        teacherId,
-        teacherName,
+        teacherId: tid,
+        teacherName: tname,
         updatedAt: new Date().toISOString(),
       })
     }
@@ -79,16 +91,16 @@ export function seedGradeTestData() {
   const existingSubs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
 
   const studentNames = [
-    { first: 'ANGELA', last: 'REYES', middle: 'CRUZ' },
-    { first: 'BRIAN', last: 'SANTOS', middle: 'DELA' },
-    { first: 'CATHERINE', last: 'GARCIA', middle: 'LOPEZ' },
-    { first: 'DANIEL', last: 'MENDOZA', middle: 'BAUTISTA' },
-    { first: 'ELENA', last: 'FERNANDEZ', middle: 'RAMOS' },
-    { first: 'FRANCO', last: 'VILLANUEVA', middle: 'PEREZ' },
-    { first: 'GRACE', last: 'ESPINOSA', middle: 'RIVERA' },
-    { first: 'HENRY', last: 'NAVARRO', middle: 'CRUZ' },
-    { first: 'IRIS', last: 'PASCUAL', middle: 'TORRES' },
-    { first: 'JAMES', last: 'AQUINO', middle: 'SANTOS' },
+    { first: 'ANGELA', last: 'REYES', middle: 'CRUZ', gender: 'female' },
+    { first: 'BRIAN', last: 'SANTOS', middle: 'DELA', gender: 'male' },
+    { first: 'CATHERINE', last: 'GARCIA', middle: 'LOPEZ', gender: 'female' },
+    { first: 'DANIEL', last: 'MENDOZA', middle: 'BAUTISTA', gender: 'male' },
+    { first: 'ELENA', last: 'FERNANDEZ', middle: 'RAMOS', gender: 'female' },
+    { first: 'FRANCO', last: 'VILLANUEVA', middle: 'PEREZ', gender: 'male' },
+    { first: 'GRACE', last: 'ESPINOSA', middle: 'RIVERA', gender: 'female' },
+    { first: 'HENRY', last: 'NAVARRO', middle: 'CRUZ', gender: 'male' },
+    { first: 'IRIS', last: 'PASCUAL', middle: 'TORRES', gender: 'female' },
+    { first: 'JAMES', last: 'AQUINO', middle: 'SANTOS', gender: 'male' },
   ]
 
   // Only add if we don't already have Grade 7 students
@@ -106,6 +118,7 @@ export function seedGradeTestData() {
         firstName: name.first,
         lastName: name.last,
         middleName: name.middle,
+        gender: name.gender,
         status: 'approved',
         enrollment: {
           campus: campusName,
@@ -121,12 +134,18 @@ export function seedGradeTestData() {
   }
 
   console.log('✅ Grade test data seeded!')
-  console.log('   - 4 subjects assigned to Maria Santos (Grade 7)')
-  console.log('   - 10 approved students in Grade 7')
+  console.log('   - 8 subjects assigned across 2 teachers (Grade 7)')
+  console.log('     Maria Santos: Filipino, English, Math, Science, Music & Arts')
+  console.log('     Juan dela Cruz: PE & Health, TLE, Computer')
+  console.log('   - 10 approved students (5 boys, 5 girls)')
   console.log('   - 1 section: Grade 7 - St. Augustine')
   console.log('')
-  console.log('Login as: teacher.santos@cshc.edu.ph / teacher123')
-  console.log('Go to: e-Class Record → click any subject → enter grades')
+  console.log('Test MAPEH merge: Login as Maria Santos → enter Music & Arts grades')
+  console.log('                  Login as Juan dela Cruz → enter PE & Health grades')
+  console.log('                  Both will see the MAPEH merged grade card')
+  console.log('')
+  console.log('Maria Santos:    teacher.santos@cshc.edu.ph / teacher123')
+  console.log('Juan dela Cruz:  teacher.delacruz@cshc.edu.ph / teacher123')
 
   return true
 }

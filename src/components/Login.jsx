@@ -6,15 +6,29 @@ function getSchoolConfig() {
   try {
     const saved = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
     return {
-      name:       saved.schoolName   || 'School Management System',
-      motto:      saved.motto        || '',
-      email:      saved.email        || '',
-      logo:       saved.logoUrl      || '/assets/cshclogo.png',
-      portalLabel: saved.portalLabel || 'School Management Portal',
-      supportLabel: saved.supportLabel || 'Contact IT Support',
+      name:              saved.schoolName       || 'School Management System',
+      motto:             saved.motto            || '',
+      email:             saved.email            || '',
+      logo:              saved.logoUrl          || '/assets/cshclogo.png',
+      portalLabel:       saved.portalLabel      || 'School Management Portal',
+      supportLabel:      saved.supportLabel     || 'Contact IT Support',
+      // Login page colors — configurable by Super Admin
+      primary:           saved.primaryColor         || '#750014',
+      gradientStart:     saved.loginGradientStart   || saved.secondaryColor || '#080c42',
+      gradientEnd:       saved.loginGradientEnd      || '#04062a',
+      accentBar:         saved.loginAccentBar        || saved.primaryColor  || '#750014',
+      cardBorder:        saved.loginCardBorder       || saved.primaryColor  || '#750014',
     }
   } catch {
-    return { name: 'School Management System', motto: '', email: '', logo: '/assets/cshclogo.png', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support' }
+    return {
+      name: 'School Management System', motto: '', email: '',
+      logo: '/assets/cshclogo.png',
+      portalLabel: 'School Management Portal',
+      supportLabel: 'Contact IT Support',
+      primary: '#750014',
+      gradientStart: '#080c42', gradientEnd: '#04062a',
+      accentBar: '#750014', cardBorder: '#750014',
+    }
   }
 }
 
@@ -48,7 +62,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           alignItems: 'center',
           padding: '3rem',
           flex: '0 0 42%',
-          background: 'linear-gradient(160deg, var(--color-secondary-light) 0%, var(--color-secondary) 55%, #04062a 100%)',
+          background: `linear-gradient(160deg, ${school.gradientStart} 0%, ${school.gradientEnd} 55%, ${school.gradientEnd}cc 100%)`,
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -71,7 +85,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         <div style={{
           position: 'absolute', top: 0, left: 0,
           width: 4, height: '100%',
-          background: 'linear-gradient(to bottom, transparent, var(--color-primary), transparent)',
+          background: `linear-gradient(to bottom, transparent, ${school.accentBar}, transparent)`,
         }} />
 
         {/* Logo + school name — centered */}

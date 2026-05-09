@@ -16,7 +16,8 @@
  * Section: { id, defaultName, displayName, studentCount }
  */
 
-import { DEFAULT_BASIC_ED_SUBJECTS, DEFAULT_COLLEGE_SUBJECTS } from '../config/appConfig'
+import { DEFAULT_BASIC_ED_SUBJECTS, DEFAULT_COLLEGE_SUBJECTS } from '../config/defaultSubjects'
+import { COMPOSITE_SUBJECTS } from '../engines/gradingEngine'
 
 const STORAGE_KEY = 'cshc_subject_loads'
 const DEFAULT_MAX = 40
@@ -154,6 +155,21 @@ export function addBasicEdSubject(campusKey, schoolYear, gradeLevel, subject) {
   const data = getCY(campusKey, schoolYear)
   if (!data) return
   if (!data.basicEdSubjects[gradeLevel]) data.basicEdSubjects[gradeLevel] = []
+
+  const compositeConfig = COMPOSITE_SUBJECTS[subject.toUpperCase()]
+  if (compositeConfig) {
+    if (!data.basicEdSubjects[gradeLevel].includes(subject)) {
+      data.basicEdSubjects[gradeLevel].push(subject)
+    }
+    compositeConfig.subSubjects.forEach(ss => {
+      if (!data.basicEdSubjects[gradeLevel].includes(ss.label)) {
+        data.basicEdSubjects[gradeLevel].push(ss.label)
+      }
+    })
+    setCY(campusKey, schoolYear, data)
+    return
+  }
+
   if (!data.basicEdSubjects[gradeLevel].includes(subject)) {
     data.basicEdSubjects[gradeLevel].push(subject)
     setCY(campusKey, schoolYear, data)
@@ -163,6 +179,16 @@ export function addBasicEdSubject(campusKey, schoolYear, gradeLevel, subject) {
 export function removeBasicEdSubject(campusKey, schoolYear, gradeLevel, subject) {
   const data = getCY(campusKey, schoolYear)
   if (!data) return
+
+  const compositeConfig = COMPOSITE_SUBJECTS[subject.toUpperCase()]
+  if (compositeConfig) {
+    const toRemove = [subject, ...compositeConfig.subSubjects.map(ss => ss.label)]
+    data.basicEdSubjects[gradeLevel] = (data.basicEdSubjects[gradeLevel] || []).filter(s => !toRemove.includes(s))
+    data.basicEdLoads = data.basicEdLoads.filter(l => !(l.gradeLevel === gradeLevel && toRemove.includes(l.subject)))
+    setCY(campusKey, schoolYear, data)
+    return
+  }
+
   data.basicEdSubjects[gradeLevel] = (data.basicEdSubjects[gradeLevel] || []).filter(s => s !== subject)
   data.basicEdLoads = data.basicEdLoads.filter(l => !(l.gradeLevel === gradeLevel && l.subject === subject))
   setCY(campusKey, schoolYear, data)
@@ -202,6 +228,35 @@ export function assignBasicEdLoad(campusKey, schoolYear, gradeLevel, subject, te
     updatedAt: new Date().toISOString(),
   }
   if (idx >= 0) data.basicEdLoads[idx] = load; else data.basicEdLoads.push(load)
+  setCY(campusKey, schoolYear, data)
+}
+
+/**
+ * Set the subject area (grading weights) for a Basic Ed subject load.
+ * Called from SubjectLoad.jsx when principal picks the subject area.
+ * The subjectArea key matches SUBJECT_AREAS in gradingEngine.js:
+ *   'language' | 'science_math' | 'hele_mapeh' | 'shs_core' | 'shs_applied' | 'shs_research'
+ */
+export function setBasicEdSubjectArea(campusKey, schoolYear, gradeLevel, subject, subjectArea) {
+  const data = getCY(campusKey, schoolYear)
+  if (!data) return
+  const idx = data.basicEdLoads.findIndex(l => l.gradeLevel === gradeLevel && l.subject === subject)
+  if (idx >= 0) {
+    data.basicEdLoads[idx] = {
+      ...data.basicEdLoads[idx],
+      subjectArea,
+      updatedAt: new Date().toISOString(),
+    }
+  } else {
+    // Create a stub load record with just the subject area set
+    data.basicEdLoads.push({
+      id: `be_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
+      gradeLevel, subject,
+      teacherId: null, teacherName: '',
+      subjectArea,
+      updatedAt: new Date().toISOString(),
+    })
+  }
   setCY(campusKey, schoolYear, data)
 }
 

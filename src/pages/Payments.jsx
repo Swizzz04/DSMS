@@ -18,8 +18,7 @@ import {
   DeptPaymentCard,
   ProgramPaymentCard,
   PaymentStatusBadge as StatusBadge,
-  DEPT_STYLES, PROG_COLORS,
-  CampusBanner,
+  DEPT_STYLES, PROG_COLORS
 } from '../components/SchoolComponents'
 
 
@@ -66,7 +65,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
               'Outstanding': gp.reduce((s, p) => s + p.balance, 0),
               'Paid': gp.filter(p => p.status === 'paid').length,
               'Partial': gp.filter(p => p.status === 'partial').length,
-              'Overdue': gp.filter(p => p.status === 'overdue').length,
+              'Overdue': gp.filter(p => p.status === 'overdue').length
             })
           })
         })
@@ -86,7 +85,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
               'Outstanding': gp.reduce((s, p) => s + p.balance, 0),
               'Paid': gp.filter(p => p.status === 'paid').length,
               'Partial': gp.filter(p => p.status === 'partial').length,
-              'Overdue': gp.filter(p => p.status === 'overdue').length,
+              'Overdue': gp.filter(p => p.status === 'overdue').length
             })
           })
         })
@@ -539,7 +538,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
         orNumber:   orNumber.trim(),
         notes:      notes.trim(),
         paymentFor: paymentFor.length > 0 ? paymentFor : ['tuition'],
-        date:       new Date().toISOString(),
+        date:       new Date().toISOString()
       })
     }, 600)
   }
@@ -795,13 +794,13 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
   // Basic Ed — all groups from static config (all grades always shown)
   const basicEdGroups = BASIC_ED_GROUPS.map(group => ({
     label: group.label,
-    options: group.options.map(g => ({ value: g, label: g })),
+    options: group.options.map(g => ({ value: g, label: g }))
   }))
 
   // College — all programs × all year levels (prop, falls back to empty)
   const collegeGroups = (collegePrograms || []).map(prog => ({
     label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr })),
+    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
   }))
 
   // Flatten all payment history entries
@@ -813,7 +812,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
       campus:       p.campus,
       refNum:       p.studentId,
       totalFee:     p.totalFee,
-      balance:      p.balance,
+      balance:      p.balance
     }))
   ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
 
@@ -853,7 +852,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
       'Method':        tx.method || '—',
       'Date':          tx.date ? new Date(tx.date).toLocaleDateString('en-PH') : '—',
       'Amount':        tx.amount || 0,
-      'Notes':         tx.notes || '',
+      'Notes':         tx.notes || ''
     }))
     exportToExcel(data, `Payment_Records_${new Date().toISOString().split('T')[0]}`, 'Payment Records')
     addToast('Payment records exported!', 'success')
@@ -1050,13 +1049,13 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
   // Basic Ed — all grades from static config
   const basicEdGroups = BASIC_ED_GROUPS.map(group => ({
     label: group.label,
-    options: group.options.map(g => ({ value: g, label: g })),
+    options: group.options.map(g => ({ value: g, label: g }))
   }))
 
   // College — all programs × all year levels from static config
   const collegeGroups = collegePrograms.map(prog => ({
     label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr })),
+    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
   }))
 
   // Only students with remaining balance
@@ -1098,7 +1097,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
       'Amount Paid':   p.amountPaid,
       'Balance':       p.balance,
       'Days Since Enrollment': daysSince(p.submittedDate),
-      'Status':        daysSince(p.submittedDate) > 30 ? 'Overdue' : 'Partial',
+      'Status':        daysSince(p.submittedDate) > 30 ? 'Overdue' : 'Partial'
     }))
     exportToExcel(data, `Student_Balances_${new Date().toISOString().split('T')[0]}`, 'Balances')
     addToast('Student balances exported!', 'success')
@@ -1395,7 +1394,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
         'Payment For':    (h.paymentFor||['tuition']).map(k=>FEE_LABELS[k]||k).join(', '),
         'Notes':          h.notes||'',
         'Amount Paid':    h.amount||0,
-        'Running Balance':Math.max(0,runBal),
+        'Running Balance':Math.max(0,runBal)
       }
     })
     exportToExcel(data, `SOA_${p.studentName.replace(/,\s*/g,'_')}_${new Date().toISOString().split('T')[0]}`, 'SOA')
@@ -1650,12 +1649,12 @@ export default function Payments() {
           paymentHistory: s.paymentHistory || (s.amountPaid > 0 ? [{
             id: 1, amount: s.amountPaid, method: s.paymentMethod,
             date: s.lastPaymentDate || s.updatedAt || s.submittedDate,
-            orNumber: '', notes: '', paymentFor: ['tuition'],
+            orNumber: '', notes: '', paymentFor: ['tuition']
           }] : []),
           feeBreakdown:     s.feeBreakdown     || null,
           discountsApplied: s.discountsApplied || [],
           lastPaymentDate:  s.lastPaymentDate  || s.updatedAt,
-          submittedDate:    s.submittedDate,
+          submittedDate:    s.submittedDate
         }))
         if (paid.length > 0) setPayments(paid)
       } catch {}
@@ -1694,7 +1693,7 @@ export default function Payments() {
       date:       transaction.date,
       orNumber:   transaction.orNumber,
       notes:      transaction.notes,
-      paymentFor: transaction.paymentFor || ['tuition'],
+      paymentFor: transaction.paymentFor || ['tuition']
     }
 
     try {
@@ -1711,7 +1710,7 @@ export default function Payments() {
           status:          newBalance <= 0 ? 'approved' : 'payment_received',
           paymentMethod:   transaction.method,
           lastPaymentDate: transaction.date,
-          paymentHistory:  [...(sub.paymentHistory || []), newEntry],
+          paymentHistory:  [...(sub.paymentHistory || []), newEntry]
         }
         localStorage.setItem('cshc_submissions', JSON.stringify(subs))
         localStorage.setItem('cshc_status_update', JSON.stringify({ ts: Date.now() }))
@@ -1733,13 +1732,13 @@ export default function Payments() {
         status:          newStatus,
         paymentMethod:   transaction.method,
         lastPaymentDate: transaction.date,
-        paymentHistory:  [...(p.paymentHistory || []), newEntry],
+        paymentHistory:  [...(p.paymentHistory || []), newEntry]
       }
     }))
     setSelectedPayment(prev => ({
       ...prev,
       amountPaid: prev.amountPaid + transaction.amount,
-      balance:    Math.max(0, prev.totalFee - prev.amountPaid - transaction.amount),
+      balance:    Math.max(0, prev.totalFee - prev.amountPaid - transaction.amount)
     }))
     setPendingTransaction(transaction)
     setShowRecordModal(false)
@@ -1784,12 +1783,12 @@ export default function Payments() {
   // Static option groups — all grades/year levels always shown
   const mainBasicEdGroups = BASIC_ED_GROUPS.map(group => ({
     label: group.label,
-    options: group.options.map(g => ({ value: g, label: g })),
+    options: group.options.map(g => ({ value: g, label: g }))
   }))
   // One group per program, options are year levels
   const mainCollegeGroups = mainCollegePrograms.map(prog => ({
     label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr })),
+    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
   }))
 
   const handleMainDeptChange = (dept) => { setDeptFilter(dept); setYearFilter('all'); setGradeLevelFilter('all') }
@@ -1812,7 +1811,7 @@ export default function Payments() {
     outstanding: filtered.reduce((s, p) => s + p.balance, 0),
     totalFee:    filtered.reduce((s, p) => s + p.totalFee, 0),
     paid:        filtered.filter(p => p.status === 'paid').length,
-    overdue:     filtered.filter(p => p.status === 'overdue').length,
+    overdue:     filtered.filter(p => p.status === 'overdue').length
   }
   const collectionRate = stats.totalFee > 0 ? Math.round((stats.revenue / stats.totalFee) * 100) : 0
 
@@ -1823,7 +1822,7 @@ export default function Payments() {
       'Campus': p.campus, 'Grade / Program': p.gradeLevel,
       'Total Fee': p.totalFee, 'Amount Paid': p.amountPaid, 'Balance': p.balance,
       'Status': p.status.toUpperCase(), 'Payment Method': p.paymentMethod || '—',
-      'Last Payment': p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString() : '—',
+      'Last Payment': p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString() : '—'
     }))
     exportToExcel(data, `Payments_${new Date().toISOString().split('T')[0]}`, 'Payments')
     addToast(`Exported ${data.length} records!`, 'success')
@@ -1845,7 +1844,6 @@ export default function Payments() {
         </p>
       </div>
 
-      <CampusBanner user={user} />
 
       {/* Tab navigation */}
       <div className="flex gap-1 bg-[var(--color-bg-subtle)] p-1 rounded-xl border border-[var(--color-border)] overflow-x-auto">

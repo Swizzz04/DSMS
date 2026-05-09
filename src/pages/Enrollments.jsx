@@ -19,8 +19,7 @@ import {
   DeptEnrollmentCard as DeptCard,
   ProgramEnrollmentCard as ProgramCard,
   EnrollmentStatusPill as StatusPill,
-  DEPT_STYLES, PROG_COLORS,
-  CampusBanner,
+  DEPT_STYLES, PROG_COLORS
 } from '../components/SchoolComponents'
 
 // ── helpers ────────────────────────────────────────────────────────
@@ -33,15 +32,46 @@ function isCollege(g) {
 
 const php = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}`
 
-function StatusBadge({ status }) {
-  const map = {
-    pending:          { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3"/>,        label: 'Awaiting Payment'  },
-    payment_received: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',         icon: <DollarSign className="w-3 h-3"/>,    label: 'Payment Received'  },
-    approved:         { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',     icon: <CheckCircle className="w-3 h-3"/>,   label: 'Approved'          },
-    rejected:         { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             icon: <XCircle className="w-3 h-3"/>,       label: 'Rejected'          },
+// Color map for workflow step colors (matches workflowConfigBridge color values)
+const STEP_COLOR_MAP = {
+  yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  red:    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+  teal:   'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+  gray:   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+}
+
+// Legacy status fallback colors (for cshc_submissions records not yet in bridge)
+const LEGACY_STATUS_MAP = {
+  pending:          { cls: STEP_COLOR_MAP.yellow, icon: <Clock className="w-3 h-3"/>,      label: 'Awaiting Payment'  },
+  payment_received: { cls: STEP_COLOR_MAP.blue,   icon: <DollarSign className="w-3 h-3"/>, label: 'Payment Received'  },
+  approved:         { cls: STEP_COLOR_MAP.green,  icon: <CheckCircle className="w-3 h-3"/>,label: 'Approved'          },
+  rejected:         { cls: STEP_COLOR_MAP.red,    icon: <XCircle className="w-3 h-3"/>,    label: 'Rejected'          },
+}
+
+function StatusBadge({ enrollment }) {
+  // Bridge record — use step definition from workflow config
+  if (enrollment?.currentStep && enrollment?.workflowId) {
+    const stepDef = getEnrollmentCurrentStep(enrollment)
+    const cls = STEP_COLOR_MAP[stepDef?.color ?? 'gray'] ?? STEP_COLOR_MAP.gray
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
+        <Clock className="w-3 h-3" />
+        {stepDef?.label ?? enrollment.currentStep}
+      </span>
+    )
   }
-  const cfg = map[status] || map.pending
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
+  // Legacy website submission record
+  const cfg = LEGACY_STATUS_MAP[enrollment?.status] ?? LEGACY_STATUS_MAP.pending
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
+      {cfg.icon}{cfg.label}
+    </span>
+  )
 }
 
 // ── Admin Overview ─────────────────────────────────────────────────
@@ -463,7 +493,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                 <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">{name}</h2>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</span>
-                  <StatusBadge status={e.status}/>
+                  <StatusBadge enrollment={e}/>
                 </div>
               </div>
             </div>
@@ -769,7 +799,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         discountBreakdown: discBreakdown,
         units:         actualUnits,
         labUnits:      actualLabUnits,
-        loadStatus:    getLoadStatus(actualUnits, feeEntry.typicalUnits),
+        loadStatus:    getLoadStatus(actualUnits, feeEntry.typicalUnits)
       }
     } else {
       const breakdown = {
@@ -779,7 +809,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         lab:        feeEntry.lab        || 0,
         books:      feeEntry.books      || 0,
         other:      feeEntry.other      || 0,
-        total: 0,
+        total: 0
       }
       const b = computeStudentBill(breakdown, discountInputs)
       b.grandTotal = b.tuitionAfterDiscount + breakdown.misc + breakdown.lab + breakdown.books + breakdown.other
@@ -814,7 +844,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
       orNumber:          orNumber.trim(),
       notes:             notes.trim(),
       discountsApplied:  selectedDiscounts.map(d => ({ id: d.id, name: d.name, rate: d.defaultRate, type: d.type || 'percentage' })),
-      paymentDate:       new Date().toISOString(),
+      paymentDate:       new Date().toISOString()
     })
   }
 
@@ -1147,7 +1177,18 @@ export default function Enrollments() {
   const { toasts, addToast, removeToast } = useToast()
 
   const getWebSubs = () => {
-    try { return JSON.parse(localStorage.getItem('cshc_submissions') || '[]') } catch { return [] }
+    // Merge bridge records (almirene_enrollments) + legacy website submissions (cshc_submissions)
+    // Bridge records take precedence — if a submission was converted to a bridge record,
+    // we show the bridge record with full workflow state instead of the raw submission.
+    try {
+      const bridgeRecords = getEnrollments()
+      const submissions   = getWebsiteSubmissions()
+      // IDs that have been converted to bridge records
+      const bridgeIds = new Set(bridgeRecords.map(r => r.sourceSubmissionId).filter(Boolean))
+      // Keep only legacy submissions not yet in bridge
+      const legacyOnly = submissions.filter(s => !bridgeIds.has(s.id) && !bridgeIds.has(s.referenceNumber))
+      return [...bridgeRecords, ...legacyOnly]
+    } catch { return [] }
   }
 
   const filterByCampus = (subs) => {
@@ -1163,25 +1204,23 @@ export default function Enrollments() {
 
   const [enrollments, setEnrollments]         = useState(buildEnrollments)
   const [websiteSubmissions, setWebsiteSubs]  = useState(() => filterByCampus(getWebSubs()))
-  const [websiteCount, setWebsiteCount]       = useState(() => {
-    const subs = filterByCampus(getWebSubs())
-    const role = user?.role
-    if (role === 'registrar_basic')   return subs.filter(s => s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')).length
-    if (role === 'registrar_college') return subs.filter(s => s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')).length
-    if (role === 'accounting')        return subs.filter(s => s.status === 'pending').length
-    return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
-  })
-
+  // Actionable count — records where this user has available workflow actions
   const getActionableCount = (subs) => {
-    const role = user?.role
-    if (role === 'registrar_basic')
-      return subs.filter(s => s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')).length
-    if (role === 'registrar_college')
-      return subs.filter(s => s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')).length
-    if (role === 'accounting')
-      return subs.filter(s => s.status === 'pending').length
-    return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
+    return subs.filter(s => {
+      // Bridge record — ask the workflow engine
+      if (s.currentStep && s.workflowId) {
+        return getEnrollmentActions(user, s).length > 0
+      }
+      // Legacy fallback
+      const role = user?.role
+      if (role === 'registrar_basic')   return s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')
+      if (role === 'registrar_college') return s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')
+      if (role === 'accounting')        return s.status === 'pending'
+      return s.status === 'pending' || s.status === 'payment_received'
+    }).length
   }
+
+  const [websiteCount, setWebsiteCount] = useState(() => getActionableCount(filterByCampus(getWebSubs())))
 
   const loadBridge = useCallback(() => {
     const subs = filterByCampus(getWebSubs())
@@ -1197,10 +1236,12 @@ export default function Enrollments() {
       }
     }
     window.addEventListener('cshc_new_submission', loadBridge)
+    window.addEventListener('almirene_enrollments_updated', loadBridge)
     window.addEventListener('storage', handleStorage)
     const t = setInterval(loadBridge, 10000)
     return () => {
       window.removeEventListener('cshc_new_submission', loadBridge)
+      window.removeEventListener('almirene_enrollments_updated', loadBridge)
       window.removeEventListener('storage', handleStorage)
       clearInterval(t)
     }
@@ -1282,9 +1323,15 @@ export default function Enrollments() {
 
   // ── Non-admin: role-scoped list view ─────────────────────────
   const roleFiltered = enrollments.filter(e => {
-    const g = e.enrollment.gradeLevel, c = e.enrollment.campus
+    const g = e.enrollment?.gradeLevel ?? e.gradeLevel ?? ''
+    const c = e.enrollment?.campus ?? e.campusName ?? ''
+
     if (user?.role === 'accounting') {
       const campusMatch = user?.campus === 'all' || c === user.campus
+      // Bridge: show records where accounting has actions
+      if (e.currentStep && e.workflowId) {
+        return campusMatch && getEnrollmentActions(user, e).length > 0
+      }
       return campusMatch && (e.status === 'pending' || e.status === 'payment_received')
     }
     if (user?.role === 'registrar_basic')   return isBasicEd(g) && c === user.campus
@@ -1308,28 +1355,60 @@ export default function Enrollments() {
     return matchSearch && matchStatus && matchCampus && matchGrade && matchTime
   })
 
-  const STATUS_ORDER = { pending: 0, payment_received: 1, approved: 2, rejected: 3 }
+  // Status sort order — workflow steps + legacy statuses
+  const STATUS_ORDER = {
+    pre_registered: 0, accounting_assessment: 1, for_payment: 2,
+    section_assignment: 3, temporarily_enrolled: 4, officially_enrolled: 5,
+    pending: 0, payment_received: 2, approved: 5, rejected: 9,
+  }
   const sorted = [...filtered].sort((a, b) => {
-    const diff = (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
+    const aStep = a.currentStep ?? a.status ?? 'pending'
+    const bStep = b.currentStep ?? b.status ?? 'pending'
+    const diff  = (STATUS_ORDER[aStep] ?? 9) - (STATUS_ORDER[bStep] ?? 9)
     if (diff !== 0) return diff
-    return new Date(a.submittedDate) - new Date(b.submittedDate)
+    return new Date(a.createdAt ?? a.submittedDate) - new Date(b.createdAt ?? b.submittedDate)
   })
+
+  // Stats — normalize both bridge steps and legacy statuses
+  const getEffectiveStatus = (e) => {
+    if (!e.currentStep) return e.status ?? 'pending'
+    // Map bridge steps to display categories
+    if (e.currentStep === 'officially_enrolled' || e.currentStep === 'temporarily_enrolled') return 'approved'
+    const step = getEnrollmentCurrentStep(e)
+    if (step?.isFinal && e.currentStep !== 'officially_enrolled') return 'rejected'
+    return e.currentStep
+  }
 
   const stats = {
     total:            roleFiltered.length,
-    pending:          roleFiltered.filter(e => e.status === 'pending').length,
-    payment_received: roleFiltered.filter(e => e.status === 'payment_received').length,
-    approved:         roleFiltered.filter(e => e.status === 'approved').length,
-    rejected:         roleFiltered.filter(e => e.status === 'rejected').length,
+    pending:          roleFiltered.filter(e => ['pending','pre_registered','accounting_assessment'].includes(getEffectiveStatus(e))).length,
+    payment_received: roleFiltered.filter(e => ['payment_received','for_payment'].includes(getEffectiveStatus(e))).length,
+    approved:         roleFiltered.filter(e => ['approved','officially_enrolled','temporarily_enrolled','section_assignment'].includes(getEffectiveStatus(e))).length,
+    rejected:         roleFiltered.filter(e => getEffectiveStatus(e) === 'rejected').length,
   }
 
-  const canMarkPayment = (e) =>
-    (user?.role === 'technical_admin' || user?.role === 'accounting') && e.status === 'pending'
+  // Workflow-aware action check
+  // For bridge records: ask the engine. For legacy: fallback to old hardcoded checks.
+  const getActions = (e) => {
+    if (e?.currentStep && e?.workflowId) return getEnrollmentActions(user, e)
+    return []
+  }
 
-  const canApproveReject = (e) =>
-    (user?.role === 'technical_admin') ||
-    (user?.role === 'registrar_basic'   && e.status === 'payment_received' && isBasicEd(e.enrollment.gradeLevel)) ||
-    (user?.role === 'registrar_college' && e.status === 'payment_received' && isCollege(e.enrollment.gradeLevel))
+  const canMarkPayment = (e) => {
+    if (e?.currentStep && e?.workflowId) {
+      return getActions(e).some(a => a.nextStep === 'for_payment' || a.nextStep === 'accounting_assessment')
+    }
+    return (user?.role === 'technical_admin' || user?.role === 'accounting') && e.status === 'pending'
+  }
+
+  const canApproveReject = (e) => {
+    if (e?.currentStep && e?.workflowId) {
+      return getActions(e).some(a => a.nextStep === 'officially_enrolled' || a.style === 'danger')
+    }
+    return (user?.role === 'technical_admin') ||
+      (user?.role === 'registrar_basic'   && e.status === 'payment_received' && isBasicEd(e.enrollment?.gradeLevel)) ||
+      (user?.role === 'registrar_college' && e.status === 'payment_received' && isCollege(e.enrollment?.gradeLevel))
+  }
 
   const handleApprove     = (id) => setConfirm({ open: true, type: 'approve',      id })
   const handleReject      = (id) => setConfirm({ open: true, type: 'reject',       id })
@@ -1361,7 +1440,7 @@ export default function Enrollments() {
         orNumber:         lastPayment.orNumber || '—',
         notes:            lastPayment.notes,
         discountsApplied: enrollment.discountsApplied || [],
-        paymentDate:      lastPayment.date,
+        paymentDate:      lastPayment.date
       }
     })
     setShowReceiptModal(true)
@@ -1390,10 +1469,10 @@ export default function Enrollments() {
           ...(paymentData.feeBreakdown?.lab   > 0 ? ['lab']   : []),
           ...(paymentData.feeBreakdown?.books > 0 ? ['books'] : []),
           ...(paymentData.feeBreakdown?.other > 0 ? ['other'] : []),
-        ],
+        ]
       }],
       lastPaymentDate: paymentData.paymentDate,
-      paymentMethod:   paymentData.paymentMethod,
+      paymentMethod:   paymentData.paymentMethod
     }
 
     setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updatedFields } : e))
@@ -1427,19 +1506,44 @@ export default function Enrollments() {
   const confirmAction = () => {
     setActionLoading(true)
     setTimeout(() => {
-      let newStatus
-      if (confirm.type === 'approve')           newStatus = 'approved'
-      else if (confirm.type === 'reject')       newStatus = 'rejected'
-      else if (confirm.type === 'mark_payment') newStatus = 'payment_received'
+      const enrollment = enrollments.find(e => e.id === confirm.id)
 
-      setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: newStatus } : e))
-      if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: newStatus }))
+      // ── Bridge record: use workflow engine ────────────────────
+      if (enrollment?.currentStep && enrollment?.workflowId) {
+        try {
+          const actions  = getEnrollmentActions(user, enrollment)
+          // Map confirm type to action id
+          const actionMap = {
+            approve:      actions.find(a => a.style === 'primary' && a.nextStep !== 'rejected')?.id,
+            reject:       actions.find(a => a.style === 'danger'  || a.nextStep === 'rejected')?.id,
+            mark_payment: actions.find(a => a.nextStep === 'for_payment' || a.nextStep === 'accounting_assessment')?.id,
+          }
+          const actionId = confirm.actionId ?? actionMap[confirm.type]
+          if (actionId) {
+            advanceEnrollmentStep(confirm.id, actionId, confirm.note ?? '', user)
+            loadBridge()
+            window.dispatchEvent(new CustomEvent('almirene_enrollments_updated'))
+          }
+        } catch (err) {
+          addToast(err.message, 'error')
+          setConfirm({ open: false, type: null, id: null })
+          setActionLoading(false)
+          return
+        }
+      } else {
+        // ── Legacy website submission ─────────────────────────
+        let newStatus
+        if (confirm.type === 'approve')           newStatus = 'approved'
+        else if (confirm.type === 'reject')       newStatus = 'rejected'
+        else if (confirm.type === 'mark_payment') newStatus = 'payment_received'
 
-      const isWebsite = websiteSubmissions.some(s => s.id === confirm.id || s.referenceNumber === confirm.id)
-      if (isWebsite) {
-        if (confirm.type === 'approve')           approveWebsite(confirm.id)
-        else if (confirm.type === 'reject')       rejectWebsite(confirm.id)
-        else if (confirm.type === 'mark_payment') markPaidWebsite(confirm.id)
+        setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: newStatus } : e))
+        if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: newStatus }))
+
+        const isWebsite = websiteSubmissions.some(s => s.id === confirm.id || s.referenceNumber === confirm.id)
+        if (isWebsite) {
+          updateSubmissionStatus(confirm.id, newStatus)
+        }
       }
 
       const toastMsg = {
@@ -1447,10 +1551,11 @@ export default function Enrollments() {
         reject:       'Enrollment rejected.',
         mark_payment: 'Payment recorded — registrar has been notified.',
       }
-      addToast(toastMsg[confirm.type], confirm.type === 'approve' ? 'success' : confirm.type === 'mark_payment' ? 'success' : 'error')
+      addToast(toastMsg[confirm.type] ?? 'Action completed.', confirm.type === 'reject' ? 'error' : 'success')
       window.dispatchEvent(new CustomEvent('cshc_enrollment_updated'))
-      setConfirm({ open: false, type: null, id: null }); setActionLoading(false)
-    }, 800)
+      setConfirm({ open: false, type: null, id: null })
+      setActionLoading(false)
+    }, 400)
   }
 
   const handleExport = () => {
@@ -1464,8 +1569,8 @@ export default function Enrollments() {
         'Total Fee': e.totalFee || '',
         'Amount Paid': e.amountPaid || '',
         'Balance': e.balance || '',
-        'OR Number': e.paymentHistory?.[0]?.orNumber || '',
-      } : {}),
+        'OR Number': e.paymentHistory?.[0]?.orNumber || ''
+      } : {})
     }))
     exportToExcel(data, `Enrollments_${new Date().toISOString().split('T')[0]}`, 'Enrollments')
     addToast(`Exported ${data.length} records!`, 'success')
@@ -1516,7 +1621,6 @@ export default function Enrollments() {
       </div>
 
       {/* Campus-locked banner */}
-      <CampusBanner user={user} />
 
       {/* ── Accounting: Today's collection summary ── */}
       {user?.role === 'accounting' && (
@@ -1676,7 +1780,7 @@ export default function Enrollments() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <span className="text-sm font-semibold text-[var(--color-text-primary)] leading-tight">{formatStudentName(e.student, {short: true})}</span>
-                            <StatusBadge status={e.status} />
+                            <StatusBadge enrollment={e}/>
                           </div>
                           <div className="flex items-center gap-2 mb-1">
                             <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
@@ -1721,7 +1825,7 @@ export default function Enrollments() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-0.5">
                           <span className="text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</span>
-                          <StatusBadge status={e.status} />
+                          <StatusBadge enrollment={e}/>
                         </div>
                         <div className="flex items-center gap-2 mb-1">
                           <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
@@ -1784,7 +1888,7 @@ export default function Enrollments() {
                         {/* Date */}
                         <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">{fmtDate(e.submittedDate)}</td>
                         {/* Status */}
-                        <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={e.status} /></td>
+                        <td className="px-4 py-3 whitespace-nowrap"><StatusBadge enrollment={e}/></td>
                         {/* Fee/Paid — accounting only */}
                         {user?.role === 'accounting' && (
                           <td className="px-4 py-3 whitespace-nowrap">
@@ -1870,7 +1974,7 @@ export default function Enrollments() {
             </div>
             <div className="overflow-y-auto flex-1 p-5 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadge status={selectedEnrollment.status} />
+                <StatusBadge enrollment={selectedEnrollment}/>
                 <span className="text-xs text-[var(--color-text-muted)]">Submitted: {fmtDate(selectedEnrollment.submittedDate)}</span>
               </div>
               <InfoSection title="Enrollment Details" icon={<GraduationCap className="w-4 h-4"/>}>
