@@ -11,9 +11,9 @@ export default function LoginPage() {
 
   // Show session-expired message if auto-logout occurred
   useEffect(() => {
-    if (sessionStorage.getItem('cshc_expired')) {
+    if (sessionStorage.getItem('almirene_expired')) {
       setError('Your session has expired. Please sign in again.')
-      sessionStorage.removeItem('cshc_expired')
+      sessionStorage.removeItem('almirene_expired')
     }
   }, [])
 

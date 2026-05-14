@@ -6,7 +6,7 @@
  *
  * ── SECTION 1: WEBSITE SUBMISSION BRIDGE (original — preserved) ──────────────
  *   Used by the school website enrollment.js and the Enrollments page.
- *   Storage key: 'cshc_submissions'  (legacy key — do not rename until backend)
+ *   Storage key: 'almirene_submissions'  (legacy key — do not rename until backend)
  *
  * ── SECTION 2: WORKFLOW ENGINE INTEGRATION (new) ─────────────────────────────
  *   Used by the new workflow-driven enrollment management.
@@ -23,8 +23,8 @@
 // SECTION 1: WEBSITE SUBMISSION BRIDGE (original — do not modify)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY  = 'cshc_submissions'
-const COUNTER_KEY  = 'cshc_ref_counter'
+const STORAGE_KEY  = 'almirene_submissions'
+const COUNTER_KEY  = 'almirene_ref_counter'
 
 // ── Campus name mapping (website value → portal name) ──────────
 const CAMPUS_MAP = {
@@ -81,7 +81,7 @@ function generateReferenceNumber() {
   const stored = localStorage.getItem(COUNTER_KEY)
   const counter = stored ? parseInt(stored, 10) + 1 : 1000
   localStorage.setItem(COUNTER_KEY, counter.toString())
-  return `CSHC-${year}-W${String(counter).padStart(4, '0')}`
+  return `ALMIRENE-${year}-W${String(counter).padStart(4, '0')}`
 }
 
 // ── Normalize raw website form data into portal format ──────────
@@ -191,12 +191,12 @@ export function submitToAdminPortal(rawFormData) {
     const existing   = getWebsiteSubmissions()
     existing.push(normalized)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
-    window.dispatchEvent(new CustomEvent('cshc_new_submission', {
+    window.dispatchEvent(new CustomEvent('almirene_new_submission', {
       detail: { referenceNumber: refNum }
     }))
     return { success: true, referenceNumber: refNum }
   } catch (err) {
-    console.error('[CSHC Bridge] Failed to save submission:', err)
+    console.error('[ALMIRENE Bridge] Failed to save submission:', err)
     return { success: false, referenceNumber: null }
   }
 }

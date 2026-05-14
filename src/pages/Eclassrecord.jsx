@@ -34,8 +34,8 @@ import {
 import { exportEClassRecord } from '../utils/exportEClassRecord'
 
 // ── localStorage keys ──────────────────────────────────────────
-const ACTIVITIES_KEY   = 'cshc_grade_activities'
-const DRAFT_SCORES_KEY = 'cshc_draft_scores'
+const ACTIVITIES_KEY   = 'almirene_grade_activities'
+const DRAFT_SCORES_KEY = 'almirene_draft_scores'
 
 function loadActivities() {
   try { return JSON.parse(localStorage.getItem(ACTIVITIES_KEY) || '{}') } catch { return {} }
@@ -112,7 +112,7 @@ export default function EClassRecord() {
   // ── Load subject assignments from subjectLoadBridge ────────
   const subjectLoads = (() => {
     try {
-      const raw = localStorage.getItem('cshc_subject_loads')
+      const raw = localStorage.getItem('almirene_subject_loads')
       if (!raw) return []
       const all = JSON.parse(raw)
       const campusData = all[campusKey]
@@ -200,10 +200,10 @@ export default function EClassRecord() {
   // ── Get students from enrollments ──────────────────────────
   const getStudents = (gradeLevel, campKey) => {
     try {
-      const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       let campusName = user?.campus || ''
       try {
-        const savedCfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+        const savedCfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
         const c = (savedCfg.campuses || []).find(c => c.key === campKey)
         if (c?.name) campusName = c.name
       } catch {}
@@ -239,7 +239,7 @@ export default function EClassRecord() {
     } else {
       // Pre-fill subject area from the subject load (set by principal in Subject Load)
       try {
-        const rawLoads = JSON.parse(localStorage.getItem('cshc_subject_loads') || '{}')
+        const rawLoads = JSON.parse(localStorage.getItem('almirene_subject_loads') || '{}')
         const campusLoads = rawLoads[subj.campusKey]?.[currentSY]?.basicEdLoads || []
         const matchedLoad = campusLoads.find(l =>
           l.gradeLevel === subj.gradeLevel && l.subject === subj.subjectName
@@ -518,7 +518,7 @@ export default function EClassRecord() {
     try {
       let schoolName = 'School'
       try {
-        const wc = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
+        const wc = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
         schoolName = wc.schoolName || 'School'
       } catch {}
       const allActs   = loadActivities()

@@ -1,5 +1,5 @@
 /**
- * GroupedSelect — the STANDARD dropdown for the entire CSHC system.
+ * GroupedSelect — the STANDARD dropdown for the entire ALMIRENE DX system.
  *
  * Two modes:
  *

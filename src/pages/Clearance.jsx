@@ -32,6 +32,7 @@ import {
 import {
   getClearances, getClearanceById, createClearance, updateDepartmentClearance,
   checkAccountingStatus, CLEARANCE_DEPARTMENTS,
+  getClearanceActions, advanceClearanceStep, getClearanceStepDef, getClearanceStep,
 } from '../utils/documentBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +148,7 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
 
   const pct       = getProgressPct(clearance)
   const clearedN  = getClearedCount(clearance)
+  const stepDef   = getClearanceStepDef(clearance)  // workflow step for badge
 
   /**
    * Can the current user sign a specific department?
@@ -155,21 +157,44 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
    * - Accounting: accounting dept only (but it's auto — they can confirm if auto missed)
    * - Principal/program head: admin dept only
    */
+  // Workflow engine determines which department can be signed by this user
+  const availableActions = getClearanceActions(currentUser, clearance)
+
   function canSign(deptId) {
     if (clearance.isFullyCleared) return false
     const deptInfo = clearance.departments[deptId]
     if (deptInfo?.cleared) return false
-    // Accounting is auto — accounting staff can still manually confirm
-    if (isSuperAdmin) return true
-    if (isRegistrar && deptId === 'registrar') return true
-    if (myDept && deptId === myDept) return true
-    return false
+    // Map deptId to action ID expected by the engine
+    const actionMap = {
+      library:     'library_cleared',
+      accounting:  'accounting_cleared',
+      registrar:   'registrar_cleared',
+      guidance:    'guidance_cleared',
+      admin:       'admin_cleared',
+    }
+    const expectedAction = actionMap[deptId]
+    if (!expectedAction) return false
+    return availableActions.some(a => a.id === expectedAction)
   }
 
   const handleSign = () => {
     if (!confirmDept) return
     try {
-      updateDepartmentClearance(clearance.id, confirmDept, currentUser?.name ?? 'Unknown')
+      // Map dept ID to action ID for the engine
+      const actionMap = {
+        library:    'library_cleared',
+        accounting: 'accounting_cleared',
+        registrar:  'registrar_cleared',
+        guidance:   'guidance_cleared',
+        admin:      'admin_cleared',
+      }
+      const actionId = actionMap[confirmDept]
+      if (actionId && availableActions.some(a => a.id === actionId)) {
+        advanceClearanceStep(clearance.id, actionId, '', currentUser)
+      } else {
+        // Fallback for super admin overrides
+        updateDepartmentClearance(clearance.id, confirmDept, currentUser?.name ?? 'Unknown')
+      }
       addToast(`${CLEARANCE_DEPARTMENTS.find(d => d.id === confirmDept)?.label} clearance signed.`, 'success')
       setConfirmDept(null)
       onUpdate()
@@ -402,12 +427,14 @@ function ClearanceCard({ clearance, myDept, onSelect }) {
             {clearance.isFullyCleared
               ? <span className="badge badge-approved shrink-0">Cleared</span>
               : needsMySign
-                ? <span className="badge badge-pending shrink-0">Needs Sign</span>
+                ? <span className="badge badge-pending shrink-0">
+                    {getClearanceStepDef(clearance)?.label ?? 'Needs Sign'}
+                  </span>
                 : <span className="badge" style={{
                     background: 'var(--color-bg-subtle)',
                     color: 'var(--color-text-muted)',
                     border: '1px solid var(--color-border)'
-                  }}>In Progress</span>
+                  }}>{getClearanceStepDef(clearance)?.label ?? 'In Progress'}</span>
             }
           </div>
 

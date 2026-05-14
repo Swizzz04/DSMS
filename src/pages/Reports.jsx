@@ -295,7 +295,7 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
     <div className="receipt-copy border border-gray-300 rounded-lg p-5 bg-white text-gray-900" style={{fontFamily:'Georgia,serif',fontSize:'13px'}}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
-        <p className="font-bold text-sm uppercase tracking-wide" style={{color:'var(--color-primary)'}}>{'Cebu Sacred Heart College, Inc.'}</p>
+        <p className="font-bold text-sm uppercase tracking-wide" style={{color:'var(--color-primary)'}}>{''}</p>
         <p className="text-xs text-gray-500">{tx.campus}</p>
         <p className="text-xs text-gray-500">School Year {schoolYear}</p>
         <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -589,7 +589,7 @@ export default function Reports() {
   const cashierName = (() => {
     try {
       const campusKey = user?.campus?.replace(/ (City |)Campus$/i, '').replace(/[^a-zA-Z]/g, '') || 'all'
-      const cfg = JSON.parse(localStorage.getItem(`cshc_campus_cfg_${campusKey}`) || '{}')
+      const cfg = JSON.parse(localStorage.getItem(`almirene_campus_cfg_${campusKey}`) || '{}')
       return cfg.cashierName || user?.name || 'Accounting Officer'
     } catch { return user?.name || 'Accounting Officer' }
   })()
@@ -613,7 +613,7 @@ export default function Reports() {
   // Load all payment submissions from localStorage bridge
   const allPayments = useMemo(() => {
     try {
-      const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       return subs.filter(s =>
         // Must have payment status
         (s.status === 'payment_received' || s.status === 'approved') &&
@@ -789,7 +789,7 @@ export default function Reports() {
       { data: summaryData,   sheetName: 'Summary'     },
       { data: breakdownData, sheetName: 'By Grade'    },
       { data: txData,        sheetName: 'Transactions' },
-    ], `CSHC_Income_Report_${period}_${new Date().toISOString().split('T')[0]}`)
+    ], `ALMIRENE_Income_Report_${period}_${new Date().toISOString().split('T')[0]}`)
     addToast('Income report exported!', 'success')
   }
 

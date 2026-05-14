@@ -724,18 +724,18 @@ export default function SubjectLoad() {
 
   useEffect(() => {
     // Reload when subject assignments change
-    window.addEventListener('cshc_subject_load_updated', reload)
+    window.addEventListener('almirene_subject_load_updated', reload)
     // Also reload when an enrollment is approved — sections may have changed
     const handleEnrollmentUpdate = () => reload()
-    window.addEventListener('cshc_enrollment_updated', handleEnrollmentUpdate)
+    window.addEventListener('almirene_enrollment_updated', handleEnrollmentUpdate)
     // Cross-tab: another tab approves an enrollment
     const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === null) reload()
+      if (e.key === 'almirene_submissions' || e.key === null) reload()
     }
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('cshc_subject_load_updated', reload)
-      window.removeEventListener('cshc_enrollment_updated', handleEnrollmentUpdate)
+      window.removeEventListener('almirene_subject_load_updated', reload)
+      window.removeEventListener('almirene_enrollment_updated', handleEnrollmentUpdate)
       window.removeEventListener('storage', handleStorage)
     }
   }, [reload])

@@ -1,5 +1,5 @@
 /**
- * Dashboard.jsx — CSHC Admin Portal
+ * Dashboard.jsx — ALMIRENE DX Admin Portal
  * ─────────────────────────────────────────────────────────────────
  * Rev. 4 UI Cleanup:
  *  - All hardcoded bg-white/bg-gray-800 panels → .card primitive
@@ -12,7 +12,7 @@
  *  - Per-campus strip uses .animate-fade-in-up
  *  - Section panels via SectionPanel from SchoolComponents (unchanged)
  *  - No gradients, no shadow-2xl, no hover:scale, no backdrop-blur
- *  - Storage event: e.key === 'cshc_submissions' || e.key === null (✅ fixed)
+ *  - Storage event: e.key === 'almirene_submissions' || e.key === null (✅ fixed)
  *  - Dark mode: all color tokens auto-flip via CSS variables in .dark
  *  - Mobile-first: base mobile, sm:/md:/lg: for desktop
  * ─────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ ChartJS.register(
 
 // ── Load real data from localStorage bridge ──────────────────────
 function loadSubmissions() {
-  try { return JSON.parse(localStorage.getItem('cshc_submissions') || '[]') } catch { return [] }
+  try { return JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch { return [] }
 }
 
 // ── Derive isDark from DOM (chart colors need this synchronously) ─
@@ -87,14 +87,14 @@ export default function Dashboard() {
   // ── Reload when any tab updates enrollments ───────────────────
   useEffect(() => {
     const reload = () => setSubmissions(loadSubmissions())
-    // ✅ FIX: Only reload when cshc_submissions key changes
+    // ✅ FIX: Only reload when almirene_submissions key changes
     const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === null) reload()
+      if (e.key === 'almirene_submissions' || e.key === null) reload()
     }
-    window.addEventListener('cshc_enrollment_updated', reload)
+    window.addEventListener('almirene_enrollment_updated', reload)
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('cshc_enrollment_updated', reload)
+      window.removeEventListener('almirene_enrollment_updated', reload)
       window.removeEventListener('storage', handleStorage)
     }
   }, [])
@@ -337,7 +337,7 @@ export default function Dashboard() {
         })),
         sheetName: 'Per Campus'
       },
-    ], `CSHC_Dashboard_${campusFilter}_${new Date().toISOString().split('T')[0]}`)
+    ], `ALMIRENE_Dashboard_${campusFilter}_${new Date().toISOString().split('T')[0]}`)
   }
 
   // ── Loading state ─────────────────────────────────────────────
@@ -1064,16 +1064,16 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
 
   const [submissions, setSubmissions] = useState(loadSubmissions)
 
-  // ✅ FIX: Storage event correctly checks cshc_submissions key
+  // ✅ FIX: Storage event correctly checks almirene_submissions key
   useEffect(() => {
     const reload = () => setSubmissions(loadSubmissions())
     const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === null) reload()
+      if (e.key === 'almirene_submissions' || e.key === null) reload()
     }
-    window.addEventListener('cshc_enrollment_updated', reload)
+    window.addEventListener('almirene_enrollment_updated', reload)
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('cshc_enrollment_updated', reload)
+      window.removeEventListener('almirene_enrollment_updated', reload)
       window.removeEventListener('storage', handleStorage)
     }
   }, [])

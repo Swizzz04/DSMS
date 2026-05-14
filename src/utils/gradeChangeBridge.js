@@ -14,18 +14,21 @@
  * Rules (non-negotiable):
  *   - Only 'approved' grades can have a change request filed
  *   - Audit trail is permanent — never modified or deleted
- *   - Once a request is approved, the grade record in cshc_grades / cshc_college_grades
+ *   - Once a request is approved, the grade record in almirene_grades / almirene_college_grades
  *     is updated by the bridge (the registrar posts it here, not in Eclassrecord)
  *   - Only ONE active request per student+subject+period at a time
  */
+
+import { getWorkflowDefinition } from './workflowConfigBridge'
+import * as workflowEngine         from '../engines/workflowEngine'
 
 const GCR_KEY   = 'almirene_grade_change_requests'
 const AUDIT_KEY = 'almirene_grade_change_audit'
 const GCR_EVENT = 'almirene_grade_change_updated'
 
 // Grade storage keys (same as gradingEngine.js)
-const BASIC_GRADES_KEY   = 'cshc_grades'
-const COLLEGE_GRADES_KEY = 'cshc_college_grades'
+const BASIC_GRADES_KEY   = 'almirene_grades'
+const COLLEGE_GRADES_KEY = 'almirene_college_grades'
 
 function uid(prefix = 'gcr') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -57,7 +60,7 @@ function appendAudit(entry) {
   // No event — audit is silent
 }
 
-/** Update the actual grade record in cshc_grades or cshc_college_grades */
+/** Update the actual grade record in almirene_grades or almirene_college_grades */
 function postCorrectedGrade(request) {
   const key      = request.department === 'college' ? COLLEGE_GRADES_KEY : BASIC_GRADES_KEY
   const now      = new Date().toISOString()
@@ -98,7 +101,7 @@ function postCorrectedGrade(request) {
 
     localStorage.setItem(key, JSON.stringify(grades))
     window.dispatchEvent(new CustomEvent(
-      request.department === 'college' ? 'cshc_college_grades_updated' : 'cshc_grades_updated'
+      request.department === 'college' ? 'almirene_college_grades_updated' : 'almirene_grades_updated'
     ))
     return true
   } catch { return false }
@@ -288,7 +291,7 @@ export function rejectGradeChangeRequest(id, reviewerName, rejectedReason) {
 
 /**
  * Registrar posts the corrected grade.
- * Updates the actual grade record in cshc_grades / cshc_college_grades.
+ * Updates the actual grade record in almirene_grades / almirene_college_grades.
  * This is the final step — status becomes 'posted' (permanent).
  */
 export function postGradeCorrection(id, registrarName) {
@@ -359,8 +362,62 @@ export function getPendingGradeChangeCount(campusKey) {
 
 /** Status definitions for UI */
 export const GCR_STATUSES = [
-  { id: 'requested',    label: 'Pending Review',   color: 'yellow' },
-  { id: 'for_registrar',label: 'For Registrar',    color: 'blue'   },
-  { id: 'posted',       label: 'Posted ✓',          color: 'green'  },
-  { id: 'rejected',     label: 'Rejected',          color: 'red'    },
+  { id: 'requested',             label: 'Change Requested',         color: 'yellow' },
+  { id: 'principal_review',      label: 'Under Review',             color: 'blue'   },
+  { id: 'for_registrar',         label: 'For Registrar',            color: 'blue'   }, // legacy alias
+  { id: 'registrar_correction',  label: 'For Registrar Correction', color: 'indigo' },
+  { id: 'approved',              label: 'Approved & Posted ✓',      color: 'green'  },
+  { id: 'posted',                label: 'Approved & Posted ✓',      color: 'green'  }, // legacy alias
+  { id: 'rejected',              label: 'Rejected',                  color: 'red'    },
 ]
+
+// Normalise legacy step IDs to workflow engine step IDs
+function normaliseStep(status) {
+  if (status === 'for_registrar') return 'registrar_correction'
+  if (status === 'posted')        return 'approved'
+  return status
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WORKFLOW ENGINE INTEGRATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get available actions for a user on a grade change request.
+ * Reads from the 'grade_change_request' workflow definition.
+ */
+export function getGradeChangeActions(user, request) {
+  const workflowDef = getWorkflowDefinition('grade_change_request', 'all')
+  if (!workflowDef) return []
+  const step = normaliseStep(request.status)
+  return workflowEngine.getAvailableActions(user, step, request, workflowDef)
+}
+
+/**
+ * Advance a grade change request through the workflow.
+ * Routes to the correct existing bridge function based on action ID.
+ */
+export function advanceGradeChangeStep(requestId, actionId, note = '', user) {
+  const req = getGradeChangeRequestById(requestId)
+  if (!req) throw new Error(`Grade change request "${requestId}" not found.`)
+
+  switch (actionId) {
+    case 'approve_request':
+      return approveGradeChangeRequest(requestId, user?.name || 'System')
+    case 'reject':
+      return rejectGradeChangeRequest(requestId, user?.name || 'System', note)
+    case 'post_correction':
+      return postGradeCorrection(requestId, user?.name || 'System')
+    default:
+      throw new Error(`Unknown action "${actionId}" for grade change requests.`)
+  }
+}
+
+/**
+ * Get the workflow step definition for display purposes (label, color).
+ */
+export function getGradeChangeStepDef(request) {
+  const workflowDef = getWorkflowDefinition('grade_change_request', 'all')
+  if (!workflowDef) return null
+  return workflowEngine.getStep(normaliseStep(request.status), workflowDef)
+}

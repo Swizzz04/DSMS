@@ -96,7 +96,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
     })
 
     if (sheets.length) {
-      exportMultipleSheets(sheets, `CSHC_Payments_${campusFilter !== 'all' ? campusFilter : 'All'}_${new Date().toISOString().split('T')[0]}`)
+      exportMultipleSheets(sheets, `ALMIRENE_Payments_${campusFilter !== 'all' ? campusFilter : 'All'}_${new Date().toISOString().split('T')[0]}`)
       addToast('Payment summary exported!', 'success')
     }
   }
@@ -303,7 +303,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
         <div className="flex justify-center mb-1">
-          <img src="/cshclogo.png" alt="CSHC" style={{ height: 52, width: 52, objectFit: 'contain' }} />
+          <img src="/assets/school-logo.png" alt="School Logo" style={{ height: 52, width: 52, objectFit: 'contain' }} />
         </div>
         <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName}</p>
         <p className="text-xs text-gray-500">{payment.campus}</p>
@@ -1599,7 +1599,7 @@ export default function Payments() {
   const cashierName = (() => {
     try {
       const campusKey = user?.campus?.replace(/ (City |)Campus$/i, '').replace(/[^a-zA-Z]/g, '') || 'all'
-      const campusCfg = JSON.parse(localStorage.getItem(`cshc_campus_cfg_${campusKey}`) || '{}')
+      const campusCfg = JSON.parse(localStorage.getItem(`almirene_campus_cfg_${campusKey}`) || '{}')
       return campusCfg.cashierName || user?.name || 'Accounting Officer'
     } catch { return user?.name || 'Accounting Officer' }
   })()
@@ -1627,7 +1627,7 @@ export default function Payments() {
   useEffect(() => {
     const load = () => {
       try {
-        const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+        const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
         const paid = subs.filter(s =>
           (s.status === 'payment_received' || s.status === 'approved') &&
           (s.amountPaid > 0 || s.paymentHistory?.length > 0) &&
@@ -1663,12 +1663,12 @@ export default function Payments() {
     }
     load()
     const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === null) load()
+      if (e.key === 'almirene_submissions' || e.key === null) load()
     }
-    window.addEventListener('cshc_enrollment_updated', load)
+    window.addEventListener('almirene_enrollment_updated', load)
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('cshc_enrollment_updated', load)
+      window.removeEventListener('almirene_enrollment_updated', load)
       window.removeEventListener('storage', handleStorage)
     }
   }, [baseCampusFilter])
@@ -1697,7 +1697,7 @@ export default function Payments() {
     }
 
     try {
-      const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       const idx  = subs.findIndex(s => s.referenceNumber === selectedPayment.studentId)
       if (idx !== -1) {
         const sub            = subs[idx]
@@ -1712,9 +1712,9 @@ export default function Payments() {
           lastPaymentDate: transaction.date,
           paymentHistory:  [...(sub.paymentHistory || []), newEntry]
         }
-        localStorage.setItem('cshc_submissions', JSON.stringify(subs))
-        localStorage.setItem('cshc_status_update', JSON.stringify({ ts: Date.now() }))
-        window.dispatchEvent(new Event('cshc_enrollment_updated'))
+        localStorage.setItem('almirene_submissions', JSON.stringify(subs))
+        localStorage.setItem('almirene_status_update', JSON.stringify({ ts: Date.now() }))
+        window.dispatchEvent(new Event('almirene_enrollment_updated'))
       }
     } catch (e) {
       console.error('Failed to persist payment to localStorage:', e)

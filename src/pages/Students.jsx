@@ -472,10 +472,10 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
 // ═══════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════
-// ── Normalise cshc_submissions → student shape ────────────────────
+// ── Normalise almirene_submissions → student shape ────────────────────
 function normaliseSubmissions() {
   try {
-    const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+    const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     return subs
       .filter(s => s.status === 'approved')
       .map(s => {
@@ -547,12 +547,12 @@ export default function Students() {
   useEffect(() => {
     const reload = () => setStudents(normaliseSubmissions())
     const handleStorage = (e) => {
-      if (e.key === 'cshc_submissions' || e.key === null) reload()
+      if (e.key === 'almirene_submissions' || e.key === null) reload()
     }
-    window.addEventListener('cshc_enrollment_updated', reload)
+    window.addEventListener('almirene_enrollment_updated', reload)
     window.addEventListener('storage', handleStorage)
     return () => {
-      window.removeEventListener('cshc_enrollment_updated', reload)
+      window.removeEventListener('almirene_enrollment_updated', reload)
       window.removeEventListener('storage', handleStorage)
     }
   }, [])
@@ -703,7 +703,7 @@ export default function Students() {
       pdf.save(`Student_Profile_${s.studentId}.pdf`)
       addToast('PDF downloaded!', 'success')
     } catch (err) {
-      console.error('[CSHC] PDF download failed:', err)
+      console.error('[ALMIRENE] PDF download failed:', err)
       addToast('Failed to download PDF. Please try again.', 'error')
     } finally {
       setStudentToPrint(null)
@@ -753,7 +753,7 @@ export default function Students() {
           })),
           sheetName: campus.key,
         })),
-        `CSHC_All_Campuses_Students_${new Date().toISOString().split('T')[0]}`
+        `ALMIRENE_All_Campuses_Students_${new Date().toISOString().split('T')[0]}`
       )
     }
 

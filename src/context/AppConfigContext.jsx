@@ -42,7 +42,7 @@ import {
   computeStudentBill,
 } from '../config/appConfig'
 
-const STORAGE_KEY = 'cshc_app_config'
+const STORAGE_KEY = 'almirene_app_config'
 
 function loadPersisted() {
   try {
@@ -88,9 +88,9 @@ function buildInitialState() {
   // Clear stale localStorage fee data so it won't persist
   if (hasStaleData) {
     try {
-      const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+      const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
       delete cfg.feeStructure
-      localStorage.setItem('cshc_app_config', JSON.stringify(cfg))
+      localStorage.setItem('almirene_app_config', JSON.stringify(cfg))
     } catch {}
   }
 

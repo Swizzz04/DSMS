@@ -22,7 +22,7 @@ import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
 // ─────────────────────────────────────────────────────────────────────
 // CAMPUS-SCOPED STORAGE HELPERS
 // Each campus has its own localStorage key so settings never bleed
-// between campuses. Format: cshc_campus_cfg_{campusKey}
+// between campuses. Format: almirene_campus_cfg_{campusKey}
 // ─────────────────────────────────────────────────────────────────────
 function getCampusKey(campusName) {
   // Extract a clean key from campus name, e.g. 'Carcar City Campus' → 'Carcar'
@@ -32,14 +32,14 @@ function getCampusKey(campusName) {
 
 function loadCampusCfg(campusName) {
   try {
-    const key = `cshc_campus_cfg_${getCampusKey(campusName)}`
+    const key = `almirene_campus_cfg_${getCampusKey(campusName)}`
     return JSON.parse(localStorage.getItem(key) || '{}')
   } catch { return {} }
 }
 
 function saveCampusCfg(campusName, updates) {
   try {
-    const key = `cshc_campus_cfg_${getCampusKey(campusName)}`
+    const key = `almirene_campus_cfg_${getCampusKey(campusName)}`
     const existing = loadCampusCfg(campusName)
     localStorage.setItem(key, JSON.stringify({ ...existing, ...updates }))
     return true
@@ -1027,20 +1027,20 @@ export default function Settings() {
   const [infoSections, setInfoSections] = useState({ general: true, branding: false, loginPage: false, campuses: false, faq: false, about: false, programs: false, admissions: false })
   const toggleInfoSection = (key) => setInfoSections(prev => ({ ...prev, [key]: !prev[key] }))
 
-  // Website content — CMS for school website (stored in localStorage cshc_website_content)
+  // Website content — CMS for school website (stored in localStorage almirene_website_content)
   const [websiteContent, setWebsiteContent] = useState(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
+      const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
       return {
-        schoolName:  saved.schoolName  || 'Cebu Sacred Heart College, Inc.',
+        schoolName:  saved.schoolName  || '',
         motto:       saved.motto       || 'Where Children Grow In Love and Knowledge.',
-        email:       saved.email       || 'info@cshc.edu.ph',
+        email:       saved.email       || '',
         phone:       saved.phone       || '(032) 123-4567',
-        website:     saved.website     || 'www.cshc.edu.ph',
+        website:     saved.website     || '',
         schoolYear:  saved.schoolYear  || '2025-2026',
         portalLabel: saved.portalLabel || 'School Management Portal',
         supportLabel:saved.supportLabel|| 'Contact IT Support',
-        logoUrl:     saved.logoUrl     || '/assets/cshclogo.png',
+        logoUrl:     saved.logoUrl     || '/assets/school-logo.png',
         faq:         saved.faq         || [
           { id: 1, q: 'What are the tuition fees?', a: 'Tuition fees vary by campus and program. Please contact the Registrar\'s Office or visit any campus for detailed fee schedules.' },
           { id: 2, q: 'Do you offer scholarships?', a: 'Yes, we offer various scholarships based on academic performance and financial need. Please inquire at the Admissions Office for eligibility criteria.' },
@@ -1049,7 +1049,7 @@ export default function Settings() {
           { id: 5, q: 'What programs are offered at each campus?', a: 'All campuses offer Basic Education (Pre-Elem to SHS). College programs are at Talisay (BS Nursing, BS Tourism, BS HRM) and Carcar (BS Criminology). Bohol offers Pre-Elementary to Junior High.' },
         ],
         mission:     saved.mission     || 'To enhance virtue, develop competence, promote excellence, and inspire service in all academic levels of the institution.',
-        vision:      saved.vision      || 'CSHC envisions to produce graduates who are Christ-centered, critical thinkers, service-oriented, and globally competitive.',
+        vision:      saved.vision      || ' to produce graduates who are Christ-centered, critical thinkers, service-oriented, and globally competitive.',
         goals:       saved.goals       || ['Consistent pursuit of academic excellence.', 'Faithful adherence to Christian values and virtue.', 'Learning environment conducive to holistic formation.', 'Continuous faculty development.', 'Promotion of academic and cultural development.', 'Partnership with the community in social service.', 'Strict compliance with DepEd mandates.', 'Conformity with K to 12 Standards & competencies.'],
         coreValues:  saved.coreValues  || ['Integrity', 'Christ-centered', 'Excellence'],
         programs:    saved.programs    || [
@@ -1072,7 +1072,7 @@ export default function Settings() {
           { id: 4, title: 'Registrar Approval', desc: 'Receive your class schedule once enrollment is approved.' },
         ],
       }
-    } catch { return { schoolName: 'Cebu Sacred Heart College, Inc.', motto: '', email: '', phone: '', website: '', schoolYear: '2025-2026', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support', logoUrl: '/assets/cshclogo.png', faq: [], mission: '', vision: '', goals: [], coreValues: [], programs: [], requirements: [], steps: [] } }
+    } catch { return { schoolName: '', motto: '', email: '', phone: '', website: '', schoolYear: '2025-2026', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support', logoUrl: '/assets/school-logo.png', faq: [], mission: '', vision: '', goals: [], coreValues: [], programs: [], requirements: [], steps: [] } }
   })
   const [newFaqQ, setNewFaqQ] = useState('')
   const [newFaqA, setNewFaqA] = useState('')
@@ -1085,7 +1085,7 @@ export default function Settings() {
   const [showAddStep, setShowAddStep] = useState(false)
 
   const saveWebsiteContent = () => {
-    localStorage.setItem('cshc_website_content', JSON.stringify(websiteContent))
+    localStorage.setItem('almirene_website_content', JSON.stringify(websiteContent))
     // Apply brand colors immediately — no refresh needed
     applyTheme({ primaryColor: websiteContent.primaryColor, secondaryColor: websiteContent.secondaryColor })
     addToast('Website content saved! Changes applied to the system.', 'success')
@@ -1093,7 +1093,7 @@ export default function Settings() {
 
   // ── Form Templates state ────────────────────────────────────
   const [formTemplates, setFormTemplates] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cshc_form_templates') || '[]') } catch { return [] }
+    try { return JSON.parse(localStorage.getItem('almirene_form_templates') || '[]') } catch { return [] }
   })
 
   // Default form types + any custom ones the admin added
@@ -1106,7 +1106,7 @@ export default function Settings() {
   ]
 
   const [customFormTypes, setCustomFormTypes] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('cshc_custom_form_types') || '[]') } catch { return [] }
+    try { return JSON.parse(localStorage.getItem('almirene_custom_form_types') || '[]') } catch { return [] }
   })
   const [showAddForm, setShowAddForm] = useState(false)
   const [newFormName, setNewFormName] = useState('')
@@ -1121,7 +1121,7 @@ export default function Settings() {
     if (TEMPLATE_TYPES.find(t => t.id === id)) { addToast('A form with this name already exists', 'error'); return }
     const updated = [...customFormTypes, { id, label: name, description: newFormDesc.trim() || 'Custom form template', isDefault: false }]
     setCustomFormTypes(updated)
-    localStorage.setItem('cshc_custom_form_types', JSON.stringify(updated))
+    localStorage.setItem('almirene_custom_form_types', JSON.stringify(updated))
     setNewFormName('')
     setNewFormDesc('')
     setShowAddForm(false)
@@ -1131,11 +1131,11 @@ export default function Settings() {
   const removeCustomFormType = (formId) => {
     const updated = customFormTypes.filter(t => t.id !== formId)
     setCustomFormTypes(updated)
-    localStorage.setItem('cshc_custom_form_types', JSON.stringify(updated))
+    localStorage.setItem('almirene_custom_form_types', JSON.stringify(updated))
     // Also remove the uploaded template for this type
     const updatedTemplates = formTemplates.filter(t => t.type !== formId)
     setFormTemplates(updatedTemplates)
-    localStorage.setItem('cshc_form_templates', JSON.stringify(updatedTemplates))
+    localStorage.setItem('almirene_form_templates', JSON.stringify(updatedTemplates))
     addToast('Form type removed', 'success')
   }
 
@@ -1155,7 +1155,7 @@ export default function Settings() {
         uploadedBy: user?.name || 'Admin',
       })
       setFormTemplates(updated)
-      localStorage.setItem('cshc_form_templates', JSON.stringify(updated))
+      localStorage.setItem('almirene_form_templates', JSON.stringify(updated))
       addToast(`Template uploaded: ${file.name}`, 'success')
     }
     reader.readAsDataURL(file)
@@ -1164,7 +1164,7 @@ export default function Settings() {
   const removeTemplate = (templateType) => {
     const updated = formTemplates.filter(t => t.type !== templateType)
     setFormTemplates(updated)
-    localStorage.setItem('cshc_form_templates', JSON.stringify(updated))
+    localStorage.setItem('almirene_form_templates', JSON.stringify(updated))
     addToast('Template removed', 'success')
   }
 
@@ -1175,7 +1175,7 @@ export default function Settings() {
 
   const [activeTab, setActiveTab] = useState(() => {
     // Restore last active tab from sessionStorage (survives refresh)
-    const saved = sessionStorage.getItem('cshc_settings_tab')
+    const saved = sessionStorage.getItem('almirene_settings_tab')
     const perms = getUserPermissions(user)
     const availTabs = perms.tabs || []
     // Use saved tab if it's still available for this user
@@ -1189,7 +1189,7 @@ export default function Settings() {
 
   // Save active tab to sessionStorage whenever it changes
   useEffect(() => {
-    sessionStorage.setItem('cshc_settings_tab', activeTab)
+    sessionStorage.setItem('almirene_settings_tab', activeTab)
   }, [activeTab])
 
   // Local editable copies — committed to context on Save
@@ -1769,7 +1769,7 @@ export default function Settings() {
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><Image className="w-4 h-4 text-[var(--color-text-muted)]" /> School Logo</h4>
                     <div className="flex flex-col sm:flex-row items-start gap-4">
-                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo" className="w-16 h-16 object-contain" onError={(e) => { e.target.style.display='none' }} /></div>
+                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><img src={websiteContent.logoUrl || '/assets/school-logo.png'} alt="Logo" className="w-16 h-16 object-contain" onError={(e) => { e.target.style.display='none' }} /></div>
                       <div><p className="text-xs text-[var(--color-text-muted)] mb-2">512×512px PNG, transparent background. Max 2MB.</p><button className="flex items-center gap-2 px-3 py-2 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-secondary)]" onClick={() => addToast('Logo upload available when backend is connected', 'info')}><Upload className="w-3.5 h-3.5" /> Upload Logo</button></div>
                     </div>
                   </div>
@@ -1899,104 +1899,28 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* ── Login Page Colors ── */}
-                  <div className="pt-2 border-t border-[var(--color-border)]">
-                    <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
-                      <Paintbrush className="w-4 h-4 text-[var(--color-text-muted)]" /> Login Page Colors
-                    </h4>
-                    <p className="text-xs text-[var(--color-text-muted)] mb-3">
-                      These colors control the left panel of both the admin and student portal login pages.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <ColorPicker
-                          label="Left Panel — Top Color"
-                          value={websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'}
-                          onChange={v => setWebsiteContent({ ...websiteContent, loginGradientStart: v })}
-                        />
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Top of the left panel gradient</p>
-                      </div>
-                      <div>
-                        <ColorPicker
-                          label="Left Panel — Bottom Color"
-                          value={websiteContent.loginGradientEnd || '#04062a'}
-                          onChange={v => setWebsiteContent({ ...websiteContent, loginGradientEnd: v })}
-                        />
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Bottom of the left panel gradient</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <ColorPicker
-                          label="Accent Bar Color"
-                          value={websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}
-                          onChange={v => setWebsiteContent({ ...websiteContent, loginAccentBar: v })}
-                        />
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">The vertical accent line on the left edge</p>
-                      </div>
-                      <div>
-                        <ColorPicker
-                          label="Card Top Border Color"
-                          value={websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014'}
-                          onChange={v => setWebsiteContent({ ...websiteContent, loginCardBorder: v })}
-                        />
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Top border of the login form card</p>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Live preview */}
                   <div>
                     <label className="form-label mb-1.5">Preview</label>
-                    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden flex" style={{ height: 160 }}>
-                      {/* Left panel preview */}
-                      <div className="flex-1 flex flex-col items-center justify-center p-3 relative overflow-hidden"
-                           style={{ background: `linear-gradient(160deg, ${websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'} 0%, ${websiteContent.loginGradientEnd || '#04062a'} 100%)` }}>
-                        {/* Accent bar */}
-                        <div className="absolute top-0 left-0 w-1 h-full"
-                             style={{ background: `linear-gradient(to bottom, transparent, ${websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}, transparent)` }} />
-                        {/* Decorative rings */}
-                        <div className="absolute -top-6 -left-6 w-20 h-20 rounded-full border-8 border-white/5" />
-                        <div className="absolute -bottom-4 -right-4 w-14 h-14 rounded-full border-8 border-white/5" />
-                        {/* Logo + name */}
-                        <div className="w-10 h-10 rounded-full bg-white border-2 mb-2 flex items-center justify-center overflow-hidden"
-                             style={{ borderColor: websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014' }}>
-                          <img src={websiteContent.logoUrl || '/assets/cshclogo.png'} alt="Logo"
-                               className="w-8 h-8 object-contain"
-                               onError={e => { e.target.style.display='none' }} />
+                    <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
+                      <div className="bg-secondary p-4 text-center">
+                        <div className="w-12 h-12 rounded-full bg-white border-2 border-primary mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                          <img src={websiteContent.logoUrl || '/assets/school-logo.png'} alt="Logo" className="w-10 h-10 object-contain" onError={e => { e.target.style.display = 'none' }} />
                         </div>
-                        <p className="text-white text-[9px] font-bold text-center leading-tight">
-                          {websiteContent.schoolName || 'School Name'}
-                        </p>
-                        {websiteContent.motto && (
-                          <p className="text-white/50 text-[7px] italic text-center mt-0.5 leading-tight">
-                            "{websiteContent.motto}"
-                          </p>
-                        )}
+                        <p className="text-white text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
+                        <p className="text-white/60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>
+                        <p className="text-white/30 text-[8px] uppercase tracking-widest mt-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
                       </div>
-                      {/* Right panel preview */}
-                      <div className="flex-1 p-3 bg-[#f4f5f0] flex flex-col justify-center" style={{ backgroundImage: 'radial-gradient(circle, rgba(8,12,66,0.05) 1px, transparent 1px)', backgroundSize: '12px 12px' }}>
-                        <div className="bg-white rounded-lg p-2.5"
-                             style={{ borderTop: `2.5px solid ${websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014'}` }}>
-                          <p className="text-[7px] font-bold uppercase tracking-widest mb-0.5"
-                             style={{ color: websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014' }}>
-                            {websiteContent.portalLabel || 'School Management Portal'}
-                          </p>
-                          <p className="text-[9px] font-bold text-gray-800 mb-2">Welcome back.</p>
-                          <div className="h-4 bg-gray-100 rounded mb-1.5 border border-gray-200" />
-                          <div className="h-4 bg-gray-100 rounded mb-2 border border-gray-200" />
-                          <div className="h-5 rounded text-center"
-                               style={{ background: websiteContent.loginCardBorder || websiteContent.primaryColor || '#750014' }} />
-                        </div>
+                      <div className="p-4 bg-[var(--color-bg-subtle)]">
+                        <p className="text-[9px] uppercase tracking-widest text-primary font-bold mb-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                        <p className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Welcome back.</p>
+                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-2" />
+                        <div className="h-7 bg-[var(--color-border)] rounded-lg mb-3" />
+                        <div className="h-7 bg-primary rounded-lg mb-2" />
+                        <p className="text-[9px] text-center text-[var(--color-text-muted)]">Need help? <span className="text-primary font-semibold">{websiteContent.supportLabel || 'Contact IT Support'}</span></p>
                       </div>
                     </div>
-                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5">
-                      Left: <span className="font-mono">{websiteContent.loginGradientStart || websiteContent.secondaryColor || '#080c42'}</span> → <span className="font-mono">{websiteContent.loginGradientEnd || '#04062a'}</span>
-                      &nbsp;·&nbsp; Accent: <span className="font-mono">{websiteContent.loginAccentBar || websiteContent.primaryColor || '#750014'}</span>
-                    </p>
                   </div>
-
-                  
 
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
@@ -2362,7 +2286,7 @@ export default function Settings() {
                 <div><label className="form-label">Address</label><input type="text" value={campusForm.address} onChange={e => setCampusForm({ ...campusForm, address: e.target.value })} placeholder="e.g. Valladolid, Carcar City, Cebu" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="form-label">Contact Number</label><input type="text" value={campusForm.contactNumber} onChange={e => setCampusForm({ ...campusForm, contactNumber: e.target.value })} placeholder="e.g. 032-234-5678" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
-                  <div><label className="form-label">Email</label><input type="email" value={campusForm.email} onChange={e => setCampusForm({ ...campusForm, email: e.target.value })} placeholder="e.g. carcar@cshc.edu.ph" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
+                  <div><label className="form-label">Email</label><input type="email" value={campusForm.email} onChange={e => setCampusForm({ ...campusForm, email: e.target.value })} placeholder="e.g. " className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                 </div>
                 <div>
                   <label className="form-label mb-2">Departments</label>
@@ -2926,6 +2850,34 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
     catch { return '—' }
   }
 
+  const [userTabView, setUserTabView] = useState('staff')  // 'staff' | 'students'
+
+  // Students & parents — from submissions
+  const studentPortalUsers = (() => {
+    try {
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+      return subs.filter(s => ['officially_enrolled','temporarily_enrolled','approved'].includes(s.status))
+        .map(s => ({
+          id:          s.id,
+          studentId:   s.studentId || s.id,
+          name:        `${s.student?.firstName || s.firstName || ''} ${s.student?.lastName || s.lastName || ''}`.trim(),
+          email:       s.student?.email || s.email || '—',
+          gradeLevel:  s.enrollment?.gradeLevel || s.gradeLevel || '—',
+          campus:      s.enrollment?.campus || s.campusName || '—',
+          department:  s.enrollment?.department || 'basicEd',
+          status:      s.status,
+          hasPortalAccess: true,
+        }))
+    } catch { return [] }
+  })()
+
+  const filteredStudents = studentPortalUsers.filter(s => {
+    if (!searchQuery) return true
+    return s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           s.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           (s.studentId || '').toLowerCase().includes(searchQuery.toLowerCase())
+  })
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -2934,15 +2886,44 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">User Management</h2>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              {campusUsers.filter(u => u.status === 'active').length} active · {campusUsers.filter(u => u.status !== 'active').length} inactive
+              {userTabView === 'staff'
+                ? `${campusUsers.filter(u => u.status === 'active').length} active · ${campusUsers.filter(u => u.status !== 'active').length} inactive staff`
+                : `${studentPortalUsers.length} enrolled student${studentPortalUsers.length !== 1 ? 's' : ''} with portal access`}
             </p>
           </div>
-          <button
-            onClick={handleAdd}
-            className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-accent-burgundy transition text-sm font-semibold shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> Add User
-          </button>
+          {userTabView === 'staff' && (
+            <button
+              onClick={handleAdd}
+              className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-accent-burgundy transition text-sm font-semibold shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> Add Staff
+            </button>
+          )}
+        </div>
+
+        {/* Sub-tabs */}
+        <div className="flex gap-1 p-1 rounded-xl bg-[var(--color-bg-subtle)] mb-4 w-fit">
+          {[
+            { id: 'staff',    label: 'Staff & Admins',     count: campusUsers.length },
+            { id: 'students', label: 'Students & Parents',  count: studentPortalUsers.length },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setUserTabView(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                userTabView === tab.id
+                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+              }`}
+            >
+              {tab.label}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                userTabView === tab.id
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)]'
+              }`}>{tab.count}</span>
+            </button>
+          ))}
         </div>
 
         {/* Filters */}
@@ -2951,21 +2932,110 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
             <svg className="search-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input
               type="text"
-              placeholder="Search name or email…"
+              placeholder={userTabView === 'staff' ? 'Search name or email…' : 'Search name, email, or student ID…'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition"
             />
           </div>
-          <GroupedSelect
-            value={roleFilter}
-            onChange={setRoleFilter}
-            allLabel="All Roles"
-            options={assignableRoles}
-            className="sm:w-52"
-          />
+          {userTabView === 'staff' && (
+            <GroupedSelect
+              value={roleFilter}
+              onChange={setRoleFilter}
+              allLabel="All Roles"
+              options={assignableRoles}
+              className="sm:w-52"
+            />
+          )}
         </div>
       </div>
+
+      {/* ── STUDENTS & PARENTS VIEW ─────────────────────────────── */}
+      {userTabView === 'students' && (
+        <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+          {filteredStudents.length === 0 ? (
+            <div className="px-6 py-16 text-center">
+              <Users className="w-10 h-10 mx-auto mb-3 text-[var(--color-text-muted)]" />
+              <p className="font-semibold text-[var(--color-text-primary)] mb-1">No students found</p>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Students appear here once they are officially enrolled through the Enrollments module.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)]">
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Student</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Student ID</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Grade / Year Level</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Campus</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Portal Access</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {filteredStudents.map(s => (
+                      <tr key={s.id} className="hover:bg-[var(--color-bg-subtle)] transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-[var(--color-text-primary)]">{s.name || '—'}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{s.email}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-xs text-primary font-semibold">{s.studentId}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-[var(--color-text-secondary)]">{s.gradeLevel}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-[var(--color-text-secondary)]">{s.campus}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                            Active
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile list */}
+              <ul className="md:hidden divide-y divide-[var(--color-border)]">
+                {filteredStudents.map(s => (
+                  <li key={s.id} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{s.name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] truncate">{s.email}</p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="font-mono text-xs text-primary font-semibold">{s.studentId}</span>
+                          <span className="text-xs text-[var(--color-text-muted)]">{s.gradeLevel}</span>
+                          <span className="text-xs text-[var(--color-text-muted)]">{s.campus}</span>
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 flex-shrink-0">
+                        Active
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="px-4 py-3 border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)]">
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  Showing {filteredStudents.length} of {studentPortalUsers.length} enrolled students.
+                  Portal password is the last 4 digits of their Student ID, or <code className="font-mono">student1234</code>.
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── STAFF VIEW ──────────────────────────────────────────── */}
+      {userTabView === 'staff' && (<>
 
       {/* User table */}
       <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
@@ -3054,6 +3124,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
         </div>
       </div>
 
+      </>)} {/* end staff view */}
+
       {/* ── Add / Edit Modal ─────────────────────────────────────── */}
       {showModal && (
         <ModalPortal>
@@ -3101,7 +3173,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   type="email"
                   value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="e.g. registrar@cshc.edu.ph"
+                  placeholder="e.g. registrar@school.edu.ph"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
                     ${errors.email ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
                 />

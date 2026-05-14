@@ -23,11 +23,11 @@ import { SYSTEM_USERS } from '../config/users'
 import { verifyPassword } from '../utils/crypto'
 
 // ── Constants ────────────────────────────────────────────────────────
-const USER_KEY        = 'cshc_user'
-const LOCKOUT_KEY     = 'cshc_lockout'
-const SESSION_KEY     = 'cshc_session_user'
-const EXPIRED_KEY     = 'cshc_expired'
-const FINGERPRINT_KEY = 'cshc_session_fp'
+const USER_KEY        = 'almirene_user'
+const LOCKOUT_KEY     = 'almirene_lockout'
+const SESSION_KEY     = 'almirene_session_user'
+const EXPIRED_KEY     = 'almirene_expired'
+const FINGERPRINT_KEY = 'almirene_session_fp'
 const SESSION_TIMEOUT = 5 * 60 * 1000     // 5 minutes inactivity
 const MAX_ATTEMPTS    = 5
 const LOCKOUT_DURATION= 15 * 60 * 1000    // 15 minutes
@@ -51,7 +51,7 @@ export function validatePassword(password) {
 
 function getUsers() {
   try {
-    const raw = localStorage.getItem('cshc_app_config')
+    const raw = localStorage.getItem('almirene_app_config')
     if (raw) {
       const saved = JSON.parse(raw)
       if (Array.isArray(saved.systemUsers) && saved.systemUsers.length)
@@ -133,7 +133,7 @@ export function AuthProvider({ children }) {
     if (expired) {
       sessionStorage.setItem(EXPIRED_KEY, '1')
     }
-    window.dispatchEvent(new CustomEvent('cshc_auth_change'))
+    window.dispatchEvent(new CustomEvent('almirene_auth_change'))
   }, [])
 
   // ✅ FIX: Keep ref in sync with latest doLogout
@@ -241,7 +241,7 @@ export function AuthProvider({ children }) {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(safe))
     sessionStorage.setItem(FINGERPRINT_KEY, fp)
     resetTimer()
-    window.dispatchEvent(new CustomEvent('cshc_auth_change'))
+    window.dispatchEvent(new CustomEvent('almirene_auth_change'))
     return { success: true, user: safe }
   }
 

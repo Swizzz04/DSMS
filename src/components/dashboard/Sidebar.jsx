@@ -10,9 +10,9 @@ import { getUserPermissions } from '../../config/appConfig'
 // Read school branding
 function getSchoolConfig() {
   try {
-    const s = JSON.parse(localStorage.getItem('cshc_website_content') || '{}')
-    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '/assets/cshclogo.png' }
-  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '/assets/cshclogo.png' } }
+    const s = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
+    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '/assets/school-logo.png' }
+  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '/assets/school-logo.png' } }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ function computeBadges(user) {
   const campusStu = []
   let webSubs = []
   try {
-    const all = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+    const all = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     webSubs = all.filter(s => {
       const subCampus = s.enrollment?.campus || s.campusName || s.campus || ''
       return campusMatch(subCampus)
@@ -113,14 +113,14 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
   useEffect(() => {
     refreshBadges()
-    const handleStorage = (e) => { if (e.key === 'cshc_submissions' || e.key === null) refreshBadges() }
-    window.addEventListener('cshc_enrollment_updated', refreshBadges)
-    window.addEventListener('cshc_new_submission',     refreshBadges)
+    const handleStorage = (e) => { if (e.key === 'almirene_submissions' || e.key === null) refreshBadges() }
+    window.addEventListener('almirene_enrollment_updated', refreshBadges)
+    window.addEventListener('almirene_new_submission',     refreshBadges)
     window.addEventListener('storage',                 handleStorage)
     const t = setInterval(refreshBadges, 10_000)
     return () => {
-      window.removeEventListener('cshc_enrollment_updated', refreshBadges)
-      window.removeEventListener('cshc_new_submission',     refreshBadges)
+      window.removeEventListener('almirene_enrollment_updated', refreshBadges)
+      window.removeEventListener('almirene_new_submission',     refreshBadges)
       window.removeEventListener('storage',                 handleStorage)
       clearInterval(t)
     }
@@ -169,22 +169,15 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
   // ── Section label helper (visual grouping within long nav lists) ──
   const getSectionLabel = (id) => ({
-    // Management
-    enrollments:          'Management',
-    students:             'Management',
-    payments:             'Management',
-    'document-requests':  'Management',
-    clearance:            'Management',
-    // Analytics
-    reports:              'Analytics',
-    // Academic
-    'subject-load':           'Academic',
-    'e-class-record':         'Academic',
-    'teacher-forms':          'Academic',
+    enrollments: 'Management',
+    payments:    'Management',
+    students:    'Management',
+    reports:     'Analytics',
+    settings:    'System',
+    'subject-load':       'Academic',
+    'document-requests':       'Management',
     'grade-change-requests':  'Academic',
-    attendance:               'Academic',
-    // System
-    settings:             'System',
+    'attendance':             'Academic',
   }[id])
 
   // Insert section dividers
@@ -250,7 +243,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                 letterSpacing: '0.04em',
                 lineHeight:    1.2,
               }}>
-                CSHC
+                ALMIRENE
               </div>
               <div style={{
                 fontSize:      '0.62rem',

@@ -21,7 +21,7 @@ export function seedGradeTestData() {
   // Detect active school year from config
   const schoolYear = (() => {
     try {
-      const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+      const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
       const years = cfg.schoolYears || []
       const current = years.find(sy => sy.isCurrent)
       return current?.year || '2026-2027'
@@ -31,7 +31,7 @@ export function seedGradeTestData() {
   const teacherName = 'Maria Santos'
 
   // ── 1. Seed Subject Loads ──────────────────────────────────
-  const existingLoads = JSON.parse(localStorage.getItem('cshc_subject_loads') || '{}')
+  const existingLoads = JSON.parse(localStorage.getItem('almirene_subject_loads') || '{}')
 
   if (!existingLoads[campusKey]) existingLoads[campusKey] = {}
   if (!existingLoads[campusKey][schoolYear]) {
@@ -85,10 +85,10 @@ export function seedGradeTestData() {
     { id: 'g7_sec_a', defaultName: 'Grade 7 - Section A', displayName: 'Grade 7 - St. Augustine', studentCount: 10 },
   ]
 
-  localStorage.setItem('cshc_subject_loads', JSON.stringify(existingLoads))
+  localStorage.setItem('almirene_subject_loads', JSON.stringify(existingLoads))
 
   // ── 2. Seed Approved Students ──────────────────────────────
-  const existingSubs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+  const existingSubs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
 
   const studentNames = [
     { first: 'ANGELA', last: 'REYES', middle: 'CRUZ', gender: 'female' },
@@ -114,7 +114,7 @@ export function seedGradeTestData() {
     studentNames.forEach((name, idx) => {
       existingSubs.push({
         id: `mock_stu_${1000 + idx}`,
-        referenceNumber: `CSHC-2025-M${String(idx + 1).padStart(4, '0')}`,
+        referenceNumber: `ALMIRENE-2025-M${String(idx + 1).padStart(4, '0')}`,
         firstName: name.first,
         lastName: name.last,
         middleName: name.middle,
@@ -130,7 +130,7 @@ export function seedGradeTestData() {
       })
     })
 
-    localStorage.setItem('cshc_submissions', JSON.stringify(existingSubs))
+    localStorage.setItem('almirene_submissions', JSON.stringify(existingSubs))
   }
 
   console.log('✅ Grade test data seeded!')
@@ -144,8 +144,8 @@ export function seedGradeTestData() {
   console.log('                  Login as Juan dela Cruz → enter PE & Health grades')
   console.log('                  Both will see the MAPEH merged grade card')
   console.log('')
-  console.log('Maria Santos:    teacher.santos@cshc.edu.ph / teacher123')
-  console.log('Juan dela Cruz:  teacher.delacruz@cshc.edu.ph / teacher123')
+  console.log('Maria Santos:    teacher.santos@school.edu.ph / teacher123')
+  console.log('Juan dela Cruz:  teacher.delacruz@school.edu.ph / teacher123')
 
   return true
 }
