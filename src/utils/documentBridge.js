@@ -88,7 +88,7 @@ function saveClearances(data) {
   window.dispatchEvent(new CustomEvent(CLEAR_EVENT))
 }
 
-/** Get student payment balance from almirene_students (or cshc_submissions fallback) */
+/** Get student payment balance from almirene_students (or almirene_submissions fallback) */
 function getStudentBalance(studentId) {
   try {
     const students = JSON.parse(localStorage.getItem('almirene_students') || '[]')
@@ -473,4 +473,202 @@ export function getPendingRequestsCount(campusKey) {
     r => r.campusKey === campusKey &&
          !['released', 'cancelled'].includes(r.status)
   ).length
+}
+
+// Normalise legacy 'ready' → 'ready_for_pickup' to match workflow engine step ID
+function normaliseStatus(status) {
+  return status === 'ready' ? 'ready_for_pickup' : status
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WORKFLOW ENGINE INTEGRATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Get available actions for a user on a document request.
+ * Reads from the 'document_request' workflow definition.
+ * Returns [] if no actions available at this step for this role.
+ */
+export function getDocumentActions(user, request) {
+  const workflowDef = getWorkflowDefinition('document_request', request.campusKey || 'all')
+  if (!workflowDef) return []
+  const step = normaliseStatus(request.status)
+  return workflowEngine.getAvailableActions(user, step, request, workflowDef)
+}
+
+/**
+ * Advance a document request through the workflow.
+ * Calls updateStatus internally — single source of truth.
+ * When backend is ready, swap the updateStatus call for an API call.
+ */
+export function advanceDocumentStep(requestId, actionId, note = '', user) {
+  const request = getRequestById(requestId)
+  if (!request) throw new Error(`Document request "${requestId}" not found.`)
+
+  const workflowDef = getWorkflowDefinition('document_request', request.campusKey || 'all')
+  if (!workflowDef) throw new Error('Document request workflow not configured.')
+
+  const currentStep = normaliseStatus(request.status)
+  const stepDef     = workflowEngine.getStep(currentStep, workflowDef)
+  if (!stepDef) throw new Error(`Unknown step: ${currentStep}`)
+
+  const action = stepDef.actions.find(a => a.id === actionId)
+  if (!action) throw new Error(`Action "${actionId}" not available at step "${currentStep}".`)
+
+  const nextStep = action.nextStep
+  if (!nextStep) throw new Error(`Action "${actionId}" has no nextStep defined.`)
+
+  // Check workflow conditions
+  const blocked = (stepDef.conditions || []).find(c =>
+    c.type === 'block_if' && c.actionId === actionId && evaluateCondition(c, request)
+  )
+  if (blocked) throw new Error(blocked.reason || 'This action is currently blocked.')
+
+  // Handle release action specially (needs releasedTo etc.)
+  if (nextStep === 'released') {
+    releaseDocument(requestId, {
+      releasedTo: request.releasedTo || note || 'Student',
+      claimSlip:  request.claimSlip || '',
+      byName:     user?.name || 'System',
+    })
+  } else {
+    updateStatus(requestId, nextStep, user?.name || 'System', note)
+  }
+
+  return getRequestById(requestId)
+}
+
+function evaluateCondition(condition, request) {
+  const val = request[condition.field]
+  switch (condition.operator) {
+    case 'equals':     return val === condition.value
+    case 'not_equals': return val !== condition.value
+    default:           return false
+  }
+}
+
+/**
+ * Get the current step definition from the workflow for display purposes.
+ * Returns null if workflow not found.
+ */
+export function getDocumentStepDef(request) {
+  const workflowDef = getWorkflowDefinition('document_request', request.campusKey || 'all')
+  if (!workflowDef) return null
+  return workflowEngine.getStep(normaliseStatus(request.status), workflowDef)
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLEARANCE WORKFLOW ENGINE INTEGRATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Map clearance department state to workflow step ID
+// The workflow is sequential: initiated → library → accounting → registrar → guidance → admin_office → fully_cleared
+const DEPT_STEP_ORDER = ['library', 'accounting', 'registrar', 'guidance', 'admin_office']
+const DEPT_TO_STEP_ID = {
+  library:     'library',
+  accounting:  'accounting',
+  registrar:   'registrar',
+  guidance:    'guidance',
+  admin:       'admin_office',  // bridge uses 'admin', workflow uses 'admin_office'
+}
+const STEP_TO_DEPT_ID = {
+  library:     'library',
+  accounting:  'accounting',
+  registrar:   'registrar',
+  guidance:    'guidance',
+  admin_office:'admin',
+}
+
+/**
+ * Derive the current workflow step from the clearance's department sign-off state.
+ * The step = the first department not yet cleared (in order).
+ * If all cleared → 'fully_cleared'. If none started → 'initiated'.
+ */
+function getClearanceCurrentStep(clearance) {
+  if (clearance.isFullyCleared) return 'fully_cleared'
+  for (const deptId of DEPT_STEP_ORDER) {
+    const bridgeDept = deptId === 'admin_office' ? 'admin' : deptId
+    if (!clearance.departments?.[bridgeDept]?.cleared) {
+      return deptId  // this is the next dept to clear
+    }
+  }
+  return 'fully_cleared'
+}
+
+/**
+ * Get available actions for a user on a clearance.
+ * Reads from the 'student_clearance' workflow definition.
+ */
+export function getClearanceActions(user, clearance) {
+  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
+  if (!workflowDef) return []
+  if (clearance.isFullyCleared) return []
+  const step = getClearanceCurrentStep(clearance)
+  // Build a surrogate record the engine can evaluate conditions against
+  const surrogate = {
+    ...clearance,
+    currentStep:    step,
+    paymentBalance: clearance.hasUnpaidBalance ? 1 : 0,
+  }
+  return workflowEngine.getAvailableActions(user, step, surrogate, workflowDef)
+}
+
+/**
+ * Advance a clearance through the workflow by signing the current department.
+ * Routes to updateDepartmentClearance internally.
+ */
+export function advanceClearanceStep(clearanceId, actionId, note = '', user) {
+  const clearance = getClearanceById(clearanceId)
+  if (!clearance) throw new Error(`Clearance "${clearanceId}" not found.`)
+  if (clearance.isFullyCleared) throw new Error('Clearance is already fully cleared.')
+
+  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
+  if (!workflowDef) throw new Error('Student clearance workflow not configured.')
+
+  const currentStep = getClearanceCurrentStep(clearance)
+  const stepDef     = workflowEngine.getStep(currentStep, workflowDef)
+  if (!stepDef) throw new Error(`Unknown clearance step: ${currentStep}`)
+
+  const action = stepDef.actions.find(a => a.id === actionId)
+  if (!action) throw new Error(`Action "${actionId}" not available at step "${currentStep}".`)
+
+  // Check blocking conditions (e.g. unpaid balance blocks accounting)
+  const surrogate = { ...clearance, paymentBalance: clearance.hasUnpaidBalance ? 1 : 0 }
+  const blocked = (stepDef.conditions || []).find(c =>
+    c.type === 'block_if' && evaluateClearanceCondition(c, surrogate)
+  )
+  if (blocked) throw new Error(blocked.reason || 'This action is currently blocked.')
+
+  // Map step ID → dept ID and sign it
+  const deptId = STEP_TO_DEPT_ID[currentStep] || currentStep
+  updateDepartmentClearance(clearanceId, deptId, user?.name || 'System', note)
+  return getClearanceById(clearanceId)
+}
+
+function evaluateClearanceCondition(condition, record) {
+  const val = record[condition.field]
+  switch (condition.operator) {
+    case 'greater_than': return Number(val) > Number(condition.value)
+    case 'equals':       return val === condition.value
+    case 'not_equals':   return val !== condition.value
+    default:             return false
+  }
+}
+
+/**
+ * Get the current workflow step definition for display (label, color).
+ */
+export function getClearanceStepDef(clearance) {
+  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
+  if (!workflowDef) return null
+  const step = getClearanceCurrentStep(clearance)
+  return workflowEngine.getStep(step, workflowDef)
+}
+
+/**
+ * Get the derived current step ID for a clearance (for display/filtering).
+ */
+export function getClearanceStep(clearance) {
+  return getClearanceCurrentStep(clearance)
 }

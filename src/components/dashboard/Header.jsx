@@ -1,5 +1,5 @@
 /**
- * Header.jsx — CSHC Admin Portal
+ * Header.jsx — ALMIRENE DX Admin Portal
  * ─────────────────────────────────────────────────────────────────
  * Rev. 4 UI Cleanup:
  *  - All hardcoded bg-white/bg-gray-800 → CSS token var(--color-bg-card)

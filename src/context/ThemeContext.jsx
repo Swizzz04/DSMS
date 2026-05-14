@@ -11,19 +11,19 @@ const ThemeContext = createContext()
 function getThemeKey() {
   try {
     // sessionStorage is tab-isolated — each tab has its own user
-    const raw = sessionStorage.getItem('cshc_session_user')
+    const raw = sessionStorage.getItem('almirene_session_user')
     if (raw) {
       const user = JSON.parse(raw)
-      if (user?.id) return `cshc_theme_${user.id}`
+      if (user?.id) return `almirene_theme_${user.id}`
     }
     // Fallback: try localStorage for single-tab usage
-    const lsRaw = localStorage.getItem('cshc_user')
+    const lsRaw = localStorage.getItem('almirene_user')
     if (lsRaw) {
       const user = JSON.parse(lsRaw)
-      if (user?.id) return `cshc_theme_${user.id}`
+      if (user?.id) return `almirene_theme_${user.id}`
     }
   } catch {}
-  return 'cshc_theme_guest'
+  return 'almirene_theme_guest'
 }
 
 function resolveInitialTheme(key) {
@@ -55,7 +55,7 @@ export function ThemeProvider({ children }) {
     return t
   })
 
-  // When the user logs in or out, the cshc_user key changes.
+  // When the user logs in or out, the almirene_user key changes.
   // We listen for storage events AND expose a refresh function
   // so AuthContext can call it right after login/logout.
   const refreshUserTheme = useCallback(() => {
@@ -66,13 +66,13 @@ export function ThemeProvider({ children }) {
     applyTheme(t)
   }, [])
 
-  // Same-tab only: AuthContext fires 'cshc_auth_change' after login/logout
-  // We intentionally do NOT listen to the 'storage' event for cshc_user
+  // Same-tab only: AuthContext fires 'almirene_auth_change' after login/logout
+  // We intentionally do NOT listen to the 'storage' event for almirene_user
   // because that would cause one tab's login to change another tab's theme.
   useEffect(() => {
     const onAuthChange = () => refreshUserTheme()
-    window.addEventListener('cshc_auth_change', onAuthChange)
-    return () => window.removeEventListener('cshc_auth_change', onAuthChange)
+    window.addEventListener('almirene_auth_change', onAuthChange)
+    return () => window.removeEventListener('almirene_auth_change', onAuthChange)
   }, [refreshUserTheme])
 
   // Apply theme to DOM whenever it changes

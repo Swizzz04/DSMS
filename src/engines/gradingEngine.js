@@ -434,7 +434,7 @@ export function computeGeneralAverage(subjectFinalGrades) {
 // 8. LOCALSTORAGE BRIDGE (swap to API later)
 // ═══════════════════════════════════════════════════════════════
 
-const GRADES_KEY = 'cshc_grades'
+const GRADES_KEY = 'almirene_grades'
 
 function getGrades() {
   try {
@@ -444,7 +444,7 @@ function getGrades() {
 
 function saveGrades(grades) {
   localStorage.setItem(GRADES_KEY, JSON.stringify(grades))
-  window.dispatchEvent(new CustomEvent('cshc_grades_updated'))
+  window.dispatchEvent(new CustomEvent('almirene_grades_updated'))
 }
 
 /** Get all grades, optionally filtered */
@@ -714,11 +714,11 @@ export function computeGWA(subjects) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COLLEGE GRADE BRIDGE (swap for API when backend is ready)
-// Storage key: cshc_college_grades
+// Storage key: almirene_college_grades
 // ─────────────────────────────────────────────────────────────────────────────
 
-const COLLEGE_GRADES_KEY = 'cshc_college_grades'
-const COLLEGE_DRAFT_KEY  = 'cshc_college_draft'
+const COLLEGE_GRADES_KEY = 'almirene_college_grades'
+const COLLEGE_DRAFT_KEY  = 'almirene_college_draft'
 
 function getCollegeGradesAll() {
   try { return JSON.parse(localStorage.getItem(COLLEGE_GRADES_KEY) || '[]') }
@@ -727,7 +727,7 @@ function getCollegeGradesAll() {
 
 function saveCollegeGradesAll(grades) {
   localStorage.setItem(COLLEGE_GRADES_KEY, JSON.stringify(grades))
-  window.dispatchEvent(new CustomEvent('cshc_college_grades_updated'))
+  window.dispatchEvent(new CustomEvent('almirene_college_grades_updated'))
 }
 
 /** Get college grades with optional filters */

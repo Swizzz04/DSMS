@@ -4,7 +4,7 @@
  * Daily attendance tracking for Basic Ed and College.
  *
  * Teacher workflow:
- *   1. Select subject/section → select date
+ *   1. Select subject/section → select    
  *   2. Mark each student: Present / Absent / Late / Excused
  *   3. Save → records stored → engine computes rates → alerts fire
  *
@@ -92,7 +92,7 @@ function SF2Report({ subject, campusKey, schoolYear, user }) {
   })
 
   const sf2 = generateSF2(allRecords, month, {
-    schoolName:  'CSHC',
+    schoolName:  'ALMIRENE DX',
     teacherName: user?.name ?? '',
     gradeLevel:  subject.gradeLevel,
     section:     subject.section,
@@ -365,7 +365,7 @@ function DailyEntry({ subject, campusKey, schoolYear, user, students, onSaved })
           <DatePicker
             value={date}
             onChange={setDate}
-            placeholder="Select date"
+            label="Date"
           />
         </div>
         {already && (
@@ -472,7 +472,7 @@ export default function Attendance() {
   // Load teacher's subject loads (same pattern as Eclassrecord)
   const subjectLoads = (() => {
     try {
-      const raw      = localStorage.getItem('cshc_subject_loads')
+      const raw      = localStorage.getItem('almirene_subject_loads')
       if (!raw) return []
       const all      = JSON.parse(raw)
       const campData = all[campusKey]
@@ -526,10 +526,10 @@ export default function Attendance() {
   const students = (() => {
     if (!selectedSubject) return []
     try {
-      const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       let campusName = ''
       try {
-        const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+        const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
         const c   = (cfg.campuses || []).find(c => c.key === campusKey)
         if (c?.name) campusName = c.name
       } catch {}

@@ -1,5 +1,5 @@
 /**
- * NotificationPanel.jsx — CSHC Admin Portal
+ * NotificationPanel.jsx — ALMIRENE DX Admin Portal
  * ─────────────────────────────────────────────────────────────────
  * Rev. 4 UI Cleanup:
  *  - All hardcoded bg-white/bg-gray-800 → var(--color-bg-card)
@@ -22,7 +22,7 @@ function generateNotifications(user) {
   if (!user) return notifications
 
   let subs = []
-  try { subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]') } catch {}
+  try { subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch {}
 
   const campus = user.campus
   const campusMatch = (val) => {

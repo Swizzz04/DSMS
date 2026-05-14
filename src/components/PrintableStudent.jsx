@@ -106,7 +106,7 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
             </div>
             <div>
               <div style={{ fontSize:'16pt', fontWeight:'bold', color:'#750014', lineHeight:1 }}>Cebu Sacred Heart College</div>
-              <div style={{ fontSize:'8.5pt', color:'#555', marginTop:'3px' }}>CSHC Admin Portal — Official Student Profile</div>
+              <div style={{ fontSize:'8.5pt', color:'#555', marginTop:'3px' }}>ALMIRENE DX Admin Portal — Official Student Profile</div>
             </div>
           </div>
           <div style={{ textAlign:'right', fontSize:'8pt', color:'#555' }}>
@@ -217,7 +217,7 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
 
         {/* ══ FOOTER ══ */}
         <div style={{ textAlign:'center', fontSize:'7pt', color:'#aaa', marginTop:'8px', borderTop:'0.5px solid #eee', paddingTop:'5px' }}>
-          Cebu Sacred Heart College — CSHC Admin Portal &nbsp;|&nbsp; This is a system-generated document. &nbsp;|&nbsp; {student.studentId}
+          Cebu Sacred Heart College — ALMIRENE DX Admin Portal &nbsp;|&nbsp; This is a system-generated document. &nbsp;|&nbsp; {student.studentId}
         </div>
 
       </div>

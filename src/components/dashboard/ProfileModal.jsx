@@ -1,5 +1,5 @@
 /**
- * ProfileModal.jsx — CSHC Admin Portal
+ * ProfileModal.jsx — ALMIRENE DX Admin Portal
  * ─────────────────────────────────────────────────────────────────
  * Rev. 4 UI Cleanup:
  *  - All hardcoded bg-white/bg-gray-800 → var(--color-bg-card)
@@ -68,7 +68,7 @@ export default function ProfileModal({ onClose }) {
   const { user, logout } = useAuth()
 
   // Pull persisted profile extras from localStorage
-  const savedExtras = JSON.parse(localStorage.getItem(`cshc_profile_${user?.id}`) || '{}')
+  const savedExtras = JSON.parse(localStorage.getItem(`almirene_profile_${user?.id}`) || '{}')
 
   const [activeSection, setActiveSection] = useState(null)  // null = overview
   const [toast, setToast]   = useState(null)
@@ -107,8 +107,8 @@ export default function ProfileModal({ onClose }) {
   }
 
   const saveExtras = (updates) => {
-    const current = JSON.parse(localStorage.getItem(`cshc_profile_${user?.id}`) || '{}')
-    localStorage.setItem(`cshc_profile_${user?.id}`, JSON.stringify({ ...current, ...updates }))
+    const current = JSON.parse(localStorage.getItem(`almirene_profile_${user?.id}`) || '{}')
+    localStorage.setItem(`almirene_profile_${user?.id}`, JSON.stringify({ ...current, ...updates }))
   }
 
   // ── Avatar ────────────────────────────────────────
@@ -143,9 +143,9 @@ export default function ProfileModal({ onClose }) {
     if (emailVerifyCode !== '123456') {
       showToast('Invalid code. (Hint: use 123456)', 'error'); return
     }
-    const storedUser = JSON.parse(localStorage.getItem('cshc_user') || '{}')
+    const storedUser = JSON.parse(localStorage.getItem('almirene_user') || '{}')
     storedUser.email = newEmail
-    localStorage.setItem('cshc_user', JSON.stringify(storedUser))
+    localStorage.setItem('almirene_user', JSON.stringify(storedUser))
     saveExtras({ verifiedEmail: newEmail })
     showToast('Email updated successfully!')
     setNewEmail(''); setEmailVerifyCode(''); setEmailCodeSent(false)
@@ -437,7 +437,7 @@ export default function ProfileModal({ onClose }) {
             type="email"
             value={newEmail}
             onChange={setNewEmail}
-            placeholder="new@cshc.edu.ph"
+            placeholder="new@school.edu.ph"
           />
           {!emailCodeSent ? (
             <PrimaryBtn onClick={handleSendEmailCode} loading={emailLoading}>

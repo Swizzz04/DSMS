@@ -1,7 +1,7 @@
 /**
  * subjectLoadBridge.js — localStorage bridge for Subject Load Management.
  *
- * STORAGE KEY: cshc_subject_loads
+ * STORAGE KEY: almirene_subject_loads
  * Shape per campusKey+schoolYear:
  * {
  *   maxPerSection:    number
@@ -19,7 +19,7 @@
 import { DEFAULT_BASIC_ED_SUBJECTS, DEFAULT_COLLEGE_SUBJECTS } from '../config/defaultSubjects'
 import { COMPOSITE_SUBJECTS } from '../engines/gradingEngine'
 
-const STORAGE_KEY = 'cshc_subject_loads'
+const STORAGE_KEY = 'almirene_subject_loads'
 const DEFAULT_MAX = 40
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -28,7 +28,7 @@ function loadAll() {
 }
 function saveAll(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  window.dispatchEvent(new CustomEvent('cshc_subject_load_updated'))
+  window.dispatchEvent(new CustomEvent('almirene_subject_load_updated'))
 }
 function getCY(campusKey, schoolYear) {
   return loadAll()[campusKey]?.[schoolYear] || null
@@ -59,7 +59,7 @@ function buildSections(count, max, prefix, existing = [], letterOnly = false) {
 
 function getEnrolledCount(campusName, gradeLevel) {
   try {
-    const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+    const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     return subs.filter(s =>
       s.status === 'approved' &&
       s.enrollment?.campus === campusName &&
@@ -70,7 +70,7 @@ function getEnrolledCount(campusName, gradeLevel) {
 
 function getCollegeEnrolledCount(campusName, program, yearLevel) {
   try {
-    const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+    const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     return subs.filter(s =>
       s.status === 'approved' &&
       s.enrollment?.campus === campusName &&
@@ -194,6 +194,20 @@ export function removeBasicEdSubject(campusKey, schoolYear, gradeLevel, subject)
   setCY(campusKey, schoolYear, data)
 }
 
+
+/** Set the subject area (e.g. 'mapeh', 'tle') for a Basic Ed subject load */
+export function setBasicEdSubjectArea(campusKey, schoolYear, gradeLevel, subject, area) {
+  const data = getCY(campusKey, schoolYear)
+  if (!data) return
+  const idx = data.basicEdLoads.findIndex(
+    l => l.gradeLevel === gradeLevel && l.subject === subject
+  )
+  if (idx >= 0) {
+    data.basicEdLoads[idx] = { ...data.basicEdLoads[idx], subjectArea: area }
+    setCY(campusKey, schoolYear, data)
+  }
+}
+
 export function addCollegeSubject(campusKey, schoolYear, program, yearLevel, semester, subject) {
   const data = getCY(campusKey, schoolYear)
   if (!data) return
@@ -228,35 +242,6 @@ export function assignBasicEdLoad(campusKey, schoolYear, gradeLevel, subject, te
     updatedAt: new Date().toISOString(),
   }
   if (idx >= 0) data.basicEdLoads[idx] = load; else data.basicEdLoads.push(load)
-  setCY(campusKey, schoolYear, data)
-}
-
-/**
- * Set the subject area (grading weights) for a Basic Ed subject load.
- * Called from SubjectLoad.jsx when principal picks the subject area.
- * The subjectArea key matches SUBJECT_AREAS in gradingEngine.js:
- *   'language' | 'science_math' | 'hele_mapeh' | 'shs_core' | 'shs_applied' | 'shs_research'
- */
-export function setBasicEdSubjectArea(campusKey, schoolYear, gradeLevel, subject, subjectArea) {
-  const data = getCY(campusKey, schoolYear)
-  if (!data) return
-  const idx = data.basicEdLoads.findIndex(l => l.gradeLevel === gradeLevel && l.subject === subject)
-  if (idx >= 0) {
-    data.basicEdLoads[idx] = {
-      ...data.basicEdLoads[idx],
-      subjectArea,
-      updatedAt: new Date().toISOString(),
-    }
-  } else {
-    // Create a stub load record with just the subject area set
-    data.basicEdLoads.push({
-      id: `be_${Date.now()}_${Math.random().toString(36).slice(2,5)}`,
-      gradeLevel, subject,
-      teacherId: null, teacherName: '',
-      subjectArea,
-      updatedAt: new Date().toISOString(),
-    })
-  }
   setCY(campusKey, schoolYear, data)
 }
 

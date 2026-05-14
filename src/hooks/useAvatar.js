@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 
 // Key builder per user
-const avatarKey = (userId) => `cshc_avatar_${userId}`
+const avatarKey = (userId) => `almirene_avatar_${userId}`
 
 // Custom event name for cross-component sync
-const AVATAR_EVENT = 'cshc_avatar_change'
+const AVATAR_EVENT = 'almirene_avatar_change'
 
 /**
  * useAvatar(userId)

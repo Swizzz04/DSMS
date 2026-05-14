@@ -1,6 +1,6 @@
 ﻿/**
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║               CSHC CENTRAL CONFIGURATION FILE                   ║
+ * ║               ALMIRENE DX CENTRAL CONFIGURATION FILE                   ║
  * ║                                                                  ║
  * ║  SINGLE SOURCE OF TRUTH — every campus, role, feature, and      ║
  * ║  subject is defined here. Pages READ from this config and        ║
@@ -23,9 +23,9 @@
 // ─────────────────────────────────────────────────────────────────────
 export const SCHOOL_INFO = {
   name:          'Cebu Sacred Heart College',
-  abbreviation:  'CSHC',
+  abbreviation:  '',
   address:       'Cebu, Philippines',
-  website:       'www.cshc.edu.ph',
+  website:       '',
   timezone:      'Asia/Manila',
   currency:      'PHP',
   currencySymbol:'₱',
@@ -231,14 +231,12 @@ export const ALL_TABS = [
   { id: 'fees',          label: 'Fee Structure',   forRoles: ['accounting'] },
   { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
   { id: 'receipt',       label: 'Receipt',          forRoles: ['accounting'] },
-  { id: 'workflow',         label: 'Workflow Config',  forRoles: ['technical_admin'] },
-  { id: 'rolePermissions',  label: 'Role Permissions', forRoles: ['technical_admin'] },
 ]
 
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
   admin:             { pages: ['dashboard', 'enrollments', 'reports'],                                         tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'subject-load', 'e-class-record', 'teacher-forms', 'settings'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow', 'rolePermissions'] },
+  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'subject-load', 'e-class-record', 'teacher-forms', 'settings'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
   registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'grade-change-requests'], tabs: [] },
   registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'document-requests', 'grade-change-requests'], tabs: [] },
@@ -248,27 +246,20 @@ export const DEFAULT_PERMISSIONS = {
   teacher:           { pages: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject-load', 'grade-change-requests', 'attendance'], tabs: [] },
 }
 
-/** Get effective permissions for a user (custom override → role config → hardcoded defaults) */
+/** Get effective permissions for a user (custom or default) */
 export function getUserPermissions(user) {
   if (!user) return { pages: [], tabs: [] }
-  // 1. User-level custom override (set per-user in UsersTab)
   if (user.permissions) return user.permissions
-  // 2. Role-level config saved by super admin in Settings → Role Permissions
-  try {
-    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
-    if (cfg.rolePermissions?.[user.role]) return cfg.rolePermissions[user.role]
-  } catch {}
-  // 3. Hardcoded defaults (baseline — never changes without a code deploy)
   return DEFAULT_PERMISSIONS[user.role] || { pages: ['dashboard'], tabs: [] }
 }
 
-/** Save role-level permissions to cshc_app_config */
+/** Save role-level permissions to almirene_app_config */
 export function saveRolePermissions(rolePermissions) {
   try {
-    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
     cfg.rolePermissions = rolePermissions
-    localStorage.setItem('cshc_app_config', JSON.stringify(cfg))
-    window.dispatchEvent(new CustomEvent('cshc_app_config_updated'))
+    localStorage.setItem('almirene_app_config', JSON.stringify(cfg))
+    window.dispatchEvent(new CustomEvent('almirene_app_config_updated'))
     return true
   } catch { return false }
 }
@@ -276,7 +267,7 @@ export function saveRolePermissions(rolePermissions) {
 /** Get current role permissions (from config or defaults) */
 export function getRolePermissions() {
   try {
-    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
     if (cfg.rolePermissions) return cfg.rolePermissions
   } catch {}
   return DEFAULT_PERMISSIONS
@@ -305,7 +296,7 @@ export const CAMPUSES = [
 
   // ── TALISAY CITY CAMPUS ─────────────────────────────────────────
   // ⚠ Workflow not yet confirmed — fields marked with [TBC] are
-  //   placeholders based on typical CSHC structure. Update once
+  //   placeholders based on typical school structure. Update once
   //   Talisay staff confirms their workflow.
   {
     id:   1,
@@ -313,7 +304,7 @@ export const CAMPUSES = [
     name: 'Talisay City Campus',
     address:       'Lawaan 1, Talisay City, Cebu',
     contactNumber: '032-123-4567',
-    email:         'talisay@cshc.edu.ph',
+    email:         '',
     isActive:      true,
     workflowConfirmed: false,   // ← set true once Talisay confirms their workflow
 
@@ -421,7 +412,7 @@ export const CAMPUSES = [
     name: 'Carcar City Campus',
     address:       'Valladolid, Carcar City, Cebu',
     contactNumber: '032-234-5678',
-    email:         'carcar@cshc.edu.ph',
+    email:         '',
     isActive:      true,
     workflowConfirmed: true,    // ← confirmed
 
@@ -521,7 +512,7 @@ export const CAMPUSES = [
     name: 'Bohol Campus',
     address:       'Tagbilaran City, Bohol',
     contactNumber: '038-345-6789',
-    email:         'bohol@cshc.edu.ph',
+    email:         '',
     isActive:      true,
     workflowConfirmed: false,   // ← set true once Bohol confirms
 

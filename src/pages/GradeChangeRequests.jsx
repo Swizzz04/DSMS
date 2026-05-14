@@ -33,6 +33,7 @@ import {
   approveGradeChangeRequest, rejectGradeChangeRequest,
   postGradeCorrection, getRequestAuditTrail, getAllAuditEntries,
   GCR_STATUSES,
+  getGradeChangeActions, advanceGradeChangeStep, getGradeChangeStepDef,
 } from '../utils/gradeChangeBridge'
 import { getAllGrades } from '../engines/gradingEngine'
 
@@ -47,15 +48,27 @@ const STATUS_STYLE = {
   rejected:      'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
 }
 
-function StatusBadge({ status }) {
-  const def = GCR_STATUSES.find(s => s.id === status)
+function StatusBadge({ request, status: statusProp }) {
+  const status   = request?.status ?? statusProp ?? ''
+  const stepDef  = request ? getGradeChangeStepDef(request) : null
+  const label    = stepDef?.label ?? GCR_STATUSES.find(s => s.id === status)?.label ?? status
+  const color    = stepDef?.color ?? GCR_STATUSES.find(s => s.id === status)?.color ?? 'gray'
+  const colorMap = {
+    yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
+    green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    red:    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+    gray:   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  }
+  const Icon = status === 'rejected' ? X
+             : status === 'approved' || status === 'posted' ? CheckCircle
+             : status === 'registrar_correction' || status === 'for_registrar' ? ArrowRight
+             : Clock
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_STYLE[status] ?? ''}`}>
-      {status === 'requested'     && <Clock size={10} />}
-      {status === 'for_registrar' && <ArrowRight size={10} />}
-      {status === 'posted'        && <CheckCircle size={10} />}
-      {status === 'rejected'      && <X size={10} />}
-      {def?.label ?? status}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${colorMap[color] ?? colorMap.gray}`}>
+      <Icon size={10} />
+      {label}
     </span>
   )
 }
@@ -97,7 +110,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
   // Read college grades directly (college engine may not be appended yet)
   const collGrades = (() => {
     try {
-      const all = JSON.parse(localStorage.getItem('cshc_college_grades') || '[]')
+      const all = JSON.parse(localStorage.getItem('almirene_college_grades') || '[]')
       return all.filter(g =>
         (currentUser?.id ? g.teacherId === currentUser.id : true) &&
         g.campusKey  === campusKey &&
@@ -320,10 +333,12 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const { toasts, addToast, removeToast } = useToast()
 
   const role = currentUser?.role
-  const canApprove = (['principal_basic', 'program_head', 'technical_admin'].includes(role))
-    && request.status === 'requested'
-  const canPost    = (['registrar_basic', 'registrar_college', 'technical_admin'].includes(role))
-    && request.status === 'for_registrar'
+  // Workflow engine determines available actions
+  const availableActions = getGradeChangeActions(currentUser, request)
+  const hasAction  = (id) => availableActions.some(a => a.id === id)
+  const canApprove = hasAction('approve_request')
+  const canPost    = hasAction('post_correction')
+  const canReject  = hasAction('reject')
 
   useEffect(() => {
     setAudit(getRequestAuditTrail(request.id))
@@ -331,7 +346,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 
   const handleApprove = () => {
     try {
-      approveGradeChangeRequest(request.id, currentUser?.name)
+      advanceGradeChangeStep(request.id, 'approve_request', '', currentUser)
       addToast('Request approved. Sent to registrar for posting.', 'success')
       onUpdate()
     } catch (err) { addToast(err.message, 'error') }
@@ -349,7 +364,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 
   const handlePost = () => {
     try {
-      postGradeCorrection(request.id, currentUser?.name)
+      advanceGradeChangeStep(request.id, 'post_correction', '', currentUser)
       addToast('Grade correction posted successfully.', 'success')
       setPostConfirm(false)
       onUpdate()
@@ -369,7 +384,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <StatusBadge status={request.status} />
+              <StatusBadge request={request} />
               <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                 <X size={16} className="text-[var(--color-text-muted)]" />
               </button>
@@ -564,7 +579,14 @@ export default function GradeChangeRequests() {
   })
 
   const counts = {}
-  GCR_STATUSES.forEach(s => { counts[s.id] = requests.filter(r => r.status === s.id).length })
+  GCR_STATUSES.forEach(s => {
+    counts[s.id] = requests.filter(r =>
+      r.status === s.id ||
+      (s.id === 'principal_review' && r.status === 'requested') ||
+      (s.id === 'registrar_correction' && r.status === 'for_registrar') ||
+      (s.id === 'approved' && r.status === 'posted')
+    ).length
+  })
   const pending = requests.filter(r => !['posted', 'rejected'].includes(r.status)).length
 
   if (loading) return <PageSkeleton />
@@ -671,7 +693,7 @@ export default function GradeChangeRequests() {
                     <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">
                       {req.department === 'college' ? req.semester : req.period}
                     </p>
-                    <div className="hidden sm:block"><StatusBadge status={req.status} /></div>
+                    <div className="hidden sm:block"><StatusBadge request={req} /></div>
                     <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">
                       {new Date(req.createdAt).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
                     </p>
@@ -753,4 +775,4 @@ export default function GradeChangeRequests() {
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
-}
+} 

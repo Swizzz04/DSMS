@@ -1,5 +1,5 @@
 /**
- * UIComponents.jsx — CSHC Admin Portal
+ * UIComponents.jsx — ALMIRENE DX Admin Portal
  * ─────────────────────────────────────────────────────────────────
  * Rev. 4 UI Cleanup:
  *  - All hardcoded bg-white/bg-gray-800 → var(--color-bg-card)

@@ -29,6 +29,7 @@ import {
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
   BASIC_ED_DOCUMENT_TYPES, COLLEGE_DOCUMENT_TYPES,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
+  getDocumentActions, advanceDocumentStep, getDocumentStepDef,
 } from '../utils/documentBridge'
 import { getStudents } from '../utils/enrollmentBridge'
 
@@ -54,12 +55,14 @@ const STATUS_ICON = {
   cancelled:   X,
 }
 
-function StatusBadge({ status }) {
-  const label = REQUEST_STATUSES.find(s => s.id === status)?.label ?? status
-  const Icon  = STATUS_ICON[status] ?? Clock
+function StatusBadge({ request, status: statusProp }) {
+  const status = request?.status ?? statusProp ?? ''
+  const StatusIcon = STATUS_ICON[status] ?? Clock
+  const styleClass = request ? getStatusStyle(request) : (STATUS_STYLE[status] ?? '')
+  const label      = request ? getStatusLabel(request)  : (REQUEST_STATUSES.find(s => s.id === status)?.label ?? status)
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_STYLE[status] ?? ''}`}>
-      <Icon size={10} />
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${styleClass}`}>
+      <StatusIcon className="w-3 h-3" />
       {label}
     </span>
   )
@@ -458,17 +461,27 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const isRegistrar = role === 'registrar_basic' || role === 'registrar_college' || role === 'technical_admin'
   const isAccounting = role === 'accounting' || role === 'technical_admin'
 
-  const canProcess = isRegistrar && request.status === 'requested'
-  const canMarkReady = isRegistrar && request.status === 'processing' && request.fee === 0
-  const canRequirePayment = isRegistrar && request.status === 'processing' && request.fee > 0
-  const canConfirmPayment = isAccounting && request.status === 'for_payment'
-  const canRelease = isRegistrar && request.status === 'ready'
-  const canCancel  = isRegistrar && !['released', 'cancelled'].includes(request.status)
+  // Workflow engine determines available actions — no hardcoding
+  const availableActions = getDocumentActions(currentUser, request)
 
-  const act = (status, note = '') => {
-    updateStatus(request.id, status, currentUser?.name, note)
-    addToast(`Status updated to "${status}"`, 'success')
-    onUpdate()
+  // Convenience helpers for backward-compatible button rendering
+  const hasAction = (id) => availableActions.some(a => a.id === id)
+  const canProcess        = hasAction('start_processing')
+  const canRequirePayment = hasAction('require_payment')
+  const canMarkReady      = hasAction('mark_ready')
+  const canConfirmPayment = hasAction('confirm_payment')
+  const canRelease        = hasAction('release')
+  const canCancel         = hasAction('cancel')
+
+  const act = (actionId, note = '') => {
+    try {
+      advanceDocumentStep(request.id, actionId, note, currentUser)
+      const action = availableActions.find(a => a.id === actionId)
+      addToast(action ? `${action.label} — done.` : 'Status updated.', 'success')
+      onUpdate()
+    } catch (err) {
+      addToast(err.message, 'error')
+    }
   }
 
   const handleRelease = (data) => {
@@ -495,7 +508,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <StatusBadge status={request.status} />
+              <StatusBadge request={request} />
               <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                 <X size={16} className="text-[var(--color-text-muted)]" />
               </button>
@@ -540,7 +553,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <StatusBadge status={h.status} />
+                        <StatusBadge request={h} />
                         <span className="text-[var(--color-text-muted)]">{fmtDate(h.at)}</span>
                       </div>
                       {h.note && <p className="text-[var(--color-text-muted)] mt-0.5">{h.note}</p>}
@@ -558,7 +571,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 
                 <div className="flex flex-wrap gap-2">
                   {canProcess && (
-                    <button onClick={() => act('processing')}
+                    <button onClick={() => act('start_processing')}
                       className="btn btn-primary text-xs gap-1.5">
                       <RotateCcw size={12} /> Start Processing
                     </button>
@@ -576,7 +589,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     </button>
                   )}
                   {canConfirmPayment && (
-                    <button onClick={() => { recordPayment(request.id, currentUser?.name); addToast('Payment confirmed.', 'success'); onUpdate() }}
+                    <button onClick={() => act('confirm_payment')}
                       className="btn btn-primary text-xs gap-1.5">
                       <CheckCircle size={12} /> Confirm Payment
                     </button>
@@ -588,7 +601,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     </button>
                   )}
                   {canCancel && (
-                    <button onClick={() => act('cancelled', noteInput || 'Cancelled by registrar.')}
+                    <button onClick={() => act('cancel', noteInput || 'Cancelled by registrar.')}
                       className="btn text-xs gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20">
                       <X size={12} /> Cancel
                     </button>
@@ -661,7 +674,7 @@ export default function DocumentRequests() {
   // Status counts
   const counts = {}
   REQUEST_STATUSES.forEach(s => {
-    counts[s.id] = requests.filter(r => r.status === s.id).length
+    counts[s.id] = requests.filter(r => r.status === s.id || (s.id === 'ready_for_pickup' && r.status === 'ready')).length
   })
   const pending = requests.filter(r => !['released', 'cancelled'].includes(r.status)).length
 
@@ -772,7 +785,7 @@ export default function DocumentRequests() {
                       </p>
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] truncate hidden sm:block">{req.purpose}</p>
-                    <div className="hidden sm:block"><StatusBadge status={req.status} /></div>
+                    <div className="hidden sm:block"><StatusBadge request={req} /></div>
                     <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">{fmtDate(req.createdAt)}</p>
                     <div className="flex justify-end">
                       <button onClick={() => setSelected(req)}
