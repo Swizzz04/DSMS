@@ -537,7 +537,7 @@ export default function Attendance() {
         .filter(s => {
           if (s.status !== 'approved') return false
           const eCampus = s.enrollment?.campus || ''
-          return (eCampus === campusName || eCampus.includes(campusKey)) &&
+          return eCampus === campusName &&
                  s.enrollment?.gradeLevel === selectedSubject.gradeLevel
         })
         .map(s => ({
@@ -657,7 +657,7 @@ export default function Attendance() {
             <div key={sec.section} className="card overflow-hidden">
               <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)]/50">
                 <div className="flex items-center gap-2">
-                  <Users size={14} className="text-primary" />
+                  <Users size={14} className="text-[var(--color-primary-readable)]" />
                   <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{sec.section}</h3>
                   <span className="text-xs text-[var(--color-text-muted)]">· {sec.gradeLevel}</span>
                 </div>
@@ -678,7 +678,7 @@ export default function Attendance() {
                       className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${subj.department === 'college' ? 'bg-indigo-500/10' : 'bg-primary/10'}`}>
-                          <Calendar className={`w-4 h-4 ${subj.department === 'college' ? 'text-indigo-500' : 'text-primary'}`} />
+                          <Calendar className={`w-4 h-4 ${subj.department === 'college' ? 'text-indigo-500' : 'text-[var(--color-primary-readable)]'}`} />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">{subj.subjectName}</p>

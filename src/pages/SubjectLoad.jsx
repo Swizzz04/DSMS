@@ -67,13 +67,13 @@ function TeacherPickerModal({ teachers, title, subtitle, currentTeacherId, onSel
             <button key={t.id} onClick={() => onSelect(t)}
               className={`w-full text-left px-3 py-3 rounded-xl transition flex items-center gap-3 ${t.id === currentTeacherId ? 'bg-primary/10 dark:bg-primary/20' : 'hover:bg-[var(--color-bg-subtle)]'}`}>
               <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-primary dark:text-red-400" />
+                <User className="w-4 h-4 text-[var(--color-primary-readable)]" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{t.name}</p>
                 <p className="text-xs text-[var(--color-text-muted)] truncate">{t.email}</p>
               </div>
-              {t.id === currentTeacherId && <Check className="w-4 h-4 text-primary dark:text-red-400 flex-shrink-0" />}
+              {t.id === currentTeacherId && <Check className="w-4 h-4 text-[var(--color-primary-readable)] flex-shrink-0" />}
             </button>
           ))}
         </div>
@@ -242,7 +242,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Grade Levels',     value: allGrades.length,                  border: 'border-primary' },
+          { label: 'Grade Levels',     value: allGrades.length,                  border: 'border-[var(--color-primary-readable)]' },
           { label: 'Total Subjects',   value: totalSubjects,                      border: 'border-blue-500' },
           { label: 'Subjects Assigned', value: `${assignedSubjects}/${totalSubjects}`, border: 'border-green-500' },
           { label: 'Advisers Assigned', value: `${assignedAdvisers}/${totalSections}`, border: 'border-violet-500' },
@@ -274,8 +274,8 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-secondary/5 dark:bg-secondary/20 hover:bg-secondary/10 dark:hover:bg-secondary/30 transition"
             >
               <div className="flex items-center gap-2">
-                <GraduationCap className="w-4 h-4 text-secondary dark:text-blue-300" />
-                <span className="text-sm font-bold text-secondary dark:text-blue-200 uppercase tracking-wide">{group.label}</span>
+                <GraduationCap className="w-4 h-4 text-[var(--color-secondary-readable)]" />
+                <span className="text-sm font-bold text-[var(--color-secondary-readable)] uppercase tracking-wide">{group.label}</span>
                 <span className="text-xs text-[var(--color-text-muted)]">({groupGrades.length} level{groupGrades.length !== 1 ? 's' : ''})</span>
               </div>
               <div className="flex items-center gap-2">
@@ -306,7 +306,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
               className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[var(--color-bg-subtle)]/30 transition">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-4 h-4 text-primary dark:text-red-400" />
+                  <BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" />
                 </div>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">{grade}</p>
@@ -363,7 +363,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                     )
                   })}
                   <button onClick={() => setAddModal(grade)}
-                    className="mt-2 flex items-center gap-1.5 text-xs text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                    className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                     <Plus className="w-3.5 h-3.5" /> Add Subject
                   </button>
                 </div>
@@ -384,7 +384,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{sec.displayName}</p>
                                 <button onClick={() => setRenameModal({ gradeLevel: grade, section: sec })}
-                                  className="p-0.5 text-[var(--color-text-muted)] hover:text-primary dark:hover:text-red-400 transition flex-shrink-0" title="Rename section">
+                                  className="p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] dark:hover:text-red-400 transition flex-shrink-0" title="Rename section">
                                   <Pencil className="w-3 h-3" />
                                 </button>
                               </div>
@@ -494,7 +494,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-3 border-l-4 border-primary shadow-sm">
+        <div className="bg-[var(--color-bg-card)] rounded-xl p-3 border-l-4 border-[var(--color-primary-readable)] shadow-sm">
           <p className="text-xs text-[var(--color-text-muted)]">Total Assignments</p>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{totalSubj}</p>
         </div>
@@ -508,7 +508,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
       <div className="flex gap-2">
         {SEMESTERS.map(sem => (
           <button key={sem} onClick={() => setSemFilter(sem)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${semFilter === sem ? 'bg-primary text-white' : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-primary'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${semFilter === sem ? 'bg-primary text-[var(--color-primary-contrast)]' : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
             {sem} Semester
           </button>
         ))}
@@ -517,7 +517,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
       {collegePrograms.map(program => (
         <div key={program} className="space-y-2">
           <div className="flex items-center gap-2 px-1">
-            <GraduationCap className="w-4 h-4 text-primary dark:text-red-400" />
+            <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />
             <h3 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wide">{program}</h3>
           </div>
 
@@ -545,7 +545,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                   className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[var(--color-bg-subtle)]/30 transition">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-secondary/10 dark:bg-secondary/20 rounded-lg flex items-center justify-center">
-                      <BookOpen className="w-4 h-4 text-secondary dark:text-blue-400" />
+                      <BookOpen className="w-4 h-4 text-[var(--color-secondary-readable)]" />
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-semibold text-[var(--color-text-primary)]">{yearLevel}</p>
@@ -601,7 +601,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                                 )
                               })}
                               <button onClick={() => setAddModal({ program, yearLevel, semester: semFilter })}
-                                className="mt-2 flex items-center gap-1.5 text-xs text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                                className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                                 <Plus className="w-3.5 h-3.5" /> Add Subject
                               </button>
                             </div>
@@ -802,7 +802,7 @@ export default function SubjectLoad() {
             <Settings2 className="w-4 h-4" />
           </button>
           <button onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
@@ -828,7 +828,7 @@ export default function SubjectLoad() {
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
                 activeTab === tab.id
-                  ? 'border-primary text-primary dark:text-red-400'
+                  ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
                   : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}>
               <tab.icon className="w-4 h-4" /> {tab.label}

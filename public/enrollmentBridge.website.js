@@ -8,14 +8,14 @@
  *   <script src="enrollmentBridge.website.js"></script>
  *   <script src="enrollment.js"></script>
  *
- * Exposes: window.CSHC_Bridge.submitToAdminPortal(formData)
+ * Exposes: window.ALMIRENE_Bridge.submitToAdminPortal(formData)
  */
 
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'cshc_submissions';
-  const COUNTER_KEY = 'cshc_ref_counter';
+  const STORAGE_KEY = 'almirene_submissions';
+  const COUNTER_KEY = 'almirene_ref_counter';
 
   // ── Campus name mapping ────────────────────────────────────────
   var CAMPUS_MAP = {
@@ -49,13 +49,29 @@
     returnee:   'Returnee',
   };
 
+  // ── Reference number prefix ──────────────────────────────────
+  // Reads the tech-admin-configured prefix (Settings → School Info →
+  // General Information → "Reference Number Prefix"), stored on
+  // almirene_website_content same as everything else. 'ALMIRENE' is the
+  // platform default until a school client sets their own — this must
+  // match src/config/appConfig.js's DEFAULT_WEBSITE_CONTENT.referenceNumberPrefix
+  // and src/utils/enrollmentBridge.js's almRefNo(), so admin-created and
+  // website-submitted enrollments always share one prefix per school.
+  function getRefPrefix() {
+    try {
+      var saved  = JSON.parse(localStorage.getItem('almirene_website_content') || '{}');
+      var prefix = typeof saved.referenceNumberPrefix === 'string' ? saved.referenceNumberPrefix.trim() : '';
+      return (prefix || 'ALMIRENE').toUpperCase();
+    } catch (e) { return 'ALMIRENE'; }
+  }
+
   // ── Generate reference number ──────────────────────────────────
   function generateRefNum() {
     var year    = new Date().getFullYear();
     var stored  = localStorage.getItem(COUNTER_KEY);
     var counter = stored ? parseInt(stored, 10) + 1 : 1000;
     localStorage.setItem(COUNTER_KEY, counter.toString());
-    return 'CSHC-' + year + '-W' + String(counter).padStart(4, '0');
+    return getRefPrefix() + '-' + year + '-W' + String(counter).padStart(4, '0');
   }
 
   // ── Calculate age from birthDate string ───────────────────────
@@ -176,15 +192,15 @@
 
       // Notify admin portal if open in same browser
       try {
-        window.dispatchEvent(new CustomEvent('cshc_new_submission', {
+        window.dispatchEvent(new CustomEvent('almirene_new_submission', {
           detail: { referenceNumber: refNum }
         }));
       } catch (e) { /* ignore */ }
 
-      console.log('[CSHC Bridge] Enrollment saved:', refNum);
+      console.log('[ALMIRENE Bridge] Enrollment saved:', refNum);
       return { success: true, referenceNumber: refNum };
     } catch (err) {
-      console.error('[CSHC Bridge] Save failed:', err);
+      console.error('[ALMIRENE Bridge] Save failed:', err);
       return { success: false, referenceNumber: null };
     }
   }
@@ -198,11 +214,13 @@
   }
 
   // ── Expose on window ───────────────────────────────────────────
-  window.CSHC_Bridge = {
+  window.ALMIRENE_Bridge = {
     submitToAdminPortal: submitToAdminPortal,
     getPendingCount:     getPendingCount,
+    getRefPrefix:        getRefPrefix,
   };
+  window.CSHC_Bridge = window.ALMIRENE_Bridge; // back-compat alias, safe to remove once nothing references the old name
 
-  console.log('[CSHC Bridge] Ready. Pending submissions:', getPendingCount());
+  console.log('[ALMIRENE Bridge] Ready. Pending submissions:', getPendingCount());
 
 })();

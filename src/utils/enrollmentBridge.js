@@ -23,8 +23,26 @@
 // SECTION 1: WEBSITE SUBMISSION BRIDGE (original — do not modify)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { DEFAULT_WEBSITE_CONTENT } from '../config/appConfig'
+
 const STORAGE_KEY  = 'almirene_submissions'
 const COUNTER_KEY  = 'almirene_ref_counter'
+
+// ── Reference number prefix (shared by Section 1 & Section 2 below) ────
+// Reads the tech-admin-configured prefix from almirene_website_content —
+// same key + field the public site's enrollmentBridge.website.js reads —
+// so admin-created and website-submitted enrollments always share one
+// prefix per school. Falls back to the platform default ('ALMIRENE') from
+// appConfig.js if the school hasn't set one yet.
+function getReferenceNumberPrefix() {
+  try {
+    const saved  = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
+    const prefix = typeof saved.referenceNumberPrefix === 'string' ? saved.referenceNumberPrefix.trim() : ''
+    return (prefix || DEFAULT_WEBSITE_CONTENT.referenceNumberPrefix).toUpperCase()
+  } catch {
+    return DEFAULT_WEBSITE_CONTENT.referenceNumberPrefix
+  }
+}
 
 // ── Campus name mapping (website value → portal name) ──────────
 const CAMPUS_MAP = {
@@ -81,7 +99,7 @@ function generateReferenceNumber() {
   const stored = localStorage.getItem(COUNTER_KEY)
   const counter = stored ? parseInt(stored, 10) + 1 : 1000
   localStorage.setItem(COUNTER_KEY, counter.toString())
-  return `ALMIRENE-${year}-W${String(counter).padStart(4, '0')}`
+  return `${getReferenceNumberPrefix()}-${year}-W${String(counter).padStart(4, '0')}`
 }
 
 // ── Normalize raw website form data into portal format ──────────
@@ -256,7 +274,8 @@ import {
 
 const ENROLLMENT_KEY   = 'almirene_enrollments'
 const STUDENT_KEY      = 'almirene_students'
-const ALM_REF_KEY      = 'almirene_ref_counter'
+const ALM_REF_KEY      = 'almirene_enrollment_ref_counters'
+const STUDENT_ID_KEY   = 'almirene_student_id_counter'
 const ENROLLMENT_EVENT = 'almirene_enrollments_updated'
 const STUDENT_EVENT    = 'almirene_students_updated'
 
@@ -293,7 +312,7 @@ function almRefNo(campusKey, source) {
   counters[ctrKey] = (counters[ctrKey] ?? 0) + 1
   localStorage.setItem(ALM_REF_KEY, JSON.stringify(counters))
   const seq = String(counters[ctrKey]).padStart(4, '0')
-  return `ALMIRENE-${year}-${source === 'website' ? 'W' : 'A'}${seq}`
+  return `${getReferenceNumberPrefix()}-${year}-${source === 'website' ? 'W' : 'A'}${seq}`
 }
 
 function getWorkflowId(department) {
@@ -466,7 +485,7 @@ export function convertToStudent(enrollment) {
 
   const student = {
     id:            almUid('stu'),
-    studentId:     generateStudentId(enrollment.campusKey, enrollment.schoolYear),
+    studentId:     generateStudentId(enrollment.schoolYear),
     campusKey:     enrollment.campusKey,
     campusName:    enrollment.campusName ?? enrollment.campus ?? '',
     schoolYear:    enrollment.schoolYear,
@@ -503,15 +522,28 @@ export function convertToStudent(enrollment) {
   return student
 }
 
-function generateStudentId(campusKey, schoolYear) {
-  const year   = schoolYear ? schoolYear.split('-')[0] : new Date().getFullYear()
-  const ctrKey = `student_${campusKey}_${year}`
-  let counters = {}
-  try { counters = JSON.parse(localStorage.getItem(ALM_REF_KEY) || '{}') }
-  catch { counters = {} }
-  counters[ctrKey] = (counters[ctrKey] ?? 0) + 1
-  localStorage.setItem(ALM_REF_KEY, JSON.stringify(counters))
-  return `${year}-${String(counters[ctrKey]).padStart(5, '0')}`
+/**
+ * Generates a numeric-only, permanent Student ID: {schoolYearStartYear}{6-digit sequence}
+ * e.g. "202600001" for SY 2026-2027, "202700002" for the next new student enrolled
+ * once SY 2027-2028 starts.
+ *
+ * - The year prefix is whatever school year is CURRENT at the moment the student
+ *   is created — it is baked into the ID string permanently. A student's ID never
+ *   changes on its own when the school year rolls over; only NEW students enrolled
+ *   after the rollover pick up the new year prefix.
+ * - The 5-digit sequence is a single counter shared across ALL campuses and ALL
+ *   years — it never resets. It only ever counts up, for the life of the school.
+ * - 5 digits supports up to 99,999 total students ever enrolled before needing a
+ *   6th digit — plenty of headroom for a single-school SaaS deployment.
+ */
+function generateStudentId(schoolYear) {
+  const year = schoolYear ? schoolYear.split('-')[0] : String(new Date().getFullYear())
+  let counter = 0
+  try { counter = parseInt(localStorage.getItem(STUDENT_ID_KEY) || '0', 10) || 0 }
+  catch { counter = 0 }
+  counter += 1
+  localStorage.setItem(STUDENT_ID_KEY, counter.toString())
+  return `${year}${String(counter).padStart(6, '0')}`
 }
 
 // ── STUDENT READS & UPDATES ─────────────────────────────────────

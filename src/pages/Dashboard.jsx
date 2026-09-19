@@ -6,7 +6,7 @@
  *  - All stat tiles → .stat-card primitive (left-border accent + hover lift)
  *  - Chart panels use .card + CSS token colors for grid/tick
  *  - Header title uses .text-display / .text-heading scale
- *  - Export button uses .btn .btn-ghost (matches design system)
+ *  - Export button uses .btn .btn-primary (matches every other Export button app-wide)
  *  - Page wrapper uses .page-enter for smooth entrance
  *  - Stat card grid uses .stagger for cascade entrance
  *  - Per-campus strip uses .animate-fade-in-up
@@ -55,21 +55,30 @@ function loadSubmissions() {
   try { return JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch { return [] }
 }
 
-// ── Derive isDark from DOM (chart colors need this synchronously) ─
-function getIsDark() {
-  return document.documentElement.classList.contains('dark')
-}
-
 // ── Chart theme tokens ────────────────────────────────────────────
+// Reads the live CSS variables instead of hardcoding hex duplicates —
+// hardcoded mirrors of --color-border/--color-text-muted/etc. drift
+// silently whenever index.css's theme values change (this had already
+// happened: --color-text-muted and dark mode's --color-bg-card had
+// moved on without these being updated). Chart.js needs resolved
+// color strings, not CSS var() references, so we resolve them once
+// per render via getComputedStyle — same approach already used below
+// for primaryColor/secondaryColor.
 function chartTheme() {
-  const dark = getIsDark()
+  const css = getComputedStyle(document.documentElement)
+  const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback
   return {
-    gridClr: dark ? '#2a2d3e' : '#e8e8e4',   // --color-border tokens
-    tickClr: dark ? '#6a6a78' : '#8a8a8a',   // --color-text-muted tokens
-    tooltipBg: dark ? '#1a1d27' : '#ffffff',
-    tooltipBorder: dark ? '#2a2d3e' : '#e8e8e4',
-    tooltipTitle: dark ? '#f0f0ee' : '#1a1a1a',
-    tooltipBody: dark ? '#a8a8b0' : '#4a4a4a'
+    gridClr:       v('--color-border', '#e8e8e4'),
+    tickClr:       v('--color-text-muted', '#8a8a8a'),
+    tooltipBg:     v('--color-bg-card', '#ffffff'),
+    tooltipBorder: v('--color-border', '#e8e8e4'),
+    tooltipTitle:  v('--color-text-primary', '#1a1a1a'),
+    tooltipBody:   v('--color-text-secondary', '#4a4a4a'),
+    successClr:    v('--color-success', '#16a34a'),
+    infoClr:       v('--color-info', '#2563eb'),
+    warningClr:    v('--color-warning', '#d97706'),
+    errorClr:      v('--color-error', '#dc2626'),
+    primaryClr:    v('--color-primary', '#F4FAFC'),
   }
 }
 
@@ -222,7 +231,7 @@ export default function Dashboard() {
   })
 
   // ── Chart config ──────────────────────────────────────────────
-  const { gridClr, tickClr } = chartTheme()
+  const { gridClr, tickClr, successClr, infoClr, warningClr, errorClr, primaryClr } = chartTheme()
 
   const baseOpts = {
     responsive: true,
@@ -277,7 +286,7 @@ export default function Dashboard() {
     labels: ['Approved', 'Payment Received', 'Awaiting Payment', 'Rejected'],
     datasets: [{
       data: [enrApproved, enrPaymentReceived, enrPending, enrRejected],
-      backgroundColor: ['#16a34a', '#2563eb', '#d97706', '#dc2626'],
+      backgroundColor: [successClr, infoClr, warningClr, errorClr],
       borderWidth: 0,
       hoverOffset: 6
     }]
@@ -286,16 +295,16 @@ export default function Dashboard() {
   const campusBarData = {
     labels: campusStats.map(c => campusShortName(c.name)),
     datasets: [
-      { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: '#2563eb', borderRadius: 4 },
-      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: 'var(--color-primary)', borderRadius: 4 },
+      { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: infoClr, borderRadius: 4 },
+      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: primaryClr, borderRadius: 4 },
     ]
   }
 
   const revenueBarData = {
     labels: campusStats.map(c => campusShortName(c.name)),
     datasets: [
-      { label: 'Collected',   data: campusStats.map(c => c.revenue),    backgroundColor: '#16a34a', borderRadius: 4 },
-      { label: 'Outstanding', data: campusStats.map(c => c.outstanding), backgroundColor: '#dc2626', borderRadius: 4 },
+      { label: 'Collected',   data: campusStats.map(c => c.revenue),    backgroundColor: successClr, borderRadius: 4 },
+      { label: 'Outstanding', data: campusStats.map(c => c.outstanding), backgroundColor: errorClr, borderRadius: 4 },
     ]
   }
 
@@ -358,9 +367,9 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
           {/* Quick action cards */}
-          <button onClick={() => window.location.href = '/settings'} className="stat-card border-primary text-left animate-fade-in hover:shadow-md transition">
+          <button onClick={() => window.location.href = '/settings'} className="stat-card border-[var(--color-primary-readable)] text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-primary" /></div>
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">User Management</p>
                 <p className="text-xs text-[var(--color-text-muted)]">{isSuperAdmin ? 'Manage all campus accounts' : 'Manage your campus accounts'}</p>
@@ -369,9 +378,9 @@ export default function Dashboard() {
           </button>
 
           {isSuperAdmin && (
-            <button onClick={() => window.location.href = '/settings'} className="stat-card border-secondary text-left animate-fade-in hover:shadow-md transition">
+            <button onClick={() => window.location.href = '/settings'} className="stat-card border-[var(--color-secondary-readable)] text-left animate-fade-in hover:shadow-md transition">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center"><Settings className="w-5 h-5 text-secondary" /></div>
+                <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center"><Settings className="w-5 h-5 text-[var(--color-secondary-readable)]" /></div>
                 <div>
                   <p className="text-sm font-bold text-[var(--color-text-primary)]">School Info</p>
                   <p className="text-xs text-[var(--color-text-muted)]">Website content, branding, campuses</p>
@@ -427,7 +436,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger">
           <button onClick={() => window.location.href = '/students'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-primary" /></div>
+              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center"><Users className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">My Students</p>
                 <p className="text-xs text-[var(--color-text-muted)]">View students in your assigned sections</p>
@@ -437,7 +446,7 @@ export default function Dashboard() {
 
           <button onClick={() => window.location.href = '/subject-load'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-5 h-5 text-secondary" /></div>
+              <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-5 h-5 text-[var(--color-secondary-readable)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">Subject Load</p>
                 <p className="text-xs text-[var(--color-text-muted)]">View your assigned subjects and sections</p>
@@ -481,7 +490,7 @@ export default function Dashboard() {
                 m.seedGradeTestData()
                 addToast('Test data seeded! Go to e-Class Record to test grade entry.', 'success')
               }).catch(() => addToast('Seed file not found', 'error'))
-            }} className="text-[10px] text-[var(--color-text-muted)] hover:text-primary transition underline">
+            }} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition underline">
               🧪 Seed test data (dev only)
             </button>
           </div>
@@ -492,8 +501,11 @@ export default function Dashboard() {
   }
   if (user?.role === 'admin') {
     // Use primary color for all campus indicators
-    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#750014'
-    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#080c42'
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F4FAFC'
+    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#212121'
+    // Contrast-safe variant for border/text usage (see themeInitializer.js) — the
+    // raw primaryColor above is a fill color and can be too pale to see as a border.
+    const primaryReadable = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-readable').trim() || primaryColor
 
     // Chart.js data — Students per campus (bar)
     const studentBarData = {
@@ -502,13 +514,13 @@ export default function Dashboard() {
         {
           label: 'Basic Ed',
           data: campusStats.map(c => c.basicStu),
-          backgroundColor: 'var(--color-primary)',
+          backgroundColor: primaryColor,
           borderRadius: 6
         },
         {
           label: 'College',
           data: campusStats.map(c => c.collegeStu),
-          backgroundColor: 'var(--color-secondary)',
+          backgroundColor: secondaryColor,
           borderRadius: 6
         },
       ]
@@ -557,7 +569,7 @@ export default function Dashboard() {
             <h1 className="text-display text-[var(--color-text-primary)]">Owner Dashboard</h1>
             <p className="text-body text-[var(--color-text-muted)] mt-1">{currentSchoolYear} · All Campuses · Executive Overview</p>
           </div>
-          <button onClick={handleExport} className="btn btn-ghost self-start"><Download className="w-4 h-4" /> Export Report</button>
+          <button onClick={handleExport} className="btn btn-primary self-start"><Download className="w-4 h-4" /> Export Report</button>
         </div>
 
         {/* Grand totals */}
@@ -580,16 +592,16 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Collection rate: {collectionRate}%</p>
           </div>
 
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-primary)' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-primary-readable)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Enrollments</span>
-              <FileText className="w-5 h-5 text-primary" />
+              <FileText className="w-5 h-5 text-[var(--color-primary-readable)]" />
             </div>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{enrTotal}</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">This school year</p>
           </div>
 
-          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-secondary)' }}>
+          <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-secondary-readable)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Outstanding Balance</span>
               <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -602,7 +614,7 @@ export default function Dashboard() {
         {/* Per-campus summary cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 stagger">
           {campusStats.map(c => (
-            <div key={c.key} className="card p-4 animate-fade-in" style={{ borderLeft: `4px solid ${primaryColor}` }}>
+            <div key={c.key} className="card p-4 animate-fade-in" style={{ borderLeft: `4px solid ${primaryReadable}` }}>
               <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-3">{c.name.replace(' City Campus', '').replace(' Campus', '')}</h3>
               <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
                 <div><span className="text-[var(--color-text-muted)]">Students</span><p className="font-bold text-[var(--color-text-primary)] text-base">{c.students}</p></div>
@@ -702,12 +714,12 @@ export default function Dashboard() {
         </div>
 
         {/* Total Enrollments */}
-        <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-primary)' }}>
+        <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-primary-readable)' }}>
           <div className="flex items-center justify-between mb-2">
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Total Enrollments
             </p>
-            <FileText className="w-4 h-4 text-[var(--color-primary)] opacity-80" />
+            <FileText className="w-4 h-4 text-[var(--color-primary-readable)] opacity-80" />
           </div>
           <p className="text-2xl font-bold text-[var(--color-text-primary)]">
             {enrTotal.toLocaleString()}
@@ -776,7 +788,7 @@ export default function Dashboard() {
         {/* Enrollment Status Doughnut */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-1">
-            <BarChart2 className="w-4 h-4 text-[var(--color-primary)]" />
+            <BarChart2 className="w-4 h-4 text-[var(--color-primary-readable)]" />
             <h3 className="text-subheading text-[var(--color-text-primary)]">
               Enrollment Status
             </h3>
@@ -842,7 +854,7 @@ export default function Dashboard() {
         <SectionPanel
           title="Enrollments Summary"
           icon={<FileText className="w-4 h-4" />}
-          colorCls="text-[var(--color-primary)] dark:text-red-400 bg-[var(--color-primary-light)] dark:bg-red-900/10"
+          colorCls="text-[var(--color-primary-readable)] bg-[var(--color-primary-light)]"
           pills={[
             `${enrTotal} total`,
             enrPending > 0 && `${enrPending} pending`,
@@ -1104,8 +1116,8 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
   const pct = (n) => stats.total > 0 ? Math.round((n / stats.total) * 100) : 0
 
   // Brand accents per registrar type
-  const accentText   = isBasicReg ? 'text-[var(--color-success)]' : 'text-[var(--color-primary)]'
-  const borderLeft   = isBasicReg ? 'var(--color-success)' : 'var(--color-primary)'
+  const accentText   = isBasicReg ? 'text-[var(--color-success)]' : 'text-[var(--color-primary-readable)]'
+  const borderLeft   = isBasicReg ? 'var(--color-success)' : 'var(--color-primary-readable)'
 
   return (
     <div className="page-enter space-y-5">

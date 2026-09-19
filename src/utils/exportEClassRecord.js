@@ -1,4 +1,4 @@
-import { GRADING_PERIODS, WEIGHT_TABLES, transmute } from '../engines/gradingEngine'
+import { GRADING_PERIODS, WEIGHT_TABLES, transmute, DEFAULT_TRANSMUTATION_TABLE } from '../engines/gradingEngine'
 
 let XLSX = null
 async function getXLSX() {
@@ -8,7 +8,7 @@ async function getXLSX() {
 
 export async function exportEClassRecord(params) {
   const XLSX = await getXLSX()
-  const { subjectName, section, gradeLevel, teacherName, schoolYear, schoolName, periodType, subjectArea, activitiesByPeriod, scoresByPeriod, students } = params
+  const { subjectName, section, gradeLevel, teacherName, schoolYear, schoolName, periodType, subjectArea, activitiesByPeriod, scoresByPeriod, students, transmutationTable = DEFAULT_TRANSMUTATION_TABLE } = params
   const wb = XLSX.utils.book_new()
   const periods = GRADING_PERIODS[periodType] || GRADING_PERIODS.quarterly
   const weights = WEIGHT_TABLES[subjectArea] || { ww: 0.40, pt: 0.40, qa: 0.20 }
@@ -61,7 +61,7 @@ export async function exportEClassRecord(params) {
       const wwW = Math.round(wwP * weights.ww * 100) / 100, ptW = Math.round(ptP * weights.pt * 100) / 100, qaW = Math.round(qaP * weights.qa * 100) / 100
       const ini = Math.round((wwW + ptW + qaW) * 100) / 100
       const has = ww.some(v => v !== '' && v !== 0) || pt.some(v => v !== '' && v !== 0) || qaV > 0
-      const tg = has ? transmute(ini) : ''
+      const tg = has ? transmute(ini, transmutationTable) : ''
 
       const r = [idx + 1, stu.id, stu.name, '']
       ww.forEach(v => r.push(v !== '' ? Number(v) || 0 : '')); r.push(has ? wwS : '', has ? wwP : '', has ? wwW : '')
@@ -74,7 +74,7 @@ export async function exportEClassRecord(params) {
           const w = (ps.ww || []).reduce((s, v) => s + (Number(v) || 0), 0), wm = pa.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
           const p2 = (ps.pt || []).reduce((s, v) => s + (Number(v) || 0), 0), pm = pa.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
           const q = Number((ps.qa || [])[0]) || 0, qm = pa.qa[0]?.maxScore || 100
-          pg = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0))
+          pg = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0), transmutationTable)
         }
         r.push(pg)
       }
@@ -98,7 +98,7 @@ export async function exportEClassRecord(params) {
       const w = (sc.ww || []).reduce((s, v) => s + (Number(v) || 0), 0), wm = ac.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
       const p2 = (sc.pt || []).reduce((s, v) => s + (Number(v) || 0), 0), pm = ac.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
       const q = Number((sc.qa || [])[0]) || 0, qm = ac.qa[0]?.maxScore || 100
-      const t = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0))
+      const t = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0), transmutationTable)
       r.push(t); pg.push(t)
     })
     const v = pg.filter(g => g > 0), f = v.length > 0 ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : ''

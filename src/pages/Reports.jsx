@@ -107,11 +107,11 @@ function TxDetailModal({ tx, onClose, onPrint }) {
           <div className="modal-header">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <Receipt className="w-4 h-4 text-primary"/>
+                <Receipt className="w-4 h-4 text-[var(--color-primary-readable)]"/>
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">Transaction Detail</h2>
-                <p className="text-xs font-mono text-primary dark:text-red-400">{tx.orNumber || '—'}</p>
+                <p className="text-xs font-mono text-[var(--color-primary-readable)]">{tx.orNumber || '—'}</p>
               </div>
             </div>
             <button onClick={onClose} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
@@ -125,7 +125,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
               <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide mb-3 flex items-center gap-1.5">
                 <CreditCard className="w-3.5 h-3.5"/> Student & Payment
               </h3>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 {[
                   ['Student Name', tx.studentName],
                   ['Reference #',  tx.refNum],
@@ -152,7 +152,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-[var(--color-text-muted)]">OR Number</span>
-                  <span className="font-mono font-semibold text-primary dark:text-red-400">{tx.orNumber || '—'}</span>
+                  <span className="font-mono font-semibold text-[var(--color-primary-readable)]">{tx.orNumber || '—'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[var(--color-text-muted)]">Date</span>
@@ -166,7 +166,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
                   <span className="text-[var(--color-text-muted)]">Payment Covers</span>
                   <div className="flex flex-wrap gap-1 justify-end">
                     {(tx.paymentFor?.length > 0 ? tx.paymentFor : ['tuition']).map(k => (
-                      <span key={k} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-secondary dark:text-blue-300 rounded font-medium">
+                      <span key={k} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-[var(--color-secondary-readable)] rounded font-medium">
                         {FEE_LABELS[k] || k}
                       </span>
                     ))}
@@ -180,7 +180,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
                 )}
                 <div className="flex justify-between font-bold text-base border-t border-blue-200 dark:border-blue-700 pt-2 mt-1">
                   <span className="text-[var(--color-text-primary)]">Amount Paid</span>
-                  <span className="font-mono text-primary dark:text-red-400">{php(tx.amount)}</span>
+                  <span className="font-mono text-[var(--color-primary-readable)]">{php(tx.amount)}</span>
                 </div>
               </div>
               {tx.discountsApplied?.length > 0 && (
@@ -215,7 +215,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
                   {(fb.misc  || 0) > 0 && <div className="flex justify-between text-[var(--color-text-secondary)]"><span>Misc Fee</span><span className="font-mono">{php(fb.misc)}</span></div>}
                   {(fb.books || 0) > 0 && <div className="flex justify-between text-[var(--color-text-secondary)]"><span>Books</span><span className="font-mono">{php(fb.books)}</span></div>}
                   <div className="flex justify-between font-bold text-[var(--color-text-primary)] border-t border-[var(--color-border)] pt-2 mt-1 text-sm">
-                    <span>Grand Total</span><span className="font-mono text-primary dark:text-red-400">{php(fb.grandTotal)}</span>
+                    <span>Grand Total</span><span className="font-mono text-[var(--color-primary-readable)]">{php(fb.grandTotal)}</span>
                   </div>
                   <div className="flex justify-between text-green-600 dark:text-green-400">
                     <span>Total Paid</span><span className="font-mono">{php(tx.totalFee - tx.balance)}</span>
@@ -244,9 +244,9 @@ function TxDetailModal({ tx, onClose, onPrint }) {
                     return (
                       <div key={i} className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-xs ${isThis ? 'bg-primary/10 dark:bg-primary/20 border border-primary/30' : 'bg-[var(--color-bg-subtle)]'}`}>
                         <div>
-                          <p className={`font-mono font-semibold ${isThis ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-secondary)]'}`}>
+                          <p className={`font-mono font-semibold ${isThis ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-secondary)]'}`}>
                             {h.orNumber || '—'}
-                            {isThis && <span className="ml-1.5 text-[10px] bg-primary text-white px-1.5 py-0.5 rounded-full">This</span>}
+                            {isThis && <span className="ml-1.5 text-[10px] bg-primary text-[var(--color-primary-contrast)] px-1.5 py-0.5 rounded-full">This</span>}
                           </p>
                           <p className="text-[var(--color-text-muted)] mt-0.5">
                             {h.method || '—'} · {h.date ? new Date(h.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—'}
@@ -268,7 +268,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
               Close
             </button>
             <button onClick={() => onPrint(tx)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-[#4a0009] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -418,7 +418,7 @@ function TxReceiptModal({ tx, cashierName, schoolYear, onClose }) {
               Close
             </button>
             <button onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-[#4a0009] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print (2 copies)
             </button>
           </div>
@@ -446,14 +446,14 @@ function TxRow({ tx, onView, onPrint }) {
     : ['Tuition Fee']
   return (
     <tr className="hover:bg-[var(--color-bg-subtle)]/30 transition">
-      <td className="px-4 py-3 text-xs font-mono text-primary dark:text-red-400">{tx.orNumber || '—'}</td>
+      <td className="px-4 py-3 text-xs font-mono text-[var(--color-primary-readable)]">{tx.orNumber || '—'}</td>
       <td className="px-4 py-3 text-sm font-medium text-[var(--color-text-primary)]">{tx.studentName}</td>
       <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{tx.gradeLevel}</td>
       <td className="px-4 py-3">
         {feeTags.length > 0
           ? <div className="flex flex-wrap gap-1">
               {feeTags.map(tag => (
-                <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-secondary dark:text-blue-300 rounded font-medium">
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-[var(--color-secondary-readable)] rounded font-medium">
                   {tag}
                 </span>
               ))}
@@ -468,13 +468,13 @@ function TxRow({ tx, onView, onPrint }) {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => onView(tx)}
-            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 text-primary dark:text-red-400 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg font-medium transition"
+            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 text-[var(--color-primary-readable)] hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg font-medium transition"
             title="View details">
             <Eye className="w-3.5 h-3.5"/> Details
           </button>
           <button
             onClick={() => onPrint(tx)}
-            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-primary text-white hover:bg-[#4a0009] rounded-lg font-medium transition"
+            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)] rounded-lg font-medium transition"
             title="Print receipt">
             <Printer className="w-3.5 h-3.5"/> Receipt
           </button>
@@ -799,14 +799,14 @@ export default function Reports() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-            <BarChart2 className="w-7 h-7 text-primary"/> Income Reports
+            <BarChart2 className="w-7 h-7 text-[var(--color-primary-readable)]"/> Income Reports
           </h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             {currentSchoolYear} · {isAccountingLocked ? user.campus : 'All Campuses'}
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium shadow-sm">
+          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium shadow-sm">
           <Download className="w-4 h-4"/> Export Report
         </button>
       </div>
@@ -816,7 +816,7 @@ export default function Reports() {
       <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-primary flex-shrink-0"/>
+            <Calendar className="w-4 h-4 text-[var(--color-primary-readable)] flex-shrink-0"/>
             <span className="text-sm font-semibold text-[var(--color-text-primary)]">Report Period:</span>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -832,7 +832,7 @@ export default function Reports() {
                 onClick={() => { setPeriod(opt.val); setShowCustom(opt.val === 'custom') }}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition
                   ${period === opt.val
-                    ? 'bg-primary text-white shadow-sm'
+                    ? 'bg-primary text-[var(--color-primary-contrast)] shadow-sm'
                     : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
                   }`}>
                 {opt.label}
@@ -856,7 +856,7 @@ export default function Reports() {
         {/* Period label */}
         <div className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
           <Filter className="w-3 h-3"/>
-          Showing: <span className="font-semibold text-primary dark:text-red-400">{periodLabel}</span>
+          Showing: <span className="font-semibold text-[var(--color-primary-readable)]">{periodLabel}</span>
           {filteredTxs.length > 0 && <span>· {filteredTxs.length} transaction{filteredTxs.length !== 1 ? 's' : ''}</span>}
         </div>
       </div>
@@ -889,7 +889,7 @@ export default function Reports() {
           <div className="px-5 py-4 border-b border-[var(--color-border)]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-primary"/>
+                <BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]"/>
                 <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Income by Grade Level / Program</h3>
               </div>
               {/* Filters */}
@@ -925,7 +925,7 @@ export default function Reports() {
             {(deptFilter !== 'all' || gradeFilter !== 'all') && (
               <p className="text-xs text-[var(--color-text-muted)] mt-2 flex items-center gap-1">
                 <Filter className="w-3 h-3"/>
-                Filtered by: <span className="font-semibold text-primary dark:text-red-400 ml-0.5">
+                Filtered by: <span className="font-semibold text-[var(--color-primary-readable)] ml-0.5">
                   {deptFilter === 'basic_ed' ? 'Basic Education' : 'College'}
                   {gradeFilter !== 'all' ? ` · ${gradeFilter}` : ''}
                 </span>
@@ -943,7 +943,7 @@ export default function Reports() {
           {/* Payment method breakdown */}
           <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
-              <DollarSign className="w-4 h-4 text-primary"/>
+              <DollarSign className="w-4 h-4 text-[var(--color-primary-readable)]"/>
               <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">By Payment Method</h3>
             </div>
             <MethodBreakdown transactions={filteredTxs}/>
@@ -952,7 +952,7 @@ export default function Reports() {
           {/* Quick totals */}
           <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
-              <ArrowUpRight className="w-4 h-4 text-primary"/>
+              <ArrowUpRight className="w-4 h-4 text-[var(--color-primary-readable)]"/>
               <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Quick Summary</h3>
             </div>
             <div className="space-y-3">
@@ -976,7 +976,7 @@ export default function Reports() {
         <div className="px-5 py-4 border-b border-[var(--color-border)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary"/>
+              <FileText className="w-4 h-4 text-[var(--color-primary-readable)]"/>
               <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Individual Transactions</h3>
               <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
                 {filteredTxs.length}
@@ -997,7 +997,7 @@ export default function Reports() {
                     onClick={() => setFeeTypeFilter(opt.val)}
                     className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition
                       ${feeTypeFilter === opt.val
-                        ? 'bg-secondary text-white dark:bg-secondary'
+                        ? 'bg-secondary text-[var(--color-secondary-contrast)] dark:bg-secondary'
                         : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
                       }`}>
                     {opt.label}
@@ -1013,7 +1013,7 @@ export default function Reports() {
               <input
                 value={txSearch} onChange={e => setTxSearch(e.target.value)}
                 placeholder="Search student name or OR #..."
-                className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"
+                className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"
               />
             </div>
             {(txSearch || feeTypeFilter !== 'all') && (
@@ -1027,7 +1027,7 @@ export default function Reports() {
           {feeTypeFilter !== 'all' && (
             <p className="text-xs text-[var(--color-text-muted)] mt-2 flex items-center gap-1">
               <Filter className="w-3 h-3"/>
-              Showing transactions with <span className="font-semibold text-secondary dark:text-blue-300 ml-0.5">{
+              Showing transactions with <span className="font-semibold text-[var(--color-secondary-readable)] ml-0.5">{
                 { tuition: 'Tuition', misc: 'Misc Fee', lab: 'Lab Fee', books: 'Books' }[feeTypeFilter]
               }</span> component
             </p>

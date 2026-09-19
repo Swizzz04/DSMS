@@ -127,6 +127,7 @@ function PreviewTable({ formId, data }) {
 
   if (formId === 'sf9') {
     const subjects = data.subjects || []
+    const periods  = [...(data.periods || ['Q1','Q2','Q3','Q4']), 'Final']
     return (
       <div className="overflow-x-auto">
         <table className="text-xs w-full min-w-[600px]">
@@ -134,14 +135,14 @@ function PreviewTable({ formId, data }) {
             <tr className="bg-[var(--color-bg-subtle)] border-b border-[var(--color-border)]">
               <th className="text-left px-3 py-2 font-semibold text-[var(--color-text-muted)] sticky left-0 bg-[var(--color-bg-subtle)]">Name</th>
               {subjects.map(sub => (
-                <th key={sub} className="text-center px-2 py-2 font-semibold text-[var(--color-text-muted)] whitespace-nowrap" colSpan={5}>
+                <th key={sub} className="text-center px-2 py-2 font-semibold text-[var(--color-text-muted)] whitespace-nowrap" colSpan={periods.length}>
                   {sub.length > 12 ? sub.substring(0, 12) + '…' : sub}
                 </th>
               ))}
             </tr>
             <tr className="bg-[var(--color-bg-subtle)] border-b border-[var(--color-border)]">
               <th className="sticky left-0 bg-[var(--color-bg-subtle)]" />
-              {subjects.flatMap(sub => ['Q1','Q2','Q3','Q4','Final'].map(p => (
+              {subjects.flatMap(sub => periods.map(p => (
                 <th key={`${sub}-${p}`} className="text-center px-1 py-1 text-[9px] font-medium text-[var(--color-text-muted)]">{p}</th>
               )))}
             </tr>
@@ -150,7 +151,7 @@ function PreviewTable({ formId, data }) {
             {data.students.map((s, i) => (
               <tr key={i} className="hover:bg-[var(--color-bg-subtle)] transition-colors">
                 <td className="px-3 py-2 font-medium text-[var(--color-text-primary)] sticky left-0 bg-[var(--color-bg-card)]">{s.name}</td>
-                {subjects.flatMap(sub => ['Q1','Q2','Q3','Q4','Final'].map(p => (
+                {subjects.flatMap(sub => periods.map(p => (
                   <td key={`${sub}-${p}`} className={`px-1 py-2 text-center ${p === 'Final' ? 'font-bold' : ''}`}
                       style={{ color: s.grades?.[sub]?.[p] ? (s.grades[sub][p] >= 75 ? 'var(--color-success)' : 'var(--color-danger)') : 'var(--color-text-muted)' }}>
                     {s.grades?.[sub]?.[p] || '—'}
@@ -472,7 +473,7 @@ export default function TeacherForms() {
                   onClick={() => handleExport(form.id)}
                   disabled={isExporting || !canExport}
                   title={!canExport ? 'Select a grade level and section first' : ''}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-primary text-white hover:bg-accent-burgundy transition disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50"
                 >
                   {isExporting ? (
                     <><Loader className="w-3.5 h-3.5 animate-spin" /> Exporting…</>

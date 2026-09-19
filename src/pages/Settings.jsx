@@ -4,18 +4,19 @@ import {
   Users, Plus, Edit, Check, Save, Receipt,
   X, ChevronDown, ChevronUp, AlertCircle, Info, Trash2, Tag, Percent, BookOpen,
   ChevronRight, Clock, MapPin, Paintbrush, School, Image, Upload,
-  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send, ClipboardList, FileText, FolderOpen, GitBranch
+  Shield, Bug, UserPlus, HelpCircle, MessageSquare, Send, ClipboardList, FileText, FolderOpen, GitBranch, Lock, RotateCcw
 } from 'lucide-react'
-import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../components/UIComponents'
+import { PageSkeleton, useToast, ToastContainer, ModalPortal, ConfirmDialog, TypeToConfirmDialog } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
 import { applyTheme } from '../utils/themeInitializer'
 import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
+import { getGradingFrameworks, saveGradingFrameworks, DEFAULT_TRANSMUTATION_TABLE, DEFAULT_GRADING_FRAMEWORKS, getCollegeGradingFrameworks, saveCollegeGradingFrameworks, DEFAULT_COLLEGE_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
 
 
 
@@ -136,9 +137,9 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-              <Tag className="w-5 h-5 text-primary"/> Discount Types
+              <Tag className="w-5 h-5 text-[var(--color-primary-readable)]"/> Discount Types
               {userCampus && userCampus !== 'all' && (
-                <span className="text-xs font-normal bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300 px-2.5 py-1 rounded-full ml-1">
+                <span className="text-xs font-normal bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 px-2.5 py-1 rounded-full ml-1">
                   {userCampus}
                 </span>
               )}
@@ -149,7 +150,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
             </p>
           </div>
           <button onClick={() => setShowAdd(v => !v)}
-            className="self-start flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-accent-burgundy transition shadow-sm">
+            className="self-start flex items-center gap-2 px-4 py-2 bg-primary text-[var(--color-primary-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-primary-hover)] transition shadow-sm">
             <Plus className="w-4 h-4"/> Add Custom Discount
           </button>
         </div>
@@ -168,7 +169,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
       {showAdd && (
         <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border-2 border-primary/30 dark:border-primary/20 p-5">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-4 flex items-center gap-2">
-            <Plus className="w-4 h-4 text-primary"/> New Custom Discount
+            <Plus className="w-4 h-4 text-[var(--color-primary-readable)]"/> New Custom Discount
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             {/* Discount Name */}
@@ -180,7 +181,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                 onChange={e => setNewDiscount(p => ({ ...p, name: e.target.value }))}
                 placeholder="e.g. ESC, Sports Award..."
                 className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
               {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
@@ -200,7 +201,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                     onClick={() => setNewDiscount(p => ({ ...p, discountType: opt.val, defaultRate: 0 }))}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition
                       ${newDiscount.discountType === opt.val
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-[var(--color-primary-contrast)]'
                         : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
                       }`}>
                     {opt.icon} {opt.label}
@@ -215,7 +216,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                         onChange={e => setNewDiscount(p => ({ ...p, defaultRate: Number(e.target.value) }))}
                         placeholder="e.g. 15"
                         className={`w-full px-3 py-2.5 pr-8 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                       />
                       <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
                     </>
@@ -225,7 +226,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                         onChange={e => setNewDiscount(p => ({ ...p, defaultRate: Number(e.target.value) }))}
                         placeholder="e.g. 9000"
                         className={`w-full pl-7 pr-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                       />
                     </>
                 }
@@ -245,7 +246,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
               <input type="text" value={newDiscount.description}
                 onChange={e => setNewDiscount(p => ({ ...p, description: e.target.value }))}
                 placeholder="Brief description of who qualifies"
-                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
+                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition"
               />
             </div>
           </div>
@@ -297,7 +298,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                       <input type="number" min="1" max="100"
                         value={d.defaultRate}
                         onChange={e => handleRateChange(d.id, e.target.value)}
-                        className="w-20 px-2 py-1.5 pr-6 text-sm font-mono border border-primary rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none text-right"
+                        className="w-20 px-2 py-1.5 pr-6 text-sm font-mono border border-[var(--color-primary-readable)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none text-right"
                       />
                       <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400"/>
                     </div>
@@ -312,7 +313,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 bg-primary/10 dark:bg-primary/20 text-primary dark:text-red-300 px-3 py-1.5 rounded-lg">
+                    <div className="flex items-center gap-1 bg-primary/10 dark:bg-primary/20 text-[var(--color-primary-readable)] px-3 py-1.5 rounded-lg">
                       {d.type === 'fixed'
                         ? <><span className="text-sm font-bold font-mono leading-none">₱{(d.defaultRate||0).toLocaleString()}</span></>
                         : <><span className="text-lg font-bold font-mono leading-none">{d.defaultRate}</span><Percent className="w-3.5 h-3.5"/></>
@@ -322,7 +323,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                       {d.type === 'fixed' ? 'Fixed' : '%'}
                     </span>
                     <button onClick={() => setEditingId(d.id)}
-                      className="p-1.5 text-gray-400 hover:text-primary border border-[var(--color-border)] rounded-lg hover:border-primary hover:bg-primary/5 transition"
+                      className="p-1.5 text-gray-400 hover:text-[var(--color-primary-readable)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary-readable)] hover:bg-primary/5 transition"
                       title="Edit rate">
                       <Edit className="w-3.5 h-3.5"/>
                     </button>
@@ -357,11 +358,11 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
         return (
           <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
-              <Percent className="w-4 h-4 text-primary"/> Cascading Discount Preview
+              <Percent className="w-4 h-4 text-[var(--color-primary-readable)]"/> Cascading Discount Preview
             </h3>
             <p className="text-xs text-gray-400 mb-3">
               Sample: tuition ₱{SAMPLE_TUITION.toLocaleString()} + enrollment ₱{SAMPLE_ENROLLMENT.toLocaleString()} + misc ₱{SAMPLE_MISC.toLocaleString()}.
-              Discounts apply to <strong className="text-primary">tuition only</strong> — enrollment &amp; misc are fixed charges.
+              Discounts apply to <strong className="text-[var(--color-primary-readable)]">tuition only</strong> — enrollment &amp; misc are fixed charges.
             </p>
             <div className="space-y-1.5">
               {/* Base tuition */}
@@ -384,7 +385,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
               {/* Tuition after discounts */}
               <div className="flex justify-between text-xs font-semibold pt-1.5 border-t border-[var(--color-border)]">
                 <span className="text-[var(--color-text-primary)]">Tuition after discounts</span>
-                <span className="font-mono text-primary dark:text-red-400">{php(previewResult.finalAmount)}</span>
+                <span className="font-mono text-[var(--color-primary-readable)]">{php(previewResult.finalAmount)}</span>
               </div>
               {/* Fixed fees — unaffected */}
               <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -431,7 +432,7 @@ function FeeInput({ value, onChange, disabled, noPrefix }) {
           bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none transition
           ${disabled
             ? 'border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-gray-400 cursor-not-allowed'
-            : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'
+            : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'
           }`}
       />
       {noPrefix && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">u</span>}
@@ -439,9 +440,16 @@ function FeeInput({ value, onChange, disabled, noPrefix }) {
   )
 }
 
-function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave, saved }) {
+function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave, saved, defaultFees, schoolName, addToast }) {
   const isAccounting  = userRole === 'accounting'
   const isAdmin       = userRole === 'admin' || userRole === 'technical_admin'
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+
+  const handleReset = () => {
+    setFees(defaultFees.map(f => ({ ...f })))
+    setShowResetConfirm(false)
+    addToast?.('Fee structure reset to defaults. Click "Save Changes" to apply.', 'info')
+  }
 
   // Campus filter — accounting locked to their campus, admin can switch
   const [campusFilter, setCampusFilter] = useState(
@@ -570,10 +578,18 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                 options={campuses.map(c => ({ value: c.name, label: c.name }))}
               />
             )}
+            {/* Reset to default — admin only; this wipes real pricing, so it's
+                gated behind a type-to-confirm dialog, not a one-click confirm */}
+            {isAdmin && (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="text-xs text-[var(--color-text-muted)] font-medium flex items-center gap-1 hover:text-[var(--color-error)]"
+              ><RotateCcw className="w-3.5 h-3.5" /> Reset to Default</button>
+            )}
             {/* Save button */}
             {hasChanges && (
               <button onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-accent-burgundy transition shadow-sm">
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-[var(--color-primary-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-primary-hover)] transition shadow-sm">
                 {saved ? <><Check className="w-4 h-4"/>Saved!</> : <><Save className="w-4 h-4"/>Save Changes</>}
               </button>
             )}
@@ -636,7 +652,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                           </div>
                           {!isEditing ? (
                             <button onClick={() => startEdit(fee)}
-                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300 rounded-lg hover:bg-primary hover:text-white transition font-medium">
+                              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
                               <Edit className="w-3 h-3"/> Edit
                             </button>
                           ) : (
@@ -662,7 +678,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t border-[var(--color-border)]">
                           <span className="text-xs text-gray-400">Total</span>
-                          <span className="text-sm font-bold text-primary dark:text-red-400">
+                          <span className="text-sm font-bold text-[var(--color-primary-readable)]">
                             {isEditing ? php(bufferTotal(cols)) : php(feeTotal(fee))}
                           </span>
                         </div>
@@ -707,14 +723,14 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                               </td>
                             ))}
                             <td className="px-4 py-3">
-                              <span className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-primary dark:text-red-400'}`}>
+                              <span className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-[var(--color-primary-readable)]'}`}>
                                 {isEditing ? php(bufferTotal(BASIC_FEE_COLS)) : php(feeTotal(fee))}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-right">
                               {!isEditing ? (
                                 <button onClick={() => startEdit(fee)}
-                                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300 rounded-lg hover:bg-primary hover:text-white transition font-medium">
+                                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
                                   <Edit className="w-3 h-3"/> Edit
                                 </button>
                               ) : (
@@ -804,9 +820,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                         return (
                           <div key={sem.id} className="p-4 space-y-3">
                             <div className="flex items-center justify-between">
-                              <p className="text-xs font-semibold text-secondary dark:text-blue-300">{label}</p>
+                              <p className="text-xs font-semibold text-[var(--color-secondary-readable)]">{label}</p>
                               {!isEditing
-                                ? <button onClick={() => startEdit(sem)} className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition font-medium flex items-center gap-1"><Edit className="w-3 h-3"/>Edit</button>
+                                ? <button onClick={() => startEdit(sem)} className="text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium flex items-center gap-1"><Edit className="w-3 h-3"/>Edit</button>
                                 : <div className="flex gap-2">
                                     <button onClick={() => commitEdit(sem.id)} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg">Save</button>
                                     <button onClick={cancelEdit} className="text-xs px-2 py-1.5 border border-[var(--color-border)] rounded-lg text-gray-400"><X className="w-3 h-3"/></button>
@@ -840,8 +856,8 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                                 <span className="font-mono text-right">{php(preview.misc)}</span>
                               </div>
                               <div className="flex justify-between font-bold text-sm pt-1 border-t border-[var(--color-border)]">
-                                <span className="text-secondary dark:text-blue-300">Est. Sem Total</span>
-                                <span className="font-mono text-secondary dark:text-blue-300">{php(preview.semTotal ?? preview.total)}</span>
+                                <span className="text-[var(--color-secondary-readable)]">Est. Sem Total</span>
+                                <span className="font-mono text-[var(--color-secondary-readable)]">{php(preview.semTotal ?? preview.total)}</span>
                               </div>
                               {preview.enrollment > 0 && (
                                 <div className="flex justify-between text-xs text-amber-500 dark:text-amber-400">
@@ -860,7 +876,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                           <div className="px-4 py-2.5 bg-[var(--color-bg-subtle)]">
                             <div className="flex justify-between">
                               <span className="text-xs text-gray-500 font-medium">Est. annual sem total ({yr})</span>
-                              <span className="text-sm font-bold text-primary dark:text-red-400">{php(annualSem)}</span>
+                              <span className="text-sm font-bold text-[var(--color-primary-readable)]">{php(annualSem)}</span>
                             </div>
                             {(p1.enrollment + p2.enrollment) > 0 && (
                               <div className="flex justify-between text-[10px] text-amber-500 dark:text-amber-400 mt-0.5">
@@ -894,7 +910,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                             return (
                               <tr key={sem.id} className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
                                 <td className="px-4 py-3">
-                                  <span className="text-xs font-semibold text-secondary dark:text-blue-300">{label}</span>
+                                  <span className="text-xs font-semibold text-[var(--color-secondary-readable)]">{label}</span>
                                   {sem.campus && <p className="text-xs text-gray-400">{sem.campus}</p>}
                                 </td>
                                 {COLLEGE_RATE_COLS.map(col => (
@@ -916,7 +932,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                                 ))}
                                 {/* Estimated sem total — tuition + lab + misc only, enrollment fee excluded */}
                                 <td className="px-4 py-3">
-                                  <div className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-secondary dark:text-blue-300'}`}>
+                                  <div className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-[var(--color-secondary-readable)]'}`}>
                                     {php(preview.semTotal ?? preview.total)}
                                   </div>
                                   <div className="text-[10px] text-gray-400 mt-0.5 space-y-0.5">
@@ -930,7 +946,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                                 </td>
                                 <td className="px-4 py-3 text-right">
                                   {!isEditing
-                                    ? <button onClick={() => startEdit(sem)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300 rounded-lg hover:bg-primary hover:text-white transition font-medium"><Edit className="w-3 h-3"/>Edit</button>
+                                    ? <button onClick={() => startEdit(sem)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium"><Edit className="w-3 h-3"/>Edit</button>
                                     : <div className="flex items-center gap-2 justify-end">
                                         <button onClick={() => commitEdit(sem.id)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"><Check className="w-3 h-3"/>Save row</button>
                                         <button onClick={cancelEdit} className="p-1.5 text-gray-400 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-3.5 h-3.5"/></button>
@@ -952,7 +968,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                                   Est. Annual Sem Total ({yr}) <span className="font-normal text-gray-400">— tuition + lab + misc only</span>
                                 </td>
                                 <td className="px-4 py-2.5">
-                                  <div className="text-sm font-bold text-primary dark:text-red-400">{php(annualSem)}</div>
+                                  <div className="text-sm font-bold text-[var(--color-primary-readable)]">{php(annualSem)}</div>
                                   {annualEnroll > 0 && (
                                     <div className="text-[10px] text-amber-500 dark:text-amber-400">+{php(annualEnroll)} enrollment fee</div>
                                   )}
@@ -985,12 +1001,23 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
           disabled={!hasChanges}
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition shadow-sm
             ${hasChanges
-              ? 'bg-primary text-white hover:bg-accent-burgundy'
+              ? 'bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)]'
               : 'bg-[var(--color-bg-subtle)] text-gray-400 cursor-not-allowed'
             }`}>
           {saved && !hasChanges ? <><Check className="w-4 h-4"/>Up to date</> : <><Save className="w-4 h-4"/>Save All Changes</>}
         </button>
       </div>
+
+      <TypeToConfirmDialog
+        open={showResetConfirm}
+        title="Reset Fee Structure?"
+        message="This replaces ALL current tuition and fee amounts across every campus with the shipped defaults. Your actual pricing will be gone until you re-enter it. This can't be undone once saved."
+        matchText={schoolName}
+        matchLabel="school name"
+        confirmLabel="Reset Everything"
+        onConfirm={handleReset}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   )
 }
@@ -1032,48 +1059,33 @@ export default function Settings() {
     try {
       const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
       return {
-        schoolName:  saved.schoolName  || '',
-        motto:       saved.motto       || 'Where Children Grow In Love and Knowledge.',
-        email:       saved.email       || '',
-        phone:       saved.phone       || '(032) 123-4567',
-        website:     saved.website     || '',
-        schoolYear:  saved.schoolYear  || '2025-2026',
-        portalLabel: saved.portalLabel || 'School Management Portal',
-        supportLabel:saved.supportLabel|| 'Contact IT Support',
-        logoUrl:     saved.logoUrl     || '/assets/school-logo.png',
-        faq:         saved.faq         || [
-          { id: 1, q: 'What are the tuition fees?', a: 'Tuition fees vary by campus and program. Please contact the Registrar\'s Office or visit any campus for detailed fee schedules.' },
-          { id: 2, q: 'Do you offer scholarships?', a: 'Yes, we offer various scholarships based on academic performance and financial need. Please inquire at the Admissions Office for eligibility criteria.' },
-          { id: 3, q: 'What extracurricular activities are available?', a: 'We offer sports, arts, music, and academic clubs. Each campus has its own set of activities — check with your campus for more details.' },
-          { id: 4, q: 'Can I enroll online?', a: 'Yes! Submit your form online, then proceed to any campus to complete requirements and payment.' },
-          { id: 5, q: 'What programs are offered at each campus?', a: 'All campuses offer Basic Education (Pre-Elem to SHS). College programs are at Talisay (BS Nursing, BS Tourism, BS HRM) and Carcar (BS Criminology). Bohol offers Pre-Elementary to Junior High.' },
-        ],
-        mission:     saved.mission     || 'To enhance virtue, develop competence, promote excellence, and inspire service in all academic levels of the institution.',
-        vision:      saved.vision      || ' to produce graduates who are Christ-centered, critical thinkers, service-oriented, and globally competitive.',
-        goals:       saved.goals       || ['Consistent pursuit of academic excellence.', 'Faithful adherence to Christian values and virtue.', 'Learning environment conducive to holistic formation.', 'Continuous faculty development.', 'Promotion of academic and cultural development.', 'Partnership with the community in social service.', 'Strict compliance with DepEd mandates.', 'Conformity with K to 12 Standards & competencies.'],
-        coreValues:  saved.coreValues  || ['Integrity', 'Christ-centered', 'Excellence'],
-        programs:    saved.programs    || [
-          { id: 1, title: 'Pre-Elementary', age: 'Ages 3-5', description: 'Nurturing young minds through play-based learning and early childhood development.', features: ['Nursery', 'Kindergarten', 'Preparatory'], highlight: false },
-          { id: 2, title: 'Elementary', age: 'Grades 1-6', description: 'Building strong foundations in academics, values, and character development.', features: ['Core subjects mastery', 'Values education', 'Extracurricular activities'], highlight: false },
-          { id: 3, title: 'Junior High School', age: 'Grades 7-10', description: 'Preparing students for senior high through the comprehensive K-12 curriculum.', features: ['Enhanced curriculum', 'Skills development', 'Career guidance'], highlight: false },
-          { id: 4, title: 'Senior High School', age: 'Grades 11-12', description: 'Specialized tracks preparing students for college and career readiness.', features: ['General Academic Strand', 'Skills development', 'Specialized subjects'], highlight: false },
-          { id: 5, title: 'College', age: '4-Year Program', description: 'BS in Criminology — training future law enforcement professionals.', features: ['Board exam preparation', 'Practical training', 'Professional instructors'], highlight: true },
-        ],
-        requirements: saved.requirements || [
-          { id: 1, icon: '📄', title: 'Birth Certificate', desc: 'Original and photocopy (NSO/PSA issued)' },
-          { id: 2, icon: '📋', title: 'Report Card', desc: 'Form 138 (previous school records)' },
-          { id: 3, icon: '🎓', title: 'Good Moral Certificate', desc: 'From previous school attended' },
-          { id: 4, icon: '🪪', title: '2x2 ID Photos', desc: 'Recent photos (white background)' },
-        ],
-        steps: saved.steps || [
-          { id: 1, title: 'Submit Online Form', desc: 'Fill out our online enrollment form or visit any campus registrar\'s office.' },
-          { id: 2, title: 'Submit Requirements', desc: 'Provide all necessary documents to the registrar.' },
-          { id: 3, title: 'Pay Down Payment', desc: 'Proceed to Accounting/Finance for assessment and initial payment.' },
-          { id: 4, title: 'Registrar Approval', desc: 'Receive your class schedule once enrollment is approved.' },
-        ],
+        schoolName:  saved.schoolName  || DEFAULT_WEBSITE_CONTENT.schoolName,
+        referenceNumberPrefix: saved.referenceNumberPrefix || DEFAULT_WEBSITE_CONTENT.referenceNumberPrefix,
+        motto:       saved.motto       || DEFAULT_WEBSITE_CONTENT.motto,
+        email:       saved.email       || DEFAULT_WEBSITE_CONTENT.email,
+        phone:       saved.phone       || DEFAULT_WEBSITE_CONTENT.phone,
+        website:     saved.website     || DEFAULT_WEBSITE_CONTENT.website,
+        schoolYear:  saved.schoolYear  || DEFAULT_WEBSITE_CONTENT.schoolYear,
+        portalLabel: saved.portalLabel || DEFAULT_WEBSITE_CONTENT.portalLabel,
+        supportLabel:saved.supportLabel|| DEFAULT_WEBSITE_CONTENT.supportLabel,
+        logoUrl:     saved.logoUrl     || DEFAULT_WEBSITE_CONTENT.logoUrl,
+        faq:         saved.faq         || DEFAULT_WEBSITE_CONTENT.faq,
+        mission:     saved.mission     || DEFAULT_WEBSITE_CONTENT.mission,
+        vision:      saved.vision      || DEFAULT_WEBSITE_CONTENT.vision,
+        goals:       saved.goals       || DEFAULT_WEBSITE_CONTENT.goals,
+        coreValues:  saved.coreValues  || DEFAULT_WEBSITE_CONTENT.coreValues,
+        programs:    saved.programs    || DEFAULT_WEBSITE_CONTENT.programs,
+        requirements: saved.requirements || DEFAULT_WEBSITE_CONTENT.requirements,
+        steps: saved.steps || DEFAULT_WEBSITE_CONTENT.steps,
       }
-    } catch { return { schoolName: '', motto: '', email: '', phone: '', website: '', schoolYear: '2025-2026', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support', logoUrl: '/assets/school-logo.png', faq: [], mission: '', vision: '', goals: [], coreValues: [], programs: [], requirements: [], steps: [] } }
+    } catch { return { ...DEFAULT_WEBSITE_CONTENT } }
   })
+  const [showResetContentConfirm, setShowResetContentConfirm] = useState(false)
+  const handleResetWebsiteContent = () => {
+    setWebsiteContent({ ...DEFAULT_WEBSITE_CONTENT })
+    setShowResetContentConfirm(false)
+    addToast?.('School Info reset to defaults. Click "Save" to apply.', 'info')
+  }
   const [newFaqQ, setNewFaqQ] = useState('')
   const [newFaqA, setNewFaqA] = useState('')
   const [editFaqId, setEditFaqId] = useState(null)
@@ -1194,6 +1206,21 @@ export default function Settings() {
 
   // Local editable copies — committed to context on Save
   const [editSchoolYears, setEditSchoolYears] = useState(() => schoolYears)
+  const [confirmDialog, setConfirmDialog] = useState(null)
+  const [editFrameworks, setEditFrameworks] = useState(() => getGradingFrameworks())
+  const [activeFrameworkId, setActiveFrameworkId] = useState(() => getGradingFrameworks()[0]?.id)
+  const [frameworksSaved, setFrameworksSaved] = useState(false)
+  const [showAddFramework, setShowAddFramework] = useState(false)
+  const [newFwLabel, setNewFwLabel] = useState('')
+  const [newFwComponents, setNewFwComponents] = useState([{ label: 'Written Works' }, { label: 'Performance Tasks' }, { label: 'Quarterly Assessment' }])
+  const [newFwGroups, setNewFwGroups] = useState([])
+  const [editCollegeFrameworks, setEditCollegeFrameworks] = useState(() => getCollegeGradingFrameworks())
+  const [activeCollegeFrameworkId, setActiveCollegeFrameworkId] = useState(() => getCollegeGradingFrameworks()[0]?.id)
+  const [collegeFrameworksSaved, setCollegeFrameworksSaved] = useState(false)
+  const [showAddCollegeFramework, setShowAddCollegeFramework] = useState(false)
+  const [newCfLabel, setNewCfLabel] = useState('')
+  const [newCfComponents, setNewCfComponents] = useState([{ label: 'Prelim', weight: 30 }, { label: 'Midterm', weight: 30 }, { label: 'Finals', weight: 40 }])
+  const [newCfScale, setNewCfScale] = useState([])
   const [editCampuses,    setEditCampuses]    = useState(() => campuses)
   const [editFees, setEditFees] = useState(() => {
     const saved = feeStructure || []
@@ -1298,7 +1325,7 @@ export default function Settings() {
               className={`
                 flex items-center gap-1.5 px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium whitespace-nowrap transition-colors
                 ${activeTab === tab.id
-                  ? 'text-primary border-b-2 border-primary'
+                  ? 'text-[var(--color-primary-readable)] border-b-2 border-[var(--color-primary-readable)]'
                   : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                 }
               `}
@@ -1318,12 +1345,21 @@ export default function Settings() {
         {activeTab === 'schoolYear' && (() => {
           const role = user?.role
           const canSeeBoth = role === 'technical_admin'
-          const visibleDept = role === 'principal_basic' ? 'basic_ed' : role === 'program_head' ? 'college' : syDeptView
+          const visibleDept = (role === 'principal_basic' || role === 'registrar_basic') ? 'basic_ed'
+                             : (role === 'program_head' || role === 'registrar_college') ? 'college'
+                             : syDeptView
+          // Grading frameworks are department-specific settings, not a single
+          // combined panel — a Basic Ed principal/registrar shouldn't see (or
+          // be able to touch) College's Prelim/Midterm/Finals weights, and
+          // vice versa. Only technical_admin sees both.
+          const canManageBasicEd = role === 'technical_admin' || role === 'principal_basic' || role === 'registrar_basic'
+          const canManageCollege = role === 'technical_admin' || role === 'program_head' || role === 'registrar_college'
           const deptLabel = { basic_ed: 'Basic Education', college: 'College' }
           const deptKey = visibleDept === 'college' ? 'college' : 'basicEd'
           const sorted = editSchoolYears.slice().sort((a, b) => b.year.localeCompare(a.year))
 
           return (
+          <>
           <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
               <div>
@@ -1333,7 +1369,7 @@ export default function Settings() {
                 </p>
               </div>
               <button onClick={() => setShowAddSY(true)}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold self-start sm:self-auto">
+                className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold self-start sm:self-auto">
                 <Plus className="w-4 h-4" /> Add School Year
               </button>
             </div>
@@ -1347,7 +1383,7 @@ export default function Settings() {
                 ].map(dept => (
                   <button key={dept.key} onClick={() => { setSyDeptView(dept.key); setExpandedSY(null) }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                      syDeptView === dept.key ? 'bg-primary text-white shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                      syDeptView === dept.key ? 'bg-primary text-[var(--color-primary-contrast)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                     }`}>
                     <dept.icon className="w-4 h-4" /> {dept.label}
                   </button>
@@ -1358,7 +1394,7 @@ export default function Settings() {
             {/* Department label for locked roles */}
             {!canSeeBoth && (
               <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--color-bg-subtle)] rounded-lg w-fit">
-                {visibleDept === 'basic_ed' ? <BookOpen className="w-4 h-4 text-primary" /> : <GraduationCap className="w-4 h-4 text-primary" />}
+                {visibleDept === 'basic_ed' ? <BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /> : <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />}
                 <span className="text-sm font-medium text-[var(--color-text-primary)]">{deptLabel[visibleDept]} Department</span>
               </div>
             )}
@@ -1367,7 +1403,7 @@ export default function Settings() {
               <div className="text-center py-12">
                 <Calendar className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
                 <p className="text-sm text-[var(--color-text-muted)]">No school years configured yet.</p>
-                <button onClick={() => setShowAddSY(true)} className="mt-3 text-sm text-primary font-medium hover:underline">Add your first school year</button>
+                <button onClick={() => setShowAddSY(true)} className="mt-3 text-sm text-[var(--color-primary-readable)] font-medium hover:underline">Add your first school year</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1396,6 +1432,11 @@ export default function Settings() {
                             sy.status === 'completed' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]' :
                             'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                           }`}>{sy.status}</span>
+                          {deptKey === 'basicEd' && (
+                            <span className="px-2 py-0.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] text-[10px] font-semibold rounded-full uppercase tracking-wider">
+                              {sy.gradingPeriodType === 'trimester' ? 'Trimester' : 'Quarterly'} · {getGradingFrameworks().find(f => f.id === sy.gradingFramework)?.label.replace(/^DepEd Order No\.\s*/, '') || 'DO 8 s.2015'}
+                            </span>
+                          )}
                           {events.length > 0 && (
                             <span className="text-[10px] text-[var(--color-text-muted)]">{events.length} event{events.length !== 1 ? 's' : ''}</span>
                           )}
@@ -1423,7 +1464,7 @@ export default function Settings() {
                             <h4 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
                               <Clock className="w-4 h-4 text-[var(--color-text-muted)]" /> {deptLabel[visibleDept]} Events
                             </h4>
-                            <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                            <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="text-xs text-[var(--color-primary-readable)] font-medium hover:underline flex items-center gap-1">
                               <Plus className="w-3.5 h-3.5" /> Add Event
                             </button>
                           </div>
@@ -1431,14 +1472,14 @@ export default function Settings() {
                           {events.length === 0 ? (
                             <div className="text-center py-6 border border-dashed border-[var(--color-border)] rounded-lg">
                               <p className="text-xs text-[var(--color-text-muted)]">No events scheduled</p>
-                              <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="mt-2 text-xs text-primary font-medium hover:underline">Add your first event</button>
+                              <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="mt-2 text-xs text-[var(--color-primary-readable)] font-medium hover:underline">Add your first event</button>
                             </div>
                           ) : (
                             <div className="space-y-2">
                               {events.slice().sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).map((evt) => (
                                 <div key={evt.id} className="flex items-start gap-3 p-3 bg-[var(--color-bg-card)] rounded-lg border border-[var(--color-border)]">
                                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <Calendar className="w-4 h-4 text-primary" />
+                                    <Calendar className="w-4 h-4 text-[var(--color-primary-readable)]" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1472,13 +1513,609 @@ export default function Settings() {
             <div className="mt-6 flex items-center justify-between border-t border-[var(--color-border)] pt-4">
               <p className="text-xs text-[var(--color-text-muted)]">{sorted.length} school year{sorted.length !== 1 ? 's' : ''} · {deptLabel[visibleDept]}</p>
               <button onClick={() => saveSection('schoolYears', editSchoolYears)}
-                className="px-5 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold">
+                className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
                 {savedSection === 'schoolYears' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                 {savedSection === 'schoolYears' ? 'Saved!' : 'Save Changes'}
               </button>
             </div>
           </div>
-          )
+
+          {(canManageBasicEd || canManageCollege) && (() => {
+            const activeFramework = editFrameworks.find(f => f.id === activeFrameworkId) || editFrameworks[0]
+            const activeCollegeFramework = editCollegeFrameworks.find(f => f.id === activeCollegeFrameworkId) || editCollegeFrameworks[0]
+
+            const updateFramework = (updater) => {
+              setEditFrameworks(prev => prev.map(f => f.id === activeFramework.id ? updater({ ...f, subjectGroups: f.subjectGroups.map(g => ({ ...g, weights: { ...g.weights } })) }) : f))
+            }
+            const updateGroupWeight = (groupId, compKey, value) => {
+              updateFramework(f => ({
+                ...f,
+                subjectGroups: f.subjectGroups.map(g => g.id === groupId
+                  ? { ...g, weights: { ...g.weights, [compKey]: value === '' ? 0 : Number(value) / 100 } }
+                  : g),
+              }))
+            }
+            const weightSum = (group) => Object.values(group.weights).reduce((s, w) => s + (w || 0), 0)
+
+            return (
+            <>
+            {canManageBasicEd && activeFramework && (
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50 mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Grading Frameworks</h2>
+                  <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                    Fully configurable — component names, per-subject weights, and whether transmutation
+                    is even used at all. When DepEd revises grading again (including their stated plan to
+                    drop transmutation entirely for zero-based grading), duplicate a framework and edit it
+                    here — no code changes needed.
+                  </p>
+                </div>
+                <div className="flex gap-2 self-start">
+                  <button onClick={() => {
+                    setNewFwLabel('')
+                    setNewFwComponents([{ label: 'Written Works' }, { label: 'Performance Tasks' }, { label: 'Quarterly Assessment' }])
+                    setNewFwGroups(activeFramework.subjectGroups.map(g => ({ label: g.label })))
+                    setShowAddFramework(true)
+                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Add Framework
+                  </button>
+                  <button onClick={() => {
+                    const label = window.prompt('New framework name (e.g. "DepEd Zero-Based Grading, s.2027"):', `${activeFramework.label} (Copy)`)
+                    if (!label) return
+                    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now().toString(36)
+                    const copy = {
+                      ...activeFramework, id, label,
+                      subjectGroups: activeFramework.subjectGroups.map(g => ({ ...g, weights: { ...g.weights } })),
+                    }
+                    setEditFrameworks(prev => [...prev, copy])
+                    setActiveFrameworkId(id)
+                    addToast('Framework duplicated — edit weights below, then Save', 'info')
+                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Duplicate as New Framework
+                  </button>
+                </div>
+              </div>
+
+              {/* Framework tabs */}
+              <div className="flex flex-wrap gap-2 mb-5 border-b border-[var(--color-border)] pb-3">
+                {editFrameworks.map(f => (
+                  <button key={f.id} onClick={() => setActiveFrameworkId(f.id)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                      activeFrameworkId === f.id ? 'bg-primary text-[var(--color-primary-contrast)]' : 'border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
+                    }`}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Label + delete */}
+              <div className="flex items-center gap-3 mb-4">
+                <input value={activeFramework.label}
+                  onChange={e => updateFramework(f => ({ ...f, label: e.target.value }))}
+                  className="flex-1 px-3 py-2 text-sm font-semibold border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary" />
+                {editFrameworks.length > 1 && (
+                  <button onClick={() => setConfirmDialog({
+                    title: 'Delete Grading Framework?',
+                    message: `Delete "${activeFramework.label}"? School years using it will need to be reassigned.`,
+                    danger: true,
+                    confirmLabel: 'Delete',
+                    onConfirm: () => {
+                      setEditFrameworks(prev => prev.filter(f => f.id !== activeFramework.id))
+                      setActiveFrameworkId(editFrameworks.find(f => f.id !== activeFramework.id)?.id)
+                    },
+                  })} className="icon-btn-ghost text-red-500" title="Delete framework">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Components list */}
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  Components: {activeFramework.components.map(c => c.label).join(' · ')}
+                </p>
+                {activeFramework.components.some(c => c.subcomponents?.length) && (
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Note: sub-assessment splits (e.g. Summative Test 1/2 + Term Exam within Examinations)
+                    are set per-component and shared across subject groups, with the exception of any
+                    group already configured with its own override (e.g. SHS Field Exposure — Term Exam
+                    only). Editing those isn't available in this screen yet.
+                  </p>
+                )}
+              </div>
+
+              {/* Weight editor per subject group */}
+              <div className="max-h-96 overflow-y-auto border border-[var(--color-border)] rounded-xl mb-2">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-[var(--color-bg-subtle)]">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">Subject Group</th>
+                      {activeFramework.components.map(c => (
+                        <th key={c.key} className="text-center px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">{c.label} %</th>
+                      ))}
+                      <th className="text-center px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeFramework.subjectGroups.map(group => {
+                      const sum = weightSum(group)
+                      const sumOff = Math.abs(sum - 1) > 0.001
+                      return (
+                        <tr key={group.id} className="border-t border-[var(--color-border)]">
+                          <td className="px-3 py-2 text-[var(--color-text-secondary)]">{group.label}</td>
+                          {activeFramework.components.map(c => (
+                            <td key={c.key} className="px-3 py-1.5 text-center">
+                              <input type="number" step="1" min="0" max="100"
+                                value={group.weights[c.key] != null ? Math.round(group.weights[c.key] * 100) : ''}
+                                placeholder="—"
+                                onChange={e => updateGroupWeight(group.id, c.key, e.target.value)}
+                                className="w-16 px-2 py-1 text-sm text-center border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary" />
+                            </td>
+                          ))}
+                          <td className={`px-3 py-1.5 text-center text-xs font-mono ${sumOff ? 'text-red-500 font-bold' : 'text-[var(--color-text-muted)]'}`}>
+                            {Math.round(sum * 100)}%
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-[var(--color-text-muted)] mb-4">Each row's weights should total 100% — rows shown in red don't. Leave a component blank (—) if that subject group doesn't use it.</p>
+
+              {/* Transmutation toggle + table */}
+              <div className="border-t border-[var(--color-border)] pt-4">
+                <label className="flex items-center gap-3 mb-3 cursor-pointer">
+                  <input type="checkbox" checked={activeFramework.useTransmutation !== false}
+                    onChange={e => updateFramework(f => ({ ...f, useTransmutation: e.target.checked }))}
+                    className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                  <span className="text-sm font-semibold text-[var(--color-text-primary)]">Use Transmutation Table</span>
+                </label>
+
+                {activeFramework.useTransmutation === false ? (
+                  <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    Zero-based grading — the computed Initial Grade IS the Final Grade, rounded to the
+                    nearest whole number. No lookup table used. This is DepEd's stated direction for a
+                    future school year; flip this on when they confirm it.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start gap-2 p-3 mb-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>
+                        Empty uses the verified DepEd 8, s.2015 default table. If this framework's DepEd
+                        order has its own "adjusted" table (e.g. DO 015, s.2026's SY 2026-2027 transitional
+                        table), enter its exact rows from the official annex here — don't guess at the
+                        breakpoints, grade cutoffs are too high-stakes.
+                      </span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto border border-[var(--color-border)] rounded-xl">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-[var(--color-bg-subtle)]">
+                          <tr>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">Min Initial</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">Max Initial</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--color-text-muted)]">Transmuted Grade</th>
+                            <th className="px-3 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(activeFramework.transmutationTable || DEFAULT_TRANSMUTATION_TABLE).map((row, idx) => (
+                            <tr key={idx} className="border-t border-[var(--color-border)]">
+                              {[0, 1, 2].map(col => (
+                                <td key={col} className="px-3 py-1.5">
+                                  <input type="number" step={col === 2 ? '1' : '0.01'} value={row[col]}
+                                    onChange={e => updateFramework(f => {
+                                      const table = (f.transmutationTable || DEFAULT_TRANSMUTATION_TABLE).map(r => [...r])
+                                      table[idx][col] = Number(e.target.value)
+                                      return { ...f, transmutationTable: table }
+                                    })}
+                                    className="w-24 px-2 py-1 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary" />
+                                </td>
+                              ))}
+                              <td className="px-3 py-1.5">
+                                <button onClick={() => updateFramework(f => ({
+                                  ...f, transmutationTable: (f.transmutationTable || DEFAULT_TRANSMUTATION_TABLE).filter((_, i) => i !== idx),
+                                }))} className="icon-btn-ghost" title="Remove row">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => updateFramework(f => ({
+                        ...f, transmutationTable: [...(f.transmutationTable || DEFAULT_TRANSMUTATION_TABLE), [0, 0, 60]],
+                      }))} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                        <Plus className="w-3.5 h-3.5" /> Add Row
+                      </button>
+                      <button onClick={() => { updateFramework(f => ({ ...f, transmutationTable: null })); addToast('Reset to DepEd 8, s.2015 default table', 'info') }}
+                        className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                        Reset to DepEd Default
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end mt-5 pt-4 border-t border-[var(--color-border)]">
+                <button onClick={() => {
+                  saveGradingFrameworks(editFrameworks)
+                  setFrameworksSaved(true)
+                  setTimeout(() => setFrameworksSaved(false), 2000)
+                  addToast('Grading frameworks saved', 'success')
+                }} className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
+                  {frameworksSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  {frameworksSaved ? 'Saved!' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+            )}
+
+            {canManageCollege && activeCollegeFramework && (
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50 mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-[var(--color-text-primary)]">College Grading</h2>
+                  <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                    Fully configurable — component names, weights, and the CHED point-scale conversion. Separate
+                    from Basic Ed since college follows the 1.00–5.00 scale, not DepEd transmutation. When CHED
+                    revises the split or scale, duplicate a framework and edit it here — no code changes needed.
+                  </p>
+                </div>
+                <div className="flex gap-2 self-start">
+                  <button onClick={() => {
+                    setNewCfLabel('')
+                    setNewCfComponents([{ label: 'Prelim', weight: 30 }, { label: 'Midterm', weight: 30 }, { label: 'Finals', weight: 40 }])
+                    setNewCfScale(activeCollegeFramework.scale.map(r => ({ ...r })))
+                    setShowAddCollegeFramework(true)
+                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Add Framework
+                  </button>
+                  <button onClick={() => {
+                    const label = window.prompt('New framework name (e.g. "CHED Zero-Based Grading, s.2027"):', `${activeCollegeFramework.label} (Copy)`)
+                    if (!label) return
+                    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now().toString(36)
+                    const copy = {
+                      ...activeCollegeFramework, id, label,
+                      components: activeCollegeFramework.components.map(c => ({ ...c })),
+                      scale: activeCollegeFramework.scale.map(r => ({ ...r })),
+                    }
+                    setEditCollegeFrameworks(prev => [...prev, copy])
+                    setActiveCollegeFrameworkId(id)
+                    addToast('Framework duplicated — edit weights below, then Save', 'info')
+                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Duplicate as New Framework
+                  </button>
+                </div>
+              </div>
+
+              {editCollegeFrameworks.length > 1 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {editCollegeFrameworks.map(f => (
+                    <button key={f.id} onClick={() => setActiveCollegeFrameworkId(f.id)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition ${f.id === activeCollegeFrameworkId
+                        ? 'bg-[var(--color-secondary)] text-[var(--color-secondary-contrast)] border-[var(--color-secondary)]'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="form-label">{activeCollegeFramework.label}</label>
+                {editCollegeFrameworks.length > 1 && (
+                  <button onClick={() => {
+                    setConfirmDialog({
+                      title: 'Delete Framework?',
+                      message: `Delete "${activeCollegeFramework.label}"? This can't be undone.`,
+                      onConfirm: () => {
+                        const remaining = editCollegeFrameworks.filter(f => f.id !== activeCollegeFramework.id)
+                        setEditCollegeFrameworks(remaining)
+                        setActiveCollegeFrameworkId(remaining[0]?.id)
+                        setConfirmDialog(null)
+                      },
+                    })
+                  }} className="icon-btn-ghost text-red-500" title="Delete this framework">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              <label className="form-label mb-1.5">Components &amp; Weights</label>
+              <div className="space-y-2 mb-2">
+                {activeCollegeFramework.components.map((c, idx) => (
+                  <div key={c.key} className="flex items-center gap-2">
+                    <input type="text" value={c.label}
+                      onChange={e => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                        ? { ...f, components: f.components.map((x, xi) => xi === idx ? { ...x, label: e.target.value } : x) } : f))}
+                      placeholder="Component name"
+                      className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                    <div className="relative w-24">
+                      <input type="number" min="0" max="100" value={Math.round((c.weight || 0) * 100)}
+                        onChange={e => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                          ? { ...f, components: f.components.map((x, xi) => xi === idx ? { ...x, weight: (Number(e.target.value) || 0) / 100 } : x) } : f))}
+                        className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)]">%</span>
+                    </div>
+                    {activeCollegeFramework.components.length > 1 && (
+                      <button onClick={() => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                        ? { ...f, components: f.components.filter((_, xi) => xi !== idx) } : f))} className="icon-btn-ghost text-red-500" title="Remove component">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                ? { ...f, components: [...f.components, { key: `component_${Date.now().toString(36)}`, label: '', weight: 0 }] } : f))}
+                className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5 mb-2">
+                <Plus className="w-3.5 h-3.5" /> Add Component
+              </button>
+              {(() => {
+                const sum = Math.round(activeCollegeFramework.components.reduce((s, c) => s + (c.weight || 0), 0) * 100)
+                return (
+                  <p className={`text-xs mb-5 ${sum === 100 ? 'text-[var(--color-text-muted)]' : 'text-[var(--color-error)] font-medium'}`}>
+                    Total: {sum}% {sum !== 100 && '— weights should sum to 100%'}
+                  </p>
+                )
+              })()}
+
+              <label className="form-label mb-1.5">Point Scale</label>
+              <div className="overflow-x-auto mb-3">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--color-border)]">
+                      <th className="text-left px-3 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">Min %</th>
+                      <th className="text-left px-3 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">Max %</th>
+                      <th className="text-left px-3 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">Point Grade</th>
+                      <th className="text-left px-3 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">Descriptor</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeCollegeFramework.scale.map((row, idx) => (
+                      <tr key={idx} className="border-b border-[var(--color-border)]/50">
+                        {['min', 'max'].map(field => (
+                          <td key={field} className="px-3 py-1.5">
+                            <input type="number" min="0" max="100" value={row[field]}
+                              onChange={e => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                                ? { ...f, scale: f.scale.map((r, i) => i === idx ? { ...r, [field]: Number(e.target.value) || 0 } : r) } : f))}
+                              className="w-20 px-2 py-1 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                          </td>
+                        ))}
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={row.grade}
+                            onChange={e => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                              ? { ...f, scale: f.scale.map((r, i) => i === idx ? { ...r, grade: e.target.value } : r) } : f))}
+                            className="w-20 px-2 py-1 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input type="text" value={row.descriptor}
+                            onChange={e => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                              ? { ...f, scale: f.scale.map((r, i) => i === idx ? { ...r, descriptor: e.target.value } : r) } : f))}
+                            className="w-36 px-2 py-1 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          {activeCollegeFramework.scale.length > 1 && (
+                            <button onClick={() => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                              ? { ...f, scale: f.scale.filter((_, i) => i !== idx) } : f))} className="icon-btn-ghost" title="Remove row">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button onClick={() => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
+                ? { ...f, scale: [...f.scale, { min: 0, max: 0, grade: '', descriptor: '' }] } : f))}
+                className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5 mb-4">
+                <Plus className="w-3.5 h-3.5" /> Add Row
+              </button>
+
+              <div className="flex justify-end pt-4 border-t border-[var(--color-border)]">
+                <button onClick={() => {
+                  const sum = Math.round(activeCollegeFramework.components.reduce((s, c) => s + (c.weight || 0), 0) * 100)
+                  if (sum !== 100) { addToast('Weights must sum to 100% before saving', 'error'); return }
+                  saveCollegeGradingFrameworks(editCollegeFrameworks)
+                  setCollegeFrameworksSaved(true)
+                  setTimeout(() => setCollegeFrameworksSaved(false), 2000)
+                  addToast('College grading frameworks saved', 'success')
+                }} className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
+                  {collegeFrameworksSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                  {collegeFrameworksSaved ? 'Saved!' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+            )}
+
+            {canManageCollege && showAddCollegeFramework && (
+              <ModalPortal>
+                <div className="modal-backdrop-center">
+                  <div className="modal-panel-sm" style={{ maxWidth: '32rem' }}>
+                    <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-0.5">Add College Framework</h3>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-5">
+                      Start from a blank slate — define the components, weights, and point scale yourself.
+                      For a small tweak to an existing framework's numbers, Duplicate is faster.
+                    </p>
+
+                    <label className="form-label">Framework Name</label>
+                    <input type="text" value={newCfLabel} onChange={e => setNewCfLabel(e.target.value)}
+                      placeholder='e.g. "CHED Zero-Based Grading, s.2027"'
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                    <label className="form-label mb-1.5">Components &amp; Weights</label>
+                    <div className="space-y-2 mb-2">
+                      {newCfComponents.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="text" value={c.label}
+                            onChange={e => setNewCfComponents(prev => prev.map((x, xi) => xi === i ? { ...x, label: e.target.value } : x))}
+                            placeholder="Component name"
+                            className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                          <div className="relative w-24">
+                            <input type="number" min="0" max="100" value={c.weight}
+                              onChange={e => setNewCfComponents(prev => prev.map((x, xi) => xi === i ? { ...x, weight: Number(e.target.value) || 0 } : x))}
+                              className="w-full px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)]">%</span>
+                          </div>
+                          {newCfComponents.length > 1 && (
+                            <button onClick={() => setNewCfComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove component">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => setNewCfComponents(prev => [...prev, { label: '', weight: 0 }])}
+                      className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5 mb-4">
+                      <Plus className="w-3.5 h-3.5" /> Add Component
+                    </button>
+
+                    <p className="text-[10px] text-[var(--color-text-muted)] mb-5">
+                      Point scale pre-filled from {activeCollegeFramework?.label} — you can adjust it after creating the framework, below.
+                    </p>
+
+                    <div className="action-row">
+                      <button onClick={() => setShowAddCollegeFramework(false)} className="btn-cancel">Cancel</button>
+                      <button className="btn-action" onClick={() => {
+                        const label = newCfLabel.trim()
+                        if (!label) { addToast('Please enter a framework name', 'error'); return }
+                        const comps = newCfComponents.filter(c => c.label.trim())
+                        if (comps.length < 1) { addToast('Add at least one component', 'error'); return }
+                        const sum = Math.round(comps.reduce((s, c) => s + (Number(c.weight) || 0), 0))
+                        if (sum !== 100) { addToast('Component weights must sum to 100%', 'error'); return }
+
+                        const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+                        const dedupe = (base, used) => {
+                          let key = base || 'component', n = 2
+                          while (used.has(key)) { key = `${base}_${n}`; n++ }
+                          used.add(key)
+                          return key
+                        }
+                        const usedKeys = new Set()
+                        const components = comps.map(c => ({ key: dedupe(slugify(c.label.trim()), usedKeys), label: c.label.trim(), weight: (Number(c.weight) || 0) / 100 }))
+
+                        const id = dedupe(slugify(label), new Set(editCollegeFrameworks.map(f => f.id))) + '_' + Date.now().toString(36)
+                        const framework = { id, label, components, scale: newCfScale }
+
+                        setEditCollegeFrameworks(prev => [...prev, framework])
+                        setActiveCollegeFrameworkId(id)
+                        setShowAddCollegeFramework(false)
+                        addToast('Framework created — set weights below, then Save', 'info')
+                      }}>Create Framework</button>
+                    </div>
+                  </div>
+                </div>
+              </ModalPortal>
+            )}
+
+
+            {canManageBasicEd && showAddFramework && (
+              <ModalPortal>
+                <div className="modal-backdrop-center">
+                  <div className="modal-panel-sm" style={{ maxWidth: '32rem' }}>
+                    <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-0.5">Add Framework</h3>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-5">
+                      Start from a blank slate — define the components and subject groups yourself.
+                      For a small tweak to an existing framework's numbers, Duplicate is faster.
+                    </p>
+
+                    <label className="form-label">Framework Name</label>
+                    <input type="text" value={newFwLabel} onChange={e => setNewFwLabel(e.target.value)}
+                      placeholder='e.g. "CHED Zero-Based Grading, s.2027"'
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
+
+                    <label className="form-label mb-1.5">
+                      Components <span className="text-[var(--color-text-muted)] font-normal">(e.g. Written Works, Performance Tasks)</span>
+                    </label>
+                    <div className="space-y-2 mb-2">
+                      {newFwComponents.map((c, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="text" value={c.label}
+                            onChange={e => setNewFwComponents(prev => prev.map((x, xi) => xi === i ? { label: e.target.value } : x))}
+                            placeholder="Component name"
+                            className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                          {newFwComponents.length > 1 && (
+                            <button onClick={() => setNewFwComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove component">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => setNewFwComponents(prev => [...prev, { label: '' }])}
+                      className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5 mb-4">
+                      <Plus className="w-3.5 h-3.5" /> Add Component
+                    </button>
+
+                    <label className="form-label mb-1.5">
+                      Subject Groups <span className="text-[var(--color-text-muted)] font-normal">(pre-filled from {activeFramework.label} — edit freely)</span>
+                    </label>
+                    <div className="space-y-2 mb-2 max-h-48 overflow-y-auto pr-1">
+                      {newFwGroups.map((g, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input type="text" value={g.label}
+                            onChange={e => setNewFwGroups(prev => prev.map((x, xi) => xi === i ? { label: e.target.value } : x))}
+                            placeholder="Subject group name"
+                            className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
+                          {newFwGroups.length > 1 && (
+                            <button onClick={() => setNewFwGroups(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove subject group">
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => setNewFwGroups(prev => [...prev, { label: '' }])}
+                      className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5 mb-5">
+                      <Plus className="w-3.5 h-3.5" /> Add Subject Group
+                    </button>
+
+                    <div className="action-row">
+                      <button onClick={() => setShowAddFramework(false)} className="btn-cancel">Cancel</button>
+                      <button className="btn-action" onClick={() => {
+                        const label = newFwLabel.trim()
+                        if (!label) { addToast('Please enter a framework name', 'error'); return }
+                        const comps = newFwComponents.map(c => c.label.trim()).filter(Boolean)
+                        if (comps.length < 1) { addToast('Add at least one component', 'error'); return }
+                        const groups = newFwGroups.map(g => g.label.trim()).filter(Boolean)
+                        if (groups.length < 1) { addToast('Add at least one subject group', 'error'); return }
+
+                        const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
+                        const dedupe = (base, used) => {
+                          let key = base || 'item', n = 2
+                          while (used.has(key)) { key = `${base}_${n}`; n++ }
+                          used.add(key)
+                          return key
+                        }
+                        const usedCompKeys = new Set()
+                        const components = comps.map(label => ({ key: dedupe(slugify(label), usedCompKeys), label }))
+                        const usedGroupIds = new Set()
+                        const zeroWeights = Object.fromEntries(components.map(c => [c.key, 0]))
+                        const subjectGroups = groups.map(label => ({ id: dedupe(slugify(label), usedGroupIds), label, weights: { ...zeroWeights } }))
+
+                        const id = dedupe(slugify(label), new Set(editFrameworks.map(f => f.id))) + '_' + Date.now().toString(36)
+                        const framework = { id, label, components, subjectGroups, useTransmutation: true, transmutationTable: null }
+
+                        setEditFrameworks(prev => [...prev, framework])
+                        setActiveFrameworkId(id)
+                        setShowAddFramework(false)
+                        addToast('Framework created — set weights below, then Save', 'info')
+                      }}>Create Framework</button>
+                    </div>
+                  </div>
+                </div>
+              </ModalPortal>
+            )}
+          </>
+            )
         })()}
 
         {/* Add School Year Modal */}
@@ -1505,15 +2142,24 @@ export default function Settings() {
                 <input type="text" value={addSYForm.year} onChange={e => setAddSYForm(f => ({ ...f, year: e.target.value }))} placeholder="e.g. 2028-2029"
                   className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <DatePicker label={<span className="flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</span>} value={addSYForm.beStart} onChange={v => setAddSYForm(f => ({ ...f, beStart: v }))} />
-                  <DatePicker label="Basic Ed End" value={addSYForm.beEnd} onChange={v => setAddSYForm(f => ({ ...f, beEnd: v }))} />
-                </div>
+                {(canSeeBoth || visibleDept === 'basic_ed') && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <DatePicker label={<span className="flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</span>} value={addSYForm.beStart} onChange={v => setAddSYForm(f => ({ ...f, beStart: v }))} />
+                    <DatePicker label="Basic Ed End" value={addSYForm.beEnd} onChange={v => setAddSYForm(f => ({ ...f, beEnd: v }))} />
+                  </div>
+                )}
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <DatePicker label={<span className="flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</span>} value={addSYForm.colStart} onChange={v => setAddSYForm(f => ({ ...f, colStart: v }))} />
-                  <DatePicker label="College End" value={addSYForm.colEnd} onChange={v => setAddSYForm(f => ({ ...f, colEnd: v }))} />
-                </div>
+                {(canSeeBoth || visibleDept === 'college') && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <DatePicker label={<span className="flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</span>} value={addSYForm.colStart} onChange={v => setAddSYForm(f => ({ ...f, colStart: v }))} />
+                    <DatePicker label="College End" value={addSYForm.colEnd} onChange={v => setAddSYForm(f => ({ ...f, colEnd: v }))} />
+                  </div>
+                )}
+                {!canSeeBoth && (
+                  <p className="text-[10px] text-[var(--color-text-muted)] -mt-2 mb-4">
+                    {visibleDept === 'basic_ed' ? 'College' : 'Basic Ed'} dates will be set to a standard default — a Super Admin or {visibleDept === 'basic_ed' ? 'College' : 'Basic Ed'} staff member can adjust them afterward.
+                  </p>
+                )}
 
                 <label className="form-label mb-1.5">Status</label>
                 <div className="mb-5">
@@ -1531,12 +2177,30 @@ export default function Settings() {
                     const [sY, eY] = year.split('-').map(Number)
                     if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
                     if (existingYears.includes(year)) { addToast(`${year} already exists`, 'error'); return }
-                    if (!addSYForm.beStart || !addSYForm.beEnd || !addSYForm.colStart || !addSYForm.colEnd) { addToast('Please set all dates', 'error'); return }
+
+                    // Only require dates for the department this user can actually see —
+                    // a Basic Ed principal/registrar creating a school year shouldn't need
+                    // to think about College's calendar (and vice versa for a College
+                    // dean/registrar). The other department gets a standard default,
+                    // adjustable later by whoever actually manages it.
+                    const needsBasicEd = canSeeBoth || visibleDept === 'basic_ed'
+                    const needsCollege = canSeeBoth || visibleDept === 'college'
+                    if (needsBasicEd && (!addSYForm.beStart || !addSYForm.beEnd)) { addToast('Please set Basic Ed dates', 'error'); return }
+                    if (needsCollege && (!addSYForm.colStart || !addSYForm.colEnd)) { addToast('Please set College dates', 'error'); return }
 
                     setEditSchoolYears(prev => [...prev, {
                       id: Date.now(), year, status: 'upcoming', isCurrent: false,
-                      basicEd: { startDate: addSYForm.beStart, endDate: addSYForm.beEnd, events: [] },
-                      college: { startDate: addSYForm.colStart, endDate: addSYForm.colEnd, events: [] },
+                      gradingPeriodType: 'quarterly', gradingFramework: 'do8_2015', collegeGradingFramework: 'ched_standard',
+                      basicEd: {
+                        startDate: addSYForm.beStart || `${sY}-06-01`,
+                        endDate:   addSYForm.beEnd   || `${eY}-03-31`,
+                        events: [],
+                      },
+                      college: {
+                        startDate: addSYForm.colStart || `${sY}-08-01`,
+                        endDate:   addSYForm.colEnd   || `${eY}-05-31`,
+                        events: [],
+                      },
                     }])
                     setShowAddSY(false); setAddSYForm({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' })
                     addToast(`School year ${year} added! Click "Save Changes" to apply.`, 'success')
@@ -1584,7 +2248,7 @@ export default function Settings() {
                         onClick={() => { setNewEvtName(preset.name); setNewEvtType(preset.type) }}
                         className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
                           exists ? 'border-[var(--color-border)] text-[var(--color-text-muted)] opacity-40 cursor-not-allowed line-through'
-                            : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary hover:text-primary cursor-pointer'
+                            : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)] hover:text-[var(--color-primary-readable)] cursor-pointer'
                         }`}>{preset.name}</button>
                     )
                   })}
@@ -1605,7 +2269,7 @@ export default function Settings() {
                     ]} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
                   <DatePicker label="Start Date" value={newEvtStart} onChange={setNewEvtStart} />
                   <DatePicker label="End Date" value={newEvtEnd} onChange={setNewEvtEnd} />
                 </div>
@@ -1669,10 +2333,50 @@ export default function Settings() {
                     ]} />
                 </div>
 
+                {dept === 'basic_ed' && (
+                  <>
+                    <label className="form-label mb-1.5">Grading Period Type</label>
+                    <div className="mb-4">
+                      <GroupedSelect value={editSY.gradingPeriodType || 'quarterly'}
+                        onChange={v => setEditSY({ ...editSY, gradingPeriodType: v })} allLabel={null}
+                        options={[
+                          { value: 'quarterly', label: 'Quarterly (Q1–Q4)' },
+                          { value: 'trimester', label: 'Trimester (T1–T3) — DepEd Order No. 9, s.2026' },
+                        ]} />
+                    </div>
+
+                    <label className="form-label mb-1.5">Grading Framework</label>
+                    <div className="mb-4">
+                      <GroupedSelect value={editSY.gradingFramework || 'do8_2015'}
+                        onChange={v => setEditSY({ ...editSY, gradingFramework: v })} allLabel={null}
+                        options={getGradingFrameworks().map(f => ({ value: f.id, label: f.label }))} />
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                        Manage component weights, transmutation, and add new frameworks (e.g. when DepEd
+                        revises the grading system again) in the Grading Frameworks panel below. Score-entry
+                        UI for frameworks with more than 3 flat components (e.g. WW/PT/EX with sub-exams)
+                        is still being built.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {dept === 'college' && (
+                  <div className="mb-4">
+                    <label className="form-label mb-1.5">Grading Framework</label>
+                    <GroupedSelect value={editSY.collegeGradingFramework || 'ched_standard'}
+                      onChange={v => setEditSY({ ...editSY, collegeGradingFramework: v })} allLabel={null}
+                      options={getCollegeGradingFrameworks().map(f => ({ value: f.id, label: f.label }))} />
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                      Manage component weights and the point-scale conversion, and add new frameworks (e.g.
+                      when CHED revises grading), in the College Grading panel below.
+                    </p>
+                  </div>
+                )}
+
                 <label className="flex items-center gap-3 mb-5 cursor-pointer">
                   <input type="checkbox" checked={editSY.isCurrent || false}
                     onChange={e => setEditSY({ ...editSY, isCurrent: e.target.checked })}
-                    className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                    className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                   <span className="text-sm text-[var(--color-text-secondary)]">Set as current school year</span>
                 </label>
 
@@ -1707,6 +2411,9 @@ export default function Settings() {
             </ModalPortal>
           )
         })()}
+          </>
+          )
+        })()}
 
         {/* Fee Structure Tab */}
         {activeTab === 'fees' && (
@@ -1718,6 +2425,9 @@ export default function Settings() {
             userRole={user?.role}
             onSave={() => saveSection('feeStructure', editFees)}
             saved={savedSection === 'feeStructure'}
+            defaultFees={DEFAULT_FEE_STRUCTURE}
+            schoolName={websiteContent.schoolName || 'RESET'}
+            addToast={addToast}
           />
         )}
 
@@ -1729,11 +2439,19 @@ export default function Settings() {
         {activeTab === 'schoolInfo' && (
           <div className="space-y-3">
 
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs text-[var(--color-text-muted)]">Content shown on your public website and enrollment page.</p>
+              <button
+                onClick={() => setShowResetContentConfirm(true)}
+                className="text-xs text-[var(--color-text-muted)] font-medium hover:text-[var(--color-error)] flex items-center gap-1"
+              ><RotateCcw className="w-3.5 h-3.5" /> Reset to Default</button>
+            </div>
+
             {/* ── Section 1: General Information ── */}
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('general')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><School className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><School className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">General Information</h3><p className="text-xs text-[var(--color-text-muted)]">School name, motto, contact details, school year</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.general ? 'rotate-180' : ''}`} />
@@ -1745,12 +2463,23 @@ export default function Settings() {
                     <div><label className="form-label">Current School Year</label><input type="text" value={websiteContent.schoolYear} onChange={e => setWebsiteContent({ ...websiteContent, schoolYear: e.target.value })} placeholder="e.g. 2025-2026" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                   </div>
                   <div><label className="form-label">School Motto</label><input type="text" value={websiteContent.motto} onChange={e => setWebsiteContent({ ...websiteContent, motto: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
+                  <div>
+                    <label className="form-label">Reference Number Prefix</label>
+                    <input
+                      type="text"
+                      value={websiteContent.referenceNumberPrefix}
+                      onChange={e => setWebsiteContent({ ...websiteContent, referenceNumberPrefix: e.target.value.toUpperCase().slice(0, 12) })}
+                      placeholder="ALMIRENE"
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition uppercase"
+                    />
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1">Shown on enrollment reference numbers, e.g. "{(websiteContent.referenceNumberPrefix || 'ALMIRENE')}-{new Date().getFullYear()}-W1000". Applies to both website and walk-in enrollments.</p>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div><label className="form-label">Email</label><input type="email" value={websiteContent.email} onChange={e => setWebsiteContent({ ...websiteContent, email: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                     <div><label className="form-label">Phone</label><input type="text" value={websiteContent.phone} onChange={e => setWebsiteContent({ ...websiteContent, phone: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                     <div><label className="form-label">Website</label><input type="text" value={websiteContent.website} onChange={e => setWebsiteContent({ ...websiteContent, website: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                   </div>
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               )}
             </div>
@@ -1759,7 +2488,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('branding')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Paintbrush className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Paintbrush className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">System Branding</h3><p className="text-xs text-[var(--color-text-muted)]">Logo, banner, and system colors</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.branding ? 'rotate-180' : ''}`} />
@@ -1783,7 +2512,7 @@ export default function Settings() {
                     <p className="text-xs text-[var(--color-text-muted)] mb-3">These colors are used throughout the system and the school website.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#750014'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} />
+                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#F4FAFC'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} compareValue={websiteContent.secondaryColor || '#212121'} compareLabel="Secondary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar active navigation</p>
@@ -1797,7 +2526,7 @@ export default function Settings() {
                         </div>
                       </div>
                       <div>
-                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#080c42'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} />
+                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#212121'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} compareValue={websiteContent.primaryColor || '#F4FAFC'} compareLabel="Primary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar background</p>
@@ -1811,66 +2540,7 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  {/* Hero Gradient */}
-                  <div className="pt-4 border-t border-[var(--color-border)]">
-                    <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2"><Paintbrush className="w-4 h-4 text-[var(--color-text-muted)]" /> Hero Gradient</h4>
-                    <p className="text-xs text-[var(--color-text-muted)] mb-3">This gradient is applied to the hero section of the school website.</p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      <ColorPicker label="Gradient Start" value={websiteContent.gradientStart || '#080c42'} onChange={v => setWebsiteContent({ ...websiteContent, gradientStart: v })} />
-                      <ColorPicker label="Gradient End" value={websiteContent.gradientEnd || '#750014'} onChange={v => setWebsiteContent({ ...websiteContent, gradientEnd: v })} />
-                    </div>
-
-                    {/* Direction selector */}
-                    <div className="mb-4">
-                      <label className="form-label mb-1.5">Direction</label>
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { value: 'to right', label: '→', title: 'Left to Right' },
-                          { value: 'to left', label: '←', title: 'Right to Left' },
-                          { value: 'to bottom', label: '↓', title: 'Top to Bottom' },
-                          { value: 'to top', label: '↑', title: 'Bottom to Top' },
-                          { value: 'to bottom right', label: '↘', title: 'Diagonal ↘' },
-                          { value: 'to bottom left', label: '↙', title: 'Diagonal ↙' },
-                          { value: 'to top right', label: '↗', title: 'Diagonal ↗' },
-                          { value: 'to top left', label: '↖', title: 'Diagonal ↖' },
-                        ].map(dir => (
-                          <button
-                            key={dir.value}
-                            type="button"
-                            title={dir.title}
-                            onClick={() => setWebsiteContent({ ...websiteContent, gradientDirection: dir.value })}
-                            className={`w-9 h-9 rounded-lg text-sm font-medium flex items-center justify-center transition ${
-                              (websiteContent.gradientDirection || 'to right') === dir.value
-                                ? 'bg-primary text-white shadow-sm'
-                                : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
-                            }`}
-                          >{dir.label}</button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Live preview */}
-                    <div>
-                      <label className="form-label mb-1.5">Preview</label>
-                      <div
-                        className="w-full h-24 rounded-xl border border-[var(--color-border)] overflow-hidden flex items-center justify-center"
-                        style={{
-                          background: `linear-gradient(${websiteContent.gradientDirection || 'to right'}, ${websiteContent.gradientStart || '#080c42'}, ${websiteContent.gradientEnd || '#750014'})`,
-                        }}
-                      >
-                        <div className="text-center">
-                          <p className="text-white text-sm font-bold drop-shadow">{websiteContent.schoolName || 'School Name'}</p>
-                          <p className="text-white/70 text-[10px] drop-shadow">{websiteContent.motto || 'School motto here'}</p>
-                        </div>
-                      </div>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1.5 font-mono">
-                        linear-gradient({websiteContent.gradientDirection || 'to right'}, {websiteContent.gradientStart || '#080c42'}, {websiteContent.gradientEnd || '#750014'})
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Color and gradient changes will take full effect when backend is connected</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Color changes will take full effect when backend is connected</p>
                 </div>
               )}
             </div>
@@ -1879,7 +2549,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('loginPage')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Login Page</h3><p className="text-xs text-[var(--color-text-muted)]">Customize the labels and text shown on the login screen</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.loginPage ? 'rotate-180' : ''}`} />
@@ -1904,25 +2574,25 @@ export default function Settings() {
                     <label className="form-label mb-1.5">Preview</label>
                     <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
                       <div className="bg-secondary p-4 text-center">
-                        <div className="w-12 h-12 rounded-full bg-white border-2 border-primary mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                        <div className="w-12 h-12 rounded-full bg-white border-2 border-[var(--color-primary-readable)] mx-auto mb-2 flex items-center justify-center overflow-hidden">
                           <img src={websiteContent.logoUrl || '/assets/school-logo.png'} alt="Logo" className="w-10 h-10 object-contain" onError={e => { e.target.style.display = 'none' }} />
                         </div>
-                        <p className="text-white text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
-                        <p className="text-white/60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>
-                        <p className="text-white/30 text-[8px] uppercase tracking-widest mt-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                        <p className="text-[var(--color-secondary-contrast)] text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
+                        <p className="text-[var(--color-secondary-contrast)] opacity-60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>
+                        <p className="text-[var(--color-secondary-contrast)] opacity-30 text-[8px] uppercase tracking-widest mt-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
                       </div>
                       <div className="p-4 bg-[var(--color-bg-subtle)]">
-                        <p className="text-[9px] uppercase tracking-widest text-primary font-bold mb-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
+                        <p className="text-[9px] uppercase tracking-widest text-[var(--color-primary-readable)] font-bold mb-1">{websiteContent.portalLabel || 'School Management Portal'}</p>
                         <p className="text-sm font-bold text-[var(--color-text-primary)] mb-3">Welcome back.</p>
                         <div className="h-7 bg-[var(--color-border)] rounded-lg mb-2" />
                         <div className="h-7 bg-[var(--color-border)] rounded-lg mb-3" />
                         <div className="h-7 bg-primary rounded-lg mb-2" />
-                        <p className="text-[9px] text-center text-[var(--color-text-muted)]">Need help? <span className="text-primary font-semibold">{websiteContent.supportLabel || 'Contact IT Support'}</span></p>
+                        <p className="text-[9px] text-center text-[var(--color-text-muted)]">Need help? <span className="text-[var(--color-primary-readable)] font-semibold">{websiteContent.supportLabel || 'Contact IT Support'}</span></p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               )}
             </div>
@@ -1931,7 +2601,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('about')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">About Section</h3><p className="text-xs text-[var(--color-text-muted)]">Mission, vision, goals, and core values shown on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.about ? 'rotate-180' : ''}`} />
@@ -1962,7 +2632,7 @@ export default function Settings() {
                     <label className="form-label mb-2">Core Values</label>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {websiteContent.coreValues.map((val, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-primary/10 text-primary rounded-lg">{val}<button onClick={() => setWebsiteContent({ ...websiteContent, coreValues: websiteContent.coreValues.filter((_, i) => i !== idx) })} className="hover:text-red-500 transition ml-0.5"><X className="w-3 h-3" /></button></span>
+                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-primary/10 text-[var(--color-primary-readable)] rounded-lg">{val}<button onClick={() => setWebsiteContent({ ...websiteContent, coreValues: websiteContent.coreValues.filter((_, i) => i !== idx) })} className="hover:text-red-500 transition ml-0.5"><X className="w-3 h-3" /></button></span>
                       ))}
                     </div>
                     <div className="flex gap-2">
@@ -1970,7 +2640,7 @@ export default function Settings() {
                       <button onClick={() => { if (newValue.trim()) { setWebsiteContent({ ...websiteContent, coreValues: [...websiteContent.coreValues, newValue.trim()] }); setNewValue('') } }} disabled={!newValue.trim()} className="btn-action" style={{ flex: 'none', padding: '0.625rem 1rem' }}><Plus className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               )}
             </div>
@@ -1979,7 +2649,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('faq')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><HelpCircle className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><HelpCircle className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">FAQ Management</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.faq.length} question{websiteContent.faq.length !== 1 ? 's' : ''} on the school website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.faq ? 'rotate-180' : ''}`} />
@@ -2034,7 +2704,7 @@ export default function Settings() {
                       }} className="btn-action text-xs flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Add Question</button>
                     </div>
                   </div>
-                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save All FAQs</button></div>
+                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save All FAQs</button></div>
                 </div>
               )}
             </div>
@@ -2043,7 +2713,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('programs')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Academic Programs</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.programs.length} program{websiteContent.programs.length !== 1 ? 's' : ''} listed on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.programs ? 'rotate-180' : ''}`} />
@@ -2061,7 +2731,7 @@ export default function Settings() {
                             </div>
                             <div><label className="form-label">Description</label><textarea defaultValue={prog.description} id={`prog-desc-${prog.id}`} rows={2} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition resize-none" /></div>
                             <div><label className="form-label">Features (comma-separated)</label><input type="text" defaultValue={prog.features.join(', ')} id={`prog-feat-${prog.id}`} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
-                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked={prog.highlight} id={`prog-hl-${prog.id}`} className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)]">Highlight this program on the website</span></label>
+                            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" defaultChecked={prog.highlight} id={`prog-hl-${prog.id}`} className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)]">Highlight this program on the website</span></label>
                             <div className="flex gap-2 justify-end">
                               <button onClick={() => setEditProgramId(null)} className="btn-cancel text-xs">Cancel</button>
                               <button onClick={() => {
@@ -2081,7 +2751,7 @@ export default function Settings() {
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="text-sm font-bold text-[var(--color-text-primary)]">{prog.title}</h4>
-                                <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-primary/10 text-primary">{prog.age}</span>
+                                <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-primary/10 text-[var(--color-primary-readable)]">{prog.age}</span>
                                 {prog.highlight && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">Featured</span>}
                               </div>
                               <p className="text-xs text-[var(--color-text-muted)] mb-2">{prog.description}</p>
@@ -2119,9 +2789,9 @@ export default function Settings() {
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setShowAddProgram(true)} className="w-full py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-medium hover:border-primary hover:text-primary transition flex items-center justify-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Add New Program</button>
+                    <button onClick={() => setShowAddProgram(true)} className="w-full py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-medium hover:border-[var(--color-primary-readable)] hover:text-[var(--color-primary-readable)] transition flex items-center justify-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Add New Program</button>
                   )}
-                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Programs</button></div>
+                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Programs</button></div>
                 </div>
               )}
             </div>
@@ -2130,7 +2800,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('admissions')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Tag className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Tag className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Admission</h3><p className="text-xs text-[var(--color-text-muted)]">Enrollment requirements and steps shown on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.admissions ? 'rotate-180' : ''}`} />
@@ -2172,7 +2842,7 @@ export default function Settings() {
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setShowAddRequirement(true)} className="text-xs text-primary font-medium hover:underline flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Requirement</button>
+                      <button onClick={() => setShowAddRequirement(true)} className="text-xs text-[var(--color-primary-readable)] font-medium hover:underline flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Requirement</button>
                     )}
                   </div>
 
@@ -2182,7 +2852,7 @@ export default function Settings() {
                     <div className="space-y-2 mb-3">
                       {websiteContent.steps.map((step, idx) => (
                         <div key={step.id} className="flex items-start gap-3 p-3 bg-[var(--color-bg-subtle)] rounded-lg">
-                          <div className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">{idx + 1}</div>
+                          <div className="w-7 h-7 rounded-full bg-primary text-[var(--color-primary-contrast)] flex items-center justify-center text-xs font-bold flex-shrink-0">{idx + 1}</div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-[var(--color-text-primary)]">{step.title}</p>
                             <p className="text-xs text-[var(--color-text-muted)]">{step.desc}</p>
@@ -2207,11 +2877,11 @@ export default function Settings() {
                         </div>
                       </div>
                     ) : (
-                      <button onClick={() => setShowAddStep(true)} className="text-xs text-primary font-medium hover:underline flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Step</button>
+                      <button onClick={() => setShowAddStep(true)} className="text-xs text-[var(--color-primary-readable)] font-medium hover:underline flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Step</button>
                     )}
                   </div>
 
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Admission Info</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Admission Info</button></div>
                 </div>
               )}
             </div>
@@ -2220,7 +2890,7 @@ export default function Settings() {
             <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
               <button onClick={() => toggleInfoSection('campuses')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-primary" /></div>
+                  <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Campus Configuration</h3><p className="text-xs text-[var(--color-text-muted)]">{editCampuses.length} campus{editCampuses.length !== 1 ? 'es' : ''} configured</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.campuses ? 'rotate-180' : ''}`} />
@@ -2229,11 +2899,15 @@ export default function Settings() {
                 <div className="border-t border-[var(--color-border)] p-5">
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-xs text-[var(--color-text-muted)]">Manage campus locations, departments, and programs</p>
-                    <button onClick={() => { setCampusForm({ name: '', key: '', address: '', contactNumber: '', email: '', hasBasicEd: true, hasCollege: false, collegePrograms: [], newProgram: '' }); setEditCampusId(null); setShowAddCampus(true) }} className="text-xs text-primary font-medium hover:underline flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add Campus</button>
+                    <button
+                      onClick={() => addToast('To add a new campus, please contact platform support — campus provisioning is tied to your subscription.', 'info')}
+                      title="Campus provisioning is managed by platform support"
+                      className="text-xs text-[var(--color-text-muted)] font-medium flex items-center gap-1 cursor-default hover:text-[var(--color-text-secondary)]"
+                    ><Lock className="w-3.5 h-3.5" /> Add Campus</button>
                   </div>
                   <div className="space-y-3">
                     {editCampuses.map(campus => (
-                      <div key={campus.id} className={`border rounded-xl p-4 transition-colors ${campus.isActive ? 'border-[var(--color-border)] hover:border-primary' : 'border-[var(--color-border)] opacity-60'}`}>
+                      <div key={campus.id} className={`border rounded-xl p-4 transition-colors ${campus.isActive ? 'border-[var(--color-border)] hover:border-[var(--color-primary-readable)]' : 'border-[var(--color-border)] opacity-60'}`}>
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
@@ -2243,8 +2917,7 @@ export default function Settings() {
                             <p className="text-xs text-[var(--color-text-muted)] font-mono">Key: {campus.key}</p>
                           </div>
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { setCampusForm({ name: campus.name, key: campus.key, address: campus.address || '', contactNumber: campus.contactNumber || '', email: campus.email || '', hasBasicEd: campus.hasBasicEd !== false, hasCollege: campus.hasCollege || false, collegePrograms: [...(campus.collegePrograms || [])], newProgram: '' }); setEditCampusId(campus.id); setShowAddCampus(true) }} className="icon-btn-ghost" title="Edit campus"><Edit className="w-4 h-4" /></button>
-                            <button onClick={() => { if (editCampuses.length <= 1) { addToast('You need at least one campus', 'error'); return } if (!window.confirm(`Remove "${campus.name}"?`)) return; setEditCampuses(editCampuses.filter(c => c.id !== campus.id)); addToast(`${campus.name} removed. Click "Save Campuses" to apply.`, 'success') }} className="icon-btn-ghost hover:!text-red-500" title="Remove campus"><Trash2 className="w-4 h-4" /></button>
+                            <button onClick={() => { setCampusForm({ name: campus.name, key: campus.key, address: campus.address || '', contactNumber: campus.contactNumber || '', email: campus.email || '', hasBasicEd: campus.hasBasicEd !== false, hasCollege: campus.hasCollege || false, collegePrograms: [...(campus.collegePrograms || [])], newProgram: '' }); setEditCampusId(campus.id); setShowAddCampus(true) }} className="icon-btn-ghost" title="Edit campus details"><Edit className="w-4 h-4" /></button>
                           </div>
                         </div>
                         {campus.address && <p className="text-xs text-[var(--color-text-secondary)] flex items-center gap-1.5 mb-1"><MapPin className="w-3 h-3 text-[var(--color-text-muted)]" /> {campus.address}</p>}
@@ -2258,7 +2931,7 @@ export default function Settings() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-end"><button onClick={() => saveSection('campuses', editCampuses)} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2 text-sm font-semibold">{savedSection === 'campuses' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}{savedSection === 'campuses' ? 'Saved!' : 'Save Campuses'}</button></div>
+                  <div className="mt-4 flex items-center justify-end"><button onClick={() => saveSection('campuses', editCampuses)} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">{savedSection === 'campuses' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}{savedSection === 'campuses' ? 'Saved!' : 'Save Campuses'}</button></div>
                 </div>
               )}
             </div>
@@ -2266,33 +2939,41 @@ export default function Settings() {
         )}
 
 
-        {/* Add / Edit Campus Modal */}
+        {/* Edit Campus Modal — add/remove is platform-managed (tied to subscription), not a school-side action */}
         {showAddCampus && (
           <ModalPortal>
           <div className="modal-backdrop">
             <div className="modal-panel" style={{ maxWidth: '36rem' }}>
               <div className="modal-header">
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-[var(--color-text-primary)]">{editCampusId ? 'Edit Campus' : 'Add New Campus'}</h3>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{editCampusId ? `Editing ${campusForm.name}` : 'Configure a new campus location'}</p>
+                  <h3 className="text-base font-bold text-[var(--color-text-primary)]">Edit Campus</h3>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Editing {campusForm.name}</p>
                 </div>
                 <button onClick={() => setShowAddCampus(false)} className="icon-btn-ghost ml-2 flex-shrink-0"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-y-auto flex-1 p-5 space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="form-label">Campus Name</label><input type="text" value={campusForm.name} onChange={e => setCampusForm({ ...campusForm, name: e.target.value })} placeholder="e.g. Carcar City Campus" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
-                  <div><label className="form-label">Campus Key</label><input type="text" value={campusForm.key} onChange={e => setCampusForm({ ...campusForm, key: e.target.value })} placeholder="e.g. Carcar" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /><p className="text-[10px] text-[var(--color-text-muted)] mt-1">No spaces. Used for data filtering.</p></div>
+                  <div>
+                    <label className="form-label flex items-center gap-1.5">Campus Name <Lock className="w-3 h-3 text-[var(--color-text-muted)]" /></label>
+                    <input type="text" value={campusForm.name} disabled readOnly className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] outline-none cursor-not-allowed" />
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Managed by platform support.</p>
+                  </div>
+                  <div>
+                    <label className="form-label flex items-center gap-1.5">Campus Key <Lock className="w-3 h-3 text-[var(--color-text-muted)]" /></label>
+                    <input type="text" value={campusForm.key} disabled readOnly className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] outline-none cursor-not-allowed" />
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1">Used for data filtering — managed by platform support.</p>
+                  </div>
                 </div>
                 <div><label className="form-label">Address</label><input type="text" value={campusForm.address} onChange={e => setCampusForm({ ...campusForm, address: e.target.value })} placeholder="e.g. Valladolid, Carcar City, Cebu" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="form-label">Contact Number</label><input type="text" value={campusForm.contactNumber} onChange={e => setCampusForm({ ...campusForm, contactNumber: e.target.value })} placeholder="e.g. 032-234-5678" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
+                  <div><label className="form-label">Contact Number</label><input type="text" value={campusForm.contactNumber} onChange={e => setCampusForm({ ...campusForm, contactNumber: e.target.value })} placeholder="(032) XXX-XXXX" className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                   <div><label className="form-label">Email</label><input type="email" value={campusForm.email} onChange={e => setCampusForm({ ...campusForm, email: e.target.value })} placeholder="e.g. " className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                 </div>
                 <div>
                   <label className="form-label mb-2">Departments</label>
                   <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={campusForm.hasBasicEd} onChange={e => setCampusForm({ ...campusForm, hasBasicEd: e.target.checked })} className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)] flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Basic Education</span></label>
-                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={campusForm.hasCollege} onChange={e => setCampusForm({ ...campusForm, hasCollege: e.target.checked })} className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)] flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> College</span></label>
+                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={campusForm.hasBasicEd} onChange={e => setCampusForm({ ...campusForm, hasBasicEd: e.target.checked })} className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)] flex items-center gap-1.5"><BookOpen className="w-3.5 h-3.5" /> Basic Education</span></label>
+                    <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={campusForm.hasCollege} onChange={e => setCampusForm({ ...campusForm, hasCollege: e.target.checked })} className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" /><span className="text-sm text-[var(--color-text-secondary)] flex items-center gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> College</span></label>
                   </div>
                 </div>
                 {campusForm.hasCollege && (
@@ -2320,26 +3001,32 @@ export default function Settings() {
               <div className="modal-footer">
                 <button onClick={() => setShowAddCampus(false)} className="btn-cancel">Cancel</button>
                 <button className="btn-action" onClick={() => {
+                  // Add-campus is intentionally not possible from this modal — campus
+                  // provisioning is platform-managed (tied to subscription). This always
+                  // edits the campus that was opened via the Edit button.
+                  if (!editCampusId) { addToast('No campus selected to edit.', 'error'); return }
                   const name = campusForm.name.trim(); const key = campusForm.key.trim()
-                  if (!name) { addToast('Please enter a campus name', 'error'); return }
-                  if (!key) { addToast('Please enter a campus key', 'error'); return }
-                  if (/\s/.test(key)) { addToast('Campus key cannot contain spaces', 'error'); return }
-                  if (editCampusId) {
-                    if (editCampuses.find(c => c.key === key && c.id !== editCampusId)) { addToast(`Key "${key}" already exists`, 'error'); return }
-                    setEditCampuses(editCampuses.map(c => c.id === editCampusId ? { ...c, name, key, address: campusForm.address.trim(), contactNumber: campusForm.contactNumber.trim(), email: campusForm.email.trim(), hasBasicEd: campusForm.hasBasicEd, hasCollege: campusForm.hasCollege, collegePrograms: campusForm.hasCollege ? campusForm.collegePrograms : [] } : c))
-                    addToast(`${name} updated! Click "Save Campuses" to apply.`, 'success')
-                  } else {
-                    if (editCampuses.find(c => c.key === key)) { addToast(`Key "${key}" already exists`, 'error'); return }
-                    setEditCampuses([...editCampuses, { id: Date.now(), key, name, address: campusForm.address.trim(), contactNumber: campusForm.contactNumber.trim(), email: campusForm.email.trim(), isActive: true, workflowConfirmed: false, hasBasicEd: campusForm.hasBasicEd, hasCollege: campusForm.hasCollege, collegePrograms: campusForm.hasCollege ? campusForm.collegePrograms : [], roles: { hasPrincipal: true, hasProgramHead: campusForm.hasCollege, hasRegistrarBasic: true, hasRegistrarCollege: campusForm.hasCollege, hasAccounting: true } }])
-                    addToast(`${name} added! Click "Save Campuses" to apply.`, 'success')
-                  }
+                  if (!name || !key) { addToast('Campus name/key is missing — contact platform support.', 'error'); return }
+                  setEditCampuses(editCampuses.map(c => c.id === editCampusId ? { ...c, address: campusForm.address.trim(), contactNumber: campusForm.contactNumber.trim(), email: campusForm.email.trim(), hasBasicEd: campusForm.hasBasicEd, hasCollege: campusForm.hasCollege, collegePrograms: campusForm.hasCollege ? campusForm.collegePrograms : [] } : c))
+                  addToast(`${name} updated! Click "Save Campuses" to apply.`, 'success')
                   setShowAddCampus(false)
-                }}>{editCampusId ? 'Save Changes' : 'Add Campus'}</button>
+                }}>Save Changes</button>
               </div>
             </div>
           </div>
           </ModalPortal>
         )}
+
+        <TypeToConfirmDialog
+          open={showResetContentConfirm}
+          title="Reset School Info?"
+          message="This replaces your school's name, logo, mission, vision, programs, and all other website content with the generic shipped defaults. Your actual content will be gone until you re-enter it. This can't be undone once saved."
+          matchText={websiteContent.schoolName || 'RESET'}
+          matchLabel="school name"
+          confirmLabel="Reset Everything"
+          onConfirm={handleResetWebsiteContent}
+          onCancel={() => setShowResetContentConfirm(false)}
+        />
 
         {/* ═══ TICKETS TAB ═══ */}
 
@@ -2349,7 +3036,7 @@ export default function Settings() {
               <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
                 Grade Level Configuration
               </h2>
-              <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition-colors flex items-center gap-2">
+              <button className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 Add Grade Level
               </button>
@@ -2359,7 +3046,7 @@ export default function Settings() {
               {basicEdGroups.map((group) => (
                 <div
                   key={group.label}
-                  className="border border-[var(--color-border)] rounded-lg p-4 hover:border-primary transition-colors"
+                  className="border border-[var(--color-border)] rounded-lg p-4 hover:border-[var(--color-primary-readable)] transition-colors"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -2382,7 +3069,7 @@ export default function Settings() {
                         ))}
                       </div>
                     </div>
-                    <button className="text-primary hover:text-accent-burgundy ml-4 flex-shrink-0">
+                    <button className="text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] ml-4 flex-shrink-0">
                       <Edit className="w-4 h-4" />
                     </button>
                   </div>
@@ -2407,7 +3094,7 @@ export default function Settings() {
           <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                <Receipt className="w-5 h-5 text-primary" />
+                <Receipt className="w-5 h-5 text-[var(--color-primary-readable)]" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Receipt Settings</h2>
@@ -2475,7 +3162,7 @@ export default function Settings() {
                       setTimeout(() => setCashierSaved(false), 2000)
                     } catch {}
                   }}
-                  className="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition text-sm font-semibold"
+                  className="flex items-center gap-2 px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition text-sm font-semibold"
                 >
                   {cashierSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Settings</>}
                 </button>
@@ -2492,7 +3179,7 @@ export default function Settings() {
                 <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Form Templates</h2>
                 <p className="text-xs text-[var(--color-text-muted)] mt-1">Upload your school's Excel templates. When teachers export forms, the system will use these templates to produce files in your exact format.</p>
               </div>
-              <button onClick={() => setShowAddForm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-lg hover:bg-accent-burgundy transition">
+              <button onClick={() => setShowAddForm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition">
                 <Plus className="w-4 h-4" /> Add Form
               </button>
             </div>
@@ -2509,7 +3196,7 @@ export default function Settings() {
                   <div key={tmpl.id} className="card p-5">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-primary" />
+                        <FileText className="w-5 h-5 text-[var(--color-primary-readable)]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -2611,6 +3298,15 @@ export default function Settings() {
       </div>
       {activeTab === 'workflow' && <WorkflowConfigTab />}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <ConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        danger={confirmDialog?.danger}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        onConfirm={() => { confirmDialog?.onConfirm?.(); setConfirmDialog(null) }}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </div>
   )
 }
@@ -2894,7 +3590,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
           {userTabView === 'staff' && (
             <button
               onClick={handleAdd}
-              className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-accent-burgundy transition text-sm font-semibold shadow-sm"
+              className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition text-sm font-semibold shadow-sm"
             >
               <Plus className="w-4 h-4" /> Add Staff
             </button>
@@ -2919,7 +3615,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
               {tab.label}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                 userTabView === tab.id
-                  ? 'bg-primary/10 text-primary'
+                  ? 'bg-primary/10 text-[var(--color-primary-readable)]'
                   : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)]'
               }`}>{tab.count}</span>
             </button>
@@ -2983,7 +3679,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                           <p className="text-xs text-[var(--color-text-muted)]">{s.email}</p>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="font-mono text-xs text-primary font-semibold">{s.studentId}</span>
+                          <span className="font-mono text-xs text-[var(--color-primary-readable)] font-semibold">{s.studentId}</span>
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-[var(--color-text-secondary)]">{s.gradeLevel}</span>
@@ -3011,7 +3707,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                         <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{s.name}</p>
                         <p className="text-xs text-[var(--color-text-muted)] truncate">{s.email}</p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="font-mono text-xs text-primary font-semibold">{s.studentId}</span>
+                          <span className="font-mono text-xs text-[var(--color-primary-readable)] font-semibold">{s.studentId}</span>
                           <span className="text-xs text-[var(--color-text-muted)]">{s.gradeLevel}</span>
                           <span className="text-xs text-[var(--color-text-muted)]">{s.campus}</span>
                         </div>
@@ -3062,7 +3758,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   </div>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
-                  <button onClick={() => handleEdit(u)} className="p-2 text-[var(--color-text-muted)] hover:text-primary rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                  <button onClick={() => handleEdit(u)} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                     <Edit className="w-4 h-4" />
                   </button>
                 </div>
@@ -3105,7 +3801,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                     </td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap text-xs">{fmtDate(u.lastLogin)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <button onClick={() => handleEdit(u)} className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                      <button onClick={() => handleEdit(u)} className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                         <Edit className="w-3.5 h-3.5" /> Edit
                       </button>
                     </td>
@@ -3159,7 +3855,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Maria Santos"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
                 {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </div>
@@ -3175,7 +3871,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="e.g. registrar@school.edu.ph"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.email ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.email ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
                 {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
               </div>
@@ -3236,7 +3932,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   placeholder="Minimum 6 characters"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.password ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.password ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
                 {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
               </div>
@@ -3253,7 +3949,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                     onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
                     placeholder="Re-enter password"
                     className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                      ${errors.confirmPassword ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                      ${errors.confirmPassword ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                   />
                   {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
                 </div>
@@ -3298,7 +3994,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                           permissions: custom ? { pages: [...defaults.pages], tabs: [...defaults.tabs] } : { pages: [], tabs: [] },
                         }))
                       }}
-                      className="w-4 h-4 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                      className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                     <div>
                       <span className="text-sm font-medium text-[var(--color-text-primary)]">Custom Permissions</span>
                       <p className="text-[10px] text-[var(--color-text-muted)]">Override default access for this user</p>
@@ -3310,7 +4006,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                       {/* Page access */}
                       <div>
                         <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Page Access</p>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {ALL_PAGES.filter(p => p.id !== 'dashboard').map(page => (
                             <label key={page.id} className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                               <input type="checkbox"
@@ -3326,7 +4022,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                                     }
                                   }))
                                 }}
-                                className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                                className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                               <span className="text-xs text-[var(--color-text-primary)]">{page.label}</span>
                             </label>
                           ))}
@@ -3337,7 +4033,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                       {form.permissions.pages.includes('settings') && (
                         <div>
                           <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-2 uppercase tracking-wider">Settings Tabs</p>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {ALL_SETTINGS_TABS.map(tab => (
                               <label key={tab.id} className="flex items-center gap-2 cursor-pointer py-1.5 px-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                                 <input type="checkbox"
@@ -3353,7 +4049,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                                       }
                                     }))
                                   }}
-                                  className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-primary focus:ring-primary" />
+                                  className="w-3.5 h-3.5 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                                 <span className="text-xs text-[var(--color-text-primary)]">{tab.label}</span>
                               </label>
                             ))}
@@ -3377,7 +4073,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold shadow-sm disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm disabled:opacity-60"
               >
                 {saving
                   ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving…</>

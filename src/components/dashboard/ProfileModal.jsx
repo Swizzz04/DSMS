@@ -35,8 +35,8 @@ const ROLE_LABELS = {
 }
 
 const ROLE_COLORS = {
-  admin:              { bg: 'var(--color-primary-muted)',   text: 'var(--color-primary)' },
-  technical_admin:    { bg: 'var(--color-primary-muted)',   text: 'var(--color-primary)' },
+  admin:              { bg: 'var(--color-secondary-muted)', text: 'var(--color-secondary)' },
+  technical_admin:    { bg: 'var(--color-secondary-muted)', text: 'var(--color-secondary)' },
   registrar_basic:    { bg: 'var(--color-info-light)',      text: 'var(--color-info)' },
   registrar_college:  { bg: 'rgba(124,58,237,0.08)',        text: '#7c3aed' },
   accounting:         { bg: 'var(--color-success-light)',   text: 'var(--color-success)' },
@@ -294,7 +294,7 @@ export default function ProfileModal({ onClose }) {
       className="w-full py-2.5 rounded-[var(--radius-md)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       style={{
         backgroundColor: danger ? 'var(--color-error)' : 'var(--color-primary)',
-        color: '#ffffff',
+        color: danger ? '#ffffff' : 'var(--color-primary-contrast)',
       }}
       onMouseEnter={e => {
         if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? '#b91c1c' : 'var(--color-primary-hover)'
@@ -343,14 +343,14 @@ export default function ProfileModal({ onClose }) {
             <div
               className="w-28 h-28 rounded-full overflow-hidden flex items-center justify-center"
               style={{
-                backgroundColor: 'var(--color-primary-muted)',
+                backgroundColor: 'var(--color-secondary-muted)',
                 border: '4px solid var(--color-bg-card)',
                 boxShadow: 'var(--shadow-lg)',
               }}
             >
               {avatar
                 ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-                : <User className="w-12 h-12" style={{ color: 'var(--color-primary)' }} />
+                : <User className="w-12 h-12" style={{ color: 'var(--color-secondary)' }} />
               }
             </div>
             <button
@@ -358,7 +358,7 @@ export default function ProfileModal({ onClose }) {
               className="absolute bottom-0 right-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
               style={{
                 backgroundColor: 'var(--color-primary)',
-                color: '#ffffff',
+                color: 'var(--color-primary-contrast)',
                 boxShadow: 'var(--shadow-lg)',
               }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}
@@ -596,14 +596,14 @@ export default function ProfileModal({ onClose }) {
             <div
               className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center"
               style={{
-                backgroundColor: 'var(--color-primary-muted)',
+                backgroundColor: 'var(--color-secondary-muted)',
                 border: '4px solid var(--color-bg-card)',
                 boxShadow: 'var(--shadow-lg)',
               }}
             >
               {avatar
                 ? <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
-                : <User className="w-9 h-9" style={{ color: 'var(--color-primary)' }} />
+                : <User className="w-9 h-9" style={{ color: 'var(--color-secondary)' }} />
               }
             </div>
             <button
@@ -611,7 +611,7 @@ export default function ProfileModal({ onClose }) {
               className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors"
               style={{
                 backgroundColor: 'var(--color-primary)',
-                color: '#ffffff',
+                color: 'var(--color-primary-contrast)',
                 boxShadow: 'var(--shadow-sm)',
               }}
               onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)'}

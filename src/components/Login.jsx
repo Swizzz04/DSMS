@@ -48,7 +48,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           alignItems: 'center',
           padding: '3rem',
           flex: '0 0 42%',
-          background: 'linear-gradient(160deg, var(--color-secondary-light) 0%, var(--color-secondary) 55%, #04062a 100%)',
+          background: 'var(--color-secondary)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -71,17 +71,15 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         <div style={{
           position: 'absolute', top: 0, left: 0,
           width: 4, height: '100%',
-          background: 'linear-gradient(to bottom, transparent, var(--color-primary), transparent)',
+          background: 'var(--color-primary-on-secondary)',
         }} />
 
         {/* Logo + school name — centered */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem', animation: 'loginFadeUp 0.7s ease both', textAlign: 'center' }}>
           <div style={{
             width: 200, height: 200, borderRadius: '50%',
-            background: '#fff',
-            border: '3px solid var(--color-primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 0 8px rgba(117,0,20,0.12), 0 16px 40px rgba(0,0,0,0.4)',
+            background: 'var(--color-bg-card)',
+            border: '3px solid var(--color-primary-readable)',
             overflow: 'hidden', flexShrink: 0,
           }}>
             <img src={school.logo} alt="School Logo"
@@ -90,14 +88,14 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           <div>
             <div style={{
               fontSize: 'clamp(1.05rem, 1.8vw, 1.35rem)',
-              fontWeight: 700, color: '#fff',
+              fontWeight: 700, color: 'var(--color-primary-on-secondary)',
               lineHeight: 1.25, letterSpacing: '0.01em',
             }}>
               {school.name}
             </div>
             <div style={{
               fontSize: '0.78rem', fontWeight: 500,
-              color: 'rgba(255,255,255,0.7)',
+              color: 'rgb(var(--color-secondary-contrast-rgb) / 0.7)',
               fontStyle: 'italic',
               marginTop: '0.5rem',
               lineHeight: 1.4,
@@ -106,7 +104,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             </div>
             <div style={{
               fontSize: '0.65rem', fontWeight: 600,
-              color: 'rgba(255,255,255,0.35)',
+              color: 'var(--color-primary-on-secondary)',
               letterSpacing: '0.15em', textTransform: 'uppercase',
               marginTop: '0.75rem',
             }}>
@@ -115,7 +113,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
+        <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgb(var(--color-secondary-contrast-rgb) / 0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
           {'\u00A9'} {new Date().getFullYear()} {school.name}
         </div>
       </aside>
@@ -126,7 +124,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '2rem 1.5rem',
         overflowY: 'auto',
-        background: '#f4f5f0',
+        background: 'var(--color-bg-page)',
         position: 'relative',
       }}>
         {/* Dot grid texture */}
@@ -142,21 +140,20 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           <div className="login-mobile-brand" style={{ textAlign: 'center', marginBottom: '2rem' }}>
             <div style={{
               width: 72, height: 72, borderRadius: '50%',
-              background: '#fff',
-              border: '3px solid var(--color-primary)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--color-bg-card)',
+              border: '3px solid var(--color-primary-readable)',
               boxShadow: 'var(--shadow-md)', overflow: 'hidden',
               marginBottom: '0.75rem',
             }}>
               <img src={school.logo} alt="School Logo"
                 style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary)', display: 'block' }}>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary-readable)', display: 'block' }}>
               {school.name}
             </div>
             <div style={{
               fontSize: '0.68rem', fontWeight: 600,
-              color: 'var(--color-primary)',
+              color: 'var(--color-primary-readable)',
               letterSpacing: '0.12em', textTransform: 'uppercase',
             }}>
               {school.portalLabel}
@@ -167,9 +164,9 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           <div style={{
             padding: '2.25rem 2rem',
             borderRadius: '20px',
-            background: '#ffffff',
-            border: '1px solid #e8e8e4',
-            borderTop: '3px solid var(--color-primary)',
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderTop: '3px solid var(--color-secondary)',
             boxShadow: '0 4px 6px var(--color-secondary-muted), 0 20px 60px var(--color-secondary-muted)',
           }}>
             {/* Eyebrow + heading */}
@@ -177,18 +174,18 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               <div style={{
                 fontSize: '0.62rem', fontWeight: 700,
                 letterSpacing: '0.18em', textTransform: 'uppercase',
-                color: 'var(--color-primary)', marginBottom: '0.35rem',
+                color: 'var(--color-primary-readable)', marginBottom: '0.35rem',
               }}>
                 {school.portalLabel}
               </div>
               <h1 style={{
                 fontSize: '1.6rem', fontWeight: 700,
-                color: 'var(--color-secondary)',
+                color: 'var(--color-primary-readable)',
                 lineHeight: 1.2, marginBottom: '0.3rem',
               }}>
                 Welcome back.
               </h1>
-              <p style={{ fontSize: '0.82rem', color: '#8a8a8a' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-primary-readable)' }}>
                 Sign in to access the management system.
               </p>
             </div>
@@ -214,14 +211,14 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               <div style={{ marginBottom: '1.1rem' }}>
                 <label htmlFor="email" style={{
                   display: 'block', fontSize: '0.78rem', fontWeight: 600,
-                  color: '#4a4a4a', marginBottom: '0.45rem',
+                  color: 'var(--color-text-secondary)', marginBottom: '0.45rem',
                 }}>
                   Email Address
                 </label>
                 <input
                   type="email"
                   id="email"
-                  style={{ background: '#ffffff', color: '#1a1a1a', border: '1.5px solid #e8e8e4' }}
+                  style={{ background: 'var(--color-bg-subtle)', color: 'var(--color-text-primary)', border: '1.5px solid var(--color-border)' }}
                   className="input"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
@@ -235,7 +232,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               <div style={{ marginBottom: '0.75rem' }}>
                 <label htmlFor="password" style={{
                   display: 'block', fontSize: '0.78rem', fontWeight: 600,
-                  color: '#4a4a4a', marginBottom: '0.45rem',
+                  color: 'var(--color-text-secondary)', marginBottom: '0.45rem',
                 }}>
                   Password
                 </label>
@@ -244,7 +241,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                     type={showPassword ? 'text' : 'password'}
                     id="password"
                     className="input"
-                    style={{ paddingRight: '2.75rem', background: '#ffffff', color: '#1a1a1a', border: '1.5px solid #e8e8e4' }}
+                    style={{ paddingRight: '2.75rem', background: 'var(--color-bg-subtle)', color: 'var(--color-text-primary)', border: '1.5px solid var(--color-border)' }}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
@@ -259,13 +256,13 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                       position: 'absolute', right: '0.75rem', top: '50%',
                       transform: 'translateY(-50%)',
                       background: 'none', border: 'none', cursor: 'pointer',
-                      color: '#8a8a8a',
+                      color: 'var(--color-text-muted)',
                       display: 'flex', alignItems: 'center',
                       padding: 2, borderRadius: 'var(--radius-xs)',
                       transition: 'color var(--t-base)',
                     }}
-                    onMouseEnter={e => e.currentTarget.style.color = '#4a4a4a'}
-                    onMouseLeave={e => e.currentTarget.style.color = '#8a8a8a'}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -280,7 +277,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                 <label style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem',
                   cursor: 'pointer', fontSize: '0.8rem',
-                  color: '#8a8a8a', userSelect: 'none',
+                  color: 'var(--color-text-muted)', userSelect: 'none',
                 }}>
                   <input
                     type="checkbox"
@@ -297,11 +294,11 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                   href="#"
                   style={{
                     fontSize: '0.8rem', fontWeight: 600,
-                    color: 'var(--color-primary)', textDecoration: 'none',
+                    color: 'var(--color-primary-readable)', textDecoration: 'none',
                     transition: 'color var(--t-base)',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--color-primary-hover)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--color-primary)'}
+                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
                 >
                   Forgot Password?
                 </a>
@@ -311,23 +308,23 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="btn btn-secondary"
+                className="btn btn-primary"
                 style={{
                   width: '100%', padding: '0.875rem',
                   borderRadius: 'var(--radius-xl)',
                   fontSize: '0.9rem', letterSpacing: '0.02em',
-                  boxShadow: '0 4px 14px rgba(8,12,66,0.25), inset 0 1px 0 rgba(255,255,255,0.08)',
+                  boxShadow: '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 rgba(255,255,255,0.08)',
                   position: 'relative', overflow: 'hidden',
                   transition: 'transform var(--t-fast), box-shadow var(--t-base), background-color var(--t-base)',
                 }}
-                onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = '0 8px 22px rgba(8,12,66,0.32)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgba(8,12,66,0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }}
+                onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = '0 8px 22px rgb(var(--color-secondary-rgb) / 0.32)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }}
               >
                 {/* Red shimmer accent at bottom of button */}
                 <div style={{
                   position: 'absolute', bottom: 0, left: 0, right: 0,
                   height: 2,
-                  background: 'linear-gradient(90deg, transparent, var(--color-primary), transparent)',
+                  background: 'var(--color-secondary)',
                   opacity: 0.55,
                 }} />
 
@@ -335,8 +332,8 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                   <>
                     <span style={{
                       width: 16, height: 16, borderRadius: '50%',
-                      border: '2px solid rgba(255,255,255,0.25)',
-                      borderTopColor: '#fff',
+                      border: '2px solid rgb(var(--color-primary-contrast-rgb) / 0.25)',
+                      borderTopColor: 'var(--color-text-inverse)',
                       animation: 'loginSpin 0.7s linear infinite',
                       display: 'inline-block', flexShrink: 0,
                     }} />
@@ -352,12 +349,12 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             </form>
 
             {/* Support footer */}
-            <div style={{ height: 1, background: '#e8e8e4', margin: '1.5rem 0 1rem' }} />
-            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: '#8a8a8a' }}>
+            <div style={{ height: 1, background: 'var(--color-border)', margin: '1.5rem 0 1rem' }} />
+            <div style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
               Need help?{' '}
               <a
                 href={`mailto:${school.email || 'support@school.edu'}`}
-                style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}
+                style={{ color: 'var(--color-primary-readable)', fontWeight: 600, textDecoration: 'none' }}
                 onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
                 onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
               >
@@ -369,7 +366,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           {/* Page copyright */}
           <p style={{
             textAlign: 'center', fontSize: '0.68rem',
-            color: '#8a8a8a', marginTop: '1.5rem',
+            color: 'var(--color-text-muted)', marginTop: '1.5rem',
           }}>
             {'\u00A9'} {new Date().getFullYear()} {school.name}. All rights reserved.
           </p>

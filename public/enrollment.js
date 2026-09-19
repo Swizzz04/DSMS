@@ -2,7 +2,7 @@
 // SECURITY MODULE
 // ============================================================
 
-const CSHC_Security = (() => {
+const ALMIRENE_Security = (() => {
 
   // ── 1. XSS Sanitization ─────────────────────────────────
   // Escapes all dangerous HTML characters before storing or displaying
@@ -33,7 +33,7 @@ const CSHC_Security = (() => {
 
   // ── 3. Rate Limiting ─────────────────────────────────────
   // Max 3 submissions per 10 minutes per browser session
-  const RATE_KEY    = 'cshc_enr_rate';
+  const RATE_KEY    = 'almirene_enr_rate';
   const MAX_SUBS    = 3;
   const WINDOW_MS   = 10 * 60 * 1000; // 10 minutes
 
@@ -79,12 +79,12 @@ const CSHC_Security = (() => {
   // Generates a unique session token to verify form origin
   function generateToken() {
     const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    sessionStorage.setItem('cshc_form_token', token);
+    sessionStorage.setItem('almirene_form_token', token);
     return token;
   }
 
   function validateToken(token) {
-    return token === sessionStorage.getItem('cshc_form_token');
+    return token === sessionStorage.getItem('almirene_form_token');
   }
 
   // ── 6. Age Validation ────────────────────────────────────
@@ -140,10 +140,37 @@ const CSHC_Security = (() => {
 })();
 
 // Generate form token on page load
-const _formToken = CSHC_Security.generateToken();
+const _formToken = ALMIRENE_Security.generateToken();
 
 document.addEventListener('DOMContentLoaded', function() {
-    
+
+    // ── Apply admin-configured school identity ───────────────
+    // Same source/pattern as site_data.js on the main page — falls
+    // back to the generic defaults already in the HTML if nothing's
+    // configured yet.
+    (function applySchoolContent() {
+        let saved = {};
+        try {
+            saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}');
+        } catch (e) { saved = {}; }
+
+        const name = typeof saved.schoolName === 'string' && saved.schoolName.trim() ? saved.schoolName.trim() : 'our school';
+
+        document.title = 'Online Enrollment' + (name !== 'our school' ? ' - ' + name : '');
+
+        const logo = document.getElementById('enrollNavLogo');
+        if (logo && typeof saved.logoUrl === 'string' && saved.logoUrl.trim()) {
+            logo.src = saved.logoUrl.trim();
+            logo.alt = name;
+        }
+
+        const successMsg = document.getElementById('successSchoolMsg');
+        if (successMsg) successMsg.textContent = 'Thank you for your interest in ' + name + '.';
+
+        const footer = document.getElementById('footerCopyright');
+        if (footer) footer.innerHTML = '&copy; ' + new Date().getFullYear() + ' ' + name + '. All rights reserved.';
+    })();
+
     const enrollmentForm = document.getElementById('enrollmentForm');
     const campusSelect = document.getElementById('campus');
     const gradeLevelSelect = document.getElementById('gradeLevel');
@@ -1129,8 +1156,8 @@ function validateCurrentStep() {
 
 // ── Safe review renderer (XSS-safe innerHTML replacement) ──────
 function safeField(label, value) {
-    const s = CSHC_Security.sanitize(String(value || ''));
-    return `<p><strong>${CSHC_Security.sanitize(label)}:</strong> ${s}</p>`;
+    const s = ALMIRENE_Security.sanitize(String(value || ''));
+    return `<p><strong>${ALMIRENE_Security.sanitize(label)}:</strong> ${s}</p>`;
 }
     function populateReview() {
         // Campus & Program
@@ -1230,19 +1257,19 @@ if (isCollege) {
         e.preventDefault();
 
         // ── Security Check 1: Duplicate submission prevention ──
-        if (CSHC_Security.isAlreadySubmitted()) {
+        if (ALMIRENE_Security.isAlreadySubmitted()) {
             alert('This form has already been submitted. Please refresh the page to submit a new enrollment.');
             return;
         }
 
         // ── Security Check 2: Honeypot bot detection ───────────
-        if (!CSHC_Security.checkHoneypot()) {
-            console.warn('[CSHC Security] Honeypot triggered.');
+        if (!ALMIRENE_Security.checkHoneypot()) {
+            console.warn('[ALMIRENE Security] Honeypot triggered.');
             return;
         }
 
         // ── Security Check 3: Rate limiting ────────────────────
-        const rateCheck = CSHC_Security.checkRateLimit();
+        const rateCheck = ALMIRENE_Security.checkRateLimit();
         if (!rateCheck.allowed) {
             alert(rateCheck.message);
             return;
@@ -1255,7 +1282,7 @@ if (isCollege) {
         }
 
         // ── Security Check 5: Age validation ───────────────────
-        const ageCheck = CSHC_Security.validateAge(document.getElementById('birthDate').value);
+        const ageCheck = ALMIRENE_Security.validateAge(document.getElementById('birthDate').value);
         if (!ageCheck.valid) {
             alert(ageCheck.message);
             return;
@@ -1266,10 +1293,10 @@ if (isCollege) {
         let data = Object.fromEntries(formData);
 
         try {
-            data = CSHC_Security.sanitizeFormData(data);
+            data = ALMIRENE_Security.sanitizeFormData(data);
         } catch (err) {
             alert('Invalid content detected in the form. Please review your entries and try again.');
-            console.warn('[CSHC Security] Blocked:', err.message);
+            console.warn('[ALMIRENE Security] Blocked:', err.message);
             return;
         }
 
@@ -1279,20 +1306,31 @@ if (isCollege) {
         }
 
         // ── Submit to admin portal via bridge ───────────────────
-        let refNum = 'CSHC-' + Date.now().toString().slice(-8);
+        // NOTE: previously this always showed the success screen even when
+        // the bridge failed to save (using a fallback reference number that
+        // had no real submission behind it) — a parent would see "success"
+        // for a submission that was never recorded. Now it actually stops
+        // and tells them if the save didn't happen.
+        let refNum = null;
         try {
-            const result = CSHC_Bridge.submitToAdminPortal(data);
+            const bridge = window.ALMIRENE_Bridge || window.CSHC_Bridge;
+            const result = bridge.submitToAdminPortal(data);
             if (result.success) {
                 refNum = result.referenceNumber;
-                console.log('[CSHC] Enrollment saved:', refNum);
+                console.log('[ALMIRENE] Enrollment saved:', refNum);
             }
         } catch (err) {
-            console.warn('[CSHC] Bridge not available:', err);
+            console.warn('[ALMIRENE] Bridge not available:', err);
+        }
+
+        if (!refNum) {
+            alert('Sorry, we could not save your enrollment right now. Please try again, or visit any campus registrar\'s office to enroll in person.');
+            return;
         }
 
         // ── Record submission (rate limit counter) ──────────────
-        CSHC_Security.markSubmitted();
-        CSHC_Security.recordSubmission();
+        ALMIRENE_Security.markSubmitted();
+        ALMIRENE_Security.recordSubmission();
 
         // Show success screen
         referenceNumber.textContent = refNum;

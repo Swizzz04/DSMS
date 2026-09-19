@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import PrintableStudent from '../components/PrintableStudent'
 import { useLocation } from 'react-router-dom'
+import { PROG_COLORS } from '../components/SchoolComponents'
 import { useToast, ToastContainer, PageSkeleton, EmptyState, ModalPortal } from '../components/UIComponents'
 import { useAppConfig } from '../context/AppConfigContext'
 import GradeLevelSelect from '../components/GradeLevelSelect'
@@ -36,15 +37,19 @@ const LazyDoughnut = lazy(() =>
 const ChartFallback = () => <div className="flex items-center justify-center h-40 text-xs text-[var(--color-text-muted)]">Loading chart...</div>
 
 // ── Shared grade helpers ─────────────────────────────────────────────
+// onColor pairs each bg with text that's actually safe on it — bg-emerald-600
+// and bg-blue-600 are fixed Tailwind colors (white is always safe), but
+// bg-primary/bg-secondary are a school's own customizable brand colors and
+// need the computed contrast-safe token instead of a hardcoded white.
 const BASIC_GROUPS = [
   { label: 'Pre-Elementary', short: 'Pre-Elem', grades: ['Nursery','Kindergarten','Preparatory'],
-    bg: 'bg-emerald-600', light: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', bar: '#059669' },
+    bg: 'bg-emerald-600', onColor: 'text-white', light: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', bar: '#059669' },
   { label: 'Elementary', short: 'Elem', grades: ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'],
-    bg: 'bg-blue-600', light: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', bar: '#2563eb' },
+    bg: 'bg-blue-600', onColor: 'text-white', light: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', bar: '#2563eb' },
   { label: 'Junior High School', short: 'JHS', grades: ['Grade 7','Grade 8','Grade 9','Grade 10'],
-    bg: 'bg-secondary', light: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', bar: 'var(--color-secondary)' },
+    bg: 'bg-secondary', onColor: 'text-[var(--color-secondary-contrast)]', light: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', bar: 'var(--color-secondary)' },
   { label: 'Senior High School', short: 'SHS', grades: ['Grade 11','Grade 12'],
-    bg: 'bg-primary', light: 'bg-red-100 dark:bg-red-900/30', text: 'text-primary dark:text-red-300', bar: 'var(--color-primary)' },
+    bg: 'bg-primary', onColor: 'text-[var(--color-primary-contrast)]', light: 'bg-red-100 dark:bg-red-900/30', text: 'text-[var(--color-primary-readable)]', bar: 'var(--color-primary)' },
 ]
 const YEAR_LEVELS = ['1st Year','2nd Year','3rd Year','4th Year']
 
@@ -148,7 +153,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
             const maxVal = Math.max(...Object.values(group.byGrade), 1)
             return (
               <div key={group.label} className="card-section">
-                <div className={`${group.bg} px-4 py-3 text-white`}>
+                <div className={`${group.bg} px-4 py-3 ${group.onColor}`}>
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wider opacity-90">{group.label}</p>
                     <span className="text-2xl font-bold">{group.total}</span>
@@ -284,14 +289,25 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
     rejected: campusEnrollments.filter(e => e.status === 'rejected').length,
   }
 
-  const progColors = ['bg-primary','bg-secondary','bg-light-secondary','bg-blue-500']
+  // Solid-fill-safe text per background — PROG_COLORS' own `text` field is
+  // designed for pairing with its pale `light`/`lightBg` variant, not the
+  // solid `bg` used here, so that can't be reused directly for this case.
+  const ON_COLOR_FOR_BG = {
+    'bg-primary':         'text-[var(--color-primary-contrast)]',
+    'bg-secondary':       'text-[var(--color-secondary-contrast)]',
+    // Fixed neutral, not tied to a school's custom color — see tailwind.config.js
+    // + index.css (#7A7A7A light mode / #f8fcfd dark mode).
+    'bg-light-secondary': 'text-white dark:text-gray-900',
+    'bg-violet-600':      'text-white',
+  }
+  const progColors = PROG_COLORS.map(c => c.bg)
 
   const programBarData = {
     labels: programs,
     datasets: [
       { label: '1st Year', data: programs.map(p => programStats[p]?.byYear['1st Year'] || 0), backgroundColor: 'var(--color-primary)' },
       { label: '2nd Year', data: programs.map(p => programStats[p]?.byYear['2nd Year'] || 0), backgroundColor: 'var(--color-secondary)' },
-      { label: '3rd Year', data: programs.map(p => programStats[p]?.byYear['3rd Year'] || 0), backgroundColor: '#202682' },
+      { label: '3rd Year', data: programs.map(p => programStats[p]?.byYear['3rd Year'] || 0), backgroundColor: 'var(--color-secondary-light)' },
       { label: '4th Year', data: programs.map(p => programStats[p]?.byYear['4th Year'] || 0), backgroundColor: '#6b7280' },
     ],
   }
@@ -305,7 +321,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
   return (
     <div className="space-y-4">
       {/* Campus identity card — dark blue, same as registrar_college */}
-      <div className="bg-secondary rounded-2xl p-5 text-white shadow-sm">
+      <div className="bg-secondary rounded-2xl p-5 text-[var(--color-secondary-contrast)] shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -328,7 +344,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Students',    value: campusStudents.length,  border: 'border-primary',     icon: <Users className="w-5 h-5 text-primary"/>,            sub: 'All programs combined' },
+          { label: 'Total Students',    value: campusStudents.length,  border: 'border-[var(--color-primary-readable)]',     icon: <Users className="w-5 h-5 text-[var(--color-primary-readable)]"/>,            sub: 'All programs combined' },
           { label: 'Pending Review',    value: enrollStats.pending,    border: 'border-yellow-500',  icon: <Clock className="w-5 h-5 text-yellow-500"/>,         sub: `${enrollStats.total > 0 ? Math.round(enrollStats.pending/enrollStats.total*100) : 0}% of total` },
           { label: 'Approved',          value: enrollStats.approved,   border: 'border-green-500',   icon: <CheckCircle className="w-5 h-5 text-green-500"/>,    sub: `${enrollStats.total > 0 ? Math.round(enrollStats.approved/enrollStats.total*100) : 0}% approval rate` },
           { label: 'Total Enrollments', value: enrollStats.total,      border: 'border-blue-500',    icon: <FileText className="w-5 h-5 text-blue-500"/>,        sub: currentSchoolYear },
@@ -347,16 +363,17 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
       {/* Program cards — identical to registrar_college */}
       <div>
         <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-          <GraduationCap className="w-4 h-4 text-primary" /> Program Overview
+          <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" /> Program Overview
         </h2>
         <div className={`grid gap-4 ${programs.length === 1 ? 'grid-cols-1 max-w-sm' : programs.length === 2 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
           {programs.map((prog, idx) => {
             const pd = programStats[prog]
             const color = progColors[idx % progColors.length]
+            const onColor = ON_COLOR_FOR_BG[color] || 'text-white'
             const maxCount = Math.max(...YEAR_LEVELS.map(y => pd.byYear[y]), 1)
             return (
               <div key={prog} className="card-section">
-                <div className={`${color} px-5 py-4 text-white`}>
+                <div className={`${color} px-5 py-4 ${onColor}`}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-medium opacity-80 uppercase tracking-wider">Program</p>
@@ -410,7 +427,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
       <div className="card-section">
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary" /> Recent Enrollment Applications
+            <FileText className="w-4 h-4 text-[var(--color-primary-readable)]" /> Recent Enrollment Applications
           </h3>
           <span className="text-xs text-[var(--color-text-muted)]">{campusEnrollments.length} total</span>
         </div>
@@ -423,7 +440,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
               {campusEnrollments.slice(0, 8).map(e => (
                 <li key={e.id} className="px-4 py-3 flex items-start gap-3">
                   <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <GraduationCap className="w-4 h-4 text-primary" />
+                    <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -431,7 +448,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
                       <StatusDot status={e.status} />
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{e.enrollment.gradeLevel} · {e.enrollment.studentType}</p>
-                    <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
+                    <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
                   </div>
                 </li>
               ))}
@@ -449,7 +466,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {campusEnrollments.map(e => (
                     <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
-                      <td className="px-4 py-3 font-mono text-xs text-primary dark:text-red-400 whitespace-nowrap">{e.referenceNumber}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--color-primary-readable)] whitespace-nowrap">{e.referenceNumber}</td>
                       <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{e.enrollment.studentType}</td>
@@ -768,7 +785,7 @@ export default function Students() {
             </p>
           </div>
           <button onClick={handleAdminExport}
-            className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+            className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export All
           </button>
         </div>
@@ -844,7 +861,7 @@ export default function Students() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Students', value: stats.total,     border: 'border-primary',   sub: isCampusLocked ? user.campus : (campusFilter !== 'all' ? activeCampuses.find(c=>c.key===campusFilter)?.name||campusFilter : 'All Campuses'), subCls: 'text-[var(--color-text-muted)]' },
+          { label: 'Total Students', value: stats.total,     border: 'border-[var(--color-primary-readable)]',   sub: isCampusLocked ? user.campus : (campusFilter !== 'all' ? activeCampuses.find(c=>c.key===campusFilter)?.name||campusFilter : 'All Campuses'), subCls: 'text-[var(--color-text-muted)]' },
           { label: 'Active',         value: stats.active,    border: 'border-green-500', sub: `${stats.total>0?Math.round(stats.active/stats.total*100):0}% of total`, subCls: 'text-green-600 dark:text-green-400' },
           { label: 'Graduated',      value: stats.graduated, border: 'border-blue-500',  sub: 'Completed studies',      subCls: 'text-blue-600 dark:text-blue-400' },
           { label: 'Inactive',       value: stats.inactive,  border: 'border-gray-400',  sub: 'Not currently enrolled', subCls: 'text-[var(--color-text-muted)]' },
@@ -860,7 +877,7 @@ export default function Students() {
       {programBreakdown && Object.keys(programBreakdown).length > 0 && (
         <div className="card-section">
           <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-primary" />
+            <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Students by Program & Year Level</h2>
           </div>
           <div className="min-w-0">
@@ -879,7 +896,7 @@ export default function Students() {
                     <td className="px-5 py-3 font-medium text-[var(--color-text-primary)]">{program}</td>
                     {YEAR_LEVELS.map(yr => (
                       <td key={yr} className="px-4 py-3">
-                        {data.byYear[yr] ? <span className="inline-flex items-center justify-center w-7 h-7 bg-primary/10 dark:bg-primary/20 text-primary dark:text-red-300 text-xs font-bold rounded-full">{data.byYear[yr]}</span>
+                        {data.byYear[yr] ? <span className="inline-flex items-center justify-center w-7 h-7 bg-primary/10 dark:bg-primary/20 text-[var(--color-primary-readable)] text-xs font-bold rounded-full">{data.byYear[yr]}</span>
                           : <span className="text-[var(--color-text-muted)] opacity-50">—</span>}
                       </td>
                     ))}
@@ -907,7 +924,7 @@ export default function Students() {
           <div className="md:hidden p-4 grid grid-cols-2 gap-3">
             {basicBreakdown.map(group => (
               <div key={group.label} className="rounded-xl overflow-hidden border border-[var(--color-border)]">
-                <div className={`${group.bg} px-3 py-2 text-white flex items-center justify-between`}>
+                <div className={`${group.bg} px-3 py-2 ${group.onColor} flex items-center justify-between`}>
                   <span className="text-xs font-bold uppercase tracking-wide">{group.short}</span>
                   <span className="text-lg font-bold">{group.total}</span>
                 </div>
@@ -984,7 +1001,7 @@ export default function Students() {
           </div>
           <div className="col-span-2 flex gap-2">
             {hasFilters && <button onClick={clearFilters} className="flex-1 px-3 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">Clear</button>}
-            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-primary text-white rounded-lg hover:bg-accent-burgundy transition flex items-center justify-center gap-1.5">
+            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-1.5">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>
@@ -999,13 +1016,13 @@ export default function Students() {
               {filtered.map(s => (
                 <li key={s.id}>
                   <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-primary" /></div>
+                    <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{s.personal.firstName} {s.personal.lastName}</span>
                         <StatusBadge status={s.status} />
                       </div>
-                      <p className="text-xs font-mono text-primary dark:text-red-400 mb-0.5">{s.studentId}</p>
+                      <p className="text-xs font-mono text-[var(--color-primary-readable)] mb-0.5">{s.studentId}</p>
                       <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
                         <span>{s.academic.gradeLevel}</span>
                         {!isCampusLocked && (<>
@@ -1031,10 +1048,10 @@ export default function Students() {
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {filtered.map(s => (
                     <tr key={s.id} className="hover:bg-[var(--color-bg-subtle)]/50 transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-primary dark:text-red-400 whitespace-nowrap">{s.studentId}</td>
+                      <td className="px-4 py-3 text-sm font-mono font-medium text-[var(--color-primary-readable)] whitespace-nowrap">{s.studentId}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-4 h-4 text-primary" /></div>
+                          <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                           <div>
                             <p className="text-sm font-medium text-[var(--color-text-primary)]">{s.personal.firstName} {s.personal.lastName}</p>
                             <p className="text-xs text-[var(--color-text-muted)]">{s.personal.email}</p>
@@ -1048,7 +1065,7 @@ export default function Students() {
                       <td className="px-4 py-3 text-sm text-[var(--color-text-muted)] whitespace-nowrap">{fmtDate(s.enrollmentDate)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-accent-burgundy font-medium transition">
+                          <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                             <Eye className="w-4 h-4" /> View
                           </button>
                           <button onClick={() => handlePrintClick(s)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"><Printer className="w-4 h-4" /></button>
@@ -1072,7 +1089,7 @@ export default function Students() {
           <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-5xl max-h-[92vh] flex flex-col">
             <div className="modal-header">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-6 h-6 text-primary" /></div>
+                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-6 h-6 text-[var(--color-primary-readable)]" /></div>
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-xl font-bold text-[var(--color-text-primary)] truncate">{selectedStudent.personal.firstName} {selectedStudent.personal.lastName}</h2>
                   <p className="text-xs text-[var(--color-text-muted)]">{selectedStudent.studentId}</p>
@@ -1083,7 +1100,7 @@ export default function Students() {
                   onClick={() => handleDownloadPDF(selectedStudent)}
                   disabled={isDownloading}
                   title="Download as PDF"
-                  className="p-2 bg-primary text-white rounded-lg hover:bg-accent-burgundy transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isDownloading
                     ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -1131,7 +1148,7 @@ export default function Students() {
             </div>
             <div className="px-5 py-4 border-t border-[var(--color-border)] flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-[var(--color-bg-subtle)] flex-shrink-0">
               <button onClick={() => setShowModal(false)} className="btn-cancel">Close</button>
-              <button onClick={() => handlePrintClick(selectedStudent)} className="px-5 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition flex items-center justify-center gap-2 font-medium">
+              <button onClick={() => handlePrintClick(selectedStudent)} className="px-5 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-2 font-medium">
                 <Printer className="w-4 h-4" /> Print PDF
               </button>
             </div>

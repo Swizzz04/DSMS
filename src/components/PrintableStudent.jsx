@@ -1,7 +1,30 @@
 import { forwardRef } from 'react'
 
+/**
+ * Reads school name + primary brand color from almirene_website_content
+ * (School Info settings) — same source Sidebar.jsx / Login.jsx read from.
+ * Falls back to the live --color-primary CSS variable (set by
+ * themeInitializer.js) if no brand color has been configured yet.
+ */
+function getSchoolBrand() {
+  let name = 'School Management System'
+  let primaryColor = '#F4FAFC'
+  try {
+    const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
+    if (saved.schoolName)   name = saved.schoolName
+    if (saved.primaryColor) primaryColor = saved.primaryColor
+    else if (typeof document !== 'undefined') {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim()
+      if (v) primaryColor = v
+    }
+  } catch {}
+  return { name, primaryColor }
+}
+
 const PrintableStudent = forwardRef(({ student }, ref) => {
   if (!student) return null
+  const { name: schoolName, primaryColor } = getSchoolBrand()
+  const schoolInitial = schoolName.trim().charAt(0).toUpperCase() || 'S'
 
   return (
     <>
@@ -42,7 +65,7 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
 
         /* ── Section header bar ── */
         .pr-sec {
-          background-color: #750014;
+          background-color: ${primaryColor};
           color: #fff;
           font-weight: bold;
           font-size: 9pt;
@@ -86,7 +109,7 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
         .pr-sub {
           font-size: 8.5pt;
           font-weight: 700;
-          color: #750014;
+          color: ${primaryColor};
           margin-bottom: 5px;
           margin-top: 5px;
         }
@@ -99,18 +122,18 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
       <div ref={ref} className="print-root">
 
         {/* ══ HEADER ══ */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'3px solid #750014', paddingBottom:'8px', marginBottom:'4px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:`3px solid ${primaryColor}`, paddingBottom:'8px', marginBottom:'4px' }}>
           <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
-            <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:'#750014', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <span style={{ color:'#fff', fontWeight:'bold', fontSize:'16pt' }}>C</span>
+            <div style={{ width:'52px', height:'52px', borderRadius:'50%', background:primaryColor, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <span style={{ color:'#fff', fontWeight:'bold', fontSize:'16pt' }}>{schoolInitial}</span>
             </div>
             <div>
-              <div style={{ fontSize:'16pt', fontWeight:'bold', color:'#750014', lineHeight:1 }}>Cebu Sacred Heart College</div>
+              <div style={{ fontSize:'16pt', fontWeight:'bold', color:primaryColor, lineHeight:1 }}>{schoolName}</div>
               <div style={{ fontSize:'8.5pt', color:'#555', marginTop:'3px' }}>ALMIRENE DX Admin Portal — Official Student Profile</div>
             </div>
           </div>
           <div style={{ textAlign:'right', fontSize:'8pt', color:'#555' }}>
-            <div style={{ fontWeight:'bold', fontSize:'11pt', color:'#750014' }}>{student.studentId}</div>
+            <div style={{ fontWeight:'bold', fontSize:'11pt', color:primaryColor }}>{student.studentId}</div>
             <div style={{ marginTop:'3px' }}>
               <span style={{ background: student.status === 'active' ? '#dcfce7' : '#f3f4f6', color: student.status === 'active' ? '#166534' : '#374151', padding:'2px 9px', borderRadius:'10px', fontWeight:'bold', fontSize:'8pt' }}>
                 {student.status.toUpperCase()}
@@ -217,7 +240,7 @@ const PrintableStudent = forwardRef(({ student }, ref) => {
 
         {/* ══ FOOTER ══ */}
         <div style={{ textAlign:'center', fontSize:'7pt', color:'#aaa', marginTop:'8px', borderTop:'0.5px solid #eee', paddingTop:'5px' }}>
-          Cebu Sacred Heart College — ALMIRENE DX Admin Portal &nbsp;|&nbsp; This is a system-generated document. &nbsp;|&nbsp; {student.studentId}
+          {schoolName} — ALMIRENE DX Admin Portal &nbsp;|&nbsp; This is a system-generated document. &nbsp;|&nbsp; {student.studentId}
         </div>
 
       </div>

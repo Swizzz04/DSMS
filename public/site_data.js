@@ -1,17 +1,22 @@
 // ============================================================
-// CSHC WEBSITE — SINGLE SOURCE OF TRUTH
-// All content lives here. To add/edit anything on the website,
-// just update this file. No HTML or CSS changes needed.
+// ALMIRENE DX PUBLIC WEBSITE — SINGLE SOURCE OF TRUTH
+// Defaults live here. Anything a school configures in the Admin
+// Portal (Settings → School Info / Website Content) is read from
+// the shared 'almirene_website_content' localStorage key at load
+// time and overlaid on top of these defaults automatically.
+//
+// To add a NEW default (a field not yet editable in the admin
+// portal), just edit DEFAULTS below — no HTML/CSS changes needed.
 // ============================================================
 
-const SITE_DATA = {
+const DEFAULTS = {
 
   school: {
-    name:     'Cebu Sacred Heart College, Inc.',
-    nameShort:'CSHC',
-    tagline:  'Where Children Grow In Love and Knowledge.',
+    name:     'Sample Academy',
+    nameShort:'DEMO',
+    tagline:  'A great place to learn and grow.',
     founded:  '2005',
-    email:    'info@cshc.edu.ph',
+    email:    'info@example.edu.ph',
     phone:    '(032) XXX-XXXX',
     logoSrc:  'assets/logo1995.png',
     navLogoSrc: 'assets/logo1995.png',
@@ -39,8 +44,8 @@ const SITE_DATA = {
 
   about: {
     sectionLabel: 'Who We Are',
-    title:    'About Cebu Sacred Heart College',
-    subtitle: 'Nurturing minds and hearts since 2005 — building Christ-centered, globally competitive graduates.',
+    title:    'About Our School',
+    subtitle: 'Nurturing minds and hearts — building competent, values-driven graduates.',
     cards: [
       {
         title: 'Our Mission',
@@ -49,7 +54,7 @@ const SITE_DATA = {
       },
       {
         title: 'Our Vision',
-        content: 'CSHC envisions to produce graduates who are Christ-centered, critical thinkers, service-oriented, and globally competitive.',
+        content: 'We envision producing graduates who are values-driven, critical thinkers, service-oriented, and globally competitive.',
         type: 'text',
       },
       {
@@ -57,7 +62,7 @@ const SITE_DATA = {
         type: 'ordered-list',
         items: [
           'Consistent pursuit of academic excellence.',
-          'Faithful adherence to Christian values and virtue.',
+          'Faithful adherence to core values and virtue.',
           'Learning environment conducive to holistic formation.',
           'Continuous faculty development.',
           'Promotion of academic and cultural development.',
@@ -69,7 +74,7 @@ const SITE_DATA = {
       {
         title: 'Core Values',
         type: 'unordered-list',
-        items: ['Integrity', 'Christ-centered', 'Excellence'],
+        items: ['Integrity', 'Excellence', 'Service'],
       },
     ],
   },
@@ -133,13 +138,6 @@ const SITE_DATA = {
       features:    ['General Academic Strand', 'Skills development', 'Specialized subjects'],
       highlight:   false,
     },
-    {
-      title:       'College',
-      age:         '4-Year Program',
-      description: 'BS in Criminology — training future law enforcement professionals.',
-      features:    ['Board exam preparation', 'Practical training', 'Professional instructors'],
-      highlight:   true,
-    },
   ],
 
   requirements: [
@@ -158,9 +156,9 @@ const SITE_DATA = {
 
   contact: {
     campuses: [
-      { name: 'Talisay City Campus (Main)', address: 'Lawaan 1, Talisay City, Cebu',  phone: '(032) XXX-XXXX', email: 'talisaysacredheart@gmail.com' },
-      { name: 'Carcar City Campus',         address: 'Valladolid, Carcar City, Cebu', phone: '(032) XXX-XXXX', email: 'carcarsacredheart@gmail.com'  },
-      { name: 'Bohol Campus',               address: 'Tagbilaran, Bohol',             phone: '(032) XXX-XXXX', email: 'boholsacredheart@gmail.com'   },
+      { name: 'Talisay City Campus (Main)', address: 'Lawaan 1, Talisay City, Cebu',  phone: '(032) XXX-XXXX', email: '' },
+      { name: 'Carcar City Campus',         address: 'Valladolid, Carcar City, Cebu', phone: '(032) XXX-XXXX', email: '' },
+      { name: 'Bohol Campus',               address: 'Tagbilaran, Bohol',             phone: '(032) XXX-XXXX', email: '' },
     ],
     officeHours: [
       'Monday - Friday: 8:00 AM - 5:00 PM',
@@ -186,14 +184,10 @@ const SITE_DATA = {
       q: 'Can I enroll online?',
       a: 'Yes! Submit your form online, then proceed to any campus to complete requirements and payment.',
     },
-    {
-      q: 'What programs are offered at each campus?',
-      a: 'All campuses offer Basic Education (Pre-Elem to SHS). College programs are at Talisay (BS Nursing, BS Tourism, BS Hospitality Management) and Carcar (BS Criminology). Bohol offers Pre-Elementary to Junior High.',
-    },
   ],
 
   footer: {
-    credit: 'Developed by Alvin Gonzales',
+    credit: 'Powered by ALMIRENE DX',
     social: [
       { icon: '📘', label: 'Facebook', href: '#' },
       { icon: '📧', label: 'Email',    href: '#' },
@@ -202,3 +196,45 @@ const SITE_DATA = {
   },
 
 };
+
+// ── Overlay admin-configured content on top of the defaults ────────
+// Same shared key + layered-override pattern the Admin Portal itself
+// uses (localStorage overrides > hardcoded defaults) — see
+// AppConfigContext.jsx. Only fields the admin has actually set are
+// applied; anything missing/blank falls back to DEFAULTS above.
+function buildSiteData(defaults) {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}');
+  } catch (e) { saved = {}; }
+
+  // Shallow-clone so we never mutate DEFAULTS itself
+  const data = JSON.parse(JSON.stringify(defaults));
+
+  const str = (v) => typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+  const arr = (v) => Array.isArray(v) && v.length > 0 ? v : null;
+
+  if (str(saved.schoolName)) { data.school.name = saved.schoolName; }
+  if (str(saved.motto))      { data.school.tagline = saved.motto; }
+  if (str(saved.email))      { data.school.email = saved.email; }
+  if (str(saved.phone))      { data.school.phone = saved.phone; }
+  if (str(saved.schoolYear)) { data.school.schoolYear = saved.schoolYear; }
+  if (str(saved.logoUrl))    { data.school.logoSrc = saved.logoUrl; data.school.navLogoSrc = saved.logoUrl; }
+
+  const findCard = (title) => data.about.cards.find(c => c.title === title);
+  if (str(saved.mission)) { const c = findCard('Our Mission'); if (c) c.content = saved.mission; }
+  if (str(saved.vision))  { const c = findCard('Our Vision');  if (c) c.content = saved.vision; }
+  if (arr(saved.goals))       { const c = findCard('Our Goals');  if (c) c.items = saved.goals; }
+  if (arr(saved.coreValues))  { const c = findCard('Core Values'); if (c) c.items = saved.coreValues; }
+
+  // programs/requirements/steps/faq shapes already match 1:1 with the
+  // admin editor (see Settings.jsx School Info tab) — safe to swap wholesale.
+  if (arr(saved.programs))     { data.programs = saved.programs; }
+  if (arr(saved.requirements)) { data.requirements = saved.requirements; }
+  if (arr(saved.steps))        { data.steps = saved.steps; }
+  if (arr(saved.faq))          { data.faq = saved.faq; }
+
+  return data;
+}
+
+const SITE_DATA = buildSiteData(DEFAULTS);

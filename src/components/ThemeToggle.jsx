@@ -10,7 +10,7 @@ export default function ThemeToggle() {
       className="p-2 rounded-[var(--radius-md)] transition-colors"
       style={{
         backgroundColor: 'var(--color-bg-muted)',
-        color: theme === 'light' ? 'var(--color-text-secondary)' : '#fbbf24',
+        color: theme === 'light' ? 'var(--color-text-secondary)' : 'var(--color-theme-toggle-icon)',
       }}
       onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle)'}
       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--color-bg-muted)'}

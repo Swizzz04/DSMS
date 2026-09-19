@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════
-   CSHC ADMIN PORTAL — Global Design System
+   ALMIRENE DX — Global Design System
    ───────────────────────────────────────────────────────────────────
    Sections:
      1. Reset & base
@@ -73,16 +73,27 @@ button, a, [role="button"] {
    2. DESIGN TOKENS
    ───────────────────────────────────────────────────────────────── */
 :root {
-  /* ── Brand colors ─────────────────────────────── */
-  --color-primary:          #750014;   /* CSHC burgundy red        */
-  --color-primary-hover:    #5a0010;   /* darker on hover          */
-  --color-primary-light:    #f9e8eb;   /* light tint for badges    */
-  --color-primary-muted:    rgba(117, 0, 20, 0.08);
+  /* ── Brand colors (SaaS-neutral defaults — each client sets their own
+     via Settings → School Info on turnover; these are placeholder-only) */
+  --color-primary:          #F4FAFC;
+  --color-primary-rgb:      244 250 252;   /* for bg-primary/NN opacity utilities */
+  --color-primary-hover:    #C3C8CA;   /* darken(primary, 20%)      */
+  --color-primary-light:    #FEFFFF;   /* lighten(primary, 92%)     */
+  --color-primary-muted:    rgba(244, 250, 252, 0.08);
 
-  --color-secondary:        #080c42;   /* CSHC navy                */
-  --color-secondary-hover:  #060931;
-  --color-secondary-light:  #202682;   /* lighter navy             */
-  --color-secondary-muted:  rgba(8, 12, 66, 0.08);
+  --color-secondary:        #212121;
+  --color-secondary-rgb:    33 33 33;      /* for bg-secondary/NN opacity utilities */
+  --color-secondary-hover:  #1A1A1A;   /* darken(secondary, 20%)    */
+  --color-secondary-light:  #7A7A7A;   /* lighten(secondary, 40%)   */
+  --color-secondary-muted:  rgba(33, 33, 33, 0.08);
+
+  /* ── Contrast-safe derived colors (computed by themeInitializer.js at
+     runtime for whatever primary/secondary is actually configured — these
+     are just the static first-paint fallback matching the current defaults) */
+  --color-primary-contrast:    #1a1a1a;  /* text ON a bg-primary fill */
+  --color-secondary-contrast:  #ffffff;  /* text ON a bg-secondary fill */
+  --color-primary-readable:    #646667;  /* text-primary/border-primary on the page bg */
+  --color-secondary-readable:  #212121;  /* text-secondary/border-secondary on the page bg */
 
   /* ── Surface colors (light mode) ─────────────── */
   --color-bg-page:          #f4f5f0;   /* warm off-white page bg   */
@@ -100,7 +111,7 @@ button, a, [role="button"] {
   /* ── Text colors (light mode) ────────────────── */
   --color-text-primary:     #1a1a1a;
   --color-text-secondary:   #4a4a4a;
-  --color-text-muted:       #8a8a8a;
+  --color-text-muted:       #463f3a;   /* light mode — dark mode override is set separately below (#bebcba) */
   --color-text-inverse:     #ffffff;
 
   /* ── Semantic colors ──────────────────────────── */
@@ -119,6 +130,15 @@ button, a, [role="button"] {
   --color-info:             #2563eb;
   --color-info-light:       #eff6ff;
   --color-info-border:      #bfdbfe;
+
+  /* ── Theme toggle icon ─────────────────────────── */
+  /* Was hardcoded directly in ThemeToggle.jsx. Kept separate from
+     --color-warning on purpose — this is a decorative icon accent,
+     not a status color, so retuning "warning" elsewhere shouldn't
+     shift the toggle icon too. Unused in light mode today (the moon
+     icon there uses --color-text-secondary instead); defined here
+     for consistency and in case that changes later. */
+  --color-theme-toggle-icon: #d97706;
 
   /* ── Status badge colors ──────────────────────── */
   --color-pending-bg:       #fefce8;
@@ -183,11 +203,11 @@ button, a, [role="button"] {
 
 /* ── Dark mode token overrides ─────────────────── */
 .dark {
-  --color-bg-page:          #0f1117;
-  --color-bg-card:          #1a1d27;
-  --color-bg-card-hover:    #1f2235;
-  --color-bg-subtle:        #161824;
-  --color-bg-muted:         #13151f;
+  --color-bg-page:          #1A1A1A;
+  --color-bg-card:          #212121;
+  --color-bg-card-hover:    #333333;
+  --color-bg-subtle:        #252525;
+  --color-bg-muted:         #1f1f1f;
 
 
   --color-border:           #2a2d3e;
@@ -196,7 +216,29 @@ button, a, [role="button"] {
 
   --color-text-primary:     #f0f0ee;
   --color-text-secondary:   #a8a8b0;
-  --color-text-muted:       #6a6a78;
+  --color-text-muted:       #B5ACA6;   /* same warm-brown hue as light-mode #463f3a, raised lightness for contrast against dark backgrounds */
+
+  /* ── Dark-mode default brand colors ─────────────
+     Only applies when a school hasn't picked their own primary/secondary via
+     Settings → School Info — themeInitializer.js resolves a school's actual
+     custom color the same in both modes (their brand identity shouldn't
+     "swap" between light/dark), and only falls back to these mode-specific
+     defaults when nothing's been configured. See applyTheme() for the logic. */
+  --color-primary:          #1A1A1A;
+  --color-primary-rgb:      26 26 26;
+  --color-primary-hover:    #000000;
+  --color-primary-light:    #ededed;
+
+  --color-secondary:        #F4FAFC;
+  --color-secondary-rgb:    244 250 252;
+  --color-secondary-hover:  #c1c7c9;
+  --color-secondary-light:  #f8fcfd;
+
+  /* Contrast-safe derived colors, dark mode fallback (see :root above) */
+  --color-primary-contrast:    #ffffff;
+  --color-secondary-contrast:  #1a1a1a;
+  --color-primary-readable:    #b7b7b7;
+  --color-secondary-readable:  #f4fafc;
 
   --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -204,8 +246,8 @@ button, a, [role="button"] {
   --shadow-lg:   0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.2);
   --shadow-modal:0 20px 40px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
 
-  --color-primary-muted:    rgba(117, 0, 20, 0.15);
-  --color-secondary-muted:  rgba(32, 38, 130, 0.25);
+  --color-primary-muted:    rgba(26, 26, 26, 0.35);
+  --color-secondary-muted:  rgba(244, 250, 252, 0.15);
 
   --color-success-light:    rgba(22, 163, 74, 0.12);
   --color-success-border:   rgba(22, 163, 74, 0.25);
@@ -215,6 +257,8 @@ button, a, [role="button"] {
   --color-error-border:     rgba(220, 38, 38, 0.25);
   --color-info-light:       rgba(37, 99, 235, 0.12);
   --color-info-border:      rgba(37, 99, 235, 0.25);
+
+  --color-theme-toggle-icon: #fbbf24;
 
   --color-pending-bg:       rgba(202, 138, 4, 0.12);
   --color-pending-text:     #fbbf24;
@@ -516,7 +560,12 @@ button, a, [role="button"] {
   background-color: var(--color-bg-card);
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-primary);
+  /* --color-primary-readable, not --color-primary: the latter is a FILL color
+     (meant for button backgrounds, where contrastOn() picks matching text) and
+     can be too pale or too dark to read as a thin border — see
+     themeInitializer.js. Pages that need a specific accent (success/warning/
+     error) override this inline; this is just the default. */
+  border-left: 4px solid var(--color-primary-readable);
   box-shadow: var(--shadow-sm);
   padding: var(--space-5);
   transition: box-shadow var(--t-base), transform var(--t-base);
@@ -555,13 +604,13 @@ button, a, [role="button"] {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-contrast);
 }
 .btn-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
 
 .btn-secondary {
   background-color: var(--color-secondary);
-  color: #ffffff;
+  color: var(--color-secondary-contrast);
 }
 .btn-secondary:hover:not(:disabled) { background-color: var(--color-secondary-hover); }
 
@@ -652,7 +701,7 @@ button, a, [role="button"] {
 }
 .nav-item.active {
   background-color: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-contrast);
 }
 
 /* ── Modal open — prevent body scroll ─────────── */
@@ -674,7 +723,7 @@ body.modal-open {
 .icon-btn-primary {
   padding: 8px;
   background-color: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-contrast);
   border-radius: var(--radius-lg);
   border: none;
   cursor: pointer;
@@ -804,7 +853,7 @@ body.modal-open {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--color-primary-contrast);
   background-color: var(--color-primary);
   border: none;
   border-radius: var(--radius-xl);
@@ -893,7 +942,7 @@ body.modal-open {
 
 .icon-btn-primary {
   background-color: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-primary-contrast);
 }
 .icon-btn-primary:hover:not(:disabled) { background-color: var(--color-primary-hover); }
 
@@ -1055,7 +1104,7 @@ body.modal-open {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--color-primary-contrast);
   background-color: var(--color-primary);
   border: none;
   border-radius: var(--radius-xl);

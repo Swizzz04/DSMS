@@ -7,7 +7,7 @@
  *  - All text-gray-* / dark:text-gray-* → var(--color-text-*)
  *  - hover:bg-gray-100 dark:hover:bg-gray-700 → var(--color-bg-subtle)
  *  - dropdownTransition helper removed — replaced by .dropdown-in + opacity toggle
- *  - Campus picker active state: --color-primary-muted bg + --color-primary text
+ *  - Campus picker active state: --color-secondary bg + white text
  *  - Logout hover: --color-error-light bg + --color-error text
  *  - No gradients, no shadow-2xl, no hardcoded dark: classes
  * ─────────────────────────────────────────────────────────────────
@@ -104,7 +104,7 @@ export default function Header({ toggleSidebar }) {
                 className="flex items-center gap-1.5 rounded-[var(--radius-md)] border transition-all px-2.5 py-2"
                 style={
                   campusFilter !== 'all'
-                    ? { backgroundColor: 'var(--color-primary)', color: '#ffffff', borderColor: 'var(--color-primary)' }
+                    ? { backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-contrast)', borderColor: 'var(--color-primary)' }
                     : { backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', borderColor: 'transparent' }
                 }
               >
@@ -276,21 +276,21 @@ function Avatar({ src, size = 'w-9 h-9' }) {
     >
       {src
         ? <img src={src} alt="avatar" className="w-full h-full object-cover" />
-        : <User className="w-5 h-5 text-white" />
+        : <User className="w-5 h-5 text-[var(--color-primary-contrast)]" />
       }
     </div>
   )
 }
 
-/** Campus picker list item — active state uses primary-muted bg */
+/** Campus picker list item — active state uses secondary bg + contrast-safe text */
 function CampusOption({ label, dotColor, isActive, onClick }) {
   return (
     <button
       onClick={onClick}
       className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors"
       style={{
-        backgroundColor: isActive ? 'var(--color-primary-muted)' : 'transparent',
-        color:           isActive ? 'var(--color-primary)'        : 'var(--color-text-secondary)',
+        backgroundColor: isActive ? 'var(--color-secondary)' : 'transparent',
+        color:           isActive ? 'var(--color-secondary-contrast)' : 'var(--color-text-secondary)',
         fontWeight:      isActive ? 600 : 400,
       }}
       onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle)' }}
@@ -299,7 +299,7 @@ function CampusOption({ label, dotColor, isActive, onClick }) {
       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
       <span className="truncate">{label}</span>
       {isActive && (
-        <span className="ml-auto text-xs" style={{ color: 'var(--color-primary)' }}>✓</span>
+        <span className="ml-auto text-xs" style={{ color: 'var(--color-secondary-contrast)' }}>✓</span>
       )}
     </button>
   )

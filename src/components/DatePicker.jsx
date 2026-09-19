@@ -17,7 +17,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 
@@ -63,7 +63,13 @@ export default function DatePicker({
   const triggerRef = useRef(null)
   const panelRef = useRef(null)
 
-  // Position the dropdown relative to trigger
+  // Position the dropdown relative to trigger. Uses position: fixed with raw
+  // getBoundingClientRect() values (already viewport-relative — no scrollY/
+  // scrollX math needed, and adding it was actively wrong here: if this
+  // picker opens inside a modal whose scroll-lock sets document.body's own
+  // position, an absolute-positioned descendant re-anchors to body instead
+  // of the document, double-counting the scroll offset and landing the
+  // panel far from its trigger — same root cause GroupedSelect.jsx had.
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
@@ -72,9 +78,13 @@ export default function DatePicker({
     const goUp = spaceBelow < panelHeight && rect.top > panelHeight
 
     setDropPos({
-      top: goUp ? rect.top - panelHeight - 4 + window.scrollY : rect.bottom + 6 + window.scrollY,
-      left: Math.max(8, Math.min(rect.left + window.scrollX, window.innerWidth - 288)),
-      width: 280,
+      // Flipping up anchors by `bottom` (distance from the trigger), not a
+      // `top` computed from an assumed panel height — the year-picker view
+      // and calendar-grid view aren't always exactly the same height.
+      top:    goUp ? undefined : rect.bottom + 6,
+      bottom: goUp ? window.innerHeight - rect.top + 4 : undefined,
+      left:   Math.max(8, Math.min(rect.left, window.innerWidth - 288)),
+      width:  280,
     })
   }, [])
 
@@ -97,6 +107,16 @@ export default function DatePicker({
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', updatePosition)
     }
+  }, [open, updatePosition])
+
+  // Recompute right after opening, synchronously before paint — catches a
+  // click that lands right after (or during) a scroll gesture, before the
+  // scroll listener below has attached. See GroupedSelect.jsx for the same fix.
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePosition()
+    const raf = requestAnimationFrame(updatePosition)
+    return () => cancelAnimationFrame(raf)
   }, [open, updatePosition])
 
   // Sync view to value
@@ -134,7 +154,7 @@ export default function DatePicker({
     <div
       ref={panelRef}
       className="fixed z-[9999] bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl shadow-lg p-3 animate-fade-in"
-      style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, position: 'absolute' }}
+      style={{ top: dropPos.top, bottom: dropPos.bottom, left: dropPos.left, width: dropPos.width, position: 'fixed' }}
     >
       {showYearPicker ? (
         <div>
@@ -154,15 +174,15 @@ export default function DatePicker({
               <button key={y} type="button"
                 onClick={() => { setViewYear(y); setShowYearPicker(false) }}
                 className={`py-2 rounded-lg text-xs font-medium transition ${
-                  y === viewYear ? 'bg-primary text-white'
-                  : y === today.getFullYear() ? 'bg-primary/10 text-primary font-bold'
+                  y === viewYear ? 'bg-primary text-[var(--color-primary-contrast)]'
+                  : y === today.getFullYear() ? 'bg-primary/10 text-[var(--color-primary-readable)] font-bold'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
                 }`}
               >{y}</button>
             ))}
           </div>
           <div className="mt-2 pt-2 border-t border-[var(--color-border)] flex justify-center">
-            <button type="button" onClick={() => setShowYearPicker(false)} className="text-[11px] font-medium text-primary hover:underline">Back to Calendar</button>
+            <button type="button" onClick={() => setShowYearPicker(false)} className="text-[11px] font-medium text-[var(--color-primary-readable)] hover:underline">Back to Calendar</button>
           </div>
         </div>
       ) : (
@@ -174,7 +194,7 @@ export default function DatePicker({
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button type="button" onClick={() => { setYearPageStart(Math.floor(viewYear / 20) * 20); setShowYearPicker(true) }}
-              className="text-sm font-semibold text-[var(--color-text-primary)] hover:text-primary transition px-2 py-1 rounded-lg hover:bg-primary/5">
+              className="text-sm font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-primary-readable)] transition px-2 py-1 rounded-lg hover:bg-primary/5">
               {MONTHS[viewMonth]} {viewYear}
             </button>
             <button type="button" onClick={nextMonth}
@@ -200,8 +220,8 @@ export default function DatePicker({
               return (
                 <button key={day} type="button" onClick={() => selectDate(day)}
                   className={`w-full aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition ${
-                    isSelected ? 'bg-primary text-white shadow-sm'
-                    : isToday ? 'bg-primary/10 text-primary font-bold'
+                    isSelected ? 'bg-primary text-[var(--color-primary-contrast)] shadow-sm'
+                    : isToday ? 'bg-primary/10 text-[var(--color-primary-readable)] font-bold'
                     : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)]'
                   }`}
                 >{day}</button>
@@ -213,7 +233,7 @@ export default function DatePicker({
           <div className="mt-2 pt-2 border-t border-[var(--color-border)] flex justify-center">
             <button type="button"
               onClick={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); selectDate(today.getDate()) }}
-              className="text-[11px] font-medium text-primary hover:underline">Today</button>
+              className="text-[11px] font-medium text-[var(--color-primary-readable)] hover:underline">Today</button>
           </div>
         </>
       )}

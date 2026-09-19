@@ -16,27 +16,27 @@ export const SYSTEM_USERS = [
   // ── System Admins (campus-locked) ─────────────────────────────
   {
     // System Admin — Carcar campus IT
-    // Email: sysadmin.  Password: sysadmin123
+    // Email: sysadmin.carcar@school.edu.ph  Password: sysadmin123
     id: 30, name: 'Carcar System Admin',
-    email: 'sysadmin.',
+    email: 'sysadmin.carcar@school.edu.ph',
     passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
     role: 'system_admin', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     // System Admin — Talisay campus IT
-    // Email: sysadmin.  Password: sysadmin123
+    // Email: sysadmin.talisay@school.edu.ph  Password: sysadmin123
     id: 31, name: 'Talisay System Admin',
-    email: 'sysadmin.',
+    email: 'sysadmin.talisay@school.edu.ph',
     passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
     role: 'system_admin', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: null,
   },
   {
     // System Admin — Bohol campus IT
-    // Email: sysadmin.  Password: sysadmin123
+    // Email: sysadmin.bohol@school.edu.ph  Password: sysadmin123
     id: 32, name: 'Bohol System Admin',
-    email: 'sysadmin.',
+    email: 'sysadmin.bohol@school.edu.ph',
     passwordHash: 'beca88f0e2c27d8d8c093bd80b2f7f6245466f97b00f3cc8c78ca4049278cc9a',
     role: 'system_admin', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: null,
@@ -44,35 +44,35 @@ export const SYSTEM_USERS = [
   // ── Talisay ─────────────────────────────────────────────────────
   {
     id: 2, name: 'Talisay Basic Ed Registrar',
-    email: 'registrar.basic@school.edu.ph',
+    email: 'registrar.basic.talisay@school.edu.ph',
     passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_basic', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: '2026-03-05T09:15:00',
   },
   {
     id: 3, name: 'Talisay College Registrar',
-    email: 'registrar.college.',
+    email: 'registrar.college.talisay@school.edu.ph',
     passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_college', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: '2026-03-04T14:20:00',
   },
   {
     id: 9, name: 'Talisay Accounting Officer',
-    email: 'accounting.',
+    email: 'accounting.talisay@school.edu.ph',
     passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
     role: 'accounting', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: null,
   },
   {
     id: 12, name: 'Talisay Principal',
-    email: 'principal.',
+    email: 'principal.talisay@school.edu.ph',
     passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
     role: 'principal_basic', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: null,
   },
   {
     id: 13, name: 'Talisay Program Head',
-    email: 'programhead.',
+    email: 'programhead.talisay@school.edu.ph',
     passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
     role: 'program_head', campus: 'Talisay City Campus', campusKey: 'Talisay',
     status: 'active', lastLogin: null,
@@ -80,35 +80,35 @@ export const SYSTEM_USERS = [
   // ── Carcar ──────────────────────────────────────────────────────
   {
     id: 7, name: 'Carcar Basic Ed Registrar',
-    email: 'registrar.basic.',
+    email: 'registrar.basic.carcar@school.edu.ph',
     passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: '2026-03-04T08:30:00',
   },
   {
     id: 6, name: 'Carcar College Registrar',
-    email: 'registrar.college@school.edu.ph',
+    email: 'registrar.college.carcar@school.edu.ph',
     passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_college', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: '2026-03-04T14:20:00',
   },
   {
     id: 10, name: 'Carcar Accounting Officer',
-    email: 'accounting.',
+    email: 'accounting.carcar@school.edu.ph',
     passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
     role: 'accounting', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     id: 14, name: 'Carcar Principal',
-    email: 'principal.',
+    email: 'principal.carcar@school.edu.ph',
     passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
     role: 'principal_basic', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
   },
   {
     id: 15, name: 'Carcar Program Head',
-    email: 'programhead.',
+    email: 'programhead.carcar@school.edu.ph',
     passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
     role: 'program_head', campus: 'Carcar City Campus', campusKey: 'Carcar',
     status: 'active', lastLogin: null,
@@ -116,21 +116,21 @@ export const SYSTEM_USERS = [
   // ── Bohol ───────────────────────────────────────────────────────
   {
     id: 8, name: 'Bohol Basic Ed Registrar',
-    email: 'registrar.basic.',
+    email: 'registrar.basic.bohol@school.edu.ph',
     passwordHash: 'e62d4aac050d801ca012d4bf47071efa53beccbe78bbc73593a0cdfe6da8d8b7',
     role: 'registrar_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: '2026-03-03T07:45:00',
   },
   {
     id: 11, name: 'Bohol Accounting Officer',
-    email: 'accounting.',
+    email: 'accounting.bohol@school.edu.ph',
     passwordHash: 'e33aaf52d546e1633eb40bf31a738dfd24e67d25ae44ada3d793464324b5bc97',
     role: 'accounting', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: null,
   },
   {
     id: 16, name: 'Bohol Principal',
-    email: 'principal.',
+    email: 'principal.bohol@school.edu.ph',
     passwordHash: '3549f22fb8622a6d216ef2dcd592e04ed1f1e604cef032d7e5c425e8e72a878e',
     role: 'principal_basic', campus: 'Bohol Campus', campusKey: 'Bohol',
     status: 'active', lastLogin: null,

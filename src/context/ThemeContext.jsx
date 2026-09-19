@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { applyTheme as applyBrandColors } from '../utils/themeInitializer'
 
 const ThemeContext = createContext()
 
@@ -44,6 +45,9 @@ function applyTheme(theme) {
   } else {
     document.documentElement.classList.remove('dark')
   }
+  // Contrast-safe colors (--color-primary-readable etc.) depend on whether
+  // we're in light or dark mode — recompute them now that the mode changed.
+  applyBrandColors()
 }
 
 export function ThemeProvider({ children }) {

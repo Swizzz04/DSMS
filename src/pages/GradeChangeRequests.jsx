@@ -204,7 +204,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                   <div className="space-y-1 max-h-72 overflow-y-auto">
                     {filtered.map(g => (
                       <button key={`${g.id}`} onClick={() => { setSelectedGrade(g); setStep(2) }}
-                        className="w-full text-left flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] hover:border-primary hover:bg-[var(--color-bg-subtle)] transition-colors">
+                        className="w-full text-left flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] hover:border-[var(--color-primary-readable)] hover:bg-[var(--color-bg-subtle)] transition-colors">
                         <div>
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">{g.studentName}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">
@@ -229,7 +229,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                 <div className="p-4 rounded-xl bg-[var(--color-bg-subtle)] border border-[var(--color-border)]">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Grade to Correct</p>
-                    <button onClick={() => setStep(1)} className="text-xs text-primary hover:underline">Change</button>
+                    <button onClick={() => setStep(1)} className="text-xs text-[var(--color-primary-readable)] hover:underline">Change</button>
                   </div>
                   <p className="text-sm font-bold text-[var(--color-text-primary)]">{selectedGrade.studentName}</p>
                   <p className="text-xs text-[var(--color-text-muted)]">
@@ -393,7 +393,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 
           <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
             {/* Details grid */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
                 ['Student',       request.studentName],
                 ['Subject',       request.subjectName],
@@ -642,8 +642,8 @@ export default function GradeChangeRequests() {
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
                   ${statusFilter === f.id
-                    ? 'bg-primary text-white border-primary'
-                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary'}`}>
+                    ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                 {f.label}
               </button>
             ))}
@@ -699,7 +699,7 @@ export default function GradeChangeRequests() {
                     </p>
                     <div className="flex justify-end">
                       <button onClick={() => setSelected(req)}
-                        className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-primary">
+                        className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)]">
                         <Eye size={14} />
                       </button>
                     </div>

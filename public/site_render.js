@@ -1,5 +1,5 @@
 // ============================================================
-// CSHC WEBSITE — RENDERER
+// ALMIRENE DX PUBLIC WEBSITE — RENDERER
 // Reads SITE_DATA and builds all HTML dynamically.
 // Never edit this file to change content — edit site_data.js.
 // ============================================================
@@ -151,6 +151,7 @@
   document.getElementById('footerPhone').textContent      = D.school.phone;
   document.getElementById('footerCredit').textContent     = D.footer.credit;
   document.getElementById('footerYear').textContent       = new Date().getFullYear();
+  document.getElementById('footerCopyrightName').textContent = D.school.name;
 
   document.getElementById('footerQuickLinks').innerHTML = D.nav.filter(n => !n.cta).map(n =>
     `<li><a href="${esc(n.href)}">${esc(n.label)}</a></li>`
