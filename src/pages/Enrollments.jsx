@@ -96,7 +96,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
@@ -160,7 +160,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
                 <button onClick={() => toggle(`${campus.key}-college`)}
                   className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                   <div className="flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 text-primary" />
+                    <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />
                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">College</h3>
                     <span className="text-xs text-[var(--color-text-muted)]">· {collegeEnr.length} enrolled</span>
                   </div>
@@ -173,7 +173,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
                     const progEnr = campusEnr.filter(e => e.enrollment.gradeLevel?.startsWith(prog))
                     return (
                       <div key={prog} className="bg-[var(--color-bg-subtle)] rounded-lg p-3">
-                        <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">{prog}</p>
+                        <p className="text-[10px] font-semibold text-[var(--color-primary-readable)] uppercase tracking-wider mb-2">{prog}</p>
                         <div className="space-y-1">
                           {COLLEGE_YEAR_LEVELS.map(yr => {
                             const count = campusEnr.filter(e => e.enrollment.gradeLevel === `${prog} - ${yr}`).length
@@ -186,7 +186,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
                           })}
                           <div className="flex items-center justify-between pt-1 border-t border-[var(--color-border)]">
                             <span className="text-xs font-semibold text-[var(--color-text-secondary)]">Total</span>
-                            <span className="text-xs font-bold text-primary">{progEnr.length}</span>
+                            <span className="text-xs font-bold text-[var(--color-primary-readable)]">{progEnr.length}</span>
                           </div>
                         </div>
                       </div>
@@ -425,7 +425,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
               Close
             </button>
             <button onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-[#4a0009] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt (2 copies)
             </button>
           </div>
@@ -456,12 +456,12 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
           <div className="modal-header">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                <User className="w-5 h-5 text-primary"/>
+                <User className="w-5 h-5 text-[var(--color-primary-readable)]"/>
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">{name}</h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</span>
+                  <span className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</span>
                   <StatusBadge status={e.status}/>
                 </div>
               </div>
@@ -478,7 +478,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
               <h3 className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide flex items-center gap-1.5 mb-3">
                 <GraduationCap className="w-3.5 h-3.5"/> Enrollment Details
               </h3>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                 {[
                   ['Grade / Program', e.enrollment.gradeLevel],
                   ['Campus', e.enrollment.campus],
@@ -563,7 +563,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                   )}
                   <div className="flex justify-between font-bold text-[var(--color-text-primary)] border-t border-blue-200 dark:border-blue-700 pt-2 mt-1 text-sm">
                     <span>Grand Total</span>
-                    <span className="font-mono text-primary dark:text-red-400">{php(e.feeBreakdown.grandTotal || e.totalFee || 0)}</span>
+                    <span className="font-mono text-[var(--color-primary-readable)]">{php(e.feeBreakdown.grandTotal || e.totalFee || 0)}</span>
                   </div>
                 </div>
                 {/* Discounts applied tags */}
@@ -601,7 +601,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs mt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs mt-2">
                     <div className="bg-[var(--color-bg-subtle)] rounded-lg p-2">
                       <p className="text-[var(--color-text-muted)]">Total Fee</p>
                       <p className="font-semibold font-mono text-[var(--color-text-primary)] text-sm">{php(e.totalFee || 0)}</p>
@@ -639,7 +639,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                           <span className="text-xs text-[var(--color-text-muted)]">{h.method}</span>
                         </div>
                         {h.orNumber && (
-                          <p className="text-xs text-primary dark:text-red-400 font-mono">OR# {h.orNumber}</p>
+                          <p className="text-xs text-[var(--color-primary-readable)] font-mono">OR# {h.orNumber}</p>
                         )}
                         {h.notes && (
                           <p className="text-xs text-[var(--color-text-muted)] truncate">{h.notes}</p>
@@ -672,7 +672,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
             {e.status === 'payment_received' && e.paymentHistory?.length > 0 && (
               <button
                 onClick={() => onPrintReceipt(e)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-[#4a0009] transition font-semibold shadow-sm">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
                 <Printer className="w-4 h-4"/> Print Receipt
               </button>
             )}
@@ -825,7 +825,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         <div className="modal-header">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-              <Receipt className="w-5 h-5 text-primary"/>
+              <Receipt className="w-5 h-5 text-[var(--color-primary-readable)]"/>
             </div>
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">Fee Assessment & Payment</h2>
@@ -870,7 +870,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                   </span>
                 )}
               </h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
                     Lecture Units <span className="text-[var(--color-text-muted)]">(typical: {feeEntry.typicalUnits})</span>
@@ -931,7 +931,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               ))}
               <div className="flex justify-between text-base font-bold text-[var(--color-text-primary)] border-t-2 border-[var(--color-border-strong)] pt-2 mt-1">
                 <span>Grand Total</span>
-                <span className="font-mono text-primary dark:text-red-400">{php(bill.grandTotal)}</span>
+                <span className="font-mono text-[var(--color-primary-readable)]">{php(bill.grandTotal)}</span>
               </div>
               {bill.enrollment > 0 && (
                 <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400 mt-1">
@@ -960,15 +960,15 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                     <button key={d.id} onClick={() => toggleDiscount(d)}
                       className={`text-left px-3 py-2.5 rounded-xl border text-xs transition flex items-start gap-2
                         ${selected
-                          ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                          ? 'border-[var(--color-primary-readable)] bg-primary/5 dark:bg-primary/10'
                           : 'border-[var(--color-border)] hover:border-primary/50'
                         }`}>
                       <div className={`w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border transition
                         ${selected ? 'bg-primary border-primary' : 'border-[var(--color-border-strong)]'}`}>
-                        {selected && <CheckCircle className="w-3 h-3 text-white"/>}
+                        {selected && <CheckCircle className="w-3 h-3 text-[var(--color-primary-contrast)]"/>}
                       </div>
                       <div>
-                        <p className={`font-semibold ${selected ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-primary)]'}`}>
+                        <p className={`font-semibold ${selected ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-primary)]'}`}>
                           {d.name}
                         </p>
                         <p className="text-[var(--color-text-muted)]">
@@ -1004,7 +1004,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                   onChange={e => setAmountPaid(e.target.value)}
                   placeholder="Enter amount"
                   className={`w-full pl-7 pr-4 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.amount ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.amount ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
               </div>
               {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
@@ -1018,7 +1018,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 )}
                 {[500,1000,2000,5000].filter(v => !bill?.enrollment || v !== bill.enrollment).map(v => (
                   <button key={v} onClick={() => setAmountPaid(String(v))}
-                    className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-white transition font-medium">
+                    className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
                     ₱{v.toLocaleString()}
                   </button>
                 ))}
@@ -1047,7 +1047,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 {['Cash','Bank Transfer'].map(m => (
                   <button key={m} onClick={() => setPayMethod(m)}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition
-                      ${payMethod === m ? 'bg-primary text-white border-primary' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-primary'}`}>
+                      ${payMethod === m ? 'bg-primary text-[var(--color-primary-contrast)] border-primary' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
                     {m === 'Cash' ? '💵' : '🏦'} {m}
                   </button>
                 ))}
@@ -1062,7 +1062,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               <div className="flex gap-2">
                 <input type="text" value={orNumber} onChange={e => setOrNumber(e.target.value)}
                   className={`flex-1 px-3 py-2.5 text-sm font-mono border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.or ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.or ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
                 <button onClick={() => setOrNumber(`OR-${new Date().getFullYear().toString().slice(-2)}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.floor(Math.random()*9000+1000)}`)
                 }
@@ -1078,7 +1078,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               <label className="form-label">Notes (optional)</label>
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="e.g. Down payment, Monthly installment — March..."
-                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
+                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition"
               />
             </div>
           </div>
@@ -1154,7 +1154,7 @@ export default function Enrollments() {
     if (!campus || campus === 'all') return subs
     return subs.filter(s => {
       const subCampus = s.enrollment?.campus || s.campusName || ''
-      return subCampus === campus || subCampus.includes(campus) || campus.includes(subCampus)
+      return subCampus === campus
     })
   }
 
@@ -1295,8 +1295,8 @@ export default function Enrollments() {
     const name = formatStudentName(e.student, {short: true}).toLowerCase()
     const matchSearch = name.includes(searchQuery.toLowerCase()) || e.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())
     const matchStatus = statusFilter === 'all' || e.status === statusFilter
-    const matchCampus = isCampusLocked || effectiveCampusFilter === 'all' || e.enrollment.campus.includes(effectiveCampusFilter)
-    const matchGrade  = gradeLevelFilter === 'all' || e.enrollment.gradeLevel.includes(gradeLevelFilter)
+    const matchCampus = isCampusLocked || effectiveCampusFilter === 'all' || e.enrollment.campus === effectiveCampusFilter
+    const matchGrade  = gradeLevelFilter === 'all' || e.enrollment.gradeLevel === gradeLevelFilter
     let matchTime = true
     if (timeFilter !== 'all') {
       const d = new Date(e.submittedDate), now = new Date()
@@ -1508,7 +1508,7 @@ export default function Enrollments() {
         </div>
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <button onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-[#4a0009] transition font-medium">
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
@@ -1519,7 +1519,7 @@ export default function Enrollments() {
       {/* ── Accounting: Today's collection summary ── */}
       {user?.role === 'accounting' && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="col-span-2 sm:col-span-2 bg-primary rounded-xl p-4 text-white shadow-sm">
+          <div className="col-span-2 sm:col-span-2 bg-primary rounded-xl p-4 text-[var(--color-primary-contrast)] shadow-sm">
             <div className="flex items-center gap-2 mb-1">
               <Banknote className="w-4 h-4 opacity-80"/>
               <p className="text-xs font-medium opacity-80">Today's Collection</p>
@@ -1544,7 +1544,7 @@ export default function Enrollments() {
       {user?.role !== 'accounting' && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
-            { label:'Total Enrollments',  value:stats.total,            border:'border-primary',    sub:'All submissions',     cls:'text-[var(--color-text-muted)]' },
+            { label:'Total Enrollments',  value:stats.total,            border:'border-[var(--color-primary-readable)]',    sub:'All submissions',     cls:'text-[var(--color-text-muted)]' },
             { label:'Awaiting Payment',   value:stats.pending,          border:'border-yellow-500', sub:'Pending payment at Accounting', cls:'text-yellow-600 dark:text-yellow-400' },
             { label:'Payment Received',   value:stats.payment_received, border:'border-blue-500',   sub:'Ready for registrar review', cls:'text-blue-600 dark:text-blue-400' },
             { label:'Approved',           value:stats.approved,         border:'border-green-500',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-green-600 dark:text-green-400' },
@@ -1629,7 +1629,7 @@ export default function Enrollments() {
           </div>
           <div className="flex gap-2">
             {hasFilters && <button onClick={clearFilters} className="flex-1 px-3 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">Clear</button>}
-            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-1.5 font-medium">
+            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-1.5 font-medium">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>
@@ -1641,7 +1641,7 @@ export default function Enrollments() {
             {statusFilter!=='all'     && <Pill label={statusFilter}         onRemove={() => setStatusFilter('all')} />}
             {timeFilter!=='all'       && <Pill label={timeFilter}           onRemove={() => setTimeFilter('all')} />}
             {gradeLevelFilter!=='all' && <Pill label={gradeLevelFilter}     onRemove={() => setGradeLevelFilter('all')} />}
-            <button onClick={clearFilters} className="text-xs text-primary hover:text-[#4a0009] font-medium transition">Clear all</button>
+            <button onClick={clearFilters} className="text-xs text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">Clear all</button>
           </div>
         )}
       </div>
@@ -1677,7 +1677,7 @@ export default function Enrollments() {
                             <StatusBadge status={e.status} />
                           </div>
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
+                            <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
                             {e.source === 'website' && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                                 <Globe className="w-2.5 h-2.5" /> Web
@@ -1715,14 +1715,14 @@ export default function Enrollments() {
                   ) : (
                     <button onClick={() => { setSelectedEnrollment(e); setShowModal(true) }}
                       className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
-                      <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><User className="w-4 h-4 text-primary" /></div>
+                      <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><User className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-0.5">
                           <span className="text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</span>
                           <StatusBadge status={e.status} />
                         </div>
                         <div className="flex items-center gap-2 mb-1">
-                          <p className="text-xs font-mono text-primary dark:text-red-400">{e.referenceNumber}</p>
+                          <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
                           {e.source === 'website' && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                               <Globe className="w-2.5 h-2.5" /> Web
@@ -1761,7 +1761,7 @@ export default function Enrollments() {
                       <tr key={e.id} className={`hover:bg-[var(--color-bg-subtle)]/50 transition-colors ${e.status === 'payment_received' || e.status === 'approved' || e.status === 'rejected' ? 'opacity-70' : ''}`}>
                         {/* Reference */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-sm font-mono font-medium text-primary dark:text-red-400">{e.referenceNumber}</p>
+                          <p className="text-sm font-mono font-medium text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
                           {e.source === 'website' && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 mt-0.5">
                               <Globe className="w-2.5 h-2.5" /> Online
@@ -1807,7 +1807,7 @@ export default function Enrollments() {
                             {/* Non-accounting: View button */}
                             {user?.role !== 'accounting' && (
                               <button onClick={() => { setSelectedEnrollment(e); setShowModal(true) }}
-                                className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-[#4a0009] font-medium transition">
+                                className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                                 <Eye className="w-4 h-4" /> View
                               </button>
                             )}
@@ -1851,11 +1851,11 @@ export default function Enrollments() {
           <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-3xl max-h-[92vh] flex flex-col">
             <div className="modal-header">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-primary" /></div>
+                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><FileText className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
                 <div className="min-w-0">
                   <h2 className="text-base font-bold text-[var(--color-text-primary)] truncate">{formatStudentName(selectedEnrollment.student, {short: true})}</h2>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-mono text-primary dark:text-red-400">{selectedEnrollment.referenceNumber}</p>
+                    <p className="text-xs font-mono text-[var(--color-primary-readable)]">{selectedEnrollment.referenceNumber}</p>
                     {selectedEnrollment.source === 'website' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                         <Globe className="w-3 h-3" /> Submitted Online
@@ -1997,8 +1997,8 @@ export default function Enrollments() {
 // ── Shared sub-components ──────────────────────────────────────────
 function Pill({ label, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300 text-xs font-medium rounded-full">
-      {label}<button onClick={onRemove} className="hover:text-[#4a0009] transition"><X className="w-3 h-3" /></button>
+    <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 dark:text-red-300 text-xs font-medium rounded-full">
+      {label}<button onClick={onRemove} className="hover:text-[var(--color-primary-hover)] transition"><X className="w-3 h-3" /></button>
     </span>
   )
 }

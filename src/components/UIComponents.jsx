@@ -447,11 +447,124 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold text-white transition-colors flex items-center justify-center gap-2
+            className={`flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors flex items-center justify-center gap-2
               ${danger
-                ? 'bg-[var(--color-error)] hover:bg-red-700 disabled:opacity-50'
-                : 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50'
+                ? 'text-white bg-[var(--color-error)] hover:bg-red-700 disabled:opacity-50'
+                : 'text-[var(--color-primary-contrast)] bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] disabled:opacity-50'
               }`}
+          >
+            {loading && (
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ─────────────────────────────────────────────────────
+// TYPE-TO-CONFIRM DIALOG
+// For destructive actions on REAL operational/identity data (not a
+// reproducible template like a workflow or grading framework) — e.g.
+// resetting Fee Structure or School Info wipes a school's actual pricing
+// or actual identity, not just a customization. Requires typing an exact
+// phrase (matchText) before the action enables, same pattern as a
+// delete-account flow. Resets its typed input whenever it opens or closes.
+// ─────────────────────────────────────────────────────
+export function TypeToConfirmDialog({
+  open, title, message,
+  matchText,               // the exact string the user must type
+  matchLabel,              // how matchText is described, e.g. "school name"
+  onConfirm, onCancel,
+  confirmLabel = 'Confirm',
+  loading = false,
+}) {
+  const [typed, setTyped] = useState('')
+
+  useEffect(() => {
+    if (open) document.body.classList.add('modal-open')
+    else document.body.classList.remove('modal-open')
+    return () => document.body.classList.remove('modal-open')
+  }, [open])
+
+  useEffect(() => {
+    if (!open) setTyped('')
+  }, [open])
+
+  if (!open) return null
+
+  const isMatch = typed.trim() === matchText
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in">
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(0,0,0,0.50)' }}
+        onClick={onCancel}
+      />
+      <div
+        className="relative rounded-[var(--radius-2xl)] p-6 w-full max-w-sm animate-scale-in"
+        style={{
+          backgroundColor: 'var(--color-bg-card)',
+          boxShadow: 'var(--shadow-modal)',
+        }}
+      >
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center mb-4 mx-auto"
+          style={{ backgroundColor: 'var(--color-error-light)' }}
+        >
+          <AlertCircle className="w-7 h-7" style={{ color: 'var(--color-error)' }} />
+        </div>
+        <h3
+          className="text-lg font-bold text-center mb-2"
+          style={{ color: 'var(--color-text-primary)' }}
+        >
+          {title}
+        </h3>
+        <p
+          className="text-sm text-center leading-relaxed mb-4"
+          style={{ color: 'var(--color-text-muted)' }}
+        >
+          {message}
+        </p>
+        <label
+          className="block text-xs font-semibold mb-1.5"
+          style={{ color: 'var(--color-text-secondary)' }}
+        >
+          Type <span style={{ color: 'var(--color-text-primary)' }}>{matchText}</span> to confirm{matchLabel ? ` (${matchLabel})` : ''}
+        </label>
+        <input
+          type="text"
+          value={typed}
+          onChange={e => setTyped(e.target.value)}
+          disabled={loading}
+          autoComplete="off"
+          autoFocus
+          className="w-full px-3 py-2.5 text-sm rounded-[var(--radius-md)] mb-5 outline-none focus:ring-2"
+          style={{
+            background: 'var(--color-bg-subtle)',
+            color: 'var(--color-text-primary)',
+            border: '1.5px solid var(--color-border)',
+          }}
+        />
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="btn btn-ghost flex-1 py-2.5"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading || !isMatch}
+            className="flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors flex items-center justify-center gap-2 text-white bg-[var(--color-error)] hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -521,11 +634,11 @@ export function ExportButton({ onClick, label = 'Export', size = 'md', className
         disabled:opacity-50 disabled:cursor-not-allowed
         ${sizecls} ${className}`}
       style={{
-        backgroundColor: 'var(--color-success)',
-        color: '#ffffff',
+        backgroundColor: 'var(--color-primary)',
+        color: 'var(--color-primary-contrast)',
       }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.backgroundColor = '#15803d' }}
-      onMouseLeave={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-success)' }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)' }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-primary)' }}
     >
       {/* Download icon — inline SVG so no lucide import needed in UIComponents */}
       <svg

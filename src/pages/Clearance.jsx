@@ -273,7 +273,7 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
             </div>
 
             {/* Clearance info */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {[
                 ['Student',    clearance.studentName],
                 ['Campus',     clearance.campusKey],
@@ -414,7 +414,7 @@ function ClearanceCard({ clearance, myDept, onSelect }) {
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm
           ${clearance.isFullyCleared
             ? 'bg-[var(--color-success-light)] text-[var(--color-success)]'
-            : 'bg-[var(--color-primary-muted)] text-[var(--color-primary)]'}`}>
+            : 'bg-[var(--color-secondary)] text-[var(--color-secondary-contrast)]'}`}>
           {clearance.studentName.charAt(0)}
         </div>
 
@@ -496,7 +496,7 @@ function StatsBar({ clearances, myDept }) {
     { label: 'Total',    value: total,   color: 'text-[var(--color-text-primary)]' },
     { label: 'Cleared',  value: cleared, color: 'text-[var(--color-success)]' },
     { label: 'Pending',  value: pending, color: 'text-[var(--color-warning)]' },
-    ...(myDept ? [{ label: 'Needs My Sign', value: needsMe, color: 'text-[var(--color-primary)]' }] : []),
+    ...(myDept ? [{ label: 'Needs My Sign', value: needsMe, color: 'text-[var(--color-primary-readable)]' }] : []),
   ]
 
   return (
@@ -534,7 +534,7 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
   // Load enrolled students from localStorage
   const allStudents = (() => {
     try {
-      const subs = JSON.parse(localStorage.getItem('cshc_submissions') || '[]')
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       return subs
         .filter(s => s.status === 'approved')
         .map(s => ({
@@ -658,8 +658,8 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
                     onClick={() => setReason(r.value)}
                     className={`text-left px-3 py-2.5 rounded-xl border text-sm transition-colors
                       ${reason === r.value
-                        ? 'bg-[var(--color-primary-muted)] border-[var(--color-primary)] text-[var(--color-primary)] font-semibold'
-                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary)]'}`}
+                        ? 'bg-[var(--color-secondary)] border-[var(--color-secondary)] text-[var(--color-secondary-contrast)] font-semibold'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}
                   >
                     {r.label}
                   </button>
@@ -789,9 +789,9 @@ export default function Clearance() {
             {schoolYear}
             {myDeptLabel && (
               <span className="ml-2 badge" style={{
-                background: 'var(--color-primary-muted)',
-                color: 'var(--color-primary)',
-                border: '1px solid var(--color-primary)',
+                background: 'var(--color-secondary-muted)',
+                color: 'var(--color-secondary)',
+                border: '1px solid var(--color-secondary)',
                 display: 'inline-flex'
               }}>
                 {myDeptLabel} — My Department

@@ -13,7 +13,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, AlertTriangle } from 'lucide-react'
+import { contrastOn, contrastRatio } from '../utils/themeInitializer'
 
 // ── Color conversion helpers ─────────────────────────────────
 function hexToHSV(hex) {
@@ -103,10 +104,10 @@ const COLOR_MODES = ['HEX', 'RGB', 'HSL', 'HSV']
 const PRESETS = [
   '#ef4444', '#f97316', '#eab308', '#22c55e',
   '#10b981', '#3b82f6', '#6366f1', '#8b5cf6',
-  '#a855f7', '#ec4899', '#750014', '#080c42',
+  '#a855f7', '#ec4899', '#1a1a1a', '#0f172a',
 ]
 
-export default function ColorPicker({ value = '#6b7280', onChange, label, className = '' }) {
+export default function ColorPicker({ value = '#6b7280', onChange, label, className = '', compareValue, compareLabel }) {
   const hsv = hexToHSV(value)
   const [hue, setHue] = useState(hsv.h)
   const [sat, setSat] = useState(hsv.s)
@@ -403,6 +404,27 @@ export default function ColorPicker({ value = '#6b7280', onChange, label, classN
             </div>
           )
         })()}
+      </div>
+
+      {/* Live contrast check — shows what the app will actually render with this
+          color, and warns if it's too close to the school's other brand color
+          to tell apart (the one thing the app's auto-contrast fixes can't cover). */}
+      <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Preview</span>
+          <div
+            className="flex-1 h-8 rounded-lg flex items-center justify-center text-xs font-semibold"
+            style={{ backgroundColor: hexInput, color: contrastOn(hexInput) }}
+          >
+            Aa Button Text
+          </div>
+        </div>
+        {compareValue && /^#[0-9a-fA-F]{6}$/.test(compareValue) && contrastRatio(hexInput, compareValue) < 1.8 && (
+          <div className="flex items-start gap-1.5 text-[10px] leading-snug text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="w-3 h-3 flex-shrink-0 mt-0.5" />
+            <span>This is very close to your {compareLabel || 'other'} color — some parts of the interface use both together and may look flat. Consider more separation between the two.</span>
+          </div>
+        )}
       </div>
 
       {/* Presets */}

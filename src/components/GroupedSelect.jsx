@@ -49,7 +49,7 @@
  *                                'registrar_college' hides basic ed
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -118,7 +118,16 @@ function useDropdownPosition(triggerRef, open) {
       const flipUp     = spaceBelow < DROPDOWN_H && spaceAbove > spaceBelow
       const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
       setDropPos({
-        top:    flipUp ? rect.top - maxH - 4 : rect.bottom + 4,
+        // flipUp anchors by `bottom` (distance up from the trigger), not a
+        // calculated `top` — a `top` computed as "rect.top - maxH" assumes
+        // the panel will actually BE maxH tall, but maxH is just a ceiling.
+        // A short option list (e.g. 2-3 items) renders much shorter than
+        // that, leaving a large empty gap between the panel and the
+        // trigger it's supposedly anchored to. Anchoring by `bottom`
+        // instead lets the panel grow upward to whatever height its real
+        // content needs, always landing flush against the trigger.
+        top:    flipUp ? undefined : rect.bottom + 4,
+        bottom: flipUp ? vh - rect.top + 4 : undefined,
         left:   PAD,
         width:  vw - PAD * 2,
         maxH,
@@ -138,7 +147,9 @@ function useDropdownPosition(triggerRef, open) {
       const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
 
       setDropPos({
-        top:    flipUp ? rect.top - maxH - 4 : rect.bottom + 4,
+        // Same bottom-anchoring rationale as the mobile branch above.
+        top:    flipUp ? undefined : rect.bottom + 4,
+        bottom: flipUp ? vh - rect.top + 4 : undefined,
         left:   l,
         width:  w,
         maxH,
@@ -236,6 +247,23 @@ export default function GroupedSelect({
     }
   }, [open])
 
+  // Recompute right after opening, synchronously before paint. The click
+  // handler's updatePos() call is usually enough, but if the open happens
+  // right after (or during) a scroll gesture — e.g. trackpad/touch momentum
+  // scrolling still settling when the click registers — the scroll listener
+  // above isn't attached yet at that instant, so a click-time rect can be
+  // stale. This catches that: useLayoutEffect fires after the DOM commits
+  // open=true but before the browser paints, and the rAF follow-up catches
+  // any position that only settles a frame later (still-finishing momentum
+  // scroll). Was the cause of the dropdown opening far from its trigger
+  // after scrolling then immediately clicking.
+  useLayoutEffect(() => {
+    if (!open) return
+    updatePos()
+    const raf = requestAnimationFrame(updatePos)
+    return () => cancelAnimationFrame(raf)
+  }, [open])
+
   const openDropdown = () => { updatePos(); setOpen(true) }
   const select = (val) => { onChange?.(val); setOpen(false) }
 
@@ -260,7 +288,7 @@ export default function GroupedSelect({
         <div className="flex items-center gap-1 ml-2 flex-shrink-0">
           {value !== 'all' && (
             <X
-              className="w-3.5 h-3.5 text-gray-400 hover:text-primary transition-colors"
+              className="w-3.5 h-3.5 text-gray-400 hover:text-[var(--color-primary-readable)] transition-colors"
               onClick={(e) => { e.stopPropagation(); select('all') }}
             />
           )}
@@ -275,6 +303,7 @@ export default function GroupedSelect({
           style={{
             position: 'fixed',
             top:      dropPos.top,
+            bottom:   dropPos.bottom,
             left:     dropPos.left,
             width:    dropPos.width,
             minWidth: dropPos.mobile ? undefined : 220,
@@ -288,7 +317,7 @@ export default function GroupedSelect({
             onClick={() => select('all')}
             className={`w-full text-left px-4 py-2.5 text-sm transition-colors
               ${value === 'all'
-                ? 'bg-primary/10 text-primary dark:text-red-300 font-semibold'
+                ? 'bg-primary/10 text-[var(--color-primary-readable)] font-semibold'
                 : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
               }`}
           >
@@ -318,7 +347,7 @@ export default function GroupedSelect({
                       onClick={() => select(optValue)}
                       className={`w-full text-left px-4 py-2.5 text-sm transition-colors
                         ${value === optValue
-                          ? 'bg-primary/10 text-primary dark:text-red-300 font-semibold'
+                          ? 'bg-primary/10 text-[var(--color-primary-readable)] font-semibold'
                           : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
                         }`}
                     >

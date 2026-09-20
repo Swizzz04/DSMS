@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Enrollment - Cebu Sacred Heart College</title>
+    <title>Online Enrollment</title>
     <link rel="stylesheet" href="style.css">
+    <script src="site_theme.js"></script>
     <link rel="stylesheet" href="enrollment-style.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
     <!-- Navigation (same as main page) -->
     <nav>
         <a href="index.html" class="logo">
-            <img src="assets/logo1995.png" alt="Cebu Sacred Heart College, Inc." class="logo-img">
+            <img src="assets/logo1995.png" alt="School Logo" class="logo-img" id="enrollNavLogo">
         </a>
         
         <ul class="nav-links-simple">
@@ -543,7 +544,7 @@
         <div class="success-message" id="successMessage">
             <div class="success-icon">✓</div>
             <h2>Enrollment Submitted Successfully!</h2>
-            <p>Thank you for your interest in Cebu Sacred Heart College.</p>
+            <p id="successSchoolMsg">Thank you for your interest in our school.</p>
             <p><strong>Reference Number:</strong> <span id="referenceNumber"></span></p>
             <p>Our admissions office will contact you within 2-3 business days.</p>
             <a href="index.html" class="btn btn-primary">Return to Home</a>
@@ -607,7 +608,7 @@
     <footer class="footer">
         <div class="container"> 
             <div class="footer-bottom">
-                <p>&copy; 2025 Cebu Sacred Heart College, Inc. All rights reserved.</p>
+                <p id="footerCopyright">&copy; 2025 School Management System. All rights reserved.</p>
                 <p>Developed by Alvin Gonzales</p>
             </div>
         </div>

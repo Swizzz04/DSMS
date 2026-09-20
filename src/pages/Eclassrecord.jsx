@@ -3,15 +3,18 @@
  * ─────────────────────────────────────────────────────────────────
  * Unified grade entry page for both Basic Ed and College.
  *
- * Basic Ed:  WW / PT / QA → DepEd transmutation → 60–100 grade
- * College:   Prelim / Midterm / Finals → 1.00–5.00 point grade (CHED)
+ * Basic Ed:  WW / PT / QA → DepEd transmutation → 60–100 grade (score entry
+ *            still fixed to WW/PT/QA — see gradingFramework note below)
+ * College:   fully dynamic — score columns render from whatever components
+ *            the school year's configured college grading framework defines
+ *            (defaults to Prelim/Midterm/Finals) → CHED 1.00–5.00 point grade
  *
  * The page detects department from the selected subject and renders
  * the appropriate grade entry interface automatically.
  * ─────────────────────────────────────────────────────────────────
  */
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import {
   ClipboardList, BookOpen, Users, ChevronRight, ChevronDown,
   Save, Send, ArrowLeft, Plus, Trash2, Info, AlertCircle, X, Settings, Download
@@ -25,13 +28,15 @@ import {
   SUBJECT_AREAS, GRADING_PERIODS, WEIGHT_TABLES,
   computeGrade, transmute, getAllGrades, saveGradeRecord, submitGrades,
   getParentComposite, getCompositeConfig, computeCompositeGrade, COMPOSITE_SUBJECTS,
+  getTransmutationTable, getGradingFramework, computeGradeUniversal, DEFAULT_GRADING_FRAMEWORKS,
   // College
   COLLEGE_GRADE_SCALE, COLLEGE_SEMESTERS, SPECIAL_GRADES,
-  computeCollegeGrade, getPointGrade,
+  computeCollegeGrade, getPointGrade, getCollegeGradingFramework, DEFAULT_COLLEGE_GRADING_FRAMEWORKS,
   getCollegeGrades, saveCollegeGradeRecord, submitCollegeGrades,
   loadCollegeDraftScores, saveCollegeDraftScores,
 } from '../engines/gradingEngine'
 import { exportEClassRecord } from '../utils/exportEClassRecord'
+import { recordINC } from '../utils/incCompletionBridge'
 
 // ── localStorage keys ──────────────────────────────────────────
 const ACTIVITIES_KEY   = 'almirene_grade_activities'
@@ -76,8 +81,42 @@ export default function EClassRecord() {
   const [saving,             setSaving]             = useState(false)
   const [showSubmitConfirm,  setShowSubmitConfirm]  = useState(false)
 
+  const isTeacher  = user?.role === 'teacher'
+  const campusKey  = user?.campusKey || ''
+
+  // ── School year & grading period config ─────────────────────
+  // Resolved BEFORE state declarations below so the initial
+  // grading period default (Q1 vs T1) is correct on first render.
+  const activeSY    = currentSchoolYear || { year: '2026-2027', gradingPeriodType: 'quarterly', gradingFramework: 'do8_2015' }
+  const currentSY   = activeSY.year || '2026-2027'
+  const periodType  = activeSY.gradingPeriodType || 'quarterly'
+  const isTrimester = periodType === 'trimester'
+  const periods     = isTrimester ? GRADING_PERIODS.trimester : GRADING_PERIODS.quarterly
+
+  // Resolve this school year's configured grading framework (components,
+  // weights, transmutation on/off) — falls back to the verified DO 8, s.2015
+  // seed if the school hasn't configured one yet.
+  const gradingFramework = getGradingFramework(activeSY.gradingFramework) || DEFAULT_GRADING_FRAMEWORKS[0]
+  // The score-entry grid below dynamically renders whatever flat components
+  // the configured framework defines (any count, any keys/labels) — covers
+  // DO 8 s.2015's WW/PT/QA, DO 015 s.2026's WW/PT/EX, and any custom
+  // framework built in Settings. A framework where a component has its own
+  // nested sub-scores (e.g. an exam broken into multiple parts) needs a
+  // different entry UI — not yet built — so we fall back to the legacy
+  // computeGrade() path for those rather than silently computing from data
+  // the teacher never had a chance to enter per sub-part.
+  const frameworkKeys = gradingFramework.components.map(c => c.key).sort().join(',')
+  const frameworkGroupIds = new Set(gradingFramework.subjectGroups.map(g => g.id))
+  const frameworkMatchesEntryUI = gradingFramework.components.every(c => !c.subcomponents || c.subcomponents.length === 0)
+
+  // Same idea for college — resolve this school year's configured college
+  // grading framework (Prelim/Midterm/Finals weights + point scale), falling
+  // back to CHED Standard if the school hasn't configured one yet.
+  const collegeGradingFramework = getCollegeGradingFramework(activeSY.collegeGradingFramework) || DEFAULT_COLLEGE_GRADING_FRAMEWORKS[0]
+    && SUBJECT_AREAS.every(a => frameworkGroupIds.has(a.id))
+
   // ── Basic Ed state ─────────────────────────────────────────
-  const [gradingPeriod,      setGradingPeriod]      = useState('Q1')
+  const [gradingPeriod,      setGradingPeriod]      = useState(() => periods[0]?.id || 'Q1')
   const [subjectArea,        setSubjectArea]        = useState('')
   const [studentGrades,      setStudentGrades]      = useState([])
   const [activities,         setActivities]         = useState({ ww: [], pt: [], qa: [] })
@@ -90,18 +129,20 @@ export default function EClassRecord() {
 
   useEffect(() => { setTimeout(() => setLoading(false), 150) }, [])
 
-  const isTeacher  = user?.role === 'teacher'
-  const campusKey  = user?.campusKey || ''
+  // Defensive re-sync: if the school's gradingPeriodType changes while this
+  // page is mounted (e.g. Super Admin edits it in Settings and the config
+  // context refreshes) and the currently selected period no longer exists
+  // for the new type (e.g. 'Q4' selected, school switches to trimester),
+  // fall back to the first valid period instead of leaving a dead selection.
+  useEffect(() => {
+    if (!periods.some(p => p.id === gradingPeriod)) {
+      setGradingPeriod(periods[0]?.id || 'Q1')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodType])
 
   // ── Detect college subject ─────────────────────────────────
   const isCollege = selectedSubject?.department === 'college'
-
-  // ── School year & grading period config ────────────────────
-  const activeSY  = currentSchoolYear || { year: '2026-2027', gradingPeriodType: 'quarterly' }
-  const currentSY = activeSY.year || '2026-2027'
-  const periodType = activeSY.gradingPeriodType || 'quarterly'
-  const isTrimester = periodType === 'trimester'
-  const periods = isTrimester ? GRADING_PERIODS.trimester : GRADING_PERIODS.quarterly
 
   const draftKey = (subj, period) =>
     `${subj?.subjectId}_${subj?.sectionId}_${period}_${currentSY}`
@@ -212,7 +253,7 @@ export default function EClassRecord() {
         .filter(s => {
           if (s.status !== 'approved') return false
           const eCampus = s.enrollment?.campus || ''
-          return (eCampus === campusName || eCampus.includes(campKey)) &&
+          return eCampus === campusName &&
                  s.enrollment?.gradeLevel === gradeLevel
         })
         .map(s => ({
@@ -252,11 +293,19 @@ export default function EClassRecord() {
       // Load basic ed activities
       const allActs = loadActivities()
       const key = `${subj.subjectId}_${subj.sectionId}_${gradingPeriod}_${currentSY}`
-      const savedActs = allActs[key] || { ww: [], pt: [], qa: [] }
-      if (savedActs.ww.length === 0 && savedActs.pt.length === 0 && savedActs.qa.length === 0) {
-        savedActs.ww = [{ name: 'Quiz 1', maxScore: 20 }]
-        savedActs.pt = [{ name: 'Activity 1', maxScore: 50 }]
-        savedActs.qa = [{ name: 'Quarterly Exam', maxScore: 100 }]
+      const savedActs = allActs[key] || {}
+      const isEmpty = gradingFramework.components.every(c => !(savedActs[c.key]?.length))
+      if (isEmpty) {
+        // Sensible starter default per component — same spirit as the old
+        // hardcoded Quiz 1/Activity 1/Quarterly Exam seed, just generic to
+        // however many components the active framework actually defines.
+        gradingFramework.components.forEach((c, i) => {
+          const isLast = i === gradingFramework.components.length - 1
+          savedActs[c.key] = [{ name: `${c.label} 1`, maxScore: isLast ? 100 : 20 }]
+        })
+      } else {
+        // Fill in any component the framework has that this saved config predates
+        gradingFramework.components.forEach(c => { if (!savedActs[c.key]) savedActs[c.key] = [] })
       }
       setActivities(savedActs)
       buildGradeRows(getStudents(subj.gradeLevel, subj.campusKey), savedActs, subj, gradingPeriod)
@@ -278,14 +327,16 @@ export default function EClassRecord() {
     }
 
     const rows = students.map(stu => {
-      const saved = savedScores[stu.id]
+      const saved  = savedScores[stu.id]
+      const scores = {}
+      Object.keys(acts).forEach(key => {
+        scores[key] = alignScores(saved?.scores?.[key], acts[key])
+      })
       return {
         studentId:   stu.id,
         studentName: stu.name,
         gender:      stu.gender,
-        ww:          alignScores(saved?.ww, acts.ww),
-        pt:          alignScores(saved?.pt, acts.pt),
-        qa:          alignScores(saved?.qa, acts.qa),
+        scores,
         computed:    null,
         status:      saved?.status || 'draft',
       }
@@ -309,19 +360,18 @@ export default function EClassRecord() {
     const rows = students.map(stu => {
       const draft  = savedScores[stu.id]
       const saved  = gradeByStudent[stu.id]
-      const prelim  = draft?.prelim  ?? saved?.prelim  ?? ''
-      const midterm = draft?.midterm ?? saved?.midterm ?? ''
-      const finals  = draft?.finals  ?? saved?.finals  ?? ''
+      const scores = {}
+      collegeGradingFramework.components.forEach(c => {
+        scores[c.key] = draft?.scores?.[c.key] ?? saved?.scores?.[c.key] ?? ''
+      })
       const specialGrade = draft?.specialGrade ?? saved?.specialGrade ?? ''
       return {
         studentId:    stu.id,
         studentName:  stu.name,
         gender:       stu.gender,
-        prelim,
-        midterm,
-        finals,
+        scores,
         specialGrade,
-        computed:     computeCollegeGrade(prelim, midterm, finals),
+        computed:     computeCollegeGrade(scores, collegeGradingFramework),
         status:       saved?.status || 'draft',
       }
     })
@@ -346,25 +396,38 @@ export default function EClassRecord() {
     setStudentGrades(prev => {
       const updated = [...prev]
       const row     = { ...updated[studentIdx] }
-      const scores  = [...row[component]]
+      const scores  = [...row.scores[component]]
       scores[actIdx] = value === '' ? '' : Number(value) || 0
-      row[component] = scores
+      row.scores = { ...row.scores, [component]: scores }
 
       if (!isTrimester && subjectArea) {
-        const wwTotal = row.ww.reduce((s, v) => s + (Number(v) || 0), 0)
-        const wwMax   = activities.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-        const ptTotal = row.pt.reduce((s, v) => s + (Number(v) || 0), 0)
-        const ptMax   = activities.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-        const qaTotal = row.qa.reduce((s, v) => s + (Number(v) || 0), 0)
-        const qaMax   = activities.qa.reduce((s, a) => s + (a.maxScore || 0), 0)
+        const totals = {}
+        gradingFramework.components.forEach(c => {
+          const arr = row.scores[c.key] || []
+          const max = (activities[c.key] || []).reduce((s, a) => s + (a.maxScore || 0), 0)
+          totals[c.key] = { score: arr.reduce((s, v) => s + (Number(v) || 0), 0), total: max }
+        })
 
-        const hasScores = row.ww.some(v => v !== '') || row.pt.some(v => v !== '') || row.qa.some(v => v !== '')
-        if (hasScores && wwMax > 0 && ptMax > 0 && qaMax > 0) {
+        const hasScores = Object.values(row.scores).some(arr => (arr || []).some(v => v !== ''))
+        const allHaveMax = gradingFramework.components.every(c => totals[c.key].total > 0)
+        if (hasScores && allHaveMax) {
           try {
-            row.computed = computeGrade(
-              { ww: { score: wwTotal, total: wwMax }, pt: { score: ptTotal, total: ptMax }, qa: { score: qaTotal, total: qaMax } },
-              subjectArea
-            )
+            if (frameworkMatchesEntryUI) {
+              // Use the school year's actually-configured framework (weights,
+              // transmutation on/off, custom table) — not just the do8_2015 default.
+              const r = computeGradeUniversal(totals, gradingFramework, subjectArea)
+              row.computed = {
+                breakdown: r.breakdown,
+                weights: gradingFramework.subjectGroups.find(g => g.id === subjectArea)?.weights,
+                initial: r.initial, transmuted: r.final, passed: r.passed, remarks: r.remarks,
+              }
+            } else {
+              // Configured framework doesn't match this flat entry grid's
+              // shape (e.g. a component with nested exam sub-scores) — fall
+              // back to the verified DO 8, s.2015 defaults rather than
+              // compute from a mismatched framework.
+              row.computed = computeGrade(totals, subjectArea)
+            }
           } catch { row.computed = null }
         }
       }
@@ -376,8 +439,8 @@ export default function EClassRecord() {
         const key = draftKey(selectedSubject, gradingPeriod)
         if (!allDrafts[key]) allDrafts[key] = {}
         updated.forEach(r => {
-          const hasAny = r.ww.some(v => v !== '') || r.pt.some(v => v !== '') || r.qa.some(v => v !== '')
-          if (hasAny) allDrafts[key][r.studentId] = { ww: r.ww, pt: r.pt, qa: r.qa, status: r.status }
+          const hasAny = Object.values(r.scores).some(arr => (arr || []).some(v => v !== ''))
+          if (hasAny) allDrafts[key][r.studentId] = { scores: r.scores, status: r.status }
         })
         saveDraftScores(allDrafts)
       } catch {}
@@ -390,15 +453,17 @@ export default function EClassRecord() {
   const updateCollegeScore = (studentIdx, field, value) => {
     setCollegeRows(prev => {
       const updated = [...prev]
-      const row     = { ...updated[studentIdx], [field]: value }
+      const row     = field === 'specialGrade'
+        ? { ...updated[studentIdx], specialGrade: value }
+        : { ...updated[studentIdx], scores: { ...updated[studentIdx].scores, [field]: value } }
 
       // Special grade clears computed; removing special grade restores computed
       if (field === 'specialGrade') {
-        row.computed = value ? null : computeCollegeGrade(row.prelim, row.midterm, row.finals)
+        row.computed = value ? null : computeCollegeGrade(row.scores, collegeGradingFramework)
       } else {
         // Re-compute if no special grade
         if (!row.specialGrade) {
-          row.computed = computeCollegeGrade(row.prelim, row.midterm, row.finals)
+          row.computed = computeCollegeGrade(row.scores, collegeGradingFramework)
         }
       }
 
@@ -409,11 +474,10 @@ export default function EClassRecord() {
         const allDrafts = loadCollegeDraftScores()
         const key = collegeDraftKey(selectedSubject, collegeSemester)
         if (!allDrafts[key]) allDrafts[key] = {}
-        const hasAny = row.prelim !== '' || row.midterm !== '' || row.finals !== '' || row.specialGrade
+        const hasAny = Object.values(row.scores).some(v => v !== '') || row.specialGrade
         if (hasAny) {
           allDrafts[key][row.studentId] = {
-            prelim: row.prelim, midterm: row.midterm,
-            finals: row.finals, specialGrade: row.specialGrade,
+            scores: row.scores, specialGrade: row.specialGrade,
             status: row.status,
           }
         }
@@ -430,26 +494,24 @@ export default function EClassRecord() {
     setSaving(true)
     let count = 0
     studentGrades.forEach(row => {
-      const hasAny = row.ww.some(v => v !== '') || row.pt.some(v => v !== '') || row.qa.some(v => v !== '')
+      const hasAny = Object.values(row.scores).some(arr => (arr || []).some(v => v !== ''))
       if (!hasAny) return
-      const wwTotal = row.ww.reduce((s, v) => s + (Number(v) || 0), 0)
-      const wwMax   = activities.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-      const ptTotal = row.pt.reduce((s, v) => s + (Number(v) || 0), 0)
-      const ptMax   = activities.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-      const qaTotal = row.qa.reduce((s, v) => s + (Number(v) || 0), 0)
-      const qaMax   = activities.qa.reduce((s, a) => s + (a.maxScore || 0), 0)
+      const scores = {}
+      gradingFramework.components.forEach(c => {
+        const arr = row.scores[c.key] || []
+        const max = (activities[c.key] || []).reduce((s, a) => s + (a.maxScore || 0), 0)
+        scores[c.key] = { score: arr.reduce((s, v) => s + (Number(v) || 0), 0), total: max }
+      })
       saveGradeRecord({
         studentId: row.studentId, studentName: row.studentName,
         subjectId: selectedSubject.subjectId, subjectName: selectedSubject.subjectName,
         subjectArea, sectionId: selectedSubject.sectionId, campusKey,
         schoolYear: currentSY, period: gradingPeriod,
         teacherId: user?.id, teacherName: user?.name,
-        ww: { score: wwTotal, total: wwMax },
-        pt: { score: ptTotal, total: ptMax },
-        qa: { score: qaTotal, total: qaMax },
-        wwScores: row.ww, ptScores: row.pt, qaScores: row.qa,
+        scores,
+        scoresRaw: row.scores,
         status: 'draft',
-      })
+      }, gradingFramework)
       count++
     })
     setSaving(false)
@@ -461,7 +523,7 @@ export default function EClassRecord() {
     setSaving(true)
     let count = 0
     collegeRows.forEach(row => {
-      const hasAny = row.prelim !== '' || row.midterm !== '' || row.finals !== '' || row.specialGrade
+      const hasAny = Object.values(row.scores).some(v => v !== '') || row.specialGrade
       if (!hasAny) return
       saveCollegeGradeRecord({
         studentId:    row.studentId,
@@ -474,12 +536,10 @@ export default function EClassRecord() {
         semester:     collegeSemester,
         teacherId:    user?.id,
         teacherName:  user?.name,
-        prelim:       row.prelim,
-        midterm:      row.midterm,
-        finals:       row.finals,
+        scores:       row.scores,
         specialGrade: row.specialGrade || null,
         status:       'draft',
-      })
+      }, collegeGradingFramework)
       count++
     })
     setSaving(false)
@@ -493,7 +553,7 @@ export default function EClassRecord() {
     setShowSubmitConfirm(false)
     addToast(`${count} grade${count !== 1 ? 's' : ''} submitted for approval!`, 'success')
     setStudentGrades(prev => prev.map(row => {
-      const hasAny = row.ww.some(v => v !== '') || row.pt.some(v => v !== '') || row.qa.some(v => v !== '')
+      const hasAny = Object.values(row.scores).some(arr => (arr || []).some(v => v !== ''))
       return { ...row, status: hasAny ? 'submitted' : row.status }
     }))
   }
@@ -505,9 +565,32 @@ export default function EClassRecord() {
     setShowSubmitConfirm(false)
     addToast(`${count} college grade${count !== 1 ? 's' : ''} submitted to Program Head!`, 'success')
     setCollegeRows(prev => prev.map(row => {
-      const hasAny = row.prelim !== '' || row.midterm !== '' || row.finals !== '' || row.specialGrade
+      const hasAny = Object.values(row.scores).some(v => v !== '') || row.specialGrade
       return { ...row, status: hasAny ? 'submitted' : row.status }
     }))
+
+    // Auto-create INC completion tracking for any student marked INC this submit.
+    // recordINC() is a no-op if an active record already exists (safe to call
+    // on every submit/resubmit without creating duplicates).
+    const incRows = collegeRows.filter(row => row.specialGrade === 'INC')
+    if (incRows.length > 0) {
+      incRows.forEach(row => {
+        recordINC({
+          studentId:   row.studentId,
+          studentName: row.studentName,
+          subjectId:   selectedSubject.subjectId,
+          subjectName: selectedSubject.subjectName,
+          sectionId:   selectedSubject.sectionId,
+          semester:    collegeSemester,
+          schoolYear:  currentSY,
+          campusKey,
+          teacherId:   user?.id,
+          teacherName: user?.name,
+          deadline:    activeSY.college?.endDate ? new Date(activeSY.college.endDate).toISOString() : undefined,
+        })
+      })
+      addToast(`${incRows.length} INC completion record${incRows.length !== 1 ? 's' : ''} started — track in INC Completion.`, 'info')
+    }
   }
 
   // ── Export (Basic Ed only) ─────────────────────────────────
@@ -528,7 +611,12 @@ export default function EClassRecord() {
       periods.forEach(p => {
         const key = draftKey(selectedSubject, p.id)
         activitiesByPeriod[p.id] = allActs[key] || activities
-        scoresByPeriod[p.id]     = allDrafts[key] || {}
+        const draftsForPeriod = allDrafts[key] || {}
+        const unwrapped = {}
+        Object.keys(draftsForPeriod).forEach(studentId => {
+          unwrapped[studentId] = draftsForPeriod[studentId]?.scores || {}
+        })
+        scoresByPeriod[p.id] = unwrapped
       })
       const students = studentGrades.map(r => ({ id: r.studentId, name: r.studentName, gender: r.gender }))
       const filename = await exportEClassRecord({
@@ -538,6 +626,7 @@ export default function EClassRecord() {
         teacherName: user?.name || '',
         schoolYear: currentSY, schoolName,
         periodType, subjectArea, activitiesByPeriod, scoresByPeriod, students,
+        framework: gradingFramework,
       })
       addToast(`Exported: ${filename}`, 'success')
     } catch (err) {
@@ -546,12 +635,12 @@ export default function EClassRecord() {
   }
 
   // ── Computed stats ─────────────────────────────────────────
-  const filledCount   = studentGrades.filter(r => r.ww.some(v => v !== '') || r.pt.some(v => v !== '') || r.qa.some(v => v !== '')).length
+  const filledCount   = studentGrades.filter(r => Object.values(r.scores || {}).some(arr => (arr || []).some(v => v !== ''))).length
   const computedCount = studentGrades.filter(r => r.computed).length
-  const draftCount    = studentGrades.filter(r => r.status === 'draft' && (r.ww.some(v => v !== '') || r.pt.some(v => v !== ''))).length
+  const draftCount    = studentGrades.filter(r => r.status === 'draft' && Object.values(r.scores || {}).some(arr => (arr || []).some(v => v !== ''))).length
 
-  const collegeFilledCount  = collegeRows.filter(r => r.prelim !== '' || r.midterm !== '' || r.finals !== '' || r.specialGrade).length
-  const collegeDraftCount   = collegeRows.filter(r => r.status === 'draft' && (r.prelim !== '' || r.midterm !== '' || r.finals !== '' || r.specialGrade)).length
+  const collegeFilledCount  = collegeRows.filter(r => Object.values(r.scores || {}).some(v => v !== '') || r.specialGrade).length
+  const collegeDraftCount   = collegeRows.filter(r => r.status === 'draft' && (Object.values(r.scores || {}).some(v => v !== '') || r.specialGrade)).length
   const collegeComputedCount = collegeRows.filter(r => r.computed || r.specialGrade).length
 
   if (loading) return <PageSkeleton />
@@ -560,10 +649,21 @@ export default function EClassRecord() {
   // VIEW: Grade Entry (subject selected)
   // ═══════════════════════════════════════════════════════════
   if (selectedSubject) {
-    const weights = WEIGHT_TABLES[subjectArea]
-    const wwColCount = activities.ww.length
-    const ptColCount = activities.pt.length
-    const qaColCount = activities.qa.length
+    // Weights shown in the "max score" row come from the school year's
+    // actually-configured framework, not the hardcoded DO 8, s.2015
+    // WEIGHT_TABLES constant — a custom framework's weights now display
+    // correctly here instead of always showing the DO 8 default.
+    const weights = gradingFramework.subjectGroups.find(g => g.id === subjectArea)?.weights || WEIGHT_TABLES[subjectArea]
+    const colCounts = {}
+    gradingFramework.components.forEach(c => { colCounts[c.key] = (activities[c.key] || []).length })
+    const totalColCount = Object.values(colCounts).reduce((s, n) => s + n, 0)
+    const componentPalette = [
+      { text: 'text-[var(--color-primary-readable)]', headBg: 'bg-red-50/50 dark:bg-red-900/10', subBg: 'bg-red-50/30 dark:bg-red-900/5' },
+      { text: 'text-blue-700 dark:text-blue-400', headBg: 'bg-blue-50/50 dark:bg-blue-900/10', subBg: 'bg-blue-50/30 dark:bg-blue-900/5' },
+      { text: 'text-green-700 dark:text-green-400', headBg: 'bg-green-50/50 dark:bg-green-900/10', subBg: 'bg-green-50/30 dark:bg-green-900/5' },
+      { text: 'text-purple-700 dark:text-purple-400', headBg: 'bg-purple-50/50 dark:bg-purple-900/10', subBg: 'bg-purple-50/30 dark:bg-purple-900/5' },
+      { text: 'text-amber-700 dark:text-amber-400', headBg: 'bg-amber-50/50 dark:bg-amber-900/10', subBg: 'bg-amber-50/30 dark:bg-amber-900/5' },
+    ]
 
     const semesterLabel = COLLEGE_SEMESTERS.find(s => s.id === collegeSemester)?.label ?? collegeSemester
 
@@ -602,11 +702,14 @@ export default function EClassRecord() {
 
         {/* ── Config panel ──────────────────────────────────── */}
         <div className="card p-4 space-y-3">
-          {/* Trimester warning (Basic Ed only) */}
+          {/* Trimester notice (Basic Ed only) */}
           {!isCollege && isTrimester && (
             <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              Trimester mode — grade entry available but auto-computation disabled until DepEd releases guidelines.
+              Trimester mode — DepEd Order No. 015, s.2026 restructures grade components to
+              Written/Oral Works, Product/Performance Tasks, and Examinations (ST1+ST2+TE) for
+              SY 2026-2027. Score entry below still uses the WW/PT/QA layout; a dedicated
+              WW/PT/EX entry screen is planned separately.
             </div>
           )}
 
@@ -632,7 +735,7 @@ export default function EClassRecord() {
                 <span>Prelim: <strong className="text-[var(--color-text-primary)]">30%</strong></span>
                 <span>Midterm: <strong className="text-[var(--color-text-primary)]">30%</strong></span>
                 <span>Finals: <strong className="text-[var(--color-text-primary)]">40%</strong></span>
-                <span className="ml-auto text-primary font-medium">1.00–5.00 CHED Scale</span>
+                <span className="ml-auto text-[var(--color-primary-readable)] font-medium">1.00–5.00 CHED Scale</span>
               </div>
             </div>
           ) : (
@@ -682,9 +785,9 @@ export default function EClassRecord() {
               {subjectArea && weights && (
                 <div className="pt-3 border-t border-[var(--color-border)] flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)]">
                   <span className="flex items-center gap-1"><Info className="w-3 h-3" /> Weights:</span>
-                  <span>WW: <strong className="text-[var(--color-text-primary)]">{weights.ww * 100}%</strong></span>
-                  <span>PT: <strong className="text-[var(--color-text-primary)]">{weights.pt * 100}%</strong></span>
-                  <span>QA: <strong className="text-[var(--color-text-primary)]">{weights.qa * 100}%</strong></span>
+                  {gradingFramework.components.map(c => (
+                    <span key={c.key}>{c.label}: <strong className="text-[var(--color-text-primary)]">{Math.round((weights[c.key] || 0) * 100)}%</strong></span>
+                  ))}
                 </div>
               )}
             </div>
@@ -731,14 +834,26 @@ export default function EClassRecord() {
             ) : (
               <div className="min-w-0 card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ minWidth: 820 }}>
+                  <table className="w-full text-xs" style={{ minWidth: 660 + collegeGradingFramework.components.length * 80 }}>
                     <thead>
                       <tr className="bg-[var(--color-bg-subtle)]">
                         <th className="px-2 py-2 text-left font-semibold border-b border-[var(--color-border)] sticky left-0 bg-[var(--color-bg-subtle)] z-10" style={{ minWidth: 30 }}>#</th>
                         <th className="px-2 py-2 text-left font-semibold border-b border-[var(--color-border)] sticky left-8 bg-[var(--color-bg-subtle)] z-10" style={{ minWidth: 180 }}>Student Name</th>
-                        <th className="px-2 py-2 text-center font-bold text-primary border-b border-l border-[var(--color-border)] bg-red-50/50 dark:bg-red-900/10" style={{ minWidth: 80 }}>Prelim<br /><span className="text-[10px] font-normal opacity-70">30%</span></th>
-                        <th className="px-2 py-2 text-center font-bold text-blue-700 dark:text-blue-400 border-b border-l border-[var(--color-border)] bg-blue-50/50 dark:bg-blue-900/10" style={{ minWidth: 80 }}>Midterm<br /><span className="text-[10px] font-normal opacity-70">30%</span></th>
-                        <th className="px-2 py-2 text-center font-bold text-green-700 dark:text-green-400 border-b border-l border-[var(--color-border)] bg-green-50/50 dark:bg-green-900/10" style={{ minWidth: 80 }}>Finals<br /><span className="text-[10px] font-normal opacity-70">40%</span></th>
+                        {collegeGradingFramework.components.map((c, ci) => {
+                          const palette = [
+                            { text: 'text-[var(--color-primary-readable)]', bg: 'bg-red-50/50 dark:bg-red-900/10' },
+                            { text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50/50 dark:bg-blue-900/10' },
+                            { text: 'text-green-700 dark:text-green-400', bg: 'bg-green-50/50 dark:bg-green-900/10' },
+                            { text: 'text-purple-700 dark:text-purple-400', bg: 'bg-purple-50/50 dark:bg-purple-900/10' },
+                            { text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50/50 dark:bg-amber-900/10' },
+                          ]
+                          const clr = palette[ci % palette.length]
+                          return (
+                            <th key={c.key} className={`px-2 py-2 text-center font-bold ${clr.text} border-b border-l border-[var(--color-border)] ${clr.bg}`} style={{ minWidth: 80 }}>
+                              {c.label}<br /><span className="text-[10px] font-normal opacity-70">{Math.round((c.weight || 0) * 100)}%</span>
+                            </th>
+                          )
+                        })}
                         <th className="px-2 py-2 text-center font-semibold border-b border-l border-[var(--color-border)]" style={{ minWidth: 80 }}>Sem. Grade</th>
                         <th className="px-2 py-2 text-center font-semibold border-b border-l border-[var(--color-border)]" style={{ minWidth: 80 }}>Point Grade</th>
                         <th className="px-2 py-2 text-center font-semibold border-b border-l border-[var(--color-border)]" style={{ minWidth: 100 }}>Descriptor</th>
@@ -766,32 +881,16 @@ export default function EClassRecord() {
                               )}
                             </td>
 
-                            {/* Prelim */}
-                            <td className="px-1 py-1 border-l border-[var(--color-border)]/30">
-                              <input type="number" min={0} max={100} step="0.01"
-                                value={row.prelim} disabled={isLocked}
-                                onChange={e => updateCollegeScore(idx, 'prelim', e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))))}
-                                className="w-16 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs"
-                                placeholder="0–100" />
-                            </td>
-
-                            {/* Midterm */}
-                            <td className="px-1 py-1 border-l border-[var(--color-border)]/30">
-                              <input type="number" min={0} max={100} step="0.01"
-                                value={row.midterm} disabled={isLocked}
-                                onChange={e => updateCollegeScore(idx, 'midterm', e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))))}
-                                className="w-16 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs"
-                                placeholder="0–100" />
-                            </td>
-
-                            {/* Finals */}
-                            <td className="px-1 py-1 border-l border-[var(--color-border)]/30">
-                              <input type="number" min={0} max={100} step="0.01"
-                                value={row.finals} disabled={isLocked}
-                                onChange={e => updateCollegeScore(idx, 'finals', e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))))}
-                                className="w-16 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs"
-                                placeholder="0–100" />
-                            </td>
+                            {/* Score inputs — one per component the active framework defines */}
+                            {collegeGradingFramework.components.map(c => (
+                              <td key={c.key} className="px-1 py-1 border-l border-[var(--color-border)]/30">
+                                <input type="number" min={0} max={100} step="0.01"
+                                  value={row.scores[c.key] ?? ''} disabled={isLocked}
+                                  onChange={e => updateCollegeScore(idx, c.key, e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value))))}
+                                  className="w-16 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs"
+                                  placeholder="0–100" />
+                              </td>
+                            ))}
 
                             {/* Semester Grade */}
                             <td className="px-2 py-1.5 text-center font-mono border-l border-[var(--color-border)]">
@@ -860,7 +959,7 @@ export default function EClassRecord() {
                   </button>
                   <button onClick={() => setShowSubmitConfirm(true)}
                     disabled={collegeDraftCount === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-lg hover:bg-accent-burgundy transition disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
                     <Send className="w-4 h-4" /> Submit to Program Head
                   </button>
                 </div>
@@ -883,46 +982,47 @@ export default function EClassRecord() {
             ) : (
               <div className="min-w-0 card overflow-hidden" ref={tableRef}>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs" style={{ minWidth: `${300 + (wwColCount + ptColCount + qaColCount + 7) * 60}px` }}>
+                  <table className="w-full text-xs" style={{ minWidth: `${300 + (totalColCount + gradingFramework.components.length * 3 + 4) * 60}px` }}>
                     <thead>
                       <tr className="bg-[var(--color-bg-subtle)]">
                         <th className="px-2 py-2 text-left font-semibold text-[var(--color-text-primary)] border-b border-[var(--color-border)] sticky left-0 bg-[var(--color-bg-subtle)] z-10" rowSpan={2} style={{ minWidth: 30 }}>#</th>
                         <th className="px-2 py-2 text-left font-semibold text-[var(--color-text-primary)] border-b border-[var(--color-border)] sticky left-8 bg-[var(--color-bg-subtle)] z-10" rowSpan={2} style={{ minWidth: 180 }}>Student Name</th>
-                        {wwColCount > 0 && <th colSpan={wwColCount + 3} className="px-2 py-2 text-center font-bold text-primary border-b border-l border-[var(--color-border)] bg-red-50/50 dark:bg-red-900/10">WRITTEN WORKS</th>}
-                        {ptColCount > 0 && <th colSpan={ptColCount + 3} className="px-2 py-2 text-center font-bold text-blue-700 dark:text-blue-400 border-b border-l border-[var(--color-border)] bg-blue-50/50 dark:bg-blue-900/10">PERFORMANCE TASKS</th>}
-                        {qaColCount > 0 && <th colSpan={qaColCount + 3} className="px-2 py-2 text-center font-bold text-green-700 dark:text-green-400 border-b border-l border-[var(--color-border)] bg-green-50/50 dark:bg-green-900/10">QUARTERLY ASSESSMENT</th>}
+                        {gradingFramework.components.map((c, ci) => colCounts[c.key] > 0 && (
+                          <th key={c.key} colSpan={colCounts[c.key] + 3} className={`px-2 py-2 text-center font-bold ${componentPalette[ci % componentPalette.length].text} border-b border-l border-[var(--color-border)] ${componentPalette[ci % componentPalette.length].headBg}`}>
+                            {c.label.toUpperCase()}
+                          </th>
+                        ))}
                         <th className="px-2 py-2 text-center font-bold border-b border-l border-[var(--color-border)]" rowSpan={2}>Initial</th>
                         <th className="px-2 py-2 text-center font-bold border-b border-l border-[var(--color-border)]" rowSpan={2}>Grade</th>
                       </tr>
                       <tr className="bg-[var(--color-bg-subtle)]/60">
-                        {activities.ww.map((a, i) => <th key={`ww${i}`} className="px-1 py-1.5 text-center font-medium text-[var(--color-text-muted)] border-b border-[var(--color-border)] bg-red-50/30 dark:bg-red-900/5" style={{ minWidth: 50 }} title={a.name}>{a.name}</th>)}
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-red-50/30 dark:bg-red-900/5">Total</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-red-50/30 dark:bg-red-900/5">PS</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-red-50/30 dark:bg-red-900/5">WS</th>
-                        {activities.pt.map((a, i) => <th key={`pt${i}`} className="px-1 py-1.5 text-center font-medium text-[var(--color-text-muted)] border-b border-l border-[var(--color-border)] bg-blue-50/30 dark:bg-blue-900/5" style={{ minWidth: 50 }} title={a.name}>{a.name}</th>)}
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-blue-50/30 dark:bg-blue-900/5">Total</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-blue-50/30 dark:bg-blue-900/5">PS</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-blue-50/30 dark:bg-blue-900/5">WS</th>
-                        {activities.qa.map((a, i) => <th key={`qa${i}`} className="px-1 py-1.5 text-center font-medium text-[var(--color-text-muted)] border-b border-l border-[var(--color-border)] bg-green-50/30 dark:bg-green-900/5" style={{ minWidth: 50 }} title={a.name}>{a.name}</th>)}
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-green-50/30 dark:bg-green-900/5">Total</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-green-50/30 dark:bg-green-900/5">PS</th>
-                        <th className="px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] bg-green-50/30 dark:bg-green-900/5">WS</th>
+                        {gradingFramework.components.map((c, ci) => {
+                          const clr = componentPalette[ci % componentPalette.length]
+                          return (
+                            <Fragment key={c.key}>
+                              {(activities[c.key] || []).map((a, i) => (
+                                <th key={`${c.key}${i}`} className={`px-1 py-1.5 text-center font-medium text-[var(--color-text-muted)] border-b ${ci > 0 ? 'border-l' : ''} border-[var(--color-border)] ${clr.subBg}`} style={{ minWidth: 50 }} title={a.name}>{a.name}</th>
+                              ))}
+                              <th className={`px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] ${clr.subBg}`}>Total</th>
+                              <th className={`px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] ${clr.subBg}`}>PS</th>
+                              <th className={`px-1 py-1.5 text-center font-semibold text-[var(--color-text-secondary)] border-b border-[var(--color-border)] ${clr.subBg}`}>WS</th>
+                            </Fragment>
+                          )
+                        })}
                       </tr>
                       {/* Highest Possible Score row */}
                       <tr className="bg-amber-50/50 dark:bg-amber-900/10">
                         <td colSpan={2} className="px-2 py-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 sticky left-0 bg-amber-50/50 dark:bg-amber-900/10 z-10">HIGHEST POSSIBLE SCORE</td>
-                        {activities.ww.map((a, i) => <td key={`mww${i}`} className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px]">{a.maxScore}</td>)}
-                        <td className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px]">{activities.ww.reduce((s, a) => s + (a.maxScore || 0), 0)}</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">100</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">{weights ? `${weights.ww * 100}%` : '-'}</td>
-                        {activities.pt.map((a, i) => <td key={`mpt${i}`} className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px] border-l border-[var(--color-border)]">{a.maxScore}</td>)}
-                        <td className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px]">{activities.pt.reduce((s, a) => s + (a.maxScore || 0), 0)}</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">100</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">{weights ? `${weights.pt * 100}%` : '-'}</td>
-                        {activities.qa.map((a, i) => <td key={`mqa${i}`} className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px] border-l border-[var(--color-border)]">{a.maxScore}</td>)}
-                        <td className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px]">{activities.qa.reduce((s, a) => s + (a.maxScore || 0), 0)}</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">100</td>
-                        <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">{weights ? `${weights.qa * 100}%` : '-'}</td>
+                        {gradingFramework.components.map((c, ci) => (
+                          <Fragment key={c.key}>
+                            {(activities[c.key] || []).map((a, i) => (
+                              <td key={`m${c.key}${i}`} className={`px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px] ${ci > 0 && i === 0 ? 'border-l border-[var(--color-border)]' : ''}`}>{a.maxScore}</td>
+                            ))}
+                            <td className="px-1 py-1.5 text-center font-bold text-amber-700 dark:text-amber-400 text-[10px]">{(activities[c.key] || []).reduce((s, a) => s + (a.maxScore || 0), 0)}</td>
+                            <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">100</td>
+                            <td className="px-1 py-1.5 text-center text-[10px] text-amber-600/60">{weights ? `${Math.round((weights[c.key] || 0) * 100)}%` : '-'}</td>
+                          </Fragment>
+                        ))}
                         <td className="px-1 py-1.5 border-l border-[var(--color-border)]" />
                         <td className="px-1 py-1.5 border-l border-[var(--color-border)]" />
                       </tr>
@@ -930,50 +1030,32 @@ export default function EClassRecord() {
                     <tbody className="divide-y divide-[var(--color-border)]">
                       {studentGrades.map((row, idx) => {
                         const isLocked = row.status === 'submitted' || row.status === 'approved'
-                        const wwSum = row.ww.reduce((s, v) => s + (Number(v) || 0), 0)
-                        const wwMax = activities.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-                        const ptSum = row.pt.reduce((s, v) => s + (Number(v) || 0), 0)
-                        const ptMax = activities.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-                        const qaSum = row.qa.reduce((s, v) => s + (Number(v) || 0), 0)
-                        const qaMax = activities.qa.reduce((s, a) => s + (a.maxScore || 0), 0)
-                        const wwPS  = wwMax > 0 ? Math.round((wwSum / wwMax) * 10000) / 100 : 0
-                        const ptPS  = ptMax > 0 ? Math.round((ptSum / ptMax) * 10000) / 100 : 0
-                        const qaPS  = qaMax > 0 ? Math.round((qaSum / qaMax) * 10000) / 100 : 0
+                        const compStats = {}
+                        gradingFramework.components.forEach(c => {
+                          const arr = row.scores[c.key] || []
+                          const sum = arr.reduce((s, v) => s + (Number(v) || 0), 0)
+                          const max = (activities[c.key] || []).reduce((s, a) => s + (a.maxScore || 0), 0)
+                          compStats[c.key] = { sum, max, ps: max > 0 ? Math.round((sum / max) * 10000) / 100 : 0 }
+                        })
 
                         return (
                           <tr key={row.studentId} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
                             <td className="px-2 py-1 text-[var(--color-text-muted)] sticky left-0 bg-[var(--color-bg-card)] z-10">{idx + 1}</td>
                             <td className="px-2 py-1 font-medium text-[var(--color-text-primary)] whitespace-nowrap sticky left-8 bg-[var(--color-bg-card)] z-10" style={{ minWidth: 180 }}>{row.studentName}</td>
-                            {row.ww.map((v, i) => (
-                              <td key={`ww${i}`} className="px-0.5 py-0.5">
-                                <input type="number" min={0} max={activities.ww[i]?.maxScore || 999} value={v} disabled={isLocked}
-                                  onChange={e => updateScore(idx, 'ww', i, e.target.value)}
-                                  className="w-12 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs" />
-                              </td>
+                            {gradingFramework.components.map((c, ci) => (
+                              <Fragment key={c.key}>
+                                {(row.scores[c.key] || []).map((v, i) => (
+                                  <td key={`${c.key}${i}`} className={`px-0.5 py-0.5 ${ci > 0 && i === 0 ? 'border-l border-[var(--color-border)]/30' : ''}`}>
+                                    <input type="number" min={0} max={activities[c.key]?.[i]?.maxScore || 999} value={v} disabled={isLocked}
+                                      onChange={e => updateScore(idx, c.key, i, e.target.value)}
+                                      className="w-12 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs" />
+                                  </td>
+                                ))}
+                                <td className="px-1 py-1 text-center font-medium text-[var(--color-text-secondary)]">{compStats[c.key].sum || ''}</td>
+                                <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{(row.scores[c.key] || []).some(v => v !== '') ? compStats[c.key].ps.toFixed(2) : ''}</td>
+                                <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.computed?.breakdown?.[c.key]?.weighted != null ? row.computed.breakdown[c.key].weighted.toFixed(2) : ''}</td>
+                              </Fragment>
                             ))}
-                            <td className="px-1 py-1 text-center font-medium text-[var(--color-text-secondary)]">{wwSum || ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.ww.some(v => v !== '') ? wwPS.toFixed(2) : ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.computed ? row.computed.wwWS.toFixed(2) : ''}</td>
-                            {row.pt.map((v, i) => (
-                              <td key={`pt${i}`} className="px-0.5 py-0.5 border-l border-[var(--color-border)]/30">
-                                <input type="number" min={0} max={activities.pt[i]?.maxScore || 999} value={v} disabled={isLocked}
-                                  onChange={e => updateScore(idx, 'pt', i, e.target.value)}
-                                  className="w-12 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs" />
-                              </td>
-                            ))}
-                            <td className="px-1 py-1 text-center font-medium text-[var(--color-text-secondary)]">{ptSum || ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.pt.some(v => v !== '') ? ptPS.toFixed(2) : ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.computed ? row.computed.ptWS.toFixed(2) : ''}</td>
-                            {row.qa.map((v, i) => (
-                              <td key={`qa${i}`} className="px-0.5 py-0.5 border-l border-[var(--color-border)]/30">
-                                <input type="number" min={0} max={activities.qa[i]?.maxScore || 999} value={v} disabled={isLocked}
-                                  onChange={e => updateScore(idx, 'qa', i, e.target.value)}
-                                  className="w-12 px-1 py-1 text-center border border-[var(--color-border)] rounded bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary transition disabled:opacity-40 text-xs" />
-                              </td>
-                            ))}
-                            <td className="px-1 py-1 text-center font-medium text-[var(--color-text-secondary)]">{qaSum || ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.qa.some(v => v !== '') ? qaPS.toFixed(2) : ''}</td>
-                            <td className="px-1 py-1 text-center text-[var(--color-text-muted)]">{row.computed ? row.computed.qaWS.toFixed(2) : ''}</td>
                             <td className="px-2 py-1 text-center font-mono border-l border-[var(--color-border)]">{row.computed ? row.computed.initial : ''}</td>
                             <td className="px-2 py-1 text-center font-mono font-bold border-l border-[var(--color-border)]">
                               {row.computed ? (
@@ -1006,7 +1088,7 @@ export default function EClassRecord() {
                     <Save className="w-4 h-4" /> Save Draft
                   </button>
                   <button onClick={() => setShowSubmitConfirm(true)} disabled={!subjectArea || draftCount === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-white rounded-lg hover:bg-accent-burgundy transition disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
                     <Send className="w-4 h-4" /> Submit
                   </button>
                 </div>
@@ -1017,6 +1099,7 @@ export default function EClassRecord() {
             {showActivitySetup && (
               <ActivitySetupModal
                 activities={activities}
+                framework={gradingFramework}
                 onSave={saveActivityConfig}
                 onClose={() => setShowActivitySetup(false)}
               />
@@ -1030,7 +1113,7 @@ export default function EClassRecord() {
             <div className="modal-backdrop">
               <div className="modal-panel" style={{ maxWidth: '28rem' }}>
                 <div className="p-5 text-center">
-                  <Send className="w-10 h-10 text-primary mx-auto mb-3" />
+                  <Send className="w-10 h-10 text-[var(--color-primary-readable)] mx-auto mb-3" />
                   <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Submit Grades?</h3>
                   <p className="text-xs text-[var(--color-text-muted)] mb-4">
                     {isCollege
@@ -1080,7 +1163,7 @@ export default function EClassRecord() {
             <div key={sec.section} className="card overflow-hidden">
               <div className="p-4 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)]/50">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-primary" />
+                  <Users className="w-4 h-4 text-[var(--color-primary-readable)]" />
                   <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{sec.section}</h3>
                   <span className="text-xs text-[var(--color-text-muted)]">· {sec.gradeLevel} · {sec.subjects.length} subject{sec.subjects.length !== 1 ? 's' : ''}</span>
                   {sec.department === 'college' && (
@@ -1106,7 +1189,7 @@ export default function EClassRecord() {
                         }`}>
                           <BookOpen className={`w-4 h-4 ${
                             subj.department === 'college' ? 'text-indigo-500' :
-                            parentInfo ? 'text-purple-500' : 'text-primary'
+                            parentInfo ? 'text-purple-500' : 'text-[var(--color-primary-readable)]'
                           }`} />
                         </div>
                         <div>
@@ -1201,19 +1284,18 @@ export default function EClassRecord() {
 // ═══════════════════════════════════════════════════════════════
 // Activity Setup Modal (Basic Ed only)
 // ═══════════════════════════════════════════════════════════════
-function ActivitySetupModal({ activities, onSave, onClose }) {
-  const [draft, setDraft] = useState({
-    ww: [...(activities.ww || [])],
-    pt: [...(activities.pt || [])],
-    qa: [...(activities.qa || [])],
+function ActivitySetupModal({ activities, framework, onSave, onClose }) {
+  const [draft, setDraft] = useState(() => {
+    const init = {}
+    framework.components.forEach(c => { init[c.key] = [...(activities[c.key] || [])] })
+    return init
   })
 
   const addActivity = (component) => {
-    const labels   = { ww: 'Quiz', pt: 'Activity', qa: 'Exam' }
-    const defaults = { ww: 20, pt: 50, qa: 100 }
+    const defaultMax = component === framework.components[framework.components.length - 1].key ? 100 : 20
     setDraft(prev => ({
       ...prev,
-      [component]: [...prev[component], { name: `${labels[component]} ${prev[component].length + 1}`, maxScore: defaults[component] }]
+      [component]: [...prev[component], { name: `Item ${prev[component].length + 1}`, maxScore: defaultMax }]
     }))
   }
 
@@ -1229,6 +1311,11 @@ function ActivitySetupModal({ activities, onSave, onClose }) {
     })
   }
 
+  const componentColors = [
+    'text-[var(--color-primary-readable)]', 'text-blue-700 dark:text-blue-400', 'text-green-700 dark:text-green-400',
+    'text-purple-700 dark:text-purple-400', 'text-amber-700 dark:text-amber-400',
+  ]
+
   const renderSection = (label, component, color) => (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -1238,8 +1325,8 @@ function ActivitySetupModal({ activities, onSave, onClose }) {
           <Plus className="w-3 h-3" /> Add
         </button>
       </div>
-      {draft[component].length === 0 && <p className="text-[10px] text-[var(--color-text-muted)] italic">No activities added</p>}
-      {draft[component].map((act, idx) => (
+      {(draft[component] || []).length === 0 && <p className="text-[10px] text-[var(--color-text-muted)] italic">No activities added</p>}
+      {(draft[component] || []).map((act, idx) => (
         <div key={idx} className="flex items-center gap-2">
           <input type="text" value={act.name} onChange={e => updateActivity(component, idx, 'name', e.target.value)}
             className="flex-1 px-2 py-1.5 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none focus:ring-1 focus:ring-primary" placeholder="Activity name" />
@@ -1270,11 +1357,12 @@ function ActivitySetupModal({ activities, onSave, onClose }) {
             </button>
           </div>
           <div className="p-4 space-y-5 max-h-[60vh] overflow-y-auto">
-            {renderSection('Written Works', 'ww', 'text-primary')}
-            <div className="border-t border-[var(--color-border)]" />
-            {renderSection('Performance Tasks', 'pt', 'text-blue-700 dark:text-blue-400')}
-            <div className="border-t border-[var(--color-border)]" />
-            {renderSection('Quarterly Assessment', 'qa', 'text-green-700 dark:text-green-400')}
+            {framework.components.map((c, ci) => (
+              <Fragment key={c.key}>
+                {ci > 0 && <div className="border-t border-[var(--color-border)]" />}
+                {renderSection(c.label, c.key, componentColors[ci % componentColors.length])}
+              </Fragment>
+            ))}
           </div>
           <div className="flex justify-end gap-2 p-4 border-t border-[var(--color-border)]">
             <button onClick={onClose} className="btn-cancel">Cancel</button>

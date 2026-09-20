@@ -182,7 +182,7 @@ export default function NotificationPanel({ onClose }) {
           {unreadCount > 0 && (
             <span
               className="px-2 py-0.5 text-xs rounded-full font-medium"
-              style={{ backgroundColor: 'var(--color-primary)', color: '#ffffff' }}
+              style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-contrast)' }}
             >
               {unreadCount}
             </span>

@@ -49,7 +49,7 @@ import {
   BookOpen, GraduationCap, ChevronDown, ChevronUp,
   MapPin, FileText
 } from 'lucide-react'
-import { COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { COLLEGE_YEAR_LEVELS, isCampusLockedRole } from '../config/appConfig'
 
 // ────────────────────────────────────────────────────────────────
 // PRIMITIVES
@@ -74,12 +74,12 @@ export const DEPT_STYLES = {
   'Pre-Elementary':    { bg: 'bg-emerald-600', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300' },
   'Elementary':        { bg: 'bg-blue-600',    lightBg: 'bg-blue-50 dark:bg-blue-900/20',       light: 'bg-blue-50 dark:bg-blue-900/20',       border: 'border-blue-200 dark:border-blue-700',       text: 'text-blue-700 dark:text-blue-300'       },
   'Junior High School':{ bg: 'bg-indigo-700',  lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',   light: 'bg-indigo-50 dark:bg-indigo-900/20',   border: 'border-indigo-200 dark:border-indigo-700',   text: 'text-indigo-700 dark:text-indigo-300'   },
-  'Senior High School':{ bg: 'bg-primary',     lightBg: 'bg-red-50 dark:bg-red-900/20',         light: 'bg-red-50 dark:bg-red-900/20',         border: 'border-red-200 dark:border-red-700',         text: 'text-primary dark:text-red-300'         },
+  'Senior High School':{ bg: 'bg-primary',     lightBg: 'bg-red-50 dark:bg-red-900/20',         light: 'bg-red-50 dark:bg-red-900/20',         border: 'border-red-200 dark:border-red-700',         text: 'text-[var(--color-primary-readable)]'         },
 }
 
 /** College program color palette */
 export const PROG_COLORS = [
-  { bg: 'bg-primary',         lightBg: 'bg-red-50 dark:bg-red-900/20',        light: 'bg-red-50 dark:bg-red-900/20',        border: 'border-red-200 dark:border-red-700',       text: 'text-primary dark:text-red-300'        },
+  { bg: 'bg-primary',         lightBg: 'bg-red-50 dark:bg-red-900/20',        light: 'bg-red-50 dark:bg-red-900/20',        border: 'border-red-200 dark:border-red-700',       text: 'text-[var(--color-primary-readable)]'        },
   { bg: 'bg-secondary',       lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',  light: 'bg-indigo-50 dark:bg-indigo-900/20',  border: 'border-indigo-200 dark:border-indigo-700', text: 'text-indigo-700 dark:text-indigo-300'  },
   { bg: 'bg-light-secondary', lightBg: 'bg-blue-50 dark:bg-blue-900/20',      light: 'bg-blue-50 dark:bg-blue-900/20',      border: 'border-blue-200 dark:border-blue-700',     text: 'text-blue-700 dark:text-blue-300'      },
   { bg: 'bg-violet-600',      lightBg: 'bg-violet-50 dark:bg-violet-900/20',  light: 'bg-violet-50 dark:bg-violet-900/20',  border: 'border-violet-200 dark:border-violet-700', text: 'text-violet-700 dark:text-violet-300'  },
@@ -163,7 +163,7 @@ export function CampusMiniCard({ campusStat: c }) {
     <div className="bg-[var(--color-bg-card)] rounded-xl p-4 shadow-sm border border-[var(--color-border)]">
       <div className="flex items-center gap-2 mb-3">
         <div className="w-7 h-7 bg-secondary/10 dark:bg-secondary/30 rounded-lg flex items-center justify-center flex-shrink-0">
-          <MapPin className="w-3.5 h-3.5 text-secondary dark:text-blue-400" />
+          <MapPin className="w-3.5 h-3.5 text-[var(--color-secondary-readable)]" />
         </div>
         <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{c.name}</p>
       </div>
@@ -210,14 +210,7 @@ export function CampusMiniCard({ campusStat: c }) {
 export function CampusBanner({ user }) {
   if (!user) return null
 
-  const isLocked =
-    user.role === 'registrar_basic'   ||
-    user.role === 'registrar_college' ||
-    user.role === 'principal_basic'   ||
-    user.role === 'program_head'      ||
-    user.role === 'system_admin'      ||
-    user.role === 'teacher'           ||
-    (user.role === 'accounting' && user.campus !== 'all')
+  const isLocked = isCampusLockedRole(user)
 
   if (!isLocked) return null
 
@@ -237,7 +230,7 @@ export function CampusBanner({ user }) {
   return (
     <div className="rounded-xl px-5 py-3.5 flex items-center gap-3 border bg-[var(--color-primary-light)] border-primary/20">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary">
-        <MapPin className="w-4 h-4 text-white" />
+        <MapPin className="w-4 h-4 text-[var(--color-primary-contrast)]" />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-[var(--color-text-primary)]">
@@ -247,8 +240,8 @@ export function CampusBanner({ user }) {
         <p className="text-xs mt-0.5 text-[var(--color-text-muted)]">You are only authorized to view and manage data for this campus</p>
       </div>
       <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10">
-        <Building2 className="w-3.5 h-3.5 text-primary" />
-        <span className="text-xs font-semibold text-primary">Campus Locked</span>
+        <Building2 className="w-3.5 h-3.5 text-[var(--color-primary-readable)]" />
+        <span className="text-xs font-semibold text-[var(--color-primary-readable)]">Campus Locked</span>
       </div>
     </div>
   )
@@ -273,21 +266,14 @@ export function CampusBanner({ user }) {
 export function CampusChip({ user }) {
   if (!user) return null
 
-  const isLocked =
-    user.role === 'registrar_basic'   ||
-    user.role === 'registrar_college' ||
-    user.role === 'principal_basic'   ||
-    user.role === 'program_head'      ||
-    user.role === 'system_admin'      ||
-    user.role === 'teacher'           ||
-    (user.role === 'accounting' && user.campus !== 'all')
+  const isLocked = isCampusLockedRole(user)
 
   if (!isLocked) return null
 
   // Use system primary color for all campuses
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white border bg-primary border-primary"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-[var(--color-primary-contrast)] border bg-primary border-primary"
     >
       <MapPin className="w-3 h-3" />
       <span className="hidden sm:inline">{user.campus}</span>
@@ -320,7 +306,7 @@ export function CampusChip({ user }) {
  *   <SectionPanel
  *     title="Enrollments Summary"
  *     icon={<FileText className="w-4 h-4" />}
- *     colorCls="text-primary bg-red-50 dark:bg-red-900/10"
+ *     colorCls="text-[var(--color-primary-readable)] bg-red-50 dark:bg-red-900/10"
  *     pills={['24 total', '5 pending']}
  *   >
  *     ...content...
@@ -415,7 +401,7 @@ export function DeptEnrollmentCard({ group, enrollments }) {
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className="w-4 h-4 text-white" />
+            <BookOpen className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
@@ -529,7 +515,7 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className="w-4 h-4 text-white" />
+            <GraduationCap className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
@@ -693,7 +679,7 @@ export function DeptPaymentCard({ group, payments }) {
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className="w-4 h-4 text-white" />
+            <BookOpen className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
@@ -763,7 +749,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className="w-4 h-4 text-white" />
+            <GraduationCap className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
@@ -814,9 +800,9 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
 
 /**
  * Recent enrollment applications table (last N rows).
- * Usage: <EnrollmentTable enrollments={filteredEnrollments} limit={5} accentColor="text-primary" />
+ * Usage: <EnrollmentTable enrollments={filteredEnrollments} limit={5} accentColor="text-[var(--color-primary-readable)]" />
  */
-export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-primary dark:text-red-400' }) {
+export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-[var(--color-primary-readable)]' }) {
   const rows = limit ? enrollments.slice(0, limit) : enrollments
   if (rows.length === 0) return (
     <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment data found.</p>
@@ -1015,7 +1001,7 @@ export function DeptToggle({ value = 'all', onChange, options = DEFAULT_DEPT_OPT
             'px-3 py-2 transition-colors whitespace-nowrap',
             idx > 0 && 'border-l border-[var(--color-border)]',
             value === opt.val
-              ? 'bg-primary text-white'
+              ? 'bg-primary text-[var(--color-primary-contrast)]'
               : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
           ].filter(Boolean).join(' ')}
         >

@@ -132,8 +132,8 @@ function RoleChips({ value = [], onChange, label }) {
               onClick={() => onChange(on ? value.filter(v => v !== r.value) : [...value, r.value])}
               className={`px-2 py-0.5 rounded-lg text-xs font-mono border transition-colors
                 ${on
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-primary'}`}
+                  ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                  : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}
             >
               {r.value}
             </button>
@@ -232,7 +232,7 @@ function ActionEditor({ actions = [], steps = [], onChange }) {
       <button
         type="button"
         onClick={add}
-        className="w-full py-2 text-xs border border-dashed border-[var(--color-border)] hover:border-primary rounded-xl text-[var(--color-text-muted)] hover:text-primary transition-colors flex items-center justify-center gap-1"
+        className="w-full py-2 text-xs border border-dashed border-[var(--color-border)] hover:border-[var(--color-primary-readable)] rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition-colors flex items-center justify-center gap-1"
       >
         <Plus size={12} /> Add Action
       </button>
@@ -279,7 +279,7 @@ function ConditionEditor({ conditions = [], onChange }) {
           </div>
 
           {/* Field path + operator + value */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <input
               className={INPUT_CLS}
               placeholder="field.path"
@@ -322,7 +322,7 @@ function ConditionEditor({ conditions = [], onChange }) {
       <button
         type="button"
         onClick={add}
-        className="w-full py-2 text-xs border border-dashed border-[var(--color-border)] hover:border-primary rounded-xl text-[var(--color-text-muted)] hover:text-primary transition-colors flex items-center justify-center gap-1"
+        className="w-full py-2 text-xs border border-dashed border-[var(--color-border)] hover:border-[var(--color-primary-readable)] rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition-colors flex items-center justify-center gap-1"
       >
         <Plus size={12} /> Add Condition
       </button>
@@ -813,11 +813,11 @@ export default function WorkflowConfigTab() {
                 }
                 className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors
                   ${selectedId === wf.workflowId
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-[var(--color-primary-contrast)]'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}
               >
                 <div className="font-medium text-[13px] truncate">{wf.label}</div>
-                <div className={`text-[10px] ${selectedId === wf.workflowId ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>
+                <div className={`text-[10px] ${selectedId === wf.workflowId ? 'text-[var(--color-primary-contrast)] opacity-70' : 'text-[var(--color-text-muted)]'}`}>
                   v{wf.version}
                 </div>
               </button>
@@ -864,7 +864,7 @@ export default function WorkflowConfigTab() {
                 <button
                   type="button"
                   onClick={handleAddStep}
-                  className="flex items-center gap-1 text-xs border border-dashed border-[var(--color-border)] hover:border-primary px-3 py-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-primary transition-colors"
+                  className="flex items-center gap-1 text-xs border border-dashed border-[var(--color-border)] hover:border-[var(--color-primary-readable)] px-3 py-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition-colors"
                 >
                   <Plus size={12} /> Add Step
                 </button>

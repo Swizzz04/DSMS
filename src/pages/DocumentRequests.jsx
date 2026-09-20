@@ -262,8 +262,8 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                     <button key={opt} type="button" onClick={() => setRequestedBy(opt)}
                       className={`flex-1 py-2 text-xs rounded-xl border transition-colors font-medium capitalize
                         ${requestedBy === opt
-                          ? 'bg-primary text-white border-primary'
-                          : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary'}`}>
+                          ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                          : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                       {opt}
                     </button>
                   ))}
@@ -426,7 +426,7 @@ function ClearancePanel({ clearanceId, currentUser }) {
             {!cleared && (
               <button
                 onClick={() => setConfirming(dept.id)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-colors font-medium">
+                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-primary hover:text-[var(--color-primary-contrast)] transition-colors font-medium">
                 Sign
               </button>
             )}
@@ -517,7 +517,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 
           <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
             {/* Info grid */}
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               {[
                 ['Purpose',      request.purpose],
                 ['Requested By', `${request.requestedBy}${request.requestorName ? ` — ${request.requestorName}` : ''}`],
@@ -725,8 +725,8 @@ export default function DocumentRequests() {
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
                   ${statusFilter === f.id
-                    ? 'bg-primary text-white border-primary'
-                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary'}`}>
+                    ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                 {f.label}
               </button>
             ))}
@@ -789,7 +789,7 @@ export default function DocumentRequests() {
                     <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">{fmtDate(req.createdAt)}</p>
                     <div className="flex justify-end">
                       <button onClick={() => setSelected(req)}
-                        className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-primary">
+                        className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)]">
                         <Eye size={14} />
                       </button>
                     </div>
@@ -882,8 +882,8 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
               ${filter === f.id
-                ? 'bg-primary text-white border-primary'
-                : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary'}`}>
+                ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
             {f.label}
           </button>
         ))}
@@ -946,7 +946,7 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
                         </p>
                         {!cleared && !clr.isFullyCleared && (
                           <button onClick={() => handleSign(clr.id, dept.id)}
-                            className="mt-1.5 text-[10px] px-2 py-0.5 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-colors">
+                            className="mt-1.5 text-[10px] px-2 py-0.5 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-primary hover:text-[var(--color-primary-contrast)] transition-colors">
                             Sign
                           </button>
                         )}

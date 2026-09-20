@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   LayoutDashboard, FileText, FileEdit, Calendar, ShieldCheck, Users, DollarSign,
-  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen
+  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen, Hourglass
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
 import { getUserPermissions } from '../../config/appConfig'
 
 // Read school branding
@@ -77,8 +78,9 @@ function computeBadges(user) {
 }
 
 // ── Badge pill ────────────────────────────────────────────────────
-function NavBadge({ count, active }) {
+function NavBadge({ count, active, theme }) {
   if (!count || count <= 0) return null
+  const activeLight = active && theme !== 'dark'
   return (
     <span style={{
       marginLeft:      'auto',
@@ -93,9 +95,15 @@ function NavBadge({ count, active }) {
       justifyContent:  'center',
       flexShrink:      0,
       letterSpacing:   '0.02em',
-      backgroundColor: active ? 'rgba(255,255,255,0.20)' : 'var(--color-primary)',
-      color:           '#fff',
-      border:          active ? '1px solid rgba(255,255,255,0.30)' : 'none',
+      backgroundColor: active
+        ? (activeLight ? 'rgb(var(--color-secondary-contrast-rgb) / 0.20)' : 'rgba(255,255,255,0.20)')
+        : 'var(--color-primary)',
+      color:           active
+        ? (activeLight ? 'var(--color-secondary-contrast)' : '#fff')
+        : 'var(--color-primary-contrast)',
+      border:          active
+        ? (activeLight ? '1px solid rgb(var(--color-secondary-contrast-rgb) / 0.30)' : '1px solid rgba(255,255,255,0.30)')
+        : 'none',
     }}>
       {count > 99 ? '99+' : count}
     </span>
@@ -106,6 +114,7 @@ function NavBadge({ count, active }) {
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
   const { user }  = useAuth()
+  const { theme } = useTheme()
   const school    = getSchoolConfig()
   const [badges, setBadges] = useState({})
 
@@ -142,7 +151,9 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       'teacher-forms':       { id: 'teacher-forms',       label: 'Teacher Forms',      icon: FolderOpen,    path: '/teacher-forms' },
       'document-requests':        { id: 'document-requests',        label: 'Doc Requests',    icon: FileText,      path: '/document-requests' },
       'grade-change-requests':   { id: 'grade-change-requests',   label: 'Grade Changes',   icon: FileEdit,      path: '/grade-change-requests' },
+      'inc-completion':            { id: 'inc-completion',            label: 'INC Completion',  icon: Hourglass,     path: '/inc-completion' },
       'attendance':              { id: 'attendance',              label: 'Attendance',      icon: Calendar,      path: '/attendance' },
+      'clearance':               { id: 'clearance',               label: 'Clearance',       icon: ShieldCheck,   path: '/clearance' },
     }
 
     const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
@@ -169,15 +180,23 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
   // ── Section label helper (visual grouping within long nav lists) ──
   const getSectionLabel = (id) => ({
-    enrollments: 'Management',
-    payments:    'Management',
-    students:    'Management',
-    reports:     'Analytics',
-    settings:    'System',
-    'subject-load':       'Academic',
+    // Management
+    enrollments:               'Management',
+    students:                  'Management',
+    payments:                  'Management',
     'document-requests':       'Management',
-    'grade-change-requests':  'Academic',
-    'attendance':             'Academic',
+    clearance:                 'Management',
+    // Analytics
+    reports:                   'Analytics',
+    // System
+    settings:                  'System',
+    // Academic
+    'subject-load':            'Academic',
+    'e-class-record':          'Academic',
+    'teacher-forms':           'Academic',
+    'grade-change-requests':   'Academic',
+    'inc-completion':          'Academic',
+    attendance:                'Academic',
   }[id])
 
   // Insert section dividers
@@ -206,6 +225,12 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       <aside
         className={`sidebar-panel fixed top-0 left-0 h-full z-[70] w-64 shrink-0 flex flex-col ${isOpen ? 'open' : 'closed'}`}
         style={{
+          // Always the neutral card-surface color, in both modes — matches
+          // every other panel in the app. Dark mode previously used
+          // --color-secondary (the brand color) here, which looked like a
+          // mismatched navy/colored region against the rest of the neutral
+          // dark UI whenever a school's secondary color wasn't a plain
+          // near-black. Uniform now regardless of what any school configures.
           backgroundColor: 'var(--color-bg-card)',
           borderRight:     '1px solid var(--color-border)',
           boxShadow:       isOpen ? 'var(--shadow-modal)' : 'none',
@@ -229,7 +254,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
               borderRadius: '50%',
               overflow:     'hidden',
               flexShrink:   0,
-              border:       '2px solid var(--color-primary)',
+              border:       '2px solid var(--color-primary-readable)',
               backgroundColor: '#fff',
               boxShadow:    '0 0 0 3px var(--color-primary-muted)',
             }}>
@@ -322,15 +347,26 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                   textDecoration: 'none',
                   position:       'relative',
                   transition:     `background-color var(--t-base), color var(--t-base)`,
-                  backgroundColor: active ? 'var(--color-primary)' : 'transparent',
-                  color:          active ? '#fff' : 'var(--color-text-secondary)',
-                  // Active left-edge accent
-                  borderLeft:     active ? '3px solid var(--color-primary)' : '3px solid transparent',
+                  backgroundColor: active
+                    ? (theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'var(--color-secondary)')
+                    : 'transparent',
+                  color:          active ? (theme === 'dark' ? '#fff' : 'var(--color-secondary-contrast)') : 'var(--color-text-secondary)',
+                  // Active left-edge accent — uses the readable/on-secondary variants
+                  // (see themeInitializer.js) instead of raw --color-primary, which
+                  // is a fill color meant for buttons and can be too pale/dark to
+                  // read as a thin border. In light mode the pill's own background
+                  // is --color-secondary, so the border needs the variant computed
+                  // specifically for "primary-colored element sitting on secondary" —
+                  // plain --color-primary-readable (contrast vs. the page) isn't
+                  // enough here since the pill itself isn't the page background.
+                  borderLeft:     active
+                    ? (theme === 'dark' ? '3px solid var(--color-text-inverse)' : '3px solid var(--color-primary-on-secondary)')
+                    : '3px solid transparent',
                 }}
                 onMouseEnter={e => {
                   if (!active) {
-                    e.currentTarget.style.backgroundColor = 'var(--color-primary-muted)'
-                    e.currentTarget.style.color           = 'var(  --color-text-secondary)'
+                    e.currentTarget.style.backgroundColor = theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--color-secondary-muted)'
+                    e.currentTarget.style.color           = theme === 'dark' ? '#fff' : 'var(--color-text-secondary)'
                   }
                 }}
                 onMouseLeave={e => {
@@ -364,7 +400,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                 </span>
 
                 {/* Badge */}
-                <NavBadge count={badgeCount} active={active} />
+                <NavBadge count={badgeCount} active={active} theme={theme} />
               </Link>
             )
           })}

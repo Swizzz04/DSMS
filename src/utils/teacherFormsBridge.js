@@ -3,6 +3,8 @@
  * Data gathering + export for DepEd Teacher Forms: SF2, SF5, SF8, SF9, SF10
  */
 
+import { GRADING_PERIODS } from '../engines/gradingEngine'
+
 const SCHOOL_YEAR_KEY = 'almirene_app_config'
 const SUBMISSIONS_KEY = 'almirene_submissions'
 const STUDENTS_KEY    = 'almirene_students'
@@ -45,6 +47,21 @@ function getSchoolInfo() {
     district:   w.district   || '',
     schoolYear: (c.schoolYears || []).find(y => y.isActive)?.year || '2025-2026',
   }
+}
+
+/**
+ * Resolve the grading period IDs (['Q1','Q2','Q3','Q4'] or ['T1','T2','T3'])
+ * configured for a specific school year — SF2/SF5/SF9/SF10 must follow
+ * whatever gradingPeriodType that year was set to in Settings → School Year,
+ * not assume quarterly. Falls back to quarterly if the year isn't found
+ * (e.g. exporting for a year not yet in almirene_app_config).
+ */
+function getPeriodIdsForSchoolYear(schoolYear) {
+  const c = load(SCHOOL_YEAR_KEY) || {}
+  const syConfig = (c.schoolYears || []).find(y => y.year === schoolYear)
+  const periodType = syConfig?.gradingPeriodType || 'quarterly'
+  const periods = GRADING_PERIODS[periodType] || GRADING_PERIODS.quarterly
+  return periods.map(p => p.id)
 }
 
 function normaliseStudent(s) {
@@ -267,17 +284,18 @@ export function buildSF2Data(campusKey, gradeLevel, section, schoolYear, monthNa
 }
 
 export function buildSF5Data(campusKey, gradeLevel, section, schoolYear) {
-  const info     = getSchoolInfo()
-  const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
-  const grades   = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
+  const info       = getSchoolInfo()
+  const students   = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
+  const grades     = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
+  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear).slice(-1)[0] || 'Q4'
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, region: info.region, division: info.division, district: info.district, schoolYear, gradeLevel, section },
     students: students.map(s => {
       const stuGrades = grades.filter(g => g.studentId === s.id || g.studentId === s.studentId)
-      const q4 = stuGrades.filter(g => g.period === 'Q4' || g.period === 'Finals')
+      const q4 = stuGrades.filter(g => g.period === lastPeriod || g.period === 'Finals')
       const gwaRaw = q4.length ? q4.reduce((sum, g) => sum + (g.transmuted || 0), 0) / q4.length : null
       const gwa = gwaRaw ? Math.round(gwaRaw) : null
-      const failedAreas = stuGrades.filter(g => (g.period==='Q4'||g.period==='Finals') && g.transmuted < 75).map(g => g.subjectName).join(', ')
+      const failedAreas = stuGrades.filter(g => (g.period===lastPeriod||g.period==='Finals') && g.transmuted < 75).map(g => g.subjectName).join(', ')
       return { lrn: s.lrn, name: s.name, sex: s.sex, gwa, action: gwa === null ? 'N/A' : gwa >= 75 ? 'PROMOTED' : 'RETAINED', failedAreas: failedAreas || '' }
     }),
   }
@@ -297,10 +315,11 @@ export function buildSF9Data(campusKey, gradeLevel, section, schoolYear) {
   const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   const grades   = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
   const subjects = getSubjectsForSection(campusKey, gradeLevel, section, schoolYear)
-  const periods  = ['Q1','Q2','Q3','Q4']
+  const periods  = getPeriodIdsForSchoolYear(schoolYear)
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, schoolYear, gradeLevel, section },
     subjects,
+    periods,
     students: students.map(s => {
       const stuGrades = grades.filter(g => g.studentId === s.id || g.studentId === s.studentId)
       const gradeMap  = {}
@@ -319,10 +338,11 @@ export function buildSF9Data(campusKey, gradeLevel, section, schoolYear) {
 }
 
 export function buildSF10Data(campusKey, gradeLevel, section, schoolYear) {
-  const info     = getSchoolInfo()
-  const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
-  const grades   = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
-  const subjects = getSubjectsForSection(campusKey, gradeLevel, section, schoolYear)
+  const info       = getSchoolInfo()
+  const students   = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
+  const grades     = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
+  const subjects   = getSubjectsForSection(campusKey, gradeLevel, section, schoolYear)
+  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear).slice(-1)[0] || 'Q4'
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, schoolYear, gradeLevel, section },
     subjects,
@@ -330,7 +350,7 @@ export function buildSF10Data(campusKey, gradeLevel, section, schoolYear) {
       const stuGrades = grades.filter(g => g.studentId === s.id || g.studentId === s.studentId)
       const gradeMap  = {}
       subjects.forEach(sub => {
-        const q4 = stuGrades.find(g => g.subjectName === sub && (g.period==='Q4'||g.period==='Finals'))
+        const q4 = stuGrades.find(g => g.subjectName === sub && (g.period===lastPeriod||g.period==='Finals'))
         gradeMap[sub] = q4?.transmuted ?? ''
       })
       const finals = Object.values(gradeMap).filter(v => v !== '')
@@ -437,7 +457,7 @@ function buildSF8Sheet(data) {
 function buildSF9Sheet(data) {
   const { header, subjects, students } = data
   const ws = {}
-  const periods = ['Q1','Q2','Q3','Q4','Final']
+  const periods = [...(data.periods || ['Q1','Q2','Q3','Q4']), 'Final']
   setCell(ws, 'A1', "School Form 9 (SF9) Learner's Progress Report Card", { bold:true, sz:12 })
   setCell(ws, 'A2', `School: ${header.schoolName}  |  SY: ${header.schoolYear}  |  Grade: ${header.gradeLevel}  |  Section: ${header.section}`)
   let col = 0
@@ -466,7 +486,7 @@ function buildSF9Sheet(data) {
     })
   })
   ws['!ref'] = `A1:${COL(col-1)}${students.length+4}`
-  ws['!cols'] = [{ wch:4 },{ wch:14 },{ wch:32 },{ wch:4 },...subjects.flatMap(() => Array(5).fill({ wch:7 }))]
+  ws['!cols'] = [{ wch:4 },{ wch:14 },{ wch:32 },{ wch:4 },...subjects.flatMap(() => Array(periods.length).fill({ wch:7 }))]
   return ws
 }
 

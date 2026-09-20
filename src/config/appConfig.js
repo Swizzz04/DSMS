@@ -22,9 +22,9 @@
 // SCHOOL IDENTITY
 // ─────────────────────────────────────────────────────────────────────
 export const SCHOOL_INFO = {
-  name:          'Cebu Sacred Heart College',
+  name:          'Sample Academy',
   abbreviation:  '',
-  address:       'Cebu, Philippines',
+  address:       'City, Province, Philippines',
   website:       '',
   timezone:      'Asia/Manila',
   currency:      'PHP',
@@ -32,8 +32,67 @@ export const SCHOOL_INFO = {
   dateFormat:    'MM/DD/YYYY',
   academicStart: 'August',
   academicEnd:   'May',
-  primaryColor:  '#750014',
-  secondaryColor:'#080c42',
+  primaryColor:  '#F4FAFC',
+  secondaryColor:'#212121',
+}
+
+// Generic defaults for the School Info / Website Content settings tab —
+// used by its "Reset to Default" action. Mirrors public/site_data.js's
+// DEFAULTS (the public site's own fallback content) so both sides agree on
+// what "default" means — they can't literally share one JS module since
+// public/ is a separate plain-script site with no bundler, but keeping the
+// two in sync here is a deliberate, documented duplication, not drift.
+export const DEFAULT_WEBSITE_CONTENT = {
+  schoolName:  'Sample Academy',
+  motto:       'A great place to learn and grow.',
+  email:       'info@example.edu.ph',
+  phone:       '(032) XXX-XXXX',
+  website:     '',
+  logoUrl:     '',
+  schoolYear:  '2025–2026',
+  // Platform default is 'ALMIRENE' — a school client can override this in
+  // Settings → School Info → General Information once they're onboarded.
+  // Used as the prefix on enrollment reference numbers (e.g. ALMIRENE-2026-W1000)
+  // by both public/enrollmentBridge.website.js and src/utils/enrollmentBridge.js —
+  // keep those two in sync with this default the same way DEFAULT_WEBSITE_CONTENT
+  // itself is deliberately mirrored in public/site_data.js's DEFAULTS.
+  referenceNumberPrefix: 'ALMIRENE',
+  primaryColor:   '#F4FAFC',
+  secondaryColor: '#212121',
+  portalLabel:  'School Management Portal',
+  supportLabel: 'Contact IT Support',
+  mission: 'To enhance virtue, develop competence, promote excellence, and inspire service in all academic levels of the institution.',
+  vision:  'We envision producing graduates who are values-driven, critical thinkers, service-oriented, and globally competitive.',
+  goals: [
+    'Consistent pursuit of academic excellence.',
+    'Faithful adherence to core values and virtue.',
+    'Learning environment conducive to holistic formation.',
+    'Continuous faculty development.',
+  ],
+  coreValues: ['Integrity', 'Excellence', 'Service'],
+  programs: [
+    { id: 1, title: 'Pre-Elementary',      age: 'Ages 3-5',   description: 'Nurturing young minds through play-based learning.', features: ['Nursery','Kindergarten','Preparatory'], highlight: false },
+    { id: 2, title: 'Elementary',          age: 'Grades 1-6', description: 'Building strong foundations in academics and character.', features: ['Core subjects mastery','Values education'], highlight: false },
+    { id: 3, title: 'Junior High School',  age: 'Grades 7-10',description: 'Preparing students through the K-12 curriculum.', features: ['Enhanced curriculum','Career guidance'], highlight: false },
+    { id: 4, title: 'Senior High School',  age: 'Grades 11-12',description: 'Specialized tracks for college and career readiness.', features: ['General Academic Strand'], highlight: false },
+  ],
+  requirements: [
+    { id: 1, icon: '📄', title: 'Birth Certificate',      desc: 'Original and photocopy (PSA issued)' },
+    { id: 2, icon: '📋', title: 'Report Card',             desc: 'Form 138 (previous school records)'  },
+    { id: 3, icon: '🎓', title: 'Good Moral Certificate', desc: 'From previous school attended'        },
+    { id: 4, icon: '🪪', title: '2x2 ID Photos',          desc: 'Recent photos (white background)'     },
+  ],
+  steps: [
+    { id: 1, title: 'Submit Online Form',  desc: 'Fill out the online enrollment form or visit any campus registrar.' },
+    { id: 2, title: 'Submit Requirements', desc: 'Provide all necessary documents to the registrar.' },
+    { id: 3, title: 'Pay Down Payment',    desc: 'Proceed to Accounting for assessment and initial payment.' },
+    { id: 4, title: 'Registrar Approval',  desc: 'Receive your class schedule once enrollment is approved.' },
+  ],
+  faq: [
+    { id: 1, q: 'What are the tuition fees?', a: 'Tuition fees vary by campus and program. Please contact the Registrar\'s Office for detailed fee schedules.' },
+    { id: 2, q: 'Do you offer scholarships?', a: 'Yes, we offer scholarships based on academic performance and financial need. Inquire at the Admissions Office for eligibility.' },
+    { id: 3, q: 'Can I enroll online?', a: 'Yes! Submit your form online, then visit any campus to complete requirements and payment.' },
+  ],
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -42,19 +101,25 @@ export const SCHOOL_INFO = {
 export const SCHOOL_YEARS = [
   {
     id: 1, year: '2025-2026', status: 'completed', isCurrent: false,
-    gradingPeriodType: 'quarterly', // 'quarterly' or 'trimester'
+    gradingPeriodType: 'quarterly',  // 'quarterly' or 'trimester'
+    gradingFramework:  'do8_2015',   // 'do8_2015' (WW/PT/QA) or 'do015_2026' (WW/PT/EX) — see Settings → School Year
+    collegeGradingFramework: 'ched_standard', // see Settings → Grading Frameworks → College Grading
     basicEd: { startDate: '2025-06-01', endDate: '2026-03-31', events: [] },
     college: { startDate: '2025-08-01', endDate: '2026-05-31', events: [] },
   },
   {
     id: 2, year: '2026-2027', status: 'active', isCurrent: true,
     gradingPeriodType: 'quarterly',
+    gradingFramework:  'do8_2015',
+    collegeGradingFramework: 'ched_standard',
     basicEd: { startDate: '2026-06-01', endDate: '2027-03-31', events: [] },
     college: { startDate: '2026-08-01', endDate: '2027-05-31', events: [] },
   },
   {
     id: 3, year: '2027-2028', status: 'upcoming', isCurrent: false,
     gradingPeriodType: 'quarterly',
+    gradingFramework:  'do8_2015',
+    collegeGradingFramework: 'ched_standard',
     basicEd: { startDate: '2027-06-01', endDate: '2028-03-31', events: [] },
     college: { startDate: '2027-08-01', endDate: '2028-05-31', events: [] },
   },
@@ -130,7 +195,7 @@ export const ROLE_DEFINITIONS = {
   admin: {
     label:       'School Owner',
     description: 'High-level overview of all campuses — Dashboard, Reports, and Enrollments (read-only)',
-    color:       'bg-primary/10 text-primary dark:bg-primary/20 dark:text-red-300',
+    color:       'bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 dark:text-red-300',
     permissions: ['dashboard', 'reports', 'enrollments'],
     campusScoped: false,
   },
@@ -208,16 +273,22 @@ export const ROLE_DEFINITIONS = {
 /** All available pages in the system */
 export const ALL_PAGES = [
   { id: 'dashboard',    label: 'Dashboard',    icon: 'LayoutDashboard' },
+  // ── Management ──
   { id: 'enrollments',  label: 'Enrollments',  icon: 'FileText' },
   { id: 'students',     label: 'Students',     icon: 'Users' },
   { id: 'payments',     label: 'Payments',     icon: 'DollarSign' },
+  { id: 'document-requests',      label: 'Document Requests',      icon: 'FileText' },
+  { id: 'clearance',                label: 'Clearance',               icon: 'ShieldCheck' },
+  // ── Analytics ──
   { id: 'reports',      label: 'Reports',      icon: 'BarChart2' },
+  // ── System ──
   { id: 'settings',     label: 'Settings',     icon: 'Settings' },
+  // ── Academic ──
   { id: 'subject-load', label: 'Subject Load', icon: 'BookOpen' },
   { id: 'e-class-record', label: 'e-Class Record', icon: 'ClipboardList' },
   { id: 'teacher-forms',      label: 'Teacher Forms',      icon: 'FileText'     },
-  { id: 'document-requests',      label: 'Document Requests',      icon: 'FileText' },
   { id: 'grade-change-requests',  label: 'Grade Change Requests',  icon: 'FileEdit'   },
+  { id: 'inc-completion',           label: 'INC Completion',          icon: 'Hourglass'  },
   { id: 'attendance',               label: 'Attendance',              icon: 'Calendar'   },
 ]
 
@@ -231,25 +302,50 @@ export const ALL_TABS = [
   { id: 'fees',          label: 'Fee Structure',   forRoles: ['accounting'] },
   { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
   { id: 'receipt',       label: 'Receipt',          forRoles: ['accounting'] },
+  { id: 'workflow',      label: 'Workflow Config',  forRoles: ['technical_admin'] },
 ]
 
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
-  admin:             { pages: ['dashboard', 'enrollments', 'reports'],                                         tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'subject-load', 'e-class-record', 'teacher-forms', 'settings'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
+  admin:             { pages: ['dashboard', 'enrollments', 'reports', 'inc-completion'],                      tabs: [] },
+  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'settings', 'subject-load', 'e-class-record', 'teacher-forms'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
-  registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'grade-change-requests'], tabs: [] },
-  registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'document-requests', 'grade-change-requests'], tabs: [] },
-  accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'document-requests', 'reports', 'settings'], tabs: ['fees', 'discounts', 'receipt'] },
-  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'grade-change-requests', 'attendance', 'settings'], tabs: ['schoolYear', 'grades'] },
-  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'subject-load', 'grade-change-requests', 'attendance', 'settings'], tabs: ['schoolYear', 'grades'] },
-  teacher:           { pages: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject-load', 'grade-change-requests', 'attendance'], tabs: [] },
+  registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'grade-change-requests'], tabs: [] },
+  registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'subject-load', 'grade-change-requests', 'inc-completion'], tabs: [] },
+  accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'document-requests', 'clearance', 'reports', 'settings'], tabs: ['fees', 'discounts', 'receipt'] },
+  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'settings', 'subject-load', 'grade-change-requests', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'settings', 'subject-load', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  teacher:           { pages: ['dashboard', 'students', 'subject-load', 'e-class-record', 'teacher-forms', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: [] },
 }
 
-/** Get effective permissions for a user (custom or default) */
+/**
+ * Get effective permissions for a user — resolves the 3-tier system (Section 7.2):
+ *   Tier 1: per-user custom override (user.permissions, set in Settings → Users)
+ *   Tier 2: role-level config (Settings → Role Permissions, saved via saveRolePermissions)
+ *   Tier 3: hardcoded DEFAULT_PERMISSIONS — baseline, never changes without a code deploy
+ *
+ * technical_admin (Super Admin) always bypasses all three tiers and gets every
+ * page + tab — per Section 7.1, "Cannot be restricted."
+ */
 export function getUserPermissions(user) {
   if (!user) return { pages: [], tabs: [] }
+
+  // Super Admin: full, non-restrictable access — checked before any tier
+  if (user.role === 'technical_admin') {
+    return {
+      pages: ALL_PAGES.map(p => p.id),
+      tabs: ALL_TABS.map(t => t.id),
+    }
+  }
+
+  // Tier 1: per-user custom override
   if (user.permissions) return user.permissions
+
+  // Tier 2: role-level config saved in Settings → Role Permissions
+  const rolePerms = getRolePermissions()
+  if (rolePerms && rolePerms[user.role]) return rolePerms[user.role]
+
+  // Tier 3: hardcoded defaults
   return DEFAULT_PERMISSIONS[user.role] || { pages: ['dashboard'], tabs: [] }
 }
 
@@ -271,6 +367,25 @@ export function getRolePermissions() {
     if (cfg.rolePermissions) return cfg.rolePermissions
   } catch {}
   return DEFAULT_PERMISSIONS
+}
+
+/**
+ * Is this role inherently scoped to a single campus (vs. seeing all campuses)?
+ * This is a role-identity fact, not a configurable permission — it's used for
+ * UI like the campus-lock banner/chip, not access control. Kept as one shared
+ * list so it can't drift between the places that need it.
+ */
+export function isCampusLockedRole(user) {
+  if (!user) return false
+  return (
+    user.role === 'registrar_basic'   ||
+    user.role === 'registrar_college' ||
+    user.role === 'principal_basic'   ||
+    user.role === 'program_head'      ||
+    user.role === 'system_admin'      ||
+    user.role === 'teacher'           ||
+    (user.role === 'accounting' && user.campus !== 'all')
+  )
 }
 // ─────────────────────────────────────────────────────────────────────
 export const COLLEGE_YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']

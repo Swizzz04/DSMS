@@ -2,7 +2,7 @@
  * RolePermissionsTab.jsx — Settings → Role Permissions
  *
  * Super Admin configures what pages and settings tabs each role
- * can access by default. Changes are saved to cshc_app_config.rolePermissions
+ * can access by default. Changes are saved to almirene_app_config.rolePermissions
  * and take effect immediately on next page navigation (no re-login needed).
  *
  * Permission priority (getUserPermissions):
@@ -102,7 +102,7 @@ function RoleRow({ role, permissions, defaults, onChange }) {
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
-            ${isCustomized ? 'bg-primary/10 text-primary' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+            ${isCustomized ? 'bg-primary/10 text-[var(--color-primary-readable)]' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
             <Shield size={16} />
           </div>
           <div>
@@ -111,7 +111,7 @@ function RoleRow({ role, permissions, defaults, onChange }) {
                 {role.label}
               </p>
               {isCustomized && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-[var(--color-primary-readable)] border border-primary/20">
                   Customized
                 </span>
               )}
@@ -167,12 +167,12 @@ function RoleRow({ role, permissions, defaults, onChange }) {
                         key={page.id}
                         className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors
                           ${checked
-                            ? 'bg-primary/5 border-primary/30 text-primary'
+                            ? 'bg-primary/5 border-primary/30 text-[var(--color-primary-readable)]'
                             : 'bg-[var(--color-bg-card)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary/30'}`}
                       >
                         <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
                           ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border)]'}`}>
-                          {checked && <Check size={10} className="text-white" />}
+                          {checked && <Check size={10} className="text-[var(--color-primary-contrast)]" />}
                         </div>
                         <input
                           type="checkbox"
@@ -201,12 +201,12 @@ function RoleRow({ role, permissions, defaults, onChange }) {
                       key={tab.id}
                       className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors
                         ${checked
-                          ? 'bg-primary/5 border-primary/30 text-primary'
+                          ? 'bg-primary/5 border-primary/30 text-[var(--color-primary-readable)]'
                           : 'bg-[var(--color-bg-card)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary/30'}`}
                     >
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
                         ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border)]'}`}>
-                        {checked && <Check size={10} className="text-white" />}
+                        {checked && <Check size={10} className="text-[var(--color-primary-contrast)]" />}
                       </div>
                       <input
                         type="checkbox"
@@ -243,9 +243,9 @@ export default function RolePermissionsTab() {
     CONFIGURABLE_ROLES.forEach(role => {
       const savedPerms = saved[role.id]
       const defaults   = DEFAULT_PERMISSIONS[role.id]
-      // Mark as customized if stored in cshc_app_config (not just defaults)
+      // Mark as customized if stored in almirene_app_config (not just defaults)
       try {
-        const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+        const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
         result[role.id] = cfg.rolePermissions?.[role.id] ?? null
       } catch {
         result[role.id] = null

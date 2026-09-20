@@ -1,21 +1,31 @@
 /**
  * AuthContext.jsx — secure authentication context
  *
+ * REVERTED (July 2026): this was temporarily wired to a real ASP.NET Core
+ * API (POST /api/auth/login) to test against the backend. That backend
+ * isn't reachable right now, so this reverts to fully local, offline auth
+ * against SYSTEM_USERS (config/users.js) + almirene_app_config.systemUsers,
+ * verified client-side via SHA-256 (utils/crypto.js) — same approach used
+ * everywhere else in the app before the backend existed.
+ *
+ * NOTE: while reverting, found the API version was also missing `user.campus`
+ * (it only set campusId/campusName/campusKey) — but Sidebar, Dashboard,
+ * Students, Enrollments, Payments, Reports, and SchoolComponents all read
+ * `user.campus` directly as a name string (e.g. 'Carcar City Campus' or 'all').
+ * This revert restores that field so campus-scoped pages work again.
+ *
  * Security measures implemented:
- *  1. Passwords stored & compared as SHA-256 hashes (never plaintext)
- *  2. Brute-force lockout — 5 failed attempts → 15 min lockout
+ *  1. Login verified against SYSTEM_USERS / almirene_app_config.systemUsers,
+ *     password checked via SHA-256 (utils/crypto.js) — frontend-only stopgap
+ *     until the backend is reconnected (bcrypt/argon2 server-side then)
+ *  2. Brute-force lockout — 5 failed attempts → 15 min lockout (per email)
  *  3. Session timeout — auto-logout after 5 min of inactivity
- *  4. Only safe user fields stored in sessionStorage (no passwordHash)
+ *  4. Only safe user fields stored in sessionStorage (no password hash)
  *  5. Session integrity check on load — malformed data is cleared
  *  6. No sensitive data ever logged to console
- *  7. Inactive/deactivated accounts cannot log in
- *  8. Tab-isolated sessions via sessionStorage (no cross-tab auto-login)
- *  9. Session fingerprint — prevents session replay across tabs
- * 10. Password validation utility for user creation
- *
- * NOTE: This is a frontend-only implementation for the pre-backend phase.
- * When the API is connected, replace login() with a POST /auth/login call
- * and store a JWT/session token instead of the user object.
+ *  7. Tab-isolated sessions via sessionStorage (no cross-tab auto-login)
+ *  8. Session fingerprint — prevents session replay across tabs
+ *  9. Password validation utility for user creation
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
@@ -23,7 +33,7 @@ import { SYSTEM_USERS } from '../config/users'
 import { verifyPassword } from '../utils/crypto'
 
 // ── Constants ────────────────────────────────────────────────────────
-const USER_KEY        = 'almirene_user'
+const APP_CONFIG_KEY   = 'almirene_app_config'
 const LOCKOUT_KEY     = 'almirene_lockout'
 const SESSION_KEY     = 'almirene_session_user'
 const EXPIRED_KEY     = 'almirene_expired'
@@ -49,24 +59,6 @@ export function validatePassword(password) {
   return null // null = valid
 }
 
-function getUsers() {
-  try {
-    const raw = localStorage.getItem('almirene_app_config')
-    if (raw) {
-      const saved = JSON.parse(raw)
-      if (Array.isArray(saved.systemUsers) && saved.systemUsers.length)
-        return saved.systemUsers
-    }
-  } catch { /* corrupted config — fall through to defaults */ }
-  return SYSTEM_USERS
-}
-
-/** Strip all sensitive fields before storing */
-function sanitizeUser(user) {
-  const { passwordHash, password, ...safe } = user
-  return safe
-}
-
 /** Validate that a stored session object has expected shape */
 function isValidSession(obj) {
   return (
@@ -76,6 +68,25 @@ function isValidSession(obj) {
     typeof obj.email === 'string' &&
     typeof obj.role  === 'string'
   )
+}
+
+/** Read the current system user list — Settings → Users edits persist here, falls back to defaults */
+function getSystemUsers() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem(APP_CONFIG_KEY) || '{}')
+    if (Array.isArray(cfg.systemUsers) && cfg.systemUsers.length) return cfg.systemUsers
+  } catch {}
+  return SYSTEM_USERS
+}
+
+/** Persist an updated user record (e.g. lastLogin) back into almirene_app_config */
+function updateSystemUser(userId, patch) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem(APP_CONFIG_KEY) || '{}')
+    const list = Array.isArray(cfg.systemUsers) && cfg.systemUsers.length ? cfg.systemUsers : SYSTEM_USERS
+    cfg.systemUsers = list.map(u => (u.id === userId ? { ...u, ...patch } : u))
+    localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(cfg))
+  } catch {}
 }
 
 function getLockoutState(email) {
@@ -128,7 +139,6 @@ export function AuthProvider({ children }) {
     setUser(null)
     sessionStorage.removeItem(SESSION_KEY)
     sessionStorage.removeItem(FINGERPRINT_KEY)
-    localStorage.removeItem(USER_KEY)
     if (timerRef.current) clearTimeout(timerRef.current)
     if (expired) {
       sessionStorage.setItem(EXPIRED_KEY, '1')
@@ -158,28 +168,17 @@ export function AuthProvider({ children }) {
       if (sessionRaw && storedFP) {
         const parsed = JSON.parse(sessionRaw)
         if (isValidSession(parsed)) {
-          // Verify user still exists and is active
-          const users = getUsers()
-          const current = users.find(u => u.id === parsed.id && u.email === parsed.email)
-          if (current && current.status !== 'inactive') {
-            setUser(parsed)
-            resetTimer()
-            setLoading(false)
-            return
-          }
-          // User deactivated or removed — force logout
-          sessionStorage.removeItem(SESSION_KEY)
-          sessionStorage.removeItem(FINGERPRINT_KEY)
-        } else {
-          sessionStorage.removeItem(SESSION_KEY)
-          sessionStorage.removeItem(FINGERPRINT_KEY)
+          setUser(parsed)
+          resetTimer()
+          setLoading(false)
+          return
         }
+        sessionStorage.removeItem(SESSION_KEY)
+        sessionStorage.removeItem(FINGERPRINT_KEY)
       }
-      localStorage.removeItem(USER_KEY)
     } catch {
       sessionStorage.removeItem(SESSION_KEY)
       sessionStorage.removeItem(FINGERPRINT_KEY)
-      localStorage.removeItem(USER_KEY)
     }
     setLoading(false)
   }, [])
@@ -188,7 +187,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const emailLower = email.trim().toLowerCase()
 
-    // Check lockout
+    // Frontend brute-force guard
     const lockout = getLockoutState(emailLower)
     if (lockout.lockedUntil && Date.now() < lockout.lockedUntil) {
       const remaining = Math.ceil((lockout.lockedUntil - Date.now()) / 60000)
@@ -198,29 +197,17 @@ export function AuthProvider({ children }) {
       }
     }
 
-    const users = getUsers()
-    const found = users.find(u => u.email.toLowerCase() === emailLower)
+    // ── Local lookup (no backend yet) ────────────────────────────────
+    const users = getSystemUsers()
+    const found = users.find(u => u.email.toLowerCase() === emailLower && u.status === 'active')
 
-    if (!found) {
-      return { success: false, error: 'Invalid email or password.' }
-    }
+    const passwordOk = found ? await verifyPassword(password, found.passwordHash) : false
 
-    // Block inactive/deactivated accounts
-    if (found.status === 'inactive') {
-      return { success: false, error: 'This account has been deactivated. Contact your System Admin.' }
-    }
-
-    // Verify password against hash
-    const valid = await verifyPassword(password, found.passwordHash ?? found.password ?? '')
-
-    if (!valid) {
+    if (!found || !passwordOk) {
       const attempts = (lockout.attempts || 0) + 1
       if (attempts >= MAX_ATTEMPTS) {
         setLockoutState(emailLower, { attempts, lockedUntil: Date.now() + LOCKOUT_DURATION })
-        return {
-          success: false,
-          error: `Too many failed attempts. Account locked for 15 minutes.`,
-        }
+        return { success: false, error: 'Too many failed attempts. Account locked for 15 minutes.' }
       }
       setLockoutState(emailLower, { attempts, lockedUntil: null })
       const left = MAX_ATTEMPTS - attempts
@@ -230,15 +217,29 @@ export function AuthProvider({ children }) {
       }
     }
 
-    // Success — clear lockout, store safe session with fingerprint
+    // ── Success ────────────────────────────────────────────────────
     clearLockout(emailLower)
     sessionStorage.removeItem(EXPIRED_KEY)
-    const safe = sanitizeUser(found)
-    safe.lastLogin = new Date().toISOString()
+
+    // Normalise the user object to the shape the rest of the app expects.
+    // `campus` stays the plain name string ('Carcar City Campus', 'Talisay
+    // City Campus', 'Bohol Campus', or 'all') — Sidebar/Dashboard/Students/
+    // Enrollments/Payments/Reports/SchoolComponents all read it directly.
+    const safe = {
+      id:         found.id,
+      name:       found.name,
+      email:      found.email,
+      role:       found.role,
+      campus:     found.campus,
+      campusKey:  found.campusKey ?? null,
+      lastLogin:  new Date().toISOString(),
+    }
+
+    updateSystemUser(found.id, { lastLogin: safe.lastLogin })
+
     setUser(safe)
-    // Generate unique session fingerprint for this tab
     const fp = generateFingerprint()
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(safe))
+    sessionStorage.setItem(SESSION_KEY,     JSON.stringify(safe))
     sessionStorage.setItem(FINGERPRINT_KEY, fp)
     resetTimer()
     window.dispatchEvent(new CustomEvent('almirene_auth_change'))
@@ -248,24 +249,11 @@ export function AuthProvider({ children }) {
   // ── Logout ─────────────────────────────────────────────────────────
   const logout = () => doLogout(false)
 
-  // ── Permission check ───────────────────────────────────────────────
-  const hasPermission = (requiredRole) => {
-    if (!user) return false
-    // Super admin and owner bypass role checks
-    if (user.role === 'admin' || user.role === 'technical_admin') return true
-    // System admin has limited permissions
-    if (user.role === 'system_admin') {
-      return ['dashboard', 'settings', 'users'].includes(requiredRole)
-    }
-    return user.role === requiredRole
-  }
-
   return (
     <AuthContext.Provider value={{
       user,
       login,
       logout,
-      hasPermission,
       isAuthenticated: !!user,
       loading,
     }}>

@@ -48,7 +48,7 @@ function getDayOfWeek(dateStr) {
 /** Get attendance config from app config or use defaults */
 function getAttendanceConfig() {
   try {
-    const cfg = JSON.parse(localStorage.getItem('cshc_app_config') || '{}')
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
     return { ...DEFAULT_ATTENDANCE_CONFIG, ...(cfg.attendanceConfig ?? {}) }
   } catch {
     return DEFAULT_ATTENDANCE_CONFIG

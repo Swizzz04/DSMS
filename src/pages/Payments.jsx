@@ -26,6 +26,34 @@ import {
 const php = (n) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0 }).format(n ?? 0)
 
+/**
+ * Reads school name + brand colors from almirene_website_content (School Info
+ * settings), the same source Sidebar.jsx / Login.jsx already read from.
+ * Falls back to whatever --color-primary/--color-secondary are currently
+ * applied on the page (set by themeInitializer.js) if no brand color has
+ * been configured yet — never hardcodes a specific school's colors.
+ */
+function getSchoolBrand() {
+  let name = 'School Management System'
+  let primaryColor = '#F4FAFC'
+  let secondaryColor = '#212121'
+  try {
+    const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
+    if (saved.schoolName)     name = saved.schoolName
+    if (saved.primaryColor)   primaryColor = saved.primaryColor
+    else if (typeof document !== 'undefined') {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim()
+      if (v) primaryColor = v
+    }
+    if (saved.secondaryColor) secondaryColor = saved.secondaryColor
+    else if (typeof document !== 'undefined') {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim()
+      if (v) secondaryColor = v
+    }
+  } catch {}
+  return { name, primaryColor, secondaryColor }
+}
+
 function isBasicEd(g) {
   return g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
 }
@@ -113,7 +141,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
@@ -249,7 +277,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
-                    <GraduationCap className="w-3.5 h-3.5 text-primary" />
+                    <GraduationCap className="w-3.5 h-3.5 text-[var(--color-primary-readable)]" />
                   </div>
                   <h2 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wider">College</h2>
                   <span className="text-xs text-green-600 dark:text-green-400 font-semibold">
@@ -411,9 +439,11 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
   const handlePrint = () => {
     const printContent = receiptRef.current?.innerHTML
     if (!printContent) return
+    const { primaryColor, secondaryColor } = getSchoolBrand()
     const w = window.open('', '_blank', 'width=700,height=900')
     w.document.write(`<!DOCTYPE html><html><head><title>Official Receipt - ${payment.studentName}</title>
       <style>
+        :root { --color-primary: ${primaryColor}; --color-secondary: ${secondaryColor}; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Georgia, serif; font-size: 13px; color: #111; background: #fff; }
         .print-page { width: 100%; padding: 16px; }
@@ -438,7 +468,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
         {/* Header */}
         <div className="modal-header">
           <div className="flex items-center gap-2">
-            <Printer className="w-5 h-5 text-primary" />
+            <Printer className="w-5 h-5 text-[var(--color-primary-readable)]" />
             <h2 className="text-base font-bold text-[var(--color-text-primary)]">Receipt Preview</h2>
             <span className="text-xs text-gray-400 ml-1">— 2 copies per page</span>
           </div>
@@ -466,7 +496,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             Close
           </button>
           <button onClick={handlePrint}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold shadow-sm">
+            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
             <Printer className="w-4 h-4" /> Print Receipt
           </button>
         </div>
@@ -570,7 +600,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
         <div className="overflow-y-auto flex-1 p-5 space-y-4">
           {/* Fee summary */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               { label: 'Total Fee',   value: `₱${payment.totalFee.toLocaleString()}`,   cls: 'text-[var(--color-text-primary)]' },
               { label: 'Paid',        value: `₱${payment.amountPaid.toLocaleString()}`,  cls: 'text-green-600 dark:text-green-400' },
@@ -606,7 +636,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                 value={amount} onChange={e => setAmount(e.target.value)}
                 placeholder={`Max: ₱${maxAmount.toLocaleString()}`}
                 className={`w-full pl-7 pr-4 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.amount ? 'border-red-400 focus:ring-red-400/30' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.amount ? 'border-red-400 focus:ring-red-400/30' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
             </div>
             {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
@@ -614,7 +644,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
             <div className="flex gap-2 mt-2 flex-wrap">
               {[500, 1000, 2000, 5000].filter(v => v <= maxAmount + 1).map(v => (
                 <button key={v} onClick={() => setAmount(String(v))}
-                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-white transition font-medium">
+                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
                   ₱{v.toLocaleString()}
                 </button>
               ))}
@@ -633,8 +663,8 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                 <button key={m} onClick={() => setMethod(m)}
                   className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition
                     ${method === m
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-primary'
+                      ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                      : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'
                     }`}>
                   {m === 'Cash' ? '💵' : '🏦'} {m}
                 </button>
@@ -651,7 +681,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               <input
                 type="text" value={orNumber} onChange={e => setOrNumber(e.target.value)}
                 className={`flex-1 px-3 py-2.5 text-sm font-mono border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.orNumber ? 'border-red-400' : 'border-[var(--color-border)] focus:border-primary focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.orNumber ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
               <button onClick={() => setOrNumber(generateOR('OR'))}
                 className="px-3 py-2.5 text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-xl hover:bg-[var(--color-bg-muted)] transition font-medium whitespace-nowrap">
@@ -667,7 +697,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               Payment For <span className="text-red-500">*</span>
               <span className="ml-1 font-normal text-[var(--color-text-muted)]">(select all that apply)</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {feeOptions.map(opt => {
                 const checked = paymentFor.includes(opt.key)
                 return (
@@ -675,15 +705,15 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                     onClick={() => toggleFeeFor(opt.key)}
                     className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition
                       ${checked
-                        ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                        ? 'border-[var(--color-primary-readable)] bg-primary/5 dark:bg-primary/10'
                         : 'border-[var(--color-border)] hover:border-primary/50 bg-[var(--color-bg-subtle)]'
                       }`}>
                     <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition
                       ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border-strong)]'}`}>
-                      {checked && <CheckCircle className="w-2.5 h-2.5 text-white"/>}
+                      {checked && <CheckCircle className="w-2.5 h-2.5 text-[var(--color-primary-contrast)]"/>}
                     </div>
                     <div className="min-w-0">
-                      <p className={`text-xs font-semibold truncate ${checked ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-primary)]'}`}>
+                      <p className={`text-xs font-semibold truncate ${checked ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-primary)]'}`}>
                         {opt.label}
                       </p>
                       {opt.amount > 0 && (
@@ -704,7 +734,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
             <label className="form-label">Notes (optional)</label>
             <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
               placeholder="e.g. Monthly installment — March, Down payment..."
-              className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition"
+              className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition"
             />
           </div>
 
@@ -760,10 +790,10 @@ function DeptToggle({ value, onChange }) {
             idx > 0 && 'border-l border-[var(--color-border)]',
             value === t.id
               ? t.id === 'all'
-                ? 'bg-primary text-white'
+                ? 'bg-primary text-[var(--color-primary-contrast)]'
                 : t.id === 'basic'
                   ? 'bg-emerald-600 text-white'
-                  : 'bg-secondary text-white'
+                  : 'bg-secondary text-[var(--color-secondary-contrast)]'
               : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
           ].filter(Boolean).join(' ')}
         >
@@ -917,7 +947,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search student or OR #..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+              className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"/>
           </div>
           <ExportButton onClick={handleExport} size="sm" />
         </div>
@@ -946,7 +976,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
               Basic Ed: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(basicTotal)}</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="w-2 h-2 rounded-full bg-secondary dark:bg-blue-400 inline-block"/>
+              <span className="w-2 h-2 rounded-full bg-secondary inline-block"/>
               College: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(collegeTotal)}</span>
             </div>
           </div>
@@ -957,13 +987,13 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
       <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-primary"/>
+            <FileText className="w-4 h-4 text-[var(--color-primary-readable)]"/>
             <span className="text-sm font-semibold text-[var(--color-text-primary)]">
               {deptFilter === 'basic' ? 'Basic Ed Transactions' : deptFilter === 'college' ? 'College Transactions' : 'All Transactions'}
             </span>
             <span className="text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] px-2 py-0.5 rounded-full">{filtered.length}</span>
             {yearFilter !== 'all' && (
-              <span className="text-xs bg-primary/10 text-primary dark:text-red-300 px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
+              <span className="text-xs bg-primary/10 text-[var(--color-primary-readable)] px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
             )}
           </div>
           <span className="text-sm font-bold text-green-600 dark:text-green-400 font-mono">{phpFmt(totalFiltered)}</span>
@@ -989,7 +1019,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
                   const isBasic = isBasicEd(tx.gradeLevel)
                   return (
                   <tr key={i} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
-                    <td className="px-4 py-3 text-xs font-mono text-primary dark:text-red-400">{tx.orNumber||'—'}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-[var(--color-primary-readable)]">{tx.orNumber||'—'}</td>
                     <td className="px-4 py-3 text-sm font-medium text-[var(--color-text-primary)]">{tx.studentName}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
@@ -1004,7 +1034,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {(tx.paymentFor||['tuition']).map(k => (
-                          <span key={k} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-secondary dark:text-blue-300 rounded font-medium">
+                          <span key={k} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-[var(--color-secondary-readable)] rounded font-medium">
                             {FEE_LABELS[k]||k}
                           </span>
                         ))}
@@ -1164,7 +1194,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search student name or reference #..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+              className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"/>
           </div>
           <ExportButton onClick={handleExport} size="sm" />
         </div>
@@ -1176,7 +1206,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               Basic Ed: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(basicOut)}</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-secondary dark:bg-blue-400 inline-block"/>
+              <span className="w-2 h-2 rounded-full bg-secondary inline-block"/>
               College: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(collegeOut)}</span>
             </span>
           </div>
@@ -1186,13 +1216,13 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
       {/* Table */}
       <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center gap-2 flex-wrap">
-          <Users className="w-4 h-4 text-primary"/>
+          <Users className="w-4 h-4 text-[var(--color-primary-readable)]"/>
           <span className="text-sm font-semibold text-[var(--color-text-primary)]">
             {deptFilter === 'basic' ? 'Basic Ed Students with Balance' : deptFilter === 'college' ? 'College Students with Balance' : 'Students with Outstanding Balance'}
           </span>
           <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{filtered.length}</span>
           {yearFilter !== 'all' && (
-            <span className="text-xs bg-primary/10 text-primary dark:text-red-300 px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
+            <span className="text-xs bg-primary/10 text-[var(--color-primary-readable)] px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
           )}
         </div>
         {filtered.length === 0 ? (
@@ -1288,6 +1318,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
     const p     = selectedStudent
     const fb    = p.feeBreakdown || {}
     const hist  = p.paymentHistory || []
+    const { name: schoolName, primaryColor, secondaryColor } = getSchoolBrand()
     let runningBalance = p.totalFee
     const rows = hist.map(h => {
       runningBalance -= (h.amount||0)
@@ -1305,21 +1336,22 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
     const win = window.open('','_blank','width=900,height=700')
     win.document.write(`<!DOCTYPE html><html><head><title>SOA — ${p.studentName}</title>
     <style>
+      :root { --color-primary: ${primaryColor}; --color-secondary: ${secondaryColor}; }
       * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
       body { padding: 32px; color: #111; font-size: 13px; }
-      .header { text-align: center; border-bottom: 3px solid #750014; padding-bottom: 16px; margin-bottom: 20px; }
-      .school-name { font-size: 20px; font-weight: bold; color: #750014; }
-      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: #080c42; letter-spacing: 2px; text-transform: uppercase; }
+      .header { text-align: center; border-bottom: 3px solid var(--color-primary); padding-bottom: 16px; margin-bottom: 20px; }
+      .school-name { font-size: 20px; font-weight: bold; color: var(--color-primary); }
+      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: var(--color-secondary); letter-spacing: 2px; text-transform: uppercase; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 20px; padding: 16px; background: #f8f4ed; border-radius: 8px; }
       .info-row { display: flex; gap: 6px; font-size: 12px; }
       .info-label { color: #666; min-width: 110px; }
       .info-value { font-weight: 600; }
       .fee-box { background: #fff7f0; border: 1px solid #e5c99a; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
-      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #750014; margin-bottom: 10px; }
+      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-primary); margin-bottom: 10px; }
       .fee-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
-      .fee-row.total { border-top: 2px solid #750014; margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
+      .fee-row.total { border-top: 2px solid var(--color-primary); margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th { background: #080c42; color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
+      th { background: var(--color-secondary); color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
       td { padding: 8px 10px; border-bottom: 1px solid #eee; }
       tr:last-child td { border-bottom: none; }
       .balance-box { margin-top: 20px; padding: 14px; border-radius: 8px; text-align: right; }
@@ -1333,14 +1365,14 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
       @media print { body { padding: 16px; } }
     </style></head><body>
     <div class="header">
-      <div class="school-name">Cebu Sacred Heart College, Inc.</div>
+      <div class="school-name">${schoolName}</div>
       <div class="soa-title">Statement of Account</div>
       <div style="font-size:12px;color:#555">School Year ${schoolYear} · ${campusName}</div>
     </div>
 
     <div class="info-grid">
       <div class="info-row"><span class="info-label">Student Name:</span><span class="info-value">${p.studentName}</span></div>
-      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:#750014">${p.studentId}</span></div>
+      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:var(--color-primary)">${p.studentId}</span></div>
       <div class="info-row"><span class="info-label">Grade/Program:</span><span class="info-value">${p.gradeLevel}</span></div>
       <div class="info-row"><span class="info-label">Student Type:</span><span class="info-value">${p.studentType||'—'}</span></div>
       ${p.semester ? `<div class="info-row"><span class="info-label">Semester:</span><span class="info-value">${p.semester}</span></div>` : ''}
@@ -1355,10 +1387,10 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
       ${fb.lab > 0 ? `<div class="fee-row"><span>Lab Fee</span><span>${php(fb.lab)}</span></div>` : ''}
       ${fb.books > 0 ? `<div class="fee-row"><span>Books</span><span>${php(fb.books)}</span></div>` : ''}
       ${fb.other > 0 ? `<div class="fee-row"><span>Other Fees</span><span>${php(fb.other)}</span></div>` : ''}
-      <div class="fee-row total"><span>Grand Total</span><span style="color:#750014">${php(p.totalFee)}</span></div>
+      <div class="fee-row total"><span>Grand Total</span><span style="color:var(--color-primary)">${php(p.totalFee)}</span></div>
     </div>
 
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#080c42;margin-bottom:10px">Payment History</h3>
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--color-secondary);margin-bottom:10px">Payment History</h3>
     <table>
       <thead><tr><th>OR Number</th><th>Date</th><th>Method</th><th>Payment For</th><th>Notes</th><th style="text-align:right">Amount</th><th style="text-align:right">Running Balance</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px">No payments recorded yet</td></tr>'}</tbody>
@@ -1411,21 +1443,21 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
               placeholder="Search name or ref #..."
-              className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-primary transition"/>
+              className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"/>
           </div>
         </div>
         <div className="divide-y divide-[var(--color-border)] max-h-[500px] overflow-y-auto">
           {filtered.map((p,i) => (
             <button key={i} onClick={()=>setSelected(p)}
               className={`w-full text-left px-4 py-3 transition flex items-start gap-3 ${selectedStudent?.studentId===p.studentId
-                ? 'bg-primary/5 dark:bg-primary/10 border-l-2 border-primary'
+                ? 'bg-primary/5 dark:bg-primary/10 border-l-2 border-[var(--color-primary-readable)]'
                 : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white
                 ${p.balance<=0 ? 'bg-green-500' : 'bg-amber-500'}`}>
                 {p.studentName.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className={`text-xs font-semibold truncate ${selectedStudent?.studentId===p.studentId ? 'text-primary dark:text-red-400' : 'text-[var(--color-text-primary)]'}`}>
+                <p className={`text-xs font-semibold truncate ${selectedStudent?.studentId===p.studentId ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-primary)]'}`}>
                   {p.studentName}
                 </p>
                 <p className="text-[10px] text-[var(--color-text-muted)] truncate">{p.gradeLevel}</p>
@@ -1462,7 +1494,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
           return (
             <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
               {/* SOA Header */}
-              <div className="bg-primary px-6 py-5 text-white">
+              <div className="bg-primary px-6 py-5 text-[var(--color-primary-contrast)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] uppercase tracking-[3px] opacity-70 mb-1">Statement of Account</p>
@@ -1504,7 +1536,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                       ))}
                       <div className="flex justify-between font-bold text-sm pt-2 border-t border-amber-200 dark:border-amber-700">
                         <span className="text-[var(--color-text-primary)]">Grand Total</span>
-                        <span className="font-mono text-primary dark:text-red-400">{php(p.totalFee)}</span>
+                        <span className="font-mono text-[var(--color-primary-readable)]">{php(p.totalFee)}</span>
                       </div>
                     </div>
                   </div>
@@ -1532,7 +1564,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                             const bal = Math.max(0, runBal)
                             return (
                               <tr key={idx} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
-                                <td className="px-3 py-2.5 text-xs font-mono text-primary dark:text-red-400">{h.orNumber||'—'}</td>
+                                <td className="px-3 py-2.5 text-xs font-mono text-[var(--color-primary-readable)]">{h.orNumber||'—'}</td>
                                 <td className="px-3 py-2.5 text-xs text-[var(--color-text-muted)]">
                                   {h.date ? new Date(h.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—'}
                                 </td>
@@ -1540,7 +1572,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                                 <td className="px-3 py-2.5">
                                   <div className="flex flex-wrap gap-0.5">
                                     {(h.paymentFor||['tuition']).map(k=>(
-                                      <span key={k} className="text-[9px] px-1 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-secondary dark:text-blue-300 rounded font-medium">{FEE_LABELS[k]||k}</span>
+                                      <span key={k} className="text-[9px] px-1 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-[var(--color-secondary-readable)] rounded font-medium">{FEE_LABELS[k]||k}</span>
                                     ))}
                                   </div>
                                 </td>
@@ -1574,7 +1606,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 {/* Actions */}
                 <div className="flex gap-3 pt-1">
                   <button onClick={handlePrint}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-white rounded-xl hover:bg-accent-burgundy transition font-semibold shadow-sm">
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
                     <Printer className="w-4 h-4"/> Print SOA
                   </button>
                   <ExportButton onClick={handleExportSOA} label="Export Excel" className="flex-1 py-2.5 rounded-xl font-semibold shadow-sm" />
@@ -1851,7 +1883,7 @@ export default function Payments() {
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition whitespace-nowrap flex-1 justify-center
               ${activeTab === tab.id
-                ? 'bg-[var(--color-bg-subtle)] text-primary dark:text-red-400 shadow-sm'
+                ? 'bg-[var(--color-bg-subtle)] text-[var(--color-primary-readable)] shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}>
             {tab.icon} {tab.label}
@@ -1944,14 +1976,14 @@ export default function Payments() {
                       <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
                         className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
                         <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Receipt className="w-4 h-4 text-primary" />
+                          <Receipt className="w-4 h-4 text-[var(--color-primary-readable)]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-0.5">
                             <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{p.studentName}</span>
                             <StatusBadge status={p.status} />
                           </div>
-                          <p className="text-xs font-mono text-primary dark:text-red-400">{p.studentId}</p>
+                          <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
                           <div className="flex items-center justify-between mt-1">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
@@ -1990,7 +2022,7 @@ export default function Payments() {
                           <tr key={p.studentId} className="hover:bg-[var(--color-bg-subtle)]/50 transition-colors">
                             <td className="px-4 py-3 whitespace-nowrap">
                               <p className="text-sm font-medium text-[var(--color-text-primary)]">{p.studentName}</p>
-                              <p className="text-xs font-mono text-primary dark:text-red-400">{p.studentId}</p>
+                              <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold
@@ -2015,7 +2047,7 @@ export default function Payments() {
                             <td className="px-4 py-3 whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
-                                  className="inline-flex items-center gap-1 text-sm text-primary dark:text-red-400 hover:text-[#4a0009] font-medium transition">
+                                  className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
                                   <Eye className="w-4 h-4" /> View
                                 </button>
                                 {p.status !== 'paid' && (
@@ -2036,7 +2068,7 @@ export default function Payments() {
                 <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] flex items-center gap-2 flex-wrap">
                   Showing {filtered.length} of {payments.length} records
                   {yearFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary dark:text-red-300 rounded-full font-medium">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-[var(--color-primary-readable)] rounded-full font-medium">
                       {yearFilter}
                       <button onClick={() => setYearFilter('all')} className="hover:text-red-600 transition">×</button>
                     </span>
@@ -2054,11 +2086,11 @@ export default function Payments() {
                 <div className="modal-header">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                      <Receipt className="w-5 h-5 text-primary" />
+                      <Receipt className="w-5 h-5 text-[var(--color-primary-readable)]" />
                     </div>
                     <div className="min-w-0">
                       <h2 className="text-base font-bold text-[var(--color-text-primary)] truncate">{selectedPayment.studentName}</h2>
-                      <p className="text-xs font-mono text-primary dark:text-red-400">{selectedPayment.studentId}</p>
+                      <p className="text-xs font-mono text-[var(--color-primary-readable)]">{selectedPayment.studentId}</p>
                     </div>
                   </div>
                   <button onClick={() => setShowModal(false)}
@@ -2080,7 +2112,7 @@ export default function Payments() {
                     <span className="text-xs text-[var(--color-text-muted)]">{selectedPayment.campus} · {selectedPayment.gradeLevel}</span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'Total Fee',    value: php(selectedPayment.totalFee),    cls: 'text-[var(--color-text-primary)]'        },
                       { label: 'Amount Paid',  value: php(selectedPayment.amountPaid),  cls: 'text-green-600 dark:text-green-400'   },
@@ -2110,7 +2142,7 @@ export default function Payments() {
                     <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
                       <CreditCard className="w-4 h-4" /> Payment Details
                     </h3>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                       {[
                         ['Payment Method', selectedPayment.paymentMethod || '—'],
                         ['Due Date', selectedPayment.dueDate ? new Date(selectedPayment.dueDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—'],
@@ -2134,7 +2166,7 @@ export default function Payments() {
                         {selectedPayment.paymentHistory.map(h => (
                           <div key={h.id} className="flex items-center justify-between py-2 border-b border-[var(--color-border)] last:border-0">
                             <div>
-                              <p className="text-xs font-mono text-primary dark:text-red-400">{h.orNumber}</p>
+                              <p className="text-xs font-mono text-[var(--color-primary-readable)]">{h.orNumber}</p>
                               <p className="text-xs text-[var(--color-text-muted)]">{h.method} · {new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
                               {h.notes && <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{h.notes}</p>}
                             </div>
@@ -2203,7 +2235,7 @@ export default function Payments() {
         <ReceiptPreview
           payment={selectedPayment}
           newTransaction={pendingTransaction}
-          schoolName="Cebu Sacred Heart College, Inc."
+          schoolName={getSchoolBrand().name}
           cashierName={cashierName}
           schoolYear={currentSchoolYear}
           onClose={() => { setShowReceiptModal(false); setPendingTransaction(null); addToast('Payment recorded successfully!', 'success') }}
