@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, EyeOff, LogIn } from 'lucide-react'
+import SchoolLogo from './SchoolLogo'
 
 // Read school branding from localStorage (set by super admin in Settings → School Info)
 function getSchoolConfig() {
@@ -9,12 +10,12 @@ function getSchoolConfig() {
       name:       saved.schoolName   || 'School Management System',
       motto:      saved.motto        || '',
       email:      saved.email        || '',
-      logo:       saved.logoUrl      || '/assets/school-logo.png',
+      logo:       saved.logoUrl      || '',
       portalLabel: saved.portalLabel || 'School Management Portal',
       supportLabel: saved.supportLabel || 'Contact IT Support',
     }
   } catch {
-    return { name: 'School Management System', motto: '', email: '', logo: '/assets/school-logo.png', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support' }
+    return { name: 'School Management System', motto: '', email: '', logo: '', portalLabel: 'School Management Portal', supportLabel: 'Contact IT Support' }
   }
 }
 
@@ -82,8 +83,8 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             border: '3px solid var(--color-primary-readable)',
             overflow: 'hidden', flexShrink: 0,
           }}>
-            <img src={school.logo} alt="School Logo"
-              style={{ width: 200, height: 200  , objectFit: 'contain', padding: 8 }} />
+            <SchoolLogo src={school.logo} alt="School Logo"
+              style={{ width: 200, height: 200, objectFit: 'contain', padding: 8 }} />
           </div>
           <div>
             <div style={{
@@ -145,7 +146,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               boxShadow: 'var(--shadow-md)', overflow: 'hidden',
               marginBottom: '0.75rem',
             }}>
-              <img src={school.logo} alt="School Logo"
+              <SchoolLogo src={school.logo} alt="School Logo" size="sm"
                 style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
             </div>
             <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary-readable)', display: 'block' }}>

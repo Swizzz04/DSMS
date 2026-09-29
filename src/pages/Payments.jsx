@@ -12,6 +12,7 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, ExportButton } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 import {
@@ -35,11 +36,13 @@ const php = (n) =>
  */
 function getSchoolBrand() {
   let name = 'School Management System'
+  let logo = ''
   let primaryColor = '#F4FAFC'
   let secondaryColor = '#212121'
   try {
     const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
     if (saved.schoolName)     name = saved.schoolName
+    if (saved.logoUrl)        logo = saved.logoUrl
     if (saved.primaryColor)   primaryColor = saved.primaryColor
     else if (typeof document !== 'undefined') {
       const v = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim()
@@ -51,7 +54,7 @@ function getSchoolBrand() {
       if (v) secondaryColor = v
     }
   } catch {}
-  return { name, primaryColor, secondaryColor }
+  return { name, logo, primaryColor, secondaryColor }
 }
 
 function isBasicEd(g) {
@@ -331,7 +334,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
         <div className="flex justify-center mb-1">
-          <img src="/assets/school-logo.png" alt="School Logo" style={{ height: 52, width: 52, objectFit: 'contain' }} />
+          <SchoolLogo src={getSchoolBrand().logo} alt="School Logo" size="sm" surface="light" style={{ height: 52, width: 52, objectFit: 'contain' }} />
         </div>
         <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName}</p>
         <p className="text-xs text-gray-500">{payment.campus}</p>
