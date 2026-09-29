@@ -14,6 +14,7 @@ import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FE
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
+import SchoolLogo from '../components/SchoolLogo'
 import { applyTheme } from '../utils/themeInitializer'
 import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
 import { getGradingFrameworks, saveGradingFrameworks, DEFAULT_TRANSMUTATION_TABLE, DEFAULT_GRADING_FRAMEWORKS, getCollegeGradingFrameworks, saveCollegeGradingFrameworks, DEFAULT_COLLEGE_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
@@ -2498,7 +2499,7 @@ export default function Settings() {
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><Image className="w-4 h-4 text-[var(--color-text-muted)]" /> School Logo</h4>
                     <div className="flex flex-col sm:flex-row items-start gap-4">
-                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><img src={websiteContent.logoUrl || '/assets/school-logo.png'} alt="Logo" className="w-16 h-16 object-contain" onError={(e) => { e.target.style.display='none' }} /></div>
+                      <div className="w-20 h-20 bg-[var(--color-bg-subtle)] border-2 border-dashed border-[var(--color-border)] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"><SchoolLogo src={websiteContent.logoUrl} alt="Logo" className="w-16 h-16 object-contain" /></div>
                       <div><p className="text-xs text-[var(--color-text-muted)] mb-2">512×512px PNG, transparent background. Max 2MB.</p><button className="flex items-center gap-2 px-3 py-2 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-secondary)]" onClick={() => addToast('Logo upload available when backend is connected', 'info')}><Upload className="w-3.5 h-3.5" /> Upload Logo</button></div>
                     </div>
                   </div>
@@ -2575,7 +2576,7 @@ export default function Settings() {
                     <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
                       <div className="bg-secondary p-4 text-center">
                         <div className="w-12 h-12 rounded-full bg-white border-2 border-[var(--color-primary-readable)] mx-auto mb-2 flex items-center justify-center overflow-hidden">
-                          <img src={websiteContent.logoUrl || '/assets/school-logo.png'} alt="Logo" className="w-10 h-10 object-contain" onError={e => { e.target.style.display = 'none' }} />
+                          <SchoolLogo src={websiteContent.logoUrl} alt="Logo" size="sm" className="w-10 h-10 object-contain" />
                         </div>
                         <p className="text-[var(--color-secondary-contrast)] text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
                         <p className="text-[var(--color-secondary-contrast)] opacity-60 text-[9px] italic mt-0.5">{websiteContent.motto ? `"${websiteContent.motto}"` : ''}</p>

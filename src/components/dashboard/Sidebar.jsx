@@ -7,13 +7,14 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { getUserPermissions } from '../../config/appConfig'
+import SchoolLogo from '../SchoolLogo'
 
 // Read school branding
 function getSchoolConfig() {
   try {
     const s = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
-    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '/assets/school-logo.png' }
-  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '/assets/school-logo.png' } }
+    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '' }
+  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '' } }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -258,7 +259,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
               backgroundColor: '#fff',
               boxShadow:    '0 0 0 3px var(--color-primary-muted)',
             }}>
-              <img src={school.logo} alt={school.shortName} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
+              <SchoolLogo src={school.logo} alt={school.shortName} size="sm" surface="light" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
             </div>
             <div>
               <div style={{
