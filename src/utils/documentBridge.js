@@ -13,6 +13,9 @@
  *   almirene_clearance_updated
  */
 
+import { getWorkflowDefinition } from './workflowConfigBridge'
+import * as workflowEngine       from '../engines/workflowEngine'
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,7 +113,7 @@ export function getRequests(filters = {}) {
   let records = loadDocs()
   if (filters.campusKey)  records = records.filter(r => r.campusKey   === filters.campusKey)
   if (filters.schoolYear) records = records.filter(r => r.schoolYear  === filters.schoolYear)
-  if (filters.status)     records = records.filter(r => r.status      === filters.status)
+  if (filters.status)     records = records.filter(r => statusMatches(r.status, filters.status))
   if (filters.studentId)  records = records.filter(r => r.studentId   === filters.studentId)
   if (filters.department) records = records.filter(r => r.department  === filters.department)
   return records.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -476,8 +479,17 @@ export function getPendingRequestsCount(campusKey) {
 }
 
 // Normalise legacy 'ready' → 'ready_for_pickup' to match workflow engine step ID
-function normaliseStatus(status) {
+export function normaliseStatus(status) {
   return status === 'ready' ? 'ready_for_pickup' : status
+}
+
+/**
+ * True when a stored status and a filter/tab id mean the same step.
+ * Stored requests can hold either the legacy 'ready' or the workflow's
+ * 'ready_for_pickup', so a plain === misses half of them.
+ */
+export function statusMatches(recordStatus, filterId) {
+  return normaliseStatus(recordStatus) === normaliseStatus(filterId)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
