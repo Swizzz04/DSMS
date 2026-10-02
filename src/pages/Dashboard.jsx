@@ -42,7 +42,7 @@ import {
   StatCard, CampusMiniCard, SectionPanel, CollectionRateBar,
   EnrollmentStatusPill,
   EnrollmentTable, CampusEnrollmentTable, CampusStudentTable, CampusPaymentTable,
-  php, isBasicGrade, isCollegeGrade
+  php
 } from '../components/SchoolComponents'
 
 ChartJS.register(
@@ -87,7 +87,7 @@ function chartTheme() {
 // ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade } = useAppConfig()
   const { campusFilter = 'all' } = useCampusFilter()
   const [loading, setLoading] = useState(true)
   const [submissions, setSubmissions] = useState(loadSubmissions)
@@ -1071,8 +1071,7 @@ export default function Dashboard() {
 // Campus-locked, department-scoped view.
 // ─────────────────────────────────────────────────────────────────
 function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
-  const isBasicGradeLocal   = (g) => g?.includes('Grade') || ['Nursery', 'Kindergarten', 'Preparatory'].some(x => g?.includes(x))
-  const isCollegeGradeLocal = (g) => g?.includes('BS') || g?.includes('Year')
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
 
   const [submissions, setSubmissions] = useState(loadSubmissions)
 
@@ -1094,16 +1093,16 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
 
   const enrollments = campusSubs.filter(s =>
     isBasicReg
-      ? isBasicGradeLocal(s.enrollment?.gradeLevel)
-      : isCollegeGradeLocal(s.enrollment?.gradeLevel)
+      ? isBasicGrade(s.enrollment?.gradeLevel)
+      : isCollegeGrade(s.enrollment?.gradeLevel)
   )
 
   const students = campusSubs
     .filter(s => s.status === 'approved')
     .filter(s =>
       isBasicReg
-        ? isBasicGradeLocal(s.enrollment?.gradeLevel)
-        : isCollegeGradeLocal(s.enrollment?.gradeLevel)
+        ? isBasicGrade(s.enrollment?.gradeLevel)
+        : isCollegeGrade(s.enrollment?.gradeLevel)
     )
 
   const stats = {

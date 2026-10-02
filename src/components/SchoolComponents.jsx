@@ -7,8 +7,7 @@
  *
  * ── Primitives ──────────────────────────────────────────────────
  *   php(value)                   — PHP currency formatter
- *   isBasicGrade(gradeLevel)     — true if Basic Ed grade
- *   isCollegeGrade(gradeLevel)   — true if College grade
+ *   (isBasicGrade / isCollegeGrade live in appConfig.js — use useAppConfig())
  *   DEPT_STYLES                  — color map keyed by dept label
  *   PROG_COLORS                  — color array for college programs
  *
@@ -58,16 +57,6 @@ import { COLLEGE_YEAR_LEVELS, isCampusLockedRole } from '../config/appConfig'
 /** PHP currency formatter */
 export const php = (v) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0 }).format(v ?? 0)
-
-/** Returns true for Basic Education grade levels */
-export function isBasicGrade(g) {
-  return g?.includes('Grade') || ['Nursery', 'Kindergarten', 'Preparatory'].some(x => g?.includes(x))
-}
-
-/** Returns true for College grade levels */
-export function isCollegeGrade(g) {
-  return g?.includes('BS') || g?.includes('Year')
-}
 
 /** Department color styles keyed by label */
 export const DEPT_STYLES = {

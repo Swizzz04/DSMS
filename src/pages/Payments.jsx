@@ -57,16 +57,10 @@ function getSchoolBrand() {
   return { name, logo, primaryColor, secondaryColor }
 }
 
-function isBasicEd(g) {
-  return g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
-}
-function isCollege(g) {
-  return g && (g.includes('BS') || g.includes('Year'))
-}
-
 // ADMIN PAYMENTS OVERVIEW
 // ════════════════════════════════════════════════════════════════════
 function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, currentSchoolYear, addToast, onRecordPayment }) {
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const shownCampuses   = campusFilter !== 'all'
     ? activeCampuses.filter(c => c.key === campusFilter)
     : activeCampuses
@@ -222,8 +216,8 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
         const campusPayments  = payments.filter(p => p.campus === campus.name)
         const campusRevenue   = campusPayments.reduce((s, p) => s + p.amountPaid, 0)
         const campusTotalFee  = campusPayments.reduce((s, p) => s + p.totalFee, 0)
-        const basicPayments   = campusPayments.filter(p => isBasicEd(p.gradeLevel))
-        const collegePayments = campusPayments.filter(p => isCollege(p.gradeLevel))
+        const basicPayments   = campusPayments.filter(p => isBasicGrade(p.gradeLevel))
+        const collegePayments = campusPayments.filter(p => isCollegeGrade(p.gradeLevel))
 
         return (
           <div key={campus.key} className="space-y-4">
@@ -811,6 +805,7 @@ function DeptToggle({ value, onChange }) {
 // TAB 1 — PAYMENT RECORDS
 // ─────────────────────────────────────────────────────────────────────
 function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const [search,      setSearch]      = useState('')
   const [deptFilter,  setDeptFilter]  = useState('all')
   const [yearFilter,  setYearFilter]  = useState('all')
@@ -854,8 +849,8 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
     const or   = (tx.orNumber||'').toLowerCase()
     const q    = search.toLowerCase()
     if (q && !name.includes(q) && !or.includes(q)) return false
-    if (deptFilter === 'basic'   && !isBasicEd(tx.gradeLevel)) return false
-    if (deptFilter === 'college' && !isCollege(tx.gradeLevel)) return false
+    if (deptFilter === 'basic'   && !isBasicGrade(tx.gradeLevel)) return false
+    if (deptFilter === 'college' && !isCollegeGrade(tx.gradeLevel)) return false
     if (yearFilter !== 'all' && tx.gradeLevel !== yearFilter) return false
     if (methodFilter !== 'all' && tx.method !== methodFilter) return false
     if (feeFilter !== 'all') {
@@ -868,8 +863,8 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
   })
 
   const totalFiltered = filtered.reduce((s,t) => s + (t.amount||0), 0)
-  const basicTotal    = allTx.filter(tx => isBasicEd(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
-  const collegeTotal  = allTx.filter(tx => isCollege(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
+  const basicTotal    = allTx.filter(tx => isBasicGrade(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
+  const collegeTotal  = allTx.filter(tx => isCollegeGrade(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
 
   const hasFilters = search || deptFilter !== 'all' || yearFilter !== 'all' || methodFilter !== 'all' || feeFilter !== 'all' || dateFrom || dateTo
   const clearAll   = () => { setSearch(''); setDeptFilter('all'); setYearFilter('all'); setMethodFilter('all'); setFeeFilter('all'); setDateFrom(''); setDateTo('') }
@@ -879,7 +874,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
       'OR Number':     tx.orNumber || '—',
       'Reference #':   tx.refNum,
       'Student Name':  tx.studentName,
-      'Department':    isCollege(tx.gradeLevel) ? 'College' : 'Basic Ed',
+      'Department':    isCollegeGrade(tx.gradeLevel) ? 'College' : 'Basic Ed',
       'Grade/Program': tx.gradeLevel,
       'Payment For':   (tx.paymentFor||[]).map(k=>FEE_LABELS[k]||k).join(', ') || '—',
       'Method':        tx.method || '—',
@@ -1019,7 +1014,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {filtered.map((tx,i) => {
-                  const isBasic = isBasicEd(tx.gradeLevel)
+                  const isBasic = isBasicGrade(tx.gradeLevel)
                   return (
                   <tr key={i} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
                     <td className="px-4 py-3 text-xs font-mono text-[var(--color-primary-readable)]">{tx.orNumber||'—'}</td>
@@ -1069,6 +1064,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
 // TAB 2 — STUDENT BALANCE
 // ─────────────────────────────────────────────────────────────────────
 function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast }) {
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const [search,     setSearch]     = useState('')
   const [deptFilter, setDeptFilter] = useState('all')
   const [yearFilter, setYearFilter] = useState('all')
@@ -1098,8 +1094,8 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
     const matchSearch = !search || p.studentName.toLowerCase().includes(search.toLowerCase()) ||
       p.studentId.toLowerCase().includes(search.toLowerCase())
     const matchDept   = deptFilter === 'all' ||
-      (deptFilter === 'basic'   && isBasicEd(p.gradeLevel)) ||
-      (deptFilter === 'college' && isCollege(p.gradeLevel))
+      (deptFilter === 'basic'   && isBasicGrade(p.gradeLevel)) ||
+      (deptFilter === 'college' && isCollegeGrade(p.gradeLevel))
     const matchYear   = yearFilter === 'all' || p.gradeLevel === yearFilter
     return matchSearch && matchDept && matchYear
   }).sort((a,b) => {
@@ -1116,14 +1112,14 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
   const overdue          = filtered.filter(p => daysSince(p.submittedDate) > 30)
 
   // Dept subtotals for all-mode display
-  const basicOut   = withBalance.filter(p => isBasicEd(p.gradeLevel)).reduce((s,p) => s+p.balance, 0)
-  const collegeOut = withBalance.filter(p => isCollege(p.gradeLevel)).reduce((s,p) => s+p.balance, 0)
+  const basicOut   = withBalance.filter(p => isBasicGrade(p.gradeLevel)).reduce((s,p) => s+p.balance, 0)
+  const collegeOut = withBalance.filter(p => isCollegeGrade(p.gradeLevel)).reduce((s,p) => s+p.balance, 0)
 
   const handleExport = () => {
     const data = filtered.map(p => ({
       'Reference #':   p.studentId,
       'Student Name':  p.studentName,
-      'Department':    isCollege(p.gradeLevel) ? 'College' : 'Basic Ed',
+      'Department':    isCollegeGrade(p.gradeLevel) ? 'College' : 'Basic Ed',
       'Grade/Program': p.gradeLevel,
       'Campus':        p.campus,
       'Total Fee':     p.totalFee,
@@ -1251,7 +1247,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                   const days    = daysSince(p.submittedDate)
                   const paidPct = p.totalFee > 0 ? Math.round((p.amountPaid/p.totalFee)*100) : 0
                   const isOld   = days > 30
-                  const isBasic = isBasicEd(p.gradeLevel)
+                  const isBasic = isBasicGrade(p.gradeLevel)
                   return (
                     <tr key={i} className={`transition ${isOld ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
                       <td className="px-4 py-3">
@@ -1626,7 +1622,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
 
 export default function Payments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, campusProgramsMap } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade } = useAppConfig()
 
   const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
   const accountingCampus   = isAccountingLocked ? user.campus : null
@@ -1832,8 +1828,8 @@ export default function Payments() {
     (p.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
      p.studentId.toLowerCase().includes(searchQuery.toLowerCase())) &&
     (deptFilter === 'all' ||
-      (deptFilter === 'basic'   && isBasicEd(p.gradeLevel)) ||
-      (deptFilter === 'college' && isCollege(p.gradeLevel))
+      (deptFilter === 'basic'   && isBasicGrade(p.gradeLevel)) ||
+      (deptFilter === 'college' && isCollegeGrade(p.gradeLevel))
     ) &&
     (yearFilter === 'all' || p.gradeLevel === yearFilter) &&
     (statusFilter === 'all' || p.status === statusFilter) &&
@@ -1853,7 +1849,7 @@ export default function Payments() {
   const handleExport = () => {
     const data = filtered.map(p => ({
       'Student ID': p.studentId, 'Student Name': p.studentName,
-      'Department': isCollege(p.gradeLevel) ? 'College' : 'Basic Ed',
+      'Department': isCollegeGrade(p.gradeLevel) ? 'College' : 'Basic Ed',
       'Campus': p.campus, 'Grade / Program': p.gradeLevel,
       'Total Fee': p.totalFee, 'Amount Paid': p.amountPaid, 'Balance': p.balance,
       'Status': p.status.toUpperCase(), 'Payment Method': p.paymentMethod || '—',
@@ -1990,11 +1986,11 @@ export default function Payments() {
                           <div className="flex items-center justify-between mt-1">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
-                                ${isBasicEd(p.gradeLevel)
+                                ${isBasicGrade(p.gradeLevel)
                                   ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                                   : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                                 }`}>
-                                {isBasicEd(p.gradeLevel) ? 'Basic Ed' : 'College'}
+                                {isBasicGrade(p.gradeLevel) ? 'Basic Ed' : 'College'}
                               </span>
                               <span className="text-xs text-[var(--color-text-muted)]">{p.gradeLevel}</span>
                             </div>
@@ -2020,7 +2016,7 @@ export default function Payments() {
                       </thead>
                       <tbody className="divide-y divide-[var(--color-border)]">
                         {filtered.map(p => {
-                          const isBasic = isBasicEd(p.gradeLevel)
+                          const isBasic = isBasicGrade(p.gradeLevel)
                           return (
                           <tr key={p.studentId} className="hover:bg-[var(--color-bg-subtle)]/50 transition-colors">
                             <td className="px-4 py-3 whitespace-nowrap">
@@ -2106,11 +2102,11 @@ export default function Payments() {
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={selectedPayment.status} />
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
-                      ${isBasicEd(selectedPayment.gradeLevel)
+                      ${isBasicGrade(selectedPayment.gradeLevel)
                         ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                         : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
                       }`}>
-                      {isBasicEd(selectedPayment.gradeLevel) ? 'Basic Ed' : 'College'}
+                      {isBasicGrade(selectedPayment.gradeLevel) ? 'Basic Ed' : 'College'}
                     </span>
                     <span className="text-xs text-[var(--color-text-muted)]">{selectedPayment.campus} · {selectedPayment.gradeLevel}</span>
                   </div>

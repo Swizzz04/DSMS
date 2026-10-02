@@ -24,6 +24,8 @@ import {
   getCampusByName,
   getCampusCollegeGrades,
   getAllBasicEdGrades,
+  isBasicGrade   as checkBasicGrade,
+  isCollegeGrade as checkCollegeGrade,
   getCurrentSchoolYear,
   getTotalFee,
   getFeeEntry,
@@ -185,6 +187,15 @@ export function AppConfigProvider({ children }) {
   const workflowConfirmed = useCallback((campusKey) =>
     isWorkflowConfirmed(campusKey, config.campuses), [config.campuses])
 
+  // Grade-level department checks — bound to the LIVE (admin-editable) lists,
+  // so levels edited in Settings are respected everywhere. Identity changes
+  // only when the lists change, so they are safe in effect/memo dependencies.
+  const isBasicGrade = useCallback((gradeLevel) =>
+    checkBasicGrade(gradeLevel, config.basicEdGroups), [config.basicEdGroups])
+
+  const isCollegeGrade = useCallback((gradeLevel) =>
+    checkCollegeGrade(gradeLevel, config.collegeYearLevels), [config.collegeYearLevels])
+
   const value = {
     // Raw config sections
     ...config,
@@ -208,6 +219,8 @@ export function AppConfigProvider({ children }) {
     getSpecial,
     getPayMethods,
     workflowConfirmed,
+    isBasicGrade,
+    isCollegeGrade,
 
     // College fee computation
     computeCollegeFee,

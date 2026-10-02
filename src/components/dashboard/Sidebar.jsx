@@ -6,6 +6,7 @@ import {
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
+import { useAppConfig } from '../../context/AppConfigContext'
 import { getUserPermissions } from '../../config/appConfig'
 import SchoolLogo from '../SchoolLogo'
 
@@ -18,10 +19,8 @@ function getSchoolConfig() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
-const isBasicGrade   = g => g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
-const isCollegeGrade = g => g && (g.includes('BS') || g.includes('Year'))
-
-function computeBadges(user) {
+// isBasicGrade / isCollegeGrade come from useAppConfig() (live grade lists)
+function computeBadges(user, { isBasicGrade, isCollegeGrade }) {
   if (!user) return {}
   const role   = user.role
   const campus = user.campus
@@ -116,10 +115,14 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
   const { user }  = useAuth()
   const { theme } = useTheme()
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const school    = getSchoolConfig()
   const [badges, setBadges] = useState({})
 
-  const refreshBadges = useCallback(() => setBadges(computeBadges(user)), [user])
+  const refreshBadges = useCallback(
+    () => setBadges(computeBadges(user, { isBasicGrade, isCollegeGrade })),
+    [user, isBasicGrade, isCollegeGrade]
+  )
 
   useEffect(() => {
     refreshBadges()

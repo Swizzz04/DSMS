@@ -15,9 +15,10 @@ import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Clock, AlertCircle, CheckCircle, DollarSign, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { useAppConfig } from '../../context/AppConfigContext'
 
 // Generate notifications from live localStorage submissions
-function generateNotifications(user) {
+function generateNotifications(user, { isBasicGrade, isCollegeGrade }) {
   const notifications = []
   if (!user) return notifications
 
@@ -29,8 +30,6 @@ function generateNotifications(user) {
     if (!val || campus === 'all') return true
     return val === campus || val.includes(campus) || campus.includes(val)
   }
-  const isBasicGrade   = g => g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
-  const isCollegeGrade = g => g && (g.includes('BS') || g.includes('Year'))
 
   const campusSubs = subs.filter(s => campusMatch(s.enrollment?.campus || ''))
 
@@ -146,7 +145,8 @@ export default function NotificationPanel({ onClose }) {
   const { user } = useAuth()
   const navigate = useNavigate()
   const panelRef = useRef(null)
-  const notifications = generateNotifications(user)
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
+  const notifications = generateNotifications(user, { isBasicGrade, isCollegeGrade })
 
   const handleNotificationClick = (link) => {
     navigate(link)
