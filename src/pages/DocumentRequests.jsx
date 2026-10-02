@@ -29,7 +29,7 @@ import {
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
   BASIC_ED_DOCUMENT_TYPES, COLLEGE_DOCUMENT_TYPES,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
-  getDocumentActions, advanceDocumentStep, getDocumentStepDef,
+  getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches,
 } from '../utils/documentBridge'
 import { getStudents } from '../utils/enrollmentBridge'
 
@@ -55,8 +55,26 @@ const STATUS_ICON = {
   cancelled:   X,
 }
 
+// A stored request can hold the legacy 'ready' or the workflow id 'ready_for_pickup'
+const STATUS_KEY_ALIAS = { ready_for_pickup: 'ready' }
+const statusKey = (s) => STATUS_KEY_ALIAS[s] ?? s
+
+function getStatusStyle(request) {
+  return STATUS_STYLE[statusKey(request?.status)] ?? STATUS_STYLE.cancelled
+}
+
+// Label follows the (admin-configurable) workflow step, with a static fallback
+function getStatusLabel(request) {
+  let stepLabel
+  try { stepLabel = getDocumentStepDef(request)?.label } catch { /* workflow not configured */ }
+  return stepLabel
+    ?? REQUEST_STATUSES.find(s => s.id === statusKey(request?.status))?.label
+    ?? request?.status
+    ?? ''
+}
+
 function StatusBadge({ request, status: statusProp }) {
-  const status = request?.status ?? statusProp ?? ''
+  const status = statusKey(request?.status ?? statusProp ?? '')
   const StatusIcon = STATUS_ICON[status] ?? Clock
   const styleClass = request ? getStatusStyle(request) : (STATUS_STYLE[status] ?? '')
   const label      = request ? getStatusLabel(request)  : (REQUEST_STATUSES.find(s => s.id === status)?.label ?? status)
@@ -577,13 +595,13 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     </button>
                   )}
                   {canMarkReady && (
-                    <button onClick={() => act('ready', 'Document prepared.')}
+                    <button onClick={() => act('mark_ready', 'Document prepared.')}
                       className="btn btn-primary text-xs gap-1.5">
                       <Package size={12} /> Mark as Ready
                     </button>
                   )}
                   {canRequirePayment && (
-                    <button onClick={() => act('for_payment', `Processing fee of ₱${request.fee} required.`)}
+                    <button onClick={() => act('require_payment', `Processing fee of ₱${request.fee} required.`)}
                       className="btn text-xs gap-1.5 border border-orange-300 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:border-orange-700 dark:hover:bg-orange-900/20">
                       <CreditCard size={12} /> Require Payment (₱{request.fee})
                     </button>
@@ -674,7 +692,7 @@ export default function DocumentRequests() {
   // Status counts
   const counts = {}
   REQUEST_STATUSES.forEach(s => {
-    counts[s.id] = requests.filter(r => r.status === s.id || (s.id === 'ready_for_pickup' && r.status === 'ready')).length
+    counts[s.id] = requests.filter(r => statusMatches(r.status, s.id)).length
   })
   const pending = requests.filter(r => !['released', 'cancelled'].includes(r.status)).length
 

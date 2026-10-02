@@ -20,10 +20,6 @@ import DatePicker from '../components/DatePicker'
 // ─────────────────────────────────────────────────────────────────────
 const php = n => `₱${(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
-const isCollege = g => g && !['nursery','kindergarten','preparatory','grade 1','grade 2',
-  'grade 3','grade 4','grade 5','grade 6','grade 7','grade 8','grade 9','grade 10',
-  'grade 11','grade 12'].includes(g.toLowerCase())
-
 // Get date boundaries for a period
 function getPeriodRange(period, referenceDate = new Date()) {
   const now = referenceDate
@@ -583,7 +579,7 @@ function MethodBreakdown({ transactions }) {
 // ─────────────────────────────────────────────────────────────────────
 export default function Reports() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, feeStructure } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, feeStructure, isCollegeGrade } = useAppConfig()
 
   // Cashier name — campus-scoped (from accounting's settings)
   const cashierName = (() => {
@@ -707,7 +703,7 @@ export default function Reports() {
       .map(f => `${f.program} - ${f.yearLevel}`)
   )]
   const collegeProgramsFromData = [...new Set(
-    allPayments.map(s => s.enrollment?.gradeLevel || '').filter(g => isCollege(g))
+    allPayments.map(s => s.enrollment?.gradeLevel || '').filter(g => isCollegeGrade(g))
   )]
   // Merge both, deduplicate, sort by program then year level
   const yearOrder = { '1st Year': 1, '2nd Year': 2, '3rd Year': 3, '4th Year': 4 }
@@ -731,8 +727,8 @@ export default function Reports() {
     allPayments.forEach(sub => {
       const grade = sub.enrollment?.gradeLevel || 'Unknown'
       // Dept filter
-      if (deptFilter === 'basic_ed' && isCollege(grade)) return
-      if (deptFilter === 'college'  && !isCollege(grade)) return
+      if (deptFilter === 'basic_ed' && isCollegeGrade(grade)) return
+      if (deptFilter === 'college'  && !isCollegeGrade(grade)) return
       // Grade filter
       if (gradeFilter !== 'all' && grade !== gradeFilter) return
 
@@ -751,7 +747,7 @@ export default function Reports() {
       .map(([label, d]) => ({ label, ...d }))
       .filter(r => r.collected > 0 || r.outstanding > 0)
       .sort((a, b) => b.collected - a.collected)
-  }, [allPayments, period, customStart, customEnd, deptFilter, gradeFilter])
+  }, [allPayments, period, customStart, customEnd, deptFilter, gradeFilter, isCollegeGrade])
 
   // Export
   const handleExport = () => {

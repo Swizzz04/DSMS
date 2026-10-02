@@ -23,13 +23,6 @@ import {
 } from '../components/SchoolComponents'
 
 // ── helpers ────────────────────────────────────────────────────────
-function isBasicEd(g) {
-  return g && (g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)))
-}
-function isCollege(g) {
-  return g && (g.includes('BS') || g.includes('Year'))
-}
-
 const php = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}`
 
 function StatusBadge({ status }) {
@@ -45,6 +38,7 @@ function StatusBadge({ status }) {
 
 // ── Admin Overview ─────────────────────────────────────────────────
 function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
+  const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const [collapsed, setCollapsed] = useState({})
   const toggle = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -103,8 +97,8 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
 
       {shownCampuses.map(campus => {
         const campusEnr = getCampusEnr(campus.name)
-        const basicEnr = campusEnr.filter(e => isBasicEd(e.enrollment.gradeLevel))
-        const collegeEnr = campusEnr.filter(e => isCollege(e.enrollment.gradeLevel))
+        const basicEnr = campusEnr.filter(e => isBasicGrade(e.enrollment.gradeLevel))
+        const collegeEnr = campusEnr.filter(e => isCollegeGrade(e.enrollment.gradeLevel))
 
         return (
           <div key={campus.key} className="space-y-4">
@@ -219,6 +213,11 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
   const studentName = formatStudentName(enrollment.student, { short: true })
   const gradeLevel  = enrollment.enrollment.gradeLevel || ''
   const campus      = enrollment.enrollment.campus || ''
+  // School name comes from School Info settings (white-label) — never hardcoded
+  const schoolName  = (() => {
+    try { return JSON.parse(localStorage.getItem('almirene_website_content') || '{}').schoolName || '' }
+    catch { return '' }
+  })()
   const now         = new Date()
   const dateStr     = now.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
   const timeStr     = now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
@@ -688,14 +687,13 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
 // Opened by accounting when marking an enrollment as paid.
 // ════════════════════════════════════════════════════════════════════
 function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfirm, onClose }) {
+  const { isCollegeGrade } = useAppConfig()
   const e    = enrollment
   const name = formatStudentName(e.student, {short: true})
   const gradeLevel   = e.enrollment.gradeLevel  || ''
   const campusName   = e.enrollment.campus       || ''
   const studentType  = e.enrollment.studentType  || 'New'
-  const isCollege    = !['nursery','kindergarten','preparatory','grade','senior','junior'].some(k =>
-    gradeLevel.toLowerCase().startsWith(k)
-  ) && gradeLevel !== ''
+  const isCollege    = isCollegeGrade(gradeLevel)
   const isTransferee = studentType.toLowerCase().includes('transfer')
 
   const gradeParts  = gradeLevel.split(' - ')
@@ -1123,7 +1121,7 @@ function toTitleCase(str) {
 // ════════════════════════════════════════════════════════════════════
 export default function Enrollments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, feeStructure } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade } = useAppConfig()
 
   const campusDiscounts = (() => {
     try {
@@ -1165,8 +1163,8 @@ export default function Enrollments() {
   const [websiteCount, setWebsiteCount]       = useState(() => {
     const subs = filterByCampus(getWebSubs())
     const role = user?.role
-    if (role === 'registrar_basic')   return subs.filter(s => s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')).length
-    if (role === 'registrar_college') return subs.filter(s => s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')).length
+    if (role === 'registrar_basic')   return subs.filter(s => s.status === 'payment_received' && isBasicGrade(s.enrollment?.gradeLevel || '')).length
+    if (role === 'registrar_college') return subs.filter(s => s.status === 'payment_received' && isCollegeGrade(s.enrollment?.gradeLevel || '')).length
     if (role === 'accounting')        return subs.filter(s => s.status === 'pending').length
     return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
   })
@@ -1174,9 +1172,9 @@ export default function Enrollments() {
   const getActionableCount = (subs) => {
     const role = user?.role
     if (role === 'registrar_basic')
-      return subs.filter(s => s.status === 'payment_received' && isBasicEd(s.enrollment?.gradeLevel || '')).length
+      return subs.filter(s => s.status === 'payment_received' && isBasicGrade(s.enrollment?.gradeLevel || '')).length
     if (role === 'registrar_college')
-      return subs.filter(s => s.status === 'payment_received' && isCollege(s.enrollment?.gradeLevel || '')).length
+      return subs.filter(s => s.status === 'payment_received' && isCollegeGrade(s.enrollment?.gradeLevel || '')).length
     if (role === 'accounting')
       return subs.filter(s => s.status === 'pending').length
     return subs.filter(s => s.status === 'pending' || s.status === 'payment_received').length
@@ -1286,8 +1284,8 @@ export default function Enrollments() {
       const campusMatch = user?.campus === 'all' || c === user.campus
       return campusMatch && (e.status === 'pending' || e.status === 'payment_received')
     }
-    if (user?.role === 'registrar_basic')   return isBasicEd(g) && c === user.campus
-    if (user?.role === 'registrar_college') return isCollege(g) && c === user.campus
+    if (user?.role === 'registrar_basic')   return isBasicGrade(g) && c === user.campus
+    if (user?.role === 'registrar_college') return isCollegeGrade(g) && c === user.campus
     return true
   })
 
@@ -1327,8 +1325,8 @@ export default function Enrollments() {
 
   const canApproveReject = (e) =>
     (user?.role === 'technical_admin') ||
-    (user?.role === 'registrar_basic'   && e.status === 'payment_received' && isBasicEd(e.enrollment.gradeLevel)) ||
-    (user?.role === 'registrar_college' && e.status === 'payment_received' && isCollege(e.enrollment.gradeLevel))
+    (user?.role === 'registrar_basic'   && e.status === 'payment_received' && isBasicGrade(e.enrollment.gradeLevel)) ||
+    (user?.role === 'registrar_college' && e.status === 'payment_received' && isCollegeGrade(e.enrollment.gradeLevel))
 
   const handleApprove     = (id) => setConfirm({ open: true, type: 'approve',      id })
   const handleReject      = (id) => setConfirm({ open: true, type: 'reject',       id })

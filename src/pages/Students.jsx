@@ -53,9 +53,6 @@ const BASIC_GROUPS = [
 ]
 const YEAR_LEVELS = ['1st Year','2nd Year','3rd Year','4th Year']
 
-function isBasicEd(g) { return g.includes('Grade') || ['Nursery','Kindergarten','Preparatory'].some(x => g.includes(x)) }
-function isCollege(g) { return g.includes('BS') || g.includes('Year') }
-
 const chartOpts = {
   responsive: true, maintainAspectRatio: false,
   plugins: { legend: { labels: { color: '#9ca3af', font: { size: 11 } } } },
@@ -73,10 +70,20 @@ function StatusDot({ status }) {
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
 }
 
+// Raw submissions (every status). The admin campus blocks show pending /
+// approved / rejected counts and a recent-applications table, so they need the
+// original record shape ({ student, enrollment, referenceNumber, submittedDate })
+// — NOT the approved-only normalised students used by the rest of this page.
+function loadRawSubmissions() {
+  try { return JSON.parse(localStorage.getItem('almirene_submissions') || '[]') }
+  catch { return [] }
+}
+
 // ── Per-campus Basic Ed block (mirrors registrar_basic dashboard) ────
 function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchoolYear }) {
-  const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isBasicEd(s.academic.gradeLevel))
-  const campusEnrollments = allEnrollments.filter(e => e.enrollment.campus === campus.name && isBasicEd(e.enrollment.gradeLevel))
+  const { isBasicGrade } = useAppConfig()
+  const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isBasicGrade(s.academic.gradeLevel))
+  const campusEnrollments = allEnrollments.filter(e => e.enrollment?.campus === campus.name && isBasicGrade(e.enrollment?.gradeLevel))
 
   const groupStats = BASIC_GROUPS.map(group => ({
     ...group,
@@ -222,7 +229,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{e.student.firstName} {e.student.lastName}</p>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{e.student?.firstName} {e.student?.lastName}</p>
                       <StatusDot status={e.status} />
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{e.enrollment.gradeLevel} · {e.enrollment.studentType}</p>
@@ -245,7 +252,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
                   {campusEnrollments.map(e => (
                     <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
                       <td className="px-4 py-3 font-mono text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{e.referenceNumber}</td>
-                      <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student?.firstName} {e.student?.lastName}</td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{e.enrollment.studentType}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><StatusDot status={e.status} /></td>
@@ -266,9 +273,10 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
 
 // ── Per-campus College block (mirrors registrar_college dashboard) ────
 function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchoolYear }) {
+  const { isCollegeGrade } = useAppConfig()
   const programs          = campus.collegePrograms || []
-  const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isCollege(s.academic.gradeLevel))
-  const campusEnrollments = allEnrollments.filter(e => e.enrollment.campus === campus.name && isCollege(e.enrollment.gradeLevel))
+  const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isCollegeGrade(s.academic.gradeLevel))
+  const campusEnrollments = allEnrollments.filter(e => e.enrollment?.campus === campus.name && isCollegeGrade(e.enrollment?.gradeLevel))
 
   const programStats = programs.reduce((acc, prog) => {
     const students = campusStudents.filter(s => s.academic.gradeLevel.startsWith(prog))
@@ -444,7 +452,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{e.student.firstName} {e.student.lastName}</p>
+                      <p className="text-sm font-medium text-[var(--color-text-primary)] truncate">{e.student?.firstName} {e.student?.lastName}</p>
                       <StatusDot status={e.status} />
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{e.enrollment.gradeLevel} · {e.enrollment.studentType}</p>
@@ -467,7 +475,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
                   {campusEnrollments.map(e => (
                     <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
                       <td className="px-4 py-3 font-mono text-xs text-[var(--color-primary-readable)] whitespace-nowrap">{e.referenceNumber}</td>
-                      <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student?.firstName} {e.student?.lastName}</td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{e.enrollment.studentType}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><StatusDot status={e.status} /></td>
@@ -554,15 +562,15 @@ function normaliseSubmissions() {
 
 export default function Students() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade } = useAppConfig()
   const location = useLocation()
   const { toasts, addToast, removeToast } = useToast()
   // Load approved submissions and normalise into student shape
   const [students, setStudents] = useState(() => normaliseSubmissions())
-  const enrollments = students  // alias used by admin export block
+  const [enrollments, setEnrollments] = useState(() => loadRawSubmissions())
 
   useEffect(() => {
-    const reload = () => setStudents(normaliseSubmissions())
+    const reload = () => { setStudents(normaliseSubmissions()); setEnrollments(loadRawSubmissions()) }
     const handleStorage = (e) => {
       if (e.key === 'almirene_submissions' || e.key === null) reload()
     }
@@ -603,10 +611,10 @@ export default function Students() {
   const roleFiltered = students.filter(s => {
     if (user?.role === 'admin' || user?.role === 'technical_admin') return true
     const g = s.academic.gradeLevel, c = s.academic.campus
-    if (user?.role === 'registrar_basic')   return isBasicEd(g) && c === user.campus
-    if (user?.role === 'principal_basic')   return isBasicEd(g) && c === user.campus
-    if (user?.role === 'program_head')      return isCollege(g) && c === user.campus
-    if (user?.role === 'registrar_college') return isCollege(g) && c === user.campus
+    if (user?.role === 'registrar_basic')   return isBasicGrade(g) && c === user.campus
+    if (user?.role === 'principal_basic')   return isBasicGrade(g) && c === user.campus
+    if (user?.role === 'program_head')      return isCollegeGrade(g) && c === user.campus
+    if (user?.role === 'registrar_college') return isCollegeGrade(g) && c === user.campus
     return true
   })
 
@@ -765,7 +773,7 @@ export default function Students() {
             'Name': `${s.personal.firstName} ${s.personal.lastName}`,
             'Grade/Program': s.academic.gradeLevel,
             'Section': s.academic.section,
-            'Department': isBasicEd(s.academic.gradeLevel) ? 'Basic Ed' : 'College',
+            'Department': isBasicGrade(s.academic.gradeLevel) ? 'Basic Ed' : 'College',
             'Status': s.status,
           })),
           sheetName: campus.key,

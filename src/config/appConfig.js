@@ -902,6 +902,36 @@ export function getAllBasicEdGrades(groupsOverride) {
   return (groupsOverride || BASIC_ED_GROUPS).flatMap(g => g.options)
 }
 
+/**
+ * Is this a Basic Ed grade level?  (single source of truth — never copy this)
+ * Exact, case-insensitive match against the configured Basic Ed levels, so
+ * "Grade 1" can never match "Grade 10" and a renamed/added level works with
+ * zero code changes.
+ *
+ * In components prefer the live-config version from useAppConfig():
+ *   const { isBasicGrade } = useAppConfig()
+ * It already knows about levels an admin edited in Settings. Call this one
+ * directly only outside React, passing `groupsOverride` (config.basicEdGroups).
+ */
+export function isBasicGrade(gradeLevel, groupsOverride) {
+  if (!gradeLevel) return false
+  const g = String(gradeLevel).trim().toLowerCase()
+  return getAllBasicEdGrades(groupsOverride).some(x => String(x).trim().toLowerCase() === g)
+}
+
+/**
+ * Is this a College grade level?  College levels are stored as
+ * "<Program> - <Year Level>" (e.g. "BS Nursing - 1st Year"), so this checks the
+ * level ends with one of the configured year levels. Same live-config note as
+ * isBasicGrade: in components use `const { isCollegeGrade } = useAppConfig()`.
+ */
+export function isCollegeGrade(gradeLevel, yearLevelsOverride) {
+  if (!gradeLevel) return false
+  const g = String(gradeLevel).trim().toLowerCase()
+  return (yearLevelsOverride || COLLEGE_YEAR_LEVELS)
+    .some(y => g.endsWith(String(y).trim().toLowerCase()))
+}
+
 /** Get current school year string */
 export function getCurrentSchoolYear(yearsOverride) {
   const years = yearsOverride || SCHOOL_YEARS

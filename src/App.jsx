@@ -13,10 +13,11 @@
  */
 
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth }      from './context/AuthContext'
 import DashboardLayout  from './components/dashboard/DashboardLayout'
 import ProtectedRoute   from './components/ProtectedRoute'
+import ErrorBoundary    from './components/ErrorBoundary'
 import LoginPage        from './pages/LoginPage'
 import { PageSkeleton }  from './components/UIComponents'
 
@@ -36,12 +37,16 @@ const Attendance           = lazy(() => import('./pages/Attendance'))
 const Settings             = lazy(() => import('./pages/Settings'))
 
 function Page({ page, children }) {
+  const { pathname } = useLocation()
   return (
     <ProtectedRoute requiredPage={page}>
       <DashboardLayout>
-        <Suspense fallback={<PageSkeleton />}>
-          {children}
-        </Suspense>
+        {/* A crash inside one page leaves the sidebar/header working */}
+        <ErrorBoundary resetKey={pathname}>
+          <Suspense fallback={<PageSkeleton />}>
+            {children}
+          </Suspense>
+        </ErrorBoundary>
       </DashboardLayout>
     </ProtectedRoute>
   )

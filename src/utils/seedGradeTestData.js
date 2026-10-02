@@ -115,18 +115,29 @@ export function seedGradeTestData() {
       existingSubs.push({
         id: `mock_stu_${1000 + idx}`,
         referenceNumber: `ALMIRENE-2025-M${String(idx + 1).padStart(4, '0')}`,
-        firstName: name.first,
-        lastName: name.last,
-        middleName: name.middle,
-        gender: name.gender,
         status: 'approved',
+        source: 'admin',
+        submittedDate: new Date().toISOString(),
+        // Same nested shape the public form / enrollmentBridge produce — Enrollments,
+        // Dashboard and Students all read record.student.*, so a flat shape crashes them.
+        student: {
+          firstName: name.first,
+          middleName: name.middle,
+          lastName: name.last,
+          gender: name.gender.charAt(0).toUpperCase() + name.gender.slice(1),
+          birthDate: '', age: '', placeOfBirth: '', civilStatus: '', religion: '',
+          nationality: '', address: '', email: '', contactNumber: '',
+        },
         enrollment: {
           campus: campusName,
           gradeLevel: 'Grade 7',
           studentType: 'new',
           schoolYear,
         },
-        submittedDate: new Date().toISOString(),
+        father:   { name: '', occupation: '', contactNumber: '' },
+        mother:   { name: '', occupation: '', contactNumber: '' },
+        guardian: { name: '', relationship: '', contactNumber: '' },
+        previousSchool: { name: '', address: '', lastGrade: '', schoolYear: '' },
       })
     })
 
