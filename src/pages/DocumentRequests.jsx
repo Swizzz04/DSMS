@@ -38,12 +38,12 @@ import { getStudents } from '../utils/enrollmentBridge'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_STYLE = {
-  requested:   'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  processing:  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  for_payment: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  ready:       'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  released:    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  cancelled:   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  requested:   'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
+  processing:  'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+  for_payment: 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)]',
+  ready:       'bg-[var(--color-cat-indigo-bg)] text-[var(--color-cat-indigo-text)]',
+  released:    'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+  cancelled:   'bg-[var(--color-border)] text-[var(--color-text-secondary)]',
 }
 
 const STATUS_ICON = {
@@ -182,7 +182,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                 Student *
               </label>
               {selectedStudent ? (
-                <div className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-green-50 dark:bg-green-900/10">
+                <div className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-success-light)]">
                   <div>
                     <p className="text-sm font-semibold text-[var(--color-text-primary)]">
                       {selectedStudent.lastName}, {selectedStudent.firstName}
@@ -192,7 +192,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                     </p>
                   </div>
                   <button onClick={() => { setSelectedStudent(null); setDocType('') }}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-red-500 transition">
+                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition">
                     Change
                   </button>
                 </div>
@@ -241,7 +241,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                   placeholder="Select document type..."
                 />
                 {selectedDoc?.requiresClearance && (
-                  <div className="flex items-center gap-1.5 mt-2 text-xs text-amber-700 dark:text-amber-400">
+                  <div className="flex items-center gap-1.5 mt-2 text-xs text-[var(--color-warning-text)]">
                     <AlertCircle size={12} />
                     This document requires student clearance before release.
                   </div>
@@ -331,7 +331,7 @@ function ReleaseModal({ request, onRelease, onClose }) {
           </div>
           <div className="p-5 space-y-4">
             {!cleared && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-400">
+              <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
                 <AlertCircle size={14} className="shrink-0 mt-0.5" />
                 Student clearance is not yet complete. This document cannot be released until all departments have cleared the student.
               </div>
@@ -410,8 +410,8 @@ function ClearancePanel({ clearanceId, currentUser }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 mb-3">
-        <ShieldCheck size={14} className={clearance.isFullyCleared ? 'text-green-500' : 'text-amber-500'} />
-        <span className={`text-xs font-semibold ${clearance.isFullyCleared ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+        <ShieldCheck size={14} className={clearance.isFullyCleared ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'} />
+        <span className={`text-xs font-semibold ${clearance.isFullyCleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>
           {clearance.isFullyCleared ? 'Fully Cleared ✓' : 'Clearance In Progress'}
         </span>
       </div>
@@ -423,15 +423,15 @@ function ClearancePanel({ clearanceId, currentUser }) {
         return (
           <div key={dept.id} className={`flex items-center justify-between p-3 rounded-xl border transition-colors
             ${cleared
-              ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+              ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
               : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
             <div className="flex items-center gap-2">
               {cleared
-                ? <Check size={13} className="text-green-600 dark:text-green-400 shrink-0" />
+                ? <Check size={13} className="text-[var(--color-success-text)] shrink-0" />
                 : <Clock size={13} className="text-[var(--color-text-muted)] shrink-0" />
               }
               <div>
-                <p className={`text-xs font-medium ${cleared ? 'text-green-700 dark:text-green-400' : 'text-[var(--color-text-primary)]'}`}>
+                <p className={`text-xs font-medium ${cleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-text-primary)]'}`}>
                   {dept.label}
                 </p>
                 {cleared && (
@@ -602,7 +602,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                   )}
                   {canRequirePayment && (
                     <button onClick={() => act('require_payment', `Processing fee of ₱${request.fee} required.`)}
-                      className="btn text-xs gap-1.5 border border-orange-300 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:border-orange-700 dark:hover:bg-orange-900/20">
+                      className="btn text-xs gap-1.5 border border-[var(--color-warning-border)] text-[var(--color-warning-text)] hover:bg-[var(--color-warning-light)]">
                       <CreditCard size={12} /> Require Payment (₱{request.fee})
                     </button>
                   )}
@@ -620,7 +620,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                   )}
                   {canCancel && (
                     <button onClick={() => act('cancel', noteInput || 'Cancelled by registrar.')}
-                      className="btn text-xs gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20">
+                      className="btn text-xs gap-1.5 border border-[var(--color-error-border)] text-[var(--color-error-text)] hover:bg-[var(--color-error-light)]">
                       <X size={12} /> Cancel
                     </button>
                   )}
@@ -666,11 +666,12 @@ export default function DocumentRequests() {
   const isAccounting = ['accounting', 'technical_admin'].includes(role)
 
   const loadData = useCallback(() => {
-    const filters = { campusKey, schoolYear }
-    if (statusFilter !== 'all') filters.status = statusFilter
-    setRequests(getRequests(filters))
+    // Always load the FULL list for this campus + school year. The status tabs
+    // filter it on the client (below), so every tab keeps its count while
+    // another tab is selected — and switching tabs needs no reload.
+    setRequests(getRequests({ campusKey, schoolYear }))
     setLoading(false)
-  }, [campusKey, schoolYear, statusFilter])
+  }, [campusKey, schoolYear])
 
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => {
@@ -679,9 +680,14 @@ export default function DocumentRequests() {
     return () => window.removeEventListener('almirene_documents_updated', handler)
   }, [loadData])
 
-  // Filter for accounting — only show for_payment queue
-  const visibleRequests = requests.filter(r => {
-    if (isAccounting && !isRegistrar && r.status !== 'for_payment') return false
+  // What this role may see — accounting only works the for_payment queue
+  const scopedRequests = requests.filter(r =>
+    !(isAccounting && !isRegistrar && r.status !== 'for_payment')
+  )
+
+  // The table: status tab + search applied on top of the scoped list
+  const visibleRequests = scopedRequests.filter(r => {
+    if (statusFilter !== 'all' && !statusMatches(r.status, statusFilter)) return false
     if (search) {
       const q = search.toLowerCase()
       return r.studentName?.toLowerCase().includes(q) || r.documentLabel?.toLowerCase().includes(q)
@@ -689,12 +695,14 @@ export default function DocumentRequests() {
     return true
   })
 
-  // Status counts
+  // Tab counts and the header's "pending" always come from the scoped list —
+  // never from the status-filtered one — so they stay put while the user
+  // moves between tabs.
   const counts = {}
   REQUEST_STATUSES.forEach(s => {
-    counts[s.id] = requests.filter(r => statusMatches(r.status, s.id)).length
+    counts[s.id] = scopedRequests.filter(r => statusMatches(r.status, s.id)).length
   })
-  const pending = requests.filter(r => !['released', 'cancelled'].includes(r.status)).length
+  const pending = scopedRequests.filter(r => !['released', 'cancelled'].includes(r.status)).length
 
   if (loading) return <PageSkeleton />
 
@@ -739,7 +747,7 @@ export default function DocumentRequests() {
         <>
           {/* Status filter chips */}
           <div className="flex flex-wrap gap-2">
-            {[{ id: 'all', label: `All (${requests.length})` }, ...REQUEST_STATUSES.map(s => ({ id: s.id, label: `${s.label} (${counts[s.id] || 0})` }))].map(f => (
+            {[{ id: 'all', label: `All (${scopedRequests.length})` }, ...REQUEST_STATUSES.map(s => ({ id: s.id, label: `${s.label} (${counts[s.id] || 0})` }))].map(f => (
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
                   ${statusFilter === f.id
@@ -791,12 +799,12 @@ export default function DocumentRequests() {
                         <FileText size={10} />
                         {req.documentLabel}
                         {req.requiresClearance && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
+                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">
                             Clearance
                           </span>
                         )}
                         {req.fee > 0 && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-info-light)] text-[var(--color-info-text)]">
                             ₱{req.fee}
                           </span>
                         )}
@@ -930,8 +938,8 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-[var(--color-text-muted)]">{clearedCount}/{totalCount}</span>
                     {clr.isFullyCleared
-                      ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Cleared ✓</span>
-                      : <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">In Progress</span>
+                      ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-success-light)] text-[var(--color-success-text)]">Cleared ✓</span>
+                      : <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">In Progress</span>
                     }
                   </div>
                 </div>
@@ -939,7 +947,7 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
                 {/* Progress bar */}
                 <div className="h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-green-500 rounded-full transition-all"
+                    className="h-full bg-[var(--color-success)] rounded-full transition-all"
                     style={{ width: `${(clearedCount / totalCount) * 100}%` }}
                   />
                 </div>
@@ -953,13 +961,13 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
                       <div key={dept.id}
                         className={`flex flex-col items-center p-2 rounded-xl border text-center transition-colors
                           ${cleared
-                            ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                            ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
                             : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
                         {cleared
-                          ? <Check size={14} className="text-green-600 dark:text-green-400 mb-1" />
+                          ? <Check size={14} className="text-[var(--color-success-text)] mb-1" />
                           : <Clock size={14} className="text-[var(--color-text-muted)] mb-1" />
                         }
-                        <p className={`text-[10px] font-medium ${cleared ? 'text-green-700 dark:text-green-400' : 'text-[var(--color-text-secondary)]'}`}>
+                        <p className={`text-[10px] font-medium ${cleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-text-secondary)]'}`}>
                           {dept.label}
                         </p>
                         {!cleared && !clr.isFullyCleared && (
