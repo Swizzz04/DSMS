@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../../context/AuthContext'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { ConfirmDialog, useToast, ToastContainer } from '../UIComponents'
+import AccordionBody from '../AccordionBody'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OPTION LISTS (used by GroupedSelect)
@@ -93,15 +94,15 @@ const DEADLINE_ACTION_OPTIONS = [
 
 // Badge color CSS classes mapped by color value
 const COLOR_BADGE = {
-  yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  red:    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  teal:   'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
-  gray:   'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+  yellow: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
+  blue:   'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+  indigo: 'bg-[var(--color-cat-indigo-bg)] text-[var(--color-cat-indigo-text)]',
+  green:  'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+  red:    'bg-[var(--color-error-light)] text-[var(--color-error-text)]',
+  orange: 'bg-[var(--color-cat-orange-bg)] text-[var(--color-cat-orange-text)]',
+  purple: 'bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)]',
+  teal:   'bg-[var(--color-cat-teal-bg)] text-[var(--color-cat-teal-text)]',
+  gray:   'bg-[var(--color-border)] text-[var(--color-text-secondary)]',
 }
 
 const LOCKED_FINAL_STEPS = ['officially_enrolled', 'approved', 'registrar_posted']
@@ -185,7 +186,7 @@ function ActionEditor({ actions = [], steps = [], onChange }) {
             <button
               type="button"
               onClick={() => del(i)}
-              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+              className="p-2 rounded-lg text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors shrink-0"
             >
               <Trash2 size={14} />
             </button>
@@ -272,7 +273,7 @@ function ConditionEditor({ conditions = [], onChange }) {
             <button
               type="button"
               onClick={() => del(i)}
-              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+              className="p-2 rounded-lg text-[var(--color-error)] hover:bg-[var(--color-error-light)] transition-colors shrink-0"
             >
               <Trash2 size={14} />
             </button>
@@ -344,6 +345,7 @@ function StepCard({ step, steps, index, isExpanded, onToggle, onChange, onDelete
       <div
         className="flex items-center gap-3 p-3 cursor-pointer select-none hover:bg-[var(--color-bg-subtle)] transition-colors"
         onClick={onToggle}
+        aria-expanded={isExpanded}
       >
         <GripVertical size={14} className="text-[var(--color-text-muted)] shrink-0" />
 
@@ -359,12 +361,12 @@ function StepCard({ step, steps, index, isExpanded, onToggle, onChange, onDelete
 
         <div className="flex items-center gap-1 shrink-0">
           {step.isInitial && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--color-success-light)] text-[var(--color-success-text)]">
               START
             </span>
           )}
           {step.isFinal && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)]">
               FINAL
             </span>
           )}
@@ -375,7 +377,7 @@ function StepCard({ step, steps, index, isExpanded, onToggle, onChange, onDelete
       </div>
 
       {/* Detail editor */}
-      {isExpanded && (
+      <AccordionBody open={isExpanded}>
         <div className="border-t border-[var(--color-border)] p-4 space-y-5">
           {/* ID + Label */}
           <div className="grid grid-cols-1 gap-3">
@@ -519,14 +521,14 @@ function StepCard({ step, steps, index, isExpanded, onToggle, onChange, onDelete
               <button
                 type="button"
                 onClick={onDelete}
-                className="flex items-center gap-1.5 text-xs text-red-600 border border-red-200 dark:border-red-800 px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-[var(--color-error-text)] border border-[var(--color-error-border)] px-3 py-1.5 rounded-lg hover:bg-[var(--color-error-light)] transition-colors"
               >
                 <Trash2 size={12} /> Delete this step
               </button>
             </div>
           )}
         </div>
-      )}
+      </AccordionBody>
     </div>
   )
 }
@@ -543,10 +545,16 @@ function WorkflowPreview({ steps }) {
   if (!all.length) return null
 
   const W = 130, H = 34, GY = 20, PX = 14, PY = 12
-  const COLOR_HEX = {
-    yellow: '#ca8a04', blue: '#2563eb', indigo: '#4f46e5', green: '#16a34a',
-    red: '#dc2626', orange: '#ea580c', purple: '#9333ea', teal: '#0d9488', gray: '#6b7280',
+  // Theme-aware colors (CSS variables, set through `style` so SVG resolves them) —
+  // they switch with light/dark mode and follow the same tokens as the step badges.
+  const COLOR_VAR = {
+    yellow: 'var(--color-pending-text)',    blue:   'var(--color-info-text)',
+    indigo: 'var(--color-cat-indigo-text)', green:  'var(--color-success-text)',
+    red:    'var(--color-error-text)',      orange: 'var(--color-cat-orange-text)',
+    purple: 'var(--color-cat-purple-text)', teal:   'var(--color-cat-teal-text)',
+    gray:   'var(--color-text-secondary)',
   }
+  const EDGE = 'var(--color-text-muted)'   // arrows between steps
 
   return (
     <svg
@@ -556,34 +564,33 @@ function WorkflowPreview({ steps }) {
     >
       <defs>
         <marker id="wf-arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-          <path d="M0,0 L0,6 L6,3z" fill="#9ca3af" />
+          <path d="M0,0 L0,6 L6,3z" style={{ fill: EDGE }} />
         </marker>
       </defs>
       {all.map((s, i) => {
         const y = PY + i * (H + GY)
         const cx = PX + W / 2
-        const c = COLOR_HEX[s.color] ?? '#6b7280'
+        const c = COLOR_VAR[s.color] ?? COLOR_VAR.gray
         return (
           <g key={s.id}>
             {i > 0 && (
               <line
                 x1={cx} y1={y - GY + 4} x2={cx} y2={y - 4}
-                stroke="#9ca3af" strokeWidth="1.5"
+                style={{ stroke: EDGE }} strokeWidth="1.5"
                 markerEnd="url(#wf-arrow)"
               />
             )}
             <rect
               x={PX} y={y} width={W} height={H} rx="5"
-              fill={s.isFinal ? c + '22' : c + '15'}
-              stroke={c}
+              style={{ fill: c, fillOpacity: s.isFinal ? 0.13 : 0.08, stroke: c }}
               strokeWidth={s.isFinal ? '2' : '1.5'}
             />
             <text
               x={cx} y={y + H / 2 + 1}
               textAnchor="middle" dominantBaseline="middle"
-              fontSize="8.5" fill={c}
+              fontSize="8.5"
               fontWeight={s.isFinal ? '700' : '500'}
-              style={{ fontFamily: 'system-ui, sans-serif' }}
+              style={{ fontFamily: 'system-ui, sans-serif', fill: c }}
             >
               {s.label.length > 20 ? s.label.slice(0, 18) + '…' : s.label}
             </text>
@@ -609,7 +616,7 @@ export default function WorkflowConfigTab() {
   const [deptTab,       setDeptTab]       = useState('basicEd') // 'basicEd' | 'college' | 'all'
   const [selectedId,    setSelectedId]    = useState(null)
   const [draft,         setDraft]         = useState(null)
-  const [expandedSteps, setExpandedSteps] = useState({})
+  const [expandedStep,  setExpandedStep]  = useState(null)   // accordion: one step open at a time (index in draft.steps)
   const [isDirty,       setIsDirty]       = useState(false)
   const [showPreview,   setShowPreview]   = useState(false)
   const [isSaving,      setIsSaving]      = useState(false)
@@ -630,7 +637,7 @@ export default function WorkflowConfigTab() {
     if (found) {
       setDraft(JSON.parse(JSON.stringify(found)))
       setIsDirty(false)
-      setExpandedSteps({})
+      setExpandedStep(null)
     }
   }, [selectedId, workflows])
 
@@ -703,7 +710,7 @@ export default function WorkflowConfigTab() {
       deadlineHours: null, deadlineAction: null,
     }
     patchSteps([...draft.steps, newStep])
-    setExpandedSteps(p => ({ ...p, [draft.steps.length]: true }))
+    setExpandedStep(draft.steps.length)   // open the new step; the others close
   }
 
   const isLocked = LOCKED_WORKFLOWS.includes(selectedId)
@@ -741,7 +748,7 @@ export default function WorkflowConfigTab() {
           <button
             type="button"
             onClick={() => setResetConfirm(true)}
-            className="btn btn-ghost gap-1.5 text-xs text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+            className="btn btn-ghost gap-1.5 text-xs text-[var(--color-warning-text)] hover:bg-[var(--color-warning-light)]"
           >
             <RotateCcw size={13} /> Reset
           </button>
@@ -753,7 +760,7 @@ export default function WorkflowConfigTab() {
             style={{ opacity: !isDirty ? 0.5 : 1 }}
           >
             {isSaving
-              ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               : <Save size={13} />
             }
             {isDirty ? 'Save Changes' : 'Saved'}
@@ -763,13 +770,13 @@ export default function WorkflowConfigTab() {
 
       {/* ── Banners ───────────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-300">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
           <AlertCircle size={13} className="shrink-0" />
           Unsaved changes — new records will use the last saved version.
         </div>
       )}
       {isLocked && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-xs text-blue-800 dark:text-blue-300">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info-text)]">
           <Info size={13} className="shrink-0" />
           Core logic for this workflow is locked for compliance.
         </div>
@@ -886,10 +893,8 @@ export default function WorkflowConfigTab() {
                       step={step}
                       steps={draft.steps}
                       index={vi}
-                      isExpanded={!!expandedSteps[ri]}
-                      onToggle={() =>
-                        setExpandedSteps(p => ({ ...p, [ri]: !p[ri] }))
-                      }
+                      isExpanded={expandedStep === ri}
+                      onToggle={() => setExpandedStep(p => (p === ri ? null : ri))}
                       onChange={updated => {
                         const next = [...draft.steps]
                         next[ri] = updated

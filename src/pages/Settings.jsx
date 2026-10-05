@@ -14,6 +14,7 @@ import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FE
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
+import AccordionBody from '../components/AccordionBody'
 import SchoolLogo from '../components/SchoolLogo'
 import { applyTheme } from '../utils/themeInitializer'
 import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
@@ -459,7 +460,8 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
   const [editingId,  setEditingId]  = useState(null)
   const [editBuffer, setEditBuffer] = useState({})
   const [hasChanges, setHasChanges] = useState(false)
-  const [expandedGroup, setExpandedGroup] = useState('all')
+  // Accordion: one fee group / program open at a time. 'auto' = nothing picked yet → first visible card is open.
+  const [expandedGroup, setExpandedGroup] = useState('auto')
 
   // Fee groups for display
   const FEE_GROUPS = [
@@ -524,6 +526,11 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
     if (group.type === 'college') return [] // college handled separately
     return visibleFees.filter(f => !f.program && group.grades.includes(f.gradeLevel))
   }
+
+  // Which card is open: the one the user picked, or — until they pick — the first visible one.
+  const firstVisibleKey = FEE_GROUPS.find(g => getGroupFees(g).length > 0)?.key ?? collegePrograms[0] ?? null
+  const openKey = expandedGroup === 'auto' ? firstVisibleKey : expandedGroup
+  const toggleGroup = (key) => setExpandedGroup(openKey === key ? null : key)
 
   const startEdit = (fee) => {
     setEditingId(fee.id)
@@ -616,13 +623,14 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
       {FEE_GROUPS.map(group => {
         const groupFees = getGroupFees(group)
         if (groupFees.length === 0) return null
-        const isExpanded = expandedGroup === 'all' || expandedGroup === group.key
+        const isExpanded = openKey === group.key
 
         return (
           <div key={group.key} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
             {/* Group header */}
             <button
-              onClick={() => setExpandedGroup(isExpanded ? null : group.key)}
+              onClick={() => toggleGroup(group.key)}
+              aria-expanded={isExpanded}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg-subtle)]/40 transition">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-primary"/>
@@ -637,13 +645,13 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
               }
             </button>
 
-            {isExpanded && (
+            <AccordionBody open={isExpanded}>
               <div className="border-t border-[var(--color-border)]">
                 {/* Mobile: card layout */}
                 <div className="block sm:hidden divide-y divide-[var(--color-border)]">
                   {groupFees.map(fee => {
                     const isEditing = editingId === fee.id
-                    const cols = group.type === 'college' ? COLLEGE_FEE_COLS : BASIC_FEE_COLS
+                    const cols = BASIC_FEE_COLS   // college groups never reach here — getGroupFees() returns [] for them
                     return (
                       <div key={fee.id} className="p-4 space-y-3">
                         <div className="flex items-center justify-between">
@@ -754,7 +762,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                   </table>
                 </div>
               </div>
-            )}
+            </AccordionBody>
           </div>
         )
       })}
@@ -764,7 +772,8 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
         <div key={program} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
           {/* Program header */}
           <button
-            onClick={() => setExpandedGroup(expandedGroup === program ? null : program)}
+            onClick={() => toggleGroup(program)}
+            aria-expanded={openKey === program}
             className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg-subtle)]/40 transition">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="w-2 h-2 rounded-full bg-secondary flex-shrink-0"/>
@@ -774,13 +783,13 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                 Tuition = Rate/Unit × Actual Units
               </span>
             </div>
-            {expandedGroup === program
+            {openKey === program
               ? <ChevronUp className="w-4 h-4 text-gray-400"/>
               : <ChevronDown className="w-4 h-4 text-gray-400"/>
             }
           </button>
 
-          {(expandedGroup === program || expandedGroup === 'all') && (
+          <AccordionBody open={openKey === program}>
             <div className="mx-5 mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl text-xs text-blue-700 dark:text-blue-300">
               <strong>Unit-based billing:</strong> Tuition = Rate/Unit × units enrolled · Lab = Lab Rate/Unit × lab units enrolled · Enrollment &amp; Misc are fixed.
               <br/>
@@ -788,9 +797,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                 Regular students use <em>Typical Units</em> as their load. Transferees may be <strong>underload</strong> (fewer units) or <strong>overload</strong> (more units) — same rate applies either way.
               </span>
             </div>
-          )}
+          </AccordionBody>
 
-          {(expandedGroup === program || expandedGroup === 'all') && (
+          <AccordionBody open={openKey === program}>
             <div className="border-t border-[var(--color-border)]">
               {/* Year level tabs */}
               {YEAR_LEVELS.map(yr => {
@@ -985,7 +994,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                 )
               })}
             </div>
-          )}
+          </AccordionBody>
         </div>
       ))}
 
@@ -1053,7 +1062,24 @@ export default function Settings() {
   })
   // Collapsible sections for School Info tab
   const [infoSections, setInfoSections] = useState({ general: true, branding: false, loginPage: false, campuses: false, faq: false, about: false, programs: false, admissions: false })
-  const toggleInfoSection = (key) => setInfoSections(prev => ({ ...prev, [key]: !prev[key] }))
+  // Accordion: opening a card closes the others; clicking the open card closes it.
+  const toggleInfoSection = (key) => {
+    const opening = !infoSections[key]
+    setInfoSections(prev => {
+      const next = Object.fromEntries(Object.keys(prev).map(k => [k, false]))
+      next[key] = !prev[key]
+      return next
+    })
+    if (opening) {
+      // The card that was open above collapses and shifts the layout — once that
+      // finishes, make sure the card the user just opened is still on screen.
+      const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      setTimeout(() => {
+        document.getElementById(`info-section-${key}`)
+          ?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
+      }, 260)
+    }
+  }
 
   // Website content — CMS for school website (stored in localStorage almirene_website_content)
   const [websiteContent, setWebsiteContent] = useState(() => {
@@ -1420,7 +1446,7 @@ export default function Settings() {
                   return (
                   <div key={sy.id} className={`border rounded-xl overflow-hidden transition-colors ${sy.isCurrent ? 'border-primary/40 bg-primary/5' : 'border-[var(--color-border)]'}`}>
                     {/* Header */}
-                    <button onClick={() => setExpandedSY(isExpanded ? null : sy.id)}
+                    <button onClick={() => setExpandedSY(isExpanded ? null : sy.id)} aria-expanded={isExpanded}
                       className="w-full text-left p-4 flex items-center justify-between hover:bg-[var(--color-bg-subtle)]/50 transition">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
@@ -1458,7 +1484,7 @@ export default function Settings() {
                     </button>
 
                     {/* Expanded — events */}
-                    {isExpanded && (
+                    <AccordionBody open={isExpanded}>
                       <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)]/30">
                         <div className="p-4">
                           <div className="flex items-center justify-between mb-3">
@@ -1505,7 +1531,7 @@ export default function Settings() {
                           )}
                         </div>
                       </div>
-                    )}
+                    </AccordionBody>
                   </div>
                 )})}
               </div>
@@ -2449,15 +2475,15 @@ export default function Settings() {
             </div>
 
             {/* ── Section 1: General Information ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('general')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-general" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('general')} aria-expanded={infoSections.general} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><School className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">General Information</h3><p className="text-xs text-[var(--color-text-muted)]">School name, motto, contact details, school year</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.general ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.general && (
+              <AccordionBody open={infoSections.general}>
                 <div className="border-t border-[var(--color-border)] p-5 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><label className="form-label">School Name</label><input type="text" value={websiteContent.schoolName} onChange={e => setWebsiteContent({ ...websiteContent, schoolName: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
@@ -2482,19 +2508,19 @@ export default function Settings() {
                   </div>
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 2: System Branding ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('branding')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-branding" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('branding')} aria-expanded={infoSections.branding} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Paintbrush className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">System Branding</h3><p className="text-xs text-[var(--color-text-muted)]">Logo, banner, and system colors</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.branding ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.branding && (
+              <AccordionBody open={infoSections.branding}>
                 <div className="border-t border-[var(--color-border)] p-5 space-y-5">
                   <div>
                     <h4 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2"><Image className="w-4 h-4 text-[var(--color-text-muted)]" /> School Logo</h4>
@@ -2541,21 +2567,23 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5" /> Color changes will take full effect when backend is connected</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5 shrink-0" /> Click Save Changes to apply these colors to the system. They are stored on this device until the backend is connected.</p>
+
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 3: Login Page ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('loginPage')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-loginPage" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('loginPage')} aria-expanded={infoSections.loginPage} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Login Page</h3><p className="text-xs text-[var(--color-text-muted)]">Customize the labels and text shown on the login screen</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.loginPage ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.loginPage && (
+              <AccordionBody open={infoSections.loginPage}>
                 <div className="border-t border-[var(--color-border)] p-5 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -2595,19 +2623,19 @@ export default function Settings() {
 
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 4: About — Mission, Vision, Goals, Core Values ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('about')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-about" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('about')} aria-expanded={infoSections.about} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">About Section</h3><p className="text-xs text-[var(--color-text-muted)]">Mission, vision, goals, and core values shown on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.about ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.about && (
+              <AccordionBody open={infoSections.about}>
                 <div className="border-t border-[var(--color-border)] p-5 space-y-4">
                   <div><label className="form-label">Mission</label><textarea value={websiteContent.mission} onChange={e => setWebsiteContent({ ...websiteContent, mission: e.target.value })} rows={3} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition resize-none" /></div>
                   <div><label className="form-label">Vision</label><textarea value={websiteContent.vision} onChange={e => setWebsiteContent({ ...websiteContent, vision: e.target.value })} rows={3} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition resize-none" /></div>
@@ -2643,19 +2671,19 @@ export default function Settings() {
                   </div>
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 4: FAQ Management ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('faq')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-faq" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('faq')} aria-expanded={infoSections.faq} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><HelpCircle className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">FAQ Management</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.faq.length} question{websiteContent.faq.length !== 1 ? 's' : ''} on the school website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.faq ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.faq && (
+              <AccordionBody open={infoSections.faq}>
                 <div className="border-t border-[var(--color-border)] p-5">
                   {/* Existing FAQs */}
                   <div className="space-y-3 mb-4">
@@ -2707,19 +2735,19 @@ export default function Settings() {
                   </div>
                   <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save All FAQs</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 5: Academic Programs ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('programs')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-programs" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('programs')} aria-expanded={infoSections.programs} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Academic Programs</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.programs.length} program{websiteContent.programs.length !== 1 ? 's' : ''} listed on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.programs ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.programs && (
+              <AccordionBody open={infoSections.programs}>
                 <div className="border-t border-[var(--color-border)] p-5">
                   <div className="space-y-3 mb-4">
                     {websiteContent.programs.map(prog => (
@@ -2794,19 +2822,19 @@ export default function Settings() {
                   )}
                   <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Programs</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 6: Admission Requirements & Steps ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('admissions')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-admissions" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('admissions')} aria-expanded={infoSections.admissions} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Tag className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Admission</h3><p className="text-xs text-[var(--color-text-muted)]">Enrollment requirements and steps shown on the website</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.admissions ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.admissions && (
+              <AccordionBody open={infoSections.admissions}>
                 <div className="border-t border-[var(--color-border)] p-5 space-y-5">
                   {/* Requirements */}
                   <div>
@@ -2884,19 +2912,19 @@ export default function Settings() {
 
                   <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Admission Info</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
 
             {/* ── Section 7: Campus Configuration ── */}
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
-              <button onClick={() => toggleInfoSection('campuses')} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+            <div id="info-section-campuses" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+              <button onClick={() => toggleInfoSection('campuses')} aria-expanded={infoSections.campuses} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Campus Configuration</h3><p className="text-xs text-[var(--color-text-muted)]">{editCampuses.length} campus{editCampuses.length !== 1 ? 'es' : ''} configured</p></div>
                 </div>
                 <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${infoSections.campuses ? 'rotate-180' : ''}`} />
               </button>
-              {infoSections.campuses && (
+              <AccordionBody open={infoSections.campuses}>
                 <div className="border-t border-[var(--color-border)] p-5">
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-xs text-[var(--color-text-muted)]">Manage campus locations, departments, and programs</p>
@@ -2934,7 +2962,7 @@ export default function Settings() {
                   </div>
                   <div className="mt-4 flex items-center justify-end"><button onClick={() => saveSection('campuses', editCampuses)} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">{savedSection === 'campuses' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}{savedSection === 'campuses' ? 'Saved!' : 'Save Campuses'}</button></div>
                 </div>
-              )}
+              </AccordionBody>
             </div>
           </div>
         )}

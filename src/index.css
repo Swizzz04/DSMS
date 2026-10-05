@@ -157,6 +157,34 @@ button, a, [role="button"] {
   --color-payment-text:     #1d4ed8;
   --color-payment-border:   #bfdbfe;
 
+  /* ── Status TEXT colors (readable on the matching -light backgrounds) ──
+     success/warning/error/info only had a fill; text needs its own token so
+     it can be lighter in dark mode. Use: text-[var(--color-success-text)] */
+  --color-success-text:     #15803d;
+  --color-warning-text:     #b45309;
+  --color-error-text:       #b91c1c;
+  --color-info-text:        #1d4ed8;
+
+  /* ── Categorical hue: indigo (e.g. a "ready" state that is not a status) ── */
+  --color-cat-indigo-bg:      #e0e7ff;
+  --color-cat-indigo-text:    #3730a3;
+  --color-cat-indigo-border:  #c7d2fe;
+
+  /* ── Categorical hues (admin-chosen colors, e.g. workflow step badges) ── */
+  --color-cat-purple-bg:      #f3e8ff;
+  --color-cat-purple-text:    #6b21a8;
+  --color-cat-purple-border:  #e9d5ff;
+  --color-cat-teal-bg:        #ccfbf1;
+  --color-cat-teal-text:      #115e59;
+  --color-cat-teal-border:    #99f6e4;
+  --color-cat-orange-bg:      #ffedd5;
+  --color-cat-orange-text:    #9a3412;
+  --color-cat-orange-border:  #fed7aa;
+
+  /* Loading skeleton shimmer */
+  --color-skeleton-base:      #e8e8e4;
+  --color-skeleton-highlight: #f4f4f0;
+
   /* ── Radius scale ─────────────────────────────── */
   --radius-xs:   4px;
   --radius-sm:   6px;
@@ -210,8 +238,8 @@ button, a, [role="button"] {
   --color-bg-muted:         #1f1f1f;
 
 
-  --color-border:           #2a2d3e;
-  --color-border-strong:    #363a52;
+  --color-border:           #2e2e2e;
+  --color-border-strong:    #3c3c3c;
   --color-border-focus:     #4f5bcc;
 
   --color-text-primary:     #f0f0ee;
@@ -272,6 +300,30 @@ button, a, [role="button"] {
   --color-rejected-text:    #f87171;
   --color-rejected-border:  rgba(220, 38, 38, 0.25);
 
+  /* Status TEXT colors — lighter for dark surfaces */
+  --color-success-text:     #4ade80;
+  --color-warning-text:     #fbbf24;
+  --color-error-text:       #f87171;
+  --color-info-text:        #60a5fa;
+
+  --color-cat-indigo-bg:      rgba(99, 102, 241, 0.15);
+  --color-cat-indigo-text:    #a5b4fc;
+  --color-cat-indigo-border:  rgba(99, 102, 241, 0.30);
+
+  --color-cat-purple-bg:      rgba(168, 85, 247, 0.15);
+  --color-cat-purple-text:    #d8b4fe;
+  --color-cat-purple-border:  rgba(168, 85, 247, 0.30);
+  --color-cat-teal-bg:        rgba(20, 184, 166, 0.15);
+  --color-cat-teal-text:      #5eead4;
+  --color-cat-teal-border:    rgba(20, 184, 166, 0.30);
+  --color-cat-orange-bg:      rgba(249, 115, 22, 0.15);
+  --color-cat-orange-text:    #fdba74;
+  --color-cat-orange-border:  rgba(249, 115, 22, 0.30);
+
+  /* Loading skeleton shimmer — neutral gray (was a navy tint) */
+  --color-skeleton-base:      #222222;
+  --color-skeleton-highlight: #2a2a2a;
+
   --color-payment-bg:       rgba(37, 99, 235, 0.12);
   --color-payment-text:     #60a5fa;
   --color-payment-border:   rgba(37, 99, 235, 0.25);
@@ -301,13 +353,8 @@ button, a, [role="button"] {
 
 .skeleton {
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, #e8e8e4 25%, #f4f4f0 50%, #e8e8e4 75%);
-  background-size: 1200px 100%;
-  animation: shimmer 1.6s ease-in-out infinite;
-}
-
-.dark .skeleton {
-  background: linear-gradient(90deg, #1e2130 25%, #252840 50%, #1e2130 75%);
+  /* Colors come from tokens that switch with the theme — no per-mode override needed */
+  background: linear-gradient(90deg, var(--color-skeleton-base) 25%, var(--color-skeleton-highlight) 50%, var(--color-skeleton-base) 75%);
   background-size: 1200px 100%;
   animation: shimmer 1.6s ease-in-out infinite;
 }
