@@ -21,6 +21,7 @@ import {
   getRolePermissions, saveRolePermissions,
 } from '../../config/appConfig'
 import { useToast, ToastContainer, ConfirmDialog } from '../UIComponents'
+import AccordionBody from '../AccordionBody'
 
 // ── Roles that can be configured (not technical_admin — always full access) ──
 const CONFIGURABLE_ROLES = [
@@ -56,9 +57,7 @@ const PAGE_GROUPS = [
 // ROLE ROW
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RoleRow({ role, permissions, defaults, onChange }) {
-  const [expanded, setExpanded] = useState(false)
-
+function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) {
   const pages = permissions?.pages ?? defaults.pages ?? []
   const tabs  = permissions?.tabs  ?? defaults.tabs  ?? []
   const isCustomized = !!permissions
@@ -95,10 +94,11 @@ function RoleRow({ role, permissions, defaults, onChange }) {
       {/* Role header */}
       <div
         className="flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--color-bg-subtle)]/50 transition-colors select-none"
-        onClick={() => setExpanded(e => !e)}
+        onClick={onToggle}
         role="button"
+        aria-expanded={expanded}
         tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && setExpanded(v => !v)}
+        onKeyDown={e => e.key === 'Enter' && onToggle()}
       >
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
@@ -128,7 +128,7 @@ function RoleRow({ role, permissions, defaults, onChange }) {
       </div>
 
       {/* Expandable permissions editor */}
-      {expanded && (
+      <AccordionBody open={expanded}>
         <div className="border-t border-[var(--color-border)] p-4 space-y-5 bg-[var(--color-bg-page)]">
           {/* Quick actions */}
           <div className="flex gap-2 flex-wrap">
@@ -149,7 +149,7 @@ function RoleRow({ role, permissions, defaults, onChange }) {
           </div>
 
           {/* Info notice */}
-          <div className="flex items-start gap-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info-text)]">
             <Info size={12} className="shrink-0 mt-0.5" />
             Dashboard is always included. Per-user overrides in the Users tab take priority over these settings.
           </div>
@@ -222,7 +222,7 @@ function RoleRow({ role, permissions, defaults, onChange }) {
             </div>
           )}
         </div>
-      )}
+      </AccordionBody>
     </div>
   )
 }
@@ -255,6 +255,7 @@ export default function RolePermissionsTab() {
   })
 
   const [isDirty,        setIsDirty]        = useState(false)
+  const [expandedRole,   setExpandedRole]   = useState(null)   // accordion: one role card open at a time
   const [isSaving,       setIsSaving]       = useState(false)
   const [resetConfirm,   setResetConfirm]   = useState(false)
 
@@ -324,7 +325,7 @@ export default function RolePermissionsTab() {
             className="btn btn-primary text-xs gap-1.5 disabled:opacity-50"
           >
             {isSaving
-              ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               : <Save size={12} />
             }
             {isDirty ? 'Save Changes' : 'Saved'}
@@ -333,7 +334,7 @@ export default function RolePermissionsTab() {
       </div>
 
       {/* Notice: technical_admin is always full access */}
-      <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+      <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
         <Info size={12} className="shrink-0 mt-0.5" />
         <span>
           <strong>Super Admin (technical_admin)</strong> always has full access to all pages and settings.
@@ -343,7 +344,7 @@ export default function RolePermissionsTab() {
 
       {/* Unsaved changes banner */}
       {isDirty && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-300">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
           <Info size={12} className="shrink-0" />
           You have unsaved changes. Click "Save Changes" to apply.
         </div>
@@ -358,6 +359,8 @@ export default function RolePermissionsTab() {
             permissions={rolePerms[role.id]}
             defaults={DEFAULT_PERMISSIONS[role.id] ?? { pages: ['dashboard'], tabs: [] }}
             onChange={(perms) => handleChange(role.id, perms)}
+            expanded={expandedRole === role.id}
+            onToggle={() => setExpandedRole(p => (p === role.id ? null : role.id))}
           />
         ))}
       </div>
