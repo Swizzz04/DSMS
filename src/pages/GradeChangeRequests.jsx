@@ -42,10 +42,10 @@ import { getAllGrades } from '../engines/gradingEngine'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATUS_STYLE = {
-  requested:     'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  for_registrar: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  posted:        'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  rejected:      'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  requested:     'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
+  for_registrar: 'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+  posted:        'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+  rejected:      'bg-[var(--color-error-light)] text-[var(--color-error-text)]',
 }
 
 function StatusBadge({ request, status: statusProp }) {
@@ -54,12 +54,12 @@ function StatusBadge({ request, status: statusProp }) {
   const label    = stepDef?.label ?? GCR_STATUSES.find(s => s.id === status)?.label ?? status
   const color    = stepDef?.color ?? GCR_STATUSES.find(s => s.id === status)?.color ?? 'gray'
   const colorMap = {
-    yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-    blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-    green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    red:    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-    gray:   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+    yellow: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
+    blue:   'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+    indigo: 'bg-[var(--color-cat-indigo-bg)] text-[var(--color-cat-indigo-text)]',
+    green:  'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+    red:    'bg-[var(--color-error-light)] text-[var(--color-error-text)]',
+    gray:   'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
   }
   const Icon = status === 'rejected' ? X
              : status === 'approved' || status === 'posted' ? CheckCircle
@@ -84,7 +84,7 @@ function GradeTag({ grade, department }) {
   const num = Number(grade)
   const passed = isCollege ? (!isNaN(num) && num <= 3.00) : (!isNaN(num) && num >= 75)
   return (
-    <span className={`font-mono font-bold text-sm ${passed ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+    <span className={`font-mono font-bold text-sm ${passed ? 'text-[var(--color-success-text)]' : 'text-[var(--color-error-text)]'}`}>
       {grade}
     </span>
   )
@@ -182,7 +182,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
             {/* ── Step 1: Select the grade to correct ── */}
             {step === 1 && (
               <div className="space-y-4">
-                <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl text-xs text-amber-800 dark:text-amber-300">
+                <div className="flex items-start gap-2 p-3 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl text-xs text-[var(--color-warning-text)]">
                   <AlertCircle size={13} className="shrink-0 mt-0.5" />
                   Only <strong>approved</strong> grades can have a change request. Draft or submitted grades should be edited directly in e-Class Record.
                 </div>
@@ -209,7 +209,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">{g.studentName}</p>
                           <p className="text-xs text-[var(--color-text-muted)]">
                             {g.subjectName} · {g.department === 'college' ? g.semester : g.period} ·
-                            <span className={`ml-1 font-mono font-bold ${g.department === 'college' ? (Number(g.displayGrade) <= 3 ? 'text-green-600' : 'text-red-500') : (Number(g.displayGrade) >= 75 ? 'text-green-600' : 'text-red-500')}`}>
+                            <span className={`ml-1 font-mono font-bold ${g.department === 'college' ? (Number(g.displayGrade) <= 3 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-error-text)]') : (Number(g.displayGrade) >= 75 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-error-text)]')}`}>
                               {g.displayGrade}
                             </span>
                           </p>
@@ -286,14 +286,14 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                     value={reason}
                     onChange={e => setReason(e.target.value)}
                   />
-                  <p className={`text-[10px] mt-0.5 ${reason.trim().length < 10 ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--color-text-muted)]'}`}>
+                  <p className={`text-[10px] mt-0.5 ${reason.trim().length < 10 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-muted)]'}`}>
                     {reason.trim().length} / 10 minimum characters
                   </p>
                 </div>
 
                 {/* Preview */}
                 {(newGrade.trim() || newSpecial) && (
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-sm">
+                  <div className="flex items-center gap-3 p-3 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl text-sm">
                     <span className="text-[var(--color-text-muted)] text-xs">Change preview:</span>
                     <GradeTag grade={selectedGrade.displayGrade} department={selectedGrade.department} />
                     <ArrowRight size={14} className="text-[var(--color-text-muted)]" />
@@ -428,9 +428,9 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                 <p className="text-sm text-[var(--color-text-primary)]">{request.reason}</p>
               </div>
               {request.rejectedReason && (
-                <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
-                  <p className="text-[10px] text-red-600 dark:text-red-400 font-semibold uppercase tracking-wide mb-1">Rejection Reason</p>
-                  <p className="text-sm text-red-700 dark:text-red-300">{request.rejectedReason}</p>
+                <div className="mt-3 pt-3 border-t border-[var(--color-error-border)]">
+                  <p className="text-[10px] text-[var(--color-error-text)] font-semibold uppercase tracking-wide mb-1">Rejection Reason</p>
+                  <p className="text-sm text-[var(--color-error-text)]">{request.rejectedReason}</p>
                 </div>
               )}
             </div>
@@ -448,9 +448,9 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                       <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                       <div>
                         <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold mr-1
-                          ${entry.action === 'posted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : entry.action === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                          ${entry.action === 'posted' ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                          : entry.action === 'rejected' ? 'bg-[var(--color-error-light)] text-[var(--color-error-text)]'
+                          : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'}`}>
                           {entry.action.toUpperCase()}
                         </span>
                         <span className="text-[var(--color-text-muted)]">{entry.detail}</span>
@@ -472,7 +472,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                       <CheckCircle size={13} /> Approve — Send to Registrar
                     </button>
                     <button onClick={() => setRejectModal(true)}
-                      className="btn text-xs gap-1.5 border border-red-200 text-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20">
+                      className="btn text-xs gap-1.5 border border-[var(--color-error-border)] text-[var(--color-error-text)] hover:bg-[var(--color-error-light)]">
                       <X size={13} /> Reject Request
                     </button>
                   </>
@@ -506,7 +506,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                 <div className="flex justify-end gap-2 mt-3">
                   <button onClick={() => setRejectModal(false)} className="btn btn-ghost text-sm">Cancel</button>
                   <button onClick={handleReject} disabled={!rejectReason.trim()}
-                    className="btn text-sm bg-red-600 text-white hover:bg-red-700 gap-1.5 disabled:opacity-50">
+                    className="btn text-sm bg-[var(--color-error)] text-[var(--color-text-inverse)] hover:brightness-90 gap-1.5 disabled:opacity-50">
                     <X size={13} /> Confirm Rejection
                   </button>
                 </div>
@@ -611,7 +611,7 @@ export default function GradeChangeRequests() {
       </div>
 
       {/* Compliance notice */}
-      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
+      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info-text)]">
         <Shield size={13} className="shrink-0 mt-0.5" />
         <span>
           <strong>Compliance Notice:</strong> All grade change requests and audit trail entries are permanent and cannot be modified or deleted. Every action is timestamped and attributed.
@@ -728,10 +728,10 @@ export default function GradeChangeRequests() {
               {auditAll.map((entry, i) => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3">
                   <div className={`mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0
-                    ${entry.action === 'posted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : entry.action === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : entry.action === 'approved' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    ${entry.action === 'posted' ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                    : entry.action === 'rejected' ? 'bg-[var(--color-error-light)] text-[var(--color-error-text)]'
+                    : entry.action === 'approved' ? 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
+                    : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
                     {entry.action.toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">

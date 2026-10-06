@@ -56,7 +56,7 @@ function TeacherPickerModal({ teachers, title, subtitle, currentTeacherId, onSel
         <div className="overflow-y-auto flex-1 px-2 pb-3">
           {currentTeacherId && (
             <button onClick={() => onSelect(null)}
-              className="w-full text-left px-3 py-3 rounded-xl text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center gap-2 mb-1">
+              className="w-full text-left px-3 py-3 rounded-xl text-sm text-[var(--color-error-text)] hover:bg-[var(--color-error-light)] transition flex items-center gap-2 mb-1">
               <X className="w-4 h-4" /> Remove assignment
             </button>
           )}
@@ -99,8 +99,8 @@ function AddSubjectModal({ title, existing, onAdd, onClose }) {
           value={value} onChange={e => setValue(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && canAdd && (onAdd(trimmed), onClose())}
           className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition mb-1
-            ${isDupe ? 'border-red-400' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
-        {isDupe && <p className="text-xs text-red-500 mb-2">Subject already exists in this level.</p>}
+            ${isDupe ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
+        {isDupe && <p className="text-xs text-[var(--color-error-text)] mb-2">Subject already exists in this level.</p>}
         <div className="action-row mt-3">
           <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button onClick={() => canAdd && (onAdd(trimmed), onClose())} disabled={!canAdd} className="btn-submit">
@@ -157,19 +157,19 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, on
         <p className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{subject}</p>
         {teacherId ? (
           <button onClick={onAssign}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-medium hover:bg-green-200 dark:hover:bg-green-800/40 transition max-w-[160px]">
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-full text-xs font-medium hover:brightness-95 transition max-w-[160px]">
             <Check className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{teacherName}</span>
             <Pencil className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
           </button>
         ) : (
           <button onClick={onAssign}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 rounded-full text-xs font-medium hover:bg-amber-100 transition">
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-[var(--color-warning-text)] rounded-full text-xs font-medium hover:brightness-95 transition">
             <User className="w-3 h-3" /> Assign
           </button>
         )}
         <button onClick={onRemove} title="Remove subject"
-          className="p-1.5 text-[var(--color-text-muted)] opacity-50 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition flex-shrink-0">
+          className="p-1.5 text-[var(--color-text-muted)] opacity-50 hover:text-[var(--color-error-text)] rounded-lg hover:bg-[var(--color-error-light)] transition flex-shrink-0">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -178,7 +178,7 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, on
         <span className="text-[10px] text-[var(--color-text-muted)] shrink-0">Subject Area:</span>
         {isCompositeChild ? (
           // Composite sub-subjects always use hele_mapeh — show as auto badge
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)]">
             HELE / MAPEH / TLE — Auto
           </span>
         ) : (
@@ -193,7 +193,7 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, on
               />
             </div>
             {!subjectArea && (
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">Required</span>
+              <span className="text-[10px] text-[var(--color-warning-text)] shrink-0">Required</span>
             )}
           </div>
         )}
@@ -243,9 +243,9 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Grade Levels',     value: allGrades.length,                  border: 'border-[var(--color-primary-readable)]' },
-          { label: 'Total Subjects',   value: totalSubjects,                      border: 'border-blue-500' },
-          { label: 'Subjects Assigned', value: `${assignedSubjects}/${totalSubjects}`, border: 'border-green-500' },
-          { label: 'Advisers Assigned', value: `${assignedAdvisers}/${totalSections}`, border: 'border-violet-500' },
+          { label: 'Total Subjects',   value: totalSubjects,                      border: 'border-[var(--color-info)]' },
+          { label: 'Subjects Assigned', value: `${assignedSubjects}/${totalSubjects}`, border: 'border-[var(--color-success)]' },
+          { label: 'Advisers Assigned', value: `${assignedAdvisers}/${totalSections}`, border: 'border-[var(--color-cat-violet-text)]' },
         ].map(({ label, value, border }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-3 border-l-4 ${border} shadow-sm`}>
             <p className="text-xs text-[var(--color-text-muted)]">{label}</p>
@@ -280,11 +280,11 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
               </div>
               <div className="flex items-center gap-2">
                 {(groupTotalSubj - groupAssigned + groupUnassignedAdv) > 0 ? (
-                  <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full font-medium">
+                  <span className="text-xs px-2 py-0.5 bg-[var(--color-warning-light)] text-[var(--color-warning-text)] rounded-full font-medium">
                     {groupTotalSubj - groupAssigned + groupUnassignedAdv} pending
                   </span>
                 ) : groupTotalSubj > 0 ? (
-                  <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
+                  <span className="text-xs px-2 py-0.5 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-full font-medium">✓ Complete</span>
                 ) : null}
                 {isGroupOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
               </div>
@@ -317,11 +317,11 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
               </div>
               <div className="flex items-center gap-2">
                 {(unassignedSubj > 0 || unassignedAdv > 0) ? (
-                  <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full font-medium">
+                  <span className="text-xs px-2 py-0.5 bg-[var(--color-warning-light)] text-[var(--color-warning-text)] rounded-full font-medium">
                     {unassignedSubj + unassignedAdv} pending
                   </span>
                 ) : subjects.length > 0 ? (
-                  <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
+                  <span className="text-xs px-2 py-0.5 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-full font-medium">✓ Complete</span>
                 ) : null}
                 {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
               </div>
@@ -384,7 +384,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                               <div className="flex items-center gap-1.5">
                                 <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{sec.displayName}</p>
                                 <button onClick={() => setRenameModal({ gradeLevel: grade, section: sec })}
-                                  className="p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] dark:hover:text-red-400 transition flex-shrink-0" title="Rename section">
+                                  className="p-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] dark:hover:text-[var(--color-error-text)] transition flex-shrink-0" title="Rename section">
                                   <Pencil className="w-3 h-3" />
                                 </button>
                               </div>
@@ -393,14 +393,14 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                             {/* Adviser assignment */}
                             {adv?.teacherId ? (
                               <button onClick={() => setPicker({ type: 'adviser', gradeLevel: grade, sectionId: sec.id, currentTeacherId: adv.teacherId })}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 rounded-full text-xs font-medium hover:bg-violet-200 dark:hover:bg-violet-800/40 transition max-w-[140px]">
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--color-cat-violet-bg)] text-[var(--color-cat-violet-text)] rounded-full text-xs font-medium hover:brightness-95 transition max-w-[140px]">
                                 <Check className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{adv.teacherName}</span>
                                 <Pencil className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
                               </button>
                             ) : (
                               <button onClick={() => setPicker({ type: 'adviser', gradeLevel: grade, sectionId: sec.id, currentTeacherId: null })}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-400 rounded-full text-xs font-medium hover:bg-violet-100 transition">
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-[var(--color-cat-violet-bg)] border border-[var(--color-cat-violet-border)] text-[var(--color-cat-violet-text)] rounded-full text-xs font-medium hover:brightness-95 transition">
                                 <User className="w-3 h-3" /> Set Adviser
                               </button>
                             )}
@@ -498,7 +498,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
           <p className="text-xs text-[var(--color-text-muted)]">Total Assignments</p>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{totalSubj}</p>
         </div>
-        <div className="bg-[var(--color-bg-card)] rounded-xl p-3 border-l-4 border-green-500 shadow-sm">
+        <div className="bg-[var(--color-bg-card)] rounded-xl p-3 border-l-4 border-[var(--color-success)] shadow-sm">
           <p className="text-xs text-[var(--color-text-muted)]">Assigned</p>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{assignedSubj}/{totalSubj}</p>
         </div>
@@ -556,9 +556,9 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                   </div>
                   <div className="flex items-center gap-2">
                     {unassigned > 0 ? (
-                      <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full font-medium">{unassigned} pending</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--color-warning-light)] text-[var(--color-warning-text)] rounded-full font-medium">{unassigned} pending</span>
                     ) : subjects.length > 0 && sections.length > 0 ? (
-                      <span className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">✓ Complete</span>
+                      <span className="text-xs px-2 py-0.5 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-full font-medium">✓ Complete</span>
                     ) : null}
                     {isOpen ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
                   </div>
@@ -660,8 +660,8 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
         <input type="number" min="1" max="100" value={value}
           onChange={e => setValue(e.target.value)}
           className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition mb-1
-            ${!valid && value ? 'border-red-400' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
-        {!valid && value && <p className="text-xs text-red-500 mb-2">Enter a number between 10 and 100.</p>}
+            ${!valid && value ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
+        {!valid && value && <p className="text-xs text-[var(--color-error-text)] mb-2">Enter a number between 10 and 100.</p>}
         <p className="text-xs text-[var(--color-text-muted)] mb-4">
           Example: 40 students → 2 sections if max is 25, 1 section if max is 40.
         </p>
@@ -792,7 +792,7 @@ export default function SubjectLoad() {
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
             {currentSchoolYear} · {campusName}
             {role === 'registrar_college' && (
-              <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full font-medium">Managing on behalf of Program Head</span>
+              <span className="ml-2 text-xs px-2 py-0.5 bg-[var(--color-info-light)] text-[var(--color-info-text)] rounded-full font-medium">Managing on behalf of Program Head</span>
             )}
           </p>
         </div>
@@ -810,11 +810,11 @@ export default function SubjectLoad() {
 
       {/* No teachers warning */}
       {teachers.length === 0 && (
-        <div className="flex items-start gap-3 px-4 py-3.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl">
-          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 px-4 py-3.5 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl">
+          <AlertCircle className="w-5 h-5 text-[var(--color-warning-text)] flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">No teachers found for this campus</p>
-            <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+            <p className="text-sm font-semibold text-[var(--color-warning-text)]">No teachers found for this campus</p>
+            <p className="text-xs text-[var(--color-warning-text)] mt-0.5">
               Ask your Technical Administrator to add teacher accounts in Settings → Users, then assign them here.
             </p>
           </div>

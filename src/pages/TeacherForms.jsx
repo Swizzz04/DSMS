@@ -34,12 +34,12 @@ const ICON_MAP = {
 }
 
 const COLOR_MAP = {
-  blue:   { bg: 'bg-blue-50 dark:bg-blue-900/20',   icon: 'text-blue-600 dark:text-blue-400',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'   },
-  green:  { bg: 'bg-green-50 dark:bg-green-900/20', icon: 'text-green-600 dark:text-green-400', badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
-  pink:   { bg: 'bg-pink-50 dark:bg-pink-900/20',   icon: 'text-pink-600 dark:text-pink-400',   badge: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300'   },
-  purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', icon: 'text-purple-600 dark:text-purple-400', badge: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' },
-  orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', icon: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-  red:    { bg: 'bg-red-50 dark:bg-red-900/20',    icon: 'text-red-600 dark:text-red-400',     badge: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'     },
+  blue:   { bg: 'bg-[var(--color-info-light)]',   icon: 'text-[var(--color-info-text)]',   badge: 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'   },
+  green:  { bg: 'bg-[var(--color-success-light)]', icon: 'text-[var(--color-success-text)]', badge: 'bg-[var(--color-success-light)] text-[var(--color-success-text)]' },
+  pink:   { bg: 'bg-[var(--color-cat-pink-bg)]',   icon: 'text-[var(--color-cat-pink-text)]',   badge: 'bg-[var(--color-cat-pink-bg)] text-[var(--color-cat-pink-text)]'   },
+  purple: { bg: 'bg-[var(--color-cat-purple-bg)]', icon: 'text-[var(--color-cat-purple-text)]', badge: 'bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)]' },
+  orange: { bg: 'bg-[var(--color-cat-orange-bg)]', icon: 'text-[var(--color-cat-orange-text)]', badge: 'bg-[var(--color-cat-orange-bg)] text-[var(--color-cat-orange-text)]' },
+  red:    { bg: 'bg-[var(--color-error-light)]',    icon: 'text-[var(--color-error-text)]',     badge: 'bg-[var(--color-error-light)] text-[var(--color-error-text)]'     },
 }
 
 // ── Preview table component ────────────────────────────────────────
@@ -106,14 +106,14 @@ function PreviewTable({ formId, data }) {
                 <td className="px-3 py-2 font-medium text-[var(--color-text-primary)]">{s.name}</td>
                 <td className="px-3 py-2 font-mono text-[var(--color-text-muted)]">{s.lrn || '—'}</td>
                 <td className="px-3 py-2 text-center font-bold"
-                    style={{ color: !s.gwa ? 'var(--color-text-muted)' : s.gwa >= 75 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                    style={{ color: !s.gwa ? 'var(--color-text-muted)' : s.gwa >= 75 ? 'var(--color-success)' : 'var(--color-error-text)' }}>
                   {s.gwa ?? '—'}
                 </td>
                 <td className="px-3 py-2 text-center">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    s.action === 'PROMOTED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                    s.action === 'RETAINED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                    'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                    s.action === 'PROMOTED' ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]' :
+                    s.action === 'RETAINED' ? 'bg-[var(--color-error-light)] text-[var(--color-error-text)]' :
+                    'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'
                   }`}>{s.action}</span>
                 </td>
                 <td className="px-3 py-2 text-[var(--color-text-muted)]">{s.failedAreas || '—'}</td>
@@ -153,7 +153,7 @@ function PreviewTable({ formId, data }) {
                 <td className="px-3 py-2 font-medium text-[var(--color-text-primary)] sticky left-0 bg-[var(--color-bg-card)]">{s.name}</td>
                 {subjects.flatMap(sub => periods.map(p => (
                   <td key={`${sub}-${p}`} className={`px-1 py-2 text-center ${p === 'Final' ? 'font-bold' : ''}`}
-                      style={{ color: s.grades?.[sub]?.[p] ? (s.grades[sub][p] >= 75 ? 'var(--color-success)' : 'var(--color-danger)') : 'var(--color-text-muted)' }}>
+                      style={{ color: s.grades?.[sub]?.[p] ? (s.grades[sub][p] >= 75 ? 'var(--color-success)' : 'var(--color-error-text)') : 'var(--color-text-muted)' }}>
                     {s.grades?.[sub]?.[p] || '—'}
                   </td>
                 )))}
@@ -226,7 +226,7 @@ function PreviewTable({ formId, data }) {
               <td className="px-3 py-2 text-center text-[var(--color-text-muted)]">{s.sex || '—'}</td>
               {formId === 'sf10' && (
                 <td className="px-3 py-2 text-center font-bold"
-                    style={{ color: !s.gwa ? 'var(--color-text-muted)' : s.gwa >= 75 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                    style={{ color: !s.gwa ? 'var(--color-text-muted)' : s.gwa >= 75 ? 'var(--color-success)' : 'var(--color-error-text)' }}>
                   {s.gwa ?? '—'}
                 </td>
               )}
@@ -413,7 +413,7 @@ export default function TeacherForms() {
               <div className={`p-4 ${colors.bg}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <div className={`p-2.5 rounded-xl bg-white/70 dark:bg-black/20 ${colors.icon}`}>
+                    <div className={`p-2.5 rounded-xl bg-[color-mix(in_srgb,var(--color-bg-card)_70%,transparent)] ${colors.icon}`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div>
@@ -426,8 +426,8 @@ export default function TeacherForms() {
                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                     hasTmpl
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                      ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                      : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'
                   }`}>
                     {hasTmpl ? <CheckCircle className="w-3 h-3" /> : <Upload className="w-3 h-3" />}
                     {hasTmpl ? 'Template uploaded' : 'Using auto-format'}
