@@ -180,6 +180,12 @@ button, a, [role="button"] {
   --color-cat-orange-bg:      #ffedd5;
   --color-cat-orange-text:    #9a3412;
   --color-cat-orange-border:  #fed7aa;
+  --color-cat-violet-bg:      #ede9fe;
+  --color-cat-violet-text:    #5b21b6;
+  --color-cat-violet-border:  #ddd6fe;
+  --color-cat-pink-bg:        #fce7f3;
+  --color-cat-pink-text:      #9d174d;
+  --color-cat-pink-border:    #fbcfe8;
 
   /* Loading skeleton shimmer */
   --color-skeleton-base:      #e8e8e4;
@@ -319,6 +325,12 @@ button, a, [role="button"] {
   --color-cat-orange-bg:      rgba(249, 115, 22, 0.15);
   --color-cat-orange-text:    #fdba74;
   --color-cat-orange-border:  rgba(249, 115, 22, 0.30);
+  --color-cat-violet-bg:      rgba(139, 92, 246, 0.15);
+  --color-cat-violet-text:    #c4b5fd;
+  --color-cat-violet-border:  rgba(139, 92, 246, 0.30);
+  --color-cat-pink-bg:        rgba(236, 72, 153, 0.15);
+  --color-cat-pink-text:      #f9a8d4;
+  --color-cat-pink-border:    rgba(236, 72, 153, 0.30);
 
   /* Loading skeleton shimmer — neutral gray (was a navy tint) */
   --color-skeleton-base:      #222222;

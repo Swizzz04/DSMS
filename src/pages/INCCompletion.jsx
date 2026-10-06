@@ -44,13 +44,13 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const COLOR_MAP = {
-  yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-  blue:   'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  indigo: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  green:  'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  red:    'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  gray:   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  yellow: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
+  blue:   'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+  indigo: 'bg-[var(--color-cat-indigo-bg)] text-[var(--color-cat-indigo-text)]',
+  purple: 'bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)]',
+  green:  'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+  red:    'bg-[var(--color-error-light)] text-[var(--color-error-text)]',
+  gray:   'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
 }
 
 function StatusBadge({ record }) {
@@ -79,7 +79,7 @@ function DeadlineTag({ record }) {
   const resolved = ['registrar_posted', 'auto_failed'].includes(record.status)
   if (resolved) return <span className="text-[var(--color-text-muted)]">—</span>
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium ${overdue ? 'text-red-500' : 'text-[var(--color-text-secondary)]'}`}>
+    <span className={`inline-flex items-center gap-1 text-xs font-medium ${overdue ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-secondary)]'}`}>
       <Calendar size={11} />
       {fmtDate(record.deadline)}
       {overdue && <span className="ml-1 font-bold">Overdue</span>}
@@ -178,7 +178,7 @@ function INCDrawer({ record: initialRecord, currentUser, onUpdate, onClose }) {
 
           <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
             {overdue && !resolved && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl text-xs text-red-700 dark:text-red-400">
+              <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
                 <AlertCircle size={13} className="shrink-0 mt-0.5" />
                 <span>
                   <strong>Deadline passed</strong> ({fmtDate(record.deadline)}) without a posted grade.
@@ -282,7 +282,7 @@ function INCDrawer({ record: initialRecord, currentUser, onUpdate, onClose }) {
 
                 {overdue && (
                   <button onClick={() => setAutoFailConfirm(true)} disabled={busy}
-                    className="btn text-sm bg-red-600 text-white hover:bg-red-700 gap-1.5 disabled:opacity-50">
+                    className="btn text-sm bg-[var(--color-error)] text-[var(--color-text-inverse)] hover:brightness-90 gap-1.5 disabled:opacity-50">
                     <X size={14} /> Mark as Auto-Failed (5.00)
                   </button>
                 )}
@@ -292,8 +292,8 @@ function INCDrawer({ record: initialRecord, currentUser, onUpdate, onClose }) {
             {resolved && (
               <div className={`p-4 rounded-xl border text-sm ${
                 record.status === 'auto_failed'
-                  ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
-                  : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
+                  ? 'bg-[var(--color-error-light)] border-[var(--color-error-border)] text-[var(--color-error-text)]'
+                  : 'bg-[var(--color-success-light)] border-[var(--color-success-border)] text-[var(--color-success-text)]'
               }`}>
                 {record.status === 'auto_failed'
                   ? 'Deadline passed without completion. Final grade posted as 5.00 (Failed).'
@@ -415,12 +415,12 @@ export default function INCCompletion() {
           </h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
             {schoolYear} · {pending > 0 ? `${pending} pending` : 'No pending INC records'}
-            {overdueCount > 0 && <span className="text-red-500 font-semibold"> · {overdueCount} overdue</span>}
+            {overdueCount > 0 && <span className="text-[var(--color-error-text)] font-semibold"> · {overdueCount} overdue</span>}
           </p>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300">
+      <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info-text)]">
         <Shield size={13} className="shrink-0 mt-0.5" />
         <span>
           INC records are created automatically when a teacher submits a College grade marked <strong>INC</strong> in e-Class Record —
@@ -532,9 +532,9 @@ export default function INCCompletion() {
               {auditAll.map((entry, i) => (
                 <div key={i} className="px-4 py-3 flex items-start gap-3">
                   <div className={`mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0
-                    ${entry.action === 'posted' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : entry.action === 'auto_failed' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}`}>
+                    ${entry.action === 'posted' ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                    : entry.action === 'auto_failed' ? 'bg-[var(--color-error-light)] text-[var(--color-error-text)]'
+                    : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'}`}>
                     {entry.action.toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
