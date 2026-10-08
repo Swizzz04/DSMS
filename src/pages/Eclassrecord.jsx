@@ -828,7 +828,7 @@ export default function EClassRecord() {
                 <Users className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3" />
                 <h3 className="text-sm font-bold text-[var(--color-text-primary)] mb-1">No Students Found</h3>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  No approved enrollments for {selectedSubject.gradeLevel}. Seed test data or approve enrollments first.
+                  No approved enrollments for {selectedSubject.gradeLevel}. Approve enrollments first.{import.meta.env.DEV && ' (Dev: use "Seed test data" on the teacher dashboard.)'}
                 </p>
               </div>
             ) : (

@@ -483,17 +483,20 @@ export default function Dashboard() {
             <p className="text-xs text-[var(--color-text-secondary)]">• Check your subject assignments in <span className="font-semibold">Subject Load</span></p>
             <p className="text-xs text-[var(--color-text-secondary)]">• View your students' profiles and records in <span className="font-semibold">Students</span></p>
           </div>
-          {/* Dev tool — seed mock data for testing (remove in production) */}
-          <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-            <button onClick={() => {
-              import('../utils/seedGradeTestData').then(m => {
-                m.seedGradeTestData()
-                addToast('Test data seeded! Go to e-Class Record to test grade entry.', 'success')
-              }).catch(() => addToast('Seed file not found', 'error'))
-            }} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition underline">
-              🧪 Seed test data (dev only)
-            </button>
-          </div>
+          {/* Dev tool — seed mock data for testing. import.meta.env.DEV is false in a
+              production build, so Vite removes this button AND the seed module from the bundle. */}
+          {import.meta.env.DEV && (
+            <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+              <button onClick={() => {
+                import('../utils/seedGradeTestData').then(m => {
+                  m.seedGradeTestData()
+                  addToast('Test data seeded! Go to e-Class Record to test grade entry.', 'success')
+                }).catch(() => addToast('Seed file not found', 'error'))
+              }} className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition underline">
+                🧪 Seed test data (dev only)
+              </button>
+            </div>
+          )}
         </div>
         <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
