@@ -224,10 +224,11 @@ export function generateSF2(sectionRecords, month, schoolConfig) {
  * @returns {{ bg: string, text: string, label: string }}
  */
 export function getStatusStyle(status) {
+  // Theme tokens only — the -light/-text pairs switch with light/dark mode.
   return {
-    present: { bg: 'bg-green-100 dark:bg-green-900/30',  text: 'text-green-700 dark:text-green-400',  label: 'P' },
-    absent:  { bg: 'bg-red-100 dark:bg-red-900/30',     text: 'text-red-700 dark:text-red-400',     label: 'A' },
-    late:    { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', label: 'L' },
-    excused: { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-700 dark:text-blue-400',   label: 'E' },
-  }[status] ?? { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-500', label: '—' }
+    present: { bg: 'bg-[var(--color-success-light)]', text: 'text-[var(--color-success-text)]', label: 'P' },
+    absent:  { bg: 'bg-[var(--color-error-light)]',   text: 'text-[var(--color-error-text)]',   label: 'A' },
+    late:    { bg: 'bg-[var(--color-warning-light)]', text: 'text-[var(--color-warning-text)]', label: 'L' },
+    excused: { bg: 'bg-[var(--color-info-light)]',    text: 'text-[var(--color-info-text)]',    label: 'E' },
+  }[status] ?? { bg: 'bg-[var(--color-bg-subtle)]', text: 'text-[var(--color-text-muted)]', label: '—' }
 }

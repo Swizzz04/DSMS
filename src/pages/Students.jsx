@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from 'react'
+import { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react'
 import { useReactToPrint } from 'react-to-print'
 // jsPDF and html2canvas loaded dynamically when user clicks Download PDF
 // Chart.js loaded lazily — only renders when stats section is visible
@@ -37,34 +37,99 @@ const LazyDoughnut = lazy(() =>
 const ChartFallback = () => <div className="flex items-center justify-center h-40 text-xs text-[var(--color-text-muted)]">Loading chart...</div>
 
 // ── Shared grade helpers ─────────────────────────────────────────────
-// onColor pairs each bg with text that's actually safe on it — bg-emerald-600
-// and bg-blue-600 are fixed Tailwind colors (white is always safe), but
+// onColor pairs each bg with text that's actually safe on it — bg-[var(--color-success)]
+// and bg-[var(--color-info)] are fixed Tailwind colors (white is always safe), but
 // bg-primary/bg-secondary are a school's own customizable brand colors and
 // need the computed contrast-safe token instead of a hardcoded white.
-const BASIC_GROUPS = [
-  { label: 'Pre-Elementary', short: 'Pre-Elem', grades: ['Nursery','Kindergarten','Preparatory'],
-    bg: 'bg-emerald-600', onColor: 'text-white', light: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-300', bar: '#059669' },
-  { label: 'Elementary', short: 'Elem', grades: ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'],
-    bg: 'bg-blue-600', onColor: 'text-white', light: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', bar: '#2563eb' },
-  { label: 'Junior High School', short: 'JHS', grades: ['Grade 7','Grade 8','Grade 9','Grade 10'],
-    bg: 'bg-secondary', onColor: 'text-[var(--color-secondary-contrast)]', light: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-700 dark:text-indigo-300', bar: 'var(--color-secondary)' },
-  { label: 'Senior High School', short: 'SHS', grades: ['Grade 11','Grade 12'],
-    bg: 'bg-primary', onColor: 'text-[var(--color-primary-contrast)]', light: 'bg-red-100 dark:bg-red-900/30', text: 'text-[var(--color-primary-readable)]', bar: 'var(--color-primary)' },
+// Basic Ed departments and their grade levels are NOT defined here — they come
+// from the admin-editable config (`basicEdGroups` from useAppConfig(), seeded by
+// BASIC_ED_GROUPS in appConfig.js). Only the *look* of each group lives here and
+// is applied by position, cycling if an admin adds more groups than styles.
+const GROUP_STYLES = [
+  { bg: 'bg-[var(--color-success)]', onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-success-light)]',   text: 'text-[var(--color-success-text)]',    chartKey: 'success'   },
+  { bg: 'bg-[var(--color-info)]',    onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-info-light)]',      text: 'text-[var(--color-info-text)]',       chartKey: 'info'      },
+  { bg: 'bg-secondary',              onColor: 'text-[var(--color-secondary-contrast)]', light: 'bg-[var(--color-cat-indigo-bg)]', text: 'text-[var(--color-cat-indigo-text)]', chartKey: 'secondary' },
+  { bg: 'bg-[var(--color-warning)]', onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-cat-orange-bg)]',   text: 'text-[var(--color-cat-orange-text)]', chartKey: 'warning'   },
 ]
-const YEAR_LEVELS = ['1st Year','2nd Year','3rd Year','4th Year']
 
-const chartOpts = {
-  responsive: true, maintainAspectRatio: false,
-  plugins: { legend: { labels: { color: '#9ca3af', font: { size: 11 } } } },
-  scales: { x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } }, y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } } },
+// Short label for chart axes / compact cards: a configured `short` wins, then
+// the full label if it is short already, otherwise initials ("Junior High School" → "JHS")
+// or a trimmed single word ("Pre-Elementary" → "Pre-Elem.").
+function shortGroupLabel(group) {
+  if (group.short) return group.short
+  const label = String(group.label || '')
+  if (label.length <= 10) return label
+  const words = label.split(/\s+/).filter(Boolean)
+  if (words.length > 1) return words.map(w => w[0].toUpperCase()).join('')
+  return `${label.slice(0, 8)}.`   // one long word, e.g. "Pre-Elementary" → "Pre-Elem."
 }
-const pieOpts = { ...chartOpts, scales: undefined, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 12 } } } }
+
+// Column header for one grade level: "Grade 7" → "G7"; anything else (Nursery,
+// Kindergarten, a school's own level) → its first word, trimmed to 6 characters when longer than 7.
+function shortGradeLabel(grade) {
+  const m = /^grade\s+(\d+)$/i.exec(String(grade).trim())
+  if (m) return `G${m[1]}`
+  const w = String(grade).trim().split(/\s+/)[0]
+  return w.length > 7 ? w.slice(0, 6) : w
+}
+
+// Config groups ({ label, options }) → display groups ({ label, short, grades, …style }).
+function buildBasicGroups(basicEdGroups) {
+  return (basicEdGroups || []).map((g, i) => ({
+    ...GROUP_STYLES[i % GROUP_STYLES.length],
+    label:  g.label,
+    short:  shortGroupLabel(g),
+    grades: g.options || [],
+  }))
+}
+
+// Chart.js draws on a <canvas>, which cannot resolve CSS var() strings — it
+// needs real colour values. Read the live tokens from :root and re-read them
+// whenever the theme (class) or the brand colours (inline style) change.
+function readChartColors() {
+  const css = getComputedStyle(document.documentElement)
+  const v = (name) => css.getPropertyValue(name).trim() || 'currentColor'
+  return {
+    grid:      v('--color-border'),
+    tick:      v('--color-text-muted'),
+    primary:   v('--color-primary'),
+    secondary: v('--color-secondary'),
+    secondaryLight: v('--color-secondary-light'),
+    success:   v('--color-success'),
+    warning:   v('--color-warning'),
+    error:     v('--color-error'),
+    info:      v('--color-info'),
+  }
+}
+function useChartColors() {
+  const [colors, setColors] = useState(readChartColors)
+  useEffect(() => {
+    const refresh = () => setColors(prev => {
+      const next = readChartColors()
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next
+    })
+    const obs = new MutationObserver(refresh)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
+    refresh()
+    return () => obs.disconnect()
+  }, [])
+  return colors
+}
+const makeChartOpts = (c) => ({
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: c.tick, font: { size: 11 } } } },
+  scales: { x: { ticks: { color: c.tick }, grid: { color: c.grid } }, y: { ticks: { color: c.tick }, grid: { color: c.grid } } },
+})
+const makePieOpts = (c) => ({
+  ...makeChartOpts(c), scales: undefined,
+  plugins: { legend: { position: 'bottom', labels: { color: c.tick, padding: 12 } } },
+})
 
 function StatusDot({ status }) {
   const map = {
-    pending:  { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3" />, label: 'Pending' },
-    approved: { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',   icon: <CheckCircle className="w-3 h-3" />, label: 'Approved' },
-    rejected: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',           icon: <XCircle className="w-3 h-3" />, label: 'Rejected' },
+    pending:  { cls: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]', icon: <Clock className="w-3 h-3" />, label: 'Pending' },
+    approved: { cls: 'bg-[var(--color-success-light)] text-[var(--color-success-text)]',   icon: <CheckCircle className="w-3 h-3" />, label: 'Approved' },
+    rejected: { cls: 'bg-[var(--color-error-light)] text-[var(--color-error-text)]',           icon: <XCircle className="w-3 h-3" />, label: 'Rejected' },
   }
   const cfg = map[status] || map.pending
   return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
@@ -81,7 +146,14 @@ function loadRawSubmissions() {
 
 // ── Per-campus Basic Ed block (mirrors registrar_basic dashboard) ────
 function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchoolYear }) {
-  const { isBasicGrade } = useAppConfig()
+  const { isBasicGrade, basicEdGroups } = useAppConfig()
+  const BASIC_GROUPS = useMemo(() => buildBasicGroups(basicEdGroups), [basicEdGroups])
+  const gradeCount = BASIC_GROUPS.reduce((n, g) => n + g.grades.length, 0)
+  const allGrades  = BASIC_GROUPS.flatMap(g => g.grades)
+  const gradeRange = allGrades.length ? `${allGrades[0]} → ${allGrades[allGrades.length - 1]}` : ''
+  const chart = useChartColors()
+  const chartOpts = makeChartOpts(chart)
+  const pieOpts = makePieOpts(chart)
   const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isBasicGrade(s.academic.gradeLevel))
   const campusEnrollments = allEnrollments.filter(e => e.enrollment?.campus === campus.name && isBasicGrade(e.enrollment?.gradeLevel))
 
@@ -103,17 +175,17 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
 
   const groupBarData = {
     labels: BASIC_GROUPS.map(g => g.short),
-    datasets: [{ label: 'Students', data: groupStats.map(g => g.total), backgroundColor: BASIC_GROUPS.map(g => g.bar), borderRadius: 6 }],
+    datasets: [{ label: 'Students', data: groupStats.map(g => g.total), backgroundColor: BASIC_GROUPS.map(g => chart[g.chartKey]), borderRadius: 6 }],
   }
   const enrollStatusData = {
     labels: ['Approved','Pending','Rejected'],
-    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }],
+    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderWidth: 0 }],
   }
 
   return (
     <div className="space-y-4">
-      {/* Campus identity card — emerald, same as registrar_basic */}
-      <div className="bg-emerald-700 rounded-2xl p-5 text-white shadow-sm">
+      {/* Campus identity card — success green, same as registrar_basic */}
+      <div className="bg-[var(--color-success)] rounded-2xl p-5 text-[var(--color-text-inverse)] shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -125,8 +197,8 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
           </div>
           <div className="text-right flex-shrink-0">
             <p className="text-sm opacity-70">Grade levels</p>
-            <p className="text-3xl font-bold">15</p>
-            <p className="text-xs opacity-70 mt-0.5">Nursery → Grade 12</p>
+            <p className="text-3xl font-bold">{gradeCount}</p>
+            <p className="text-xs opacity-70 mt-0.5">{gradeRange}</p>
           </div>
         </div>
       </div>
@@ -134,10 +206,10 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Students',    value: campusStudents.length,  border: 'border-emerald-500', icon: <Users className="w-5 h-5 text-emerald-500"/>,       sub: 'All grade levels' },
-          { label: 'Pending Review',    value: enrollStats.pending,    border: 'border-yellow-500',  icon: <Clock className="w-5 h-5 text-yellow-500"/>,        sub: `${enrollStats.total > 0 ? Math.round(enrollStats.pending/enrollStats.total*100) : 0}% of total` },
-          { label: 'Approved',          value: enrollStats.approved,   border: 'border-green-500',   icon: <CheckCircle className="w-5 h-5 text-green-500"/>,   sub: `${enrollStats.total > 0 ? Math.round(enrollStats.approved/enrollStats.total*100) : 0}% approval rate` },
-          { label: 'Total Enrollments', value: enrollStats.total,      border: 'border-blue-500',    icon: <FileText className="w-5 h-5 text-blue-500"/>,       sub: currentSchoolYear },
+          { label: 'Total Students',    value: campusStudents.length,  border: 'border-[var(--color-success)]', icon: <Users className="w-5 h-5 text-[var(--color-success-text)]"/>,       sub: 'All grade levels' },
+          { label: 'Pending Review',    value: enrollStats.pending,    border: 'border-[var(--color-warning)]',  icon: <Clock className="w-5 h-5 text-[var(--color-pending-text)]"/>,        sub: `${enrollStats.total > 0 ? Math.round(enrollStats.pending/enrollStats.total*100) : 0}% of total` },
+          { label: 'Approved',          value: enrollStats.approved,   border: 'border-[var(--color-success)]',   icon: <CheckCircle className="w-5 h-5 text-[var(--color-success-text)]"/>,   sub: `${enrollStats.total > 0 ? Math.round(enrollStats.approved/enrollStats.total*100) : 0}% approval rate` },
+          { label: 'Total Enrollments', value: enrollStats.total,      border: 'border-[var(--color-info)]',    icon: <FileText className="w-5 h-5 text-[var(--color-info-text)]"/>,       sub: currentSchoolYear },
         ].map(({ label, value, border, icon, sub }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <div className="flex items-center justify-between mb-2">
@@ -153,7 +225,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
       {/* Department cards — identical layout to registrar_basic */}
       <div>
         <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-emerald-600" /> Students by Department
+          <BookOpen className="w-4 h-4 text-[var(--color-success-text)]" /> Students by Department
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {groupStats.map((group) => {
@@ -212,7 +284,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
       <div className="card-section">
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-            <FileText className="w-4 h-4 text-emerald-600" /> Recent Enrollment Applications
+            <FileText className="w-4 h-4 text-[var(--color-success-text)]" /> Recent Enrollment Applications
           </h3>
           <span className="text-xs text-[var(--color-text-muted)]">{campusEnrollments.length} total</span>
         </div>
@@ -224,8 +296,8 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
             <ul className="md:hidden divide-y divide-[var(--color-border)]">
               {campusEnrollments.slice(0, 8).map(e => (
                 <li key={e.id} className="px-4 py-3 flex items-start gap-3">
-                  <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <GraduationCap className="w-4 h-4 text-emerald-600" />
+                  <div className="w-8 h-8 bg-[var(--color-success-light)] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <GraduationCap className="w-4 h-4 text-[var(--color-success-text)]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
@@ -233,7 +305,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
                       <StatusDot status={e.status} />
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{e.enrollment.gradeLevel} · {e.enrollment.studentType}</p>
-                    <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400">{e.referenceNumber}</p>
+                    <p className="text-xs font-mono text-[var(--color-success-text)]">{e.referenceNumber}</p>
                   </div>
                 </li>
               ))}
@@ -241,7 +313,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
             {/* Desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--color-bg-subtle)]/50">
+                <thead className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)]">
                   <tr>
                     {['Reference','Student Name','Grade Level','Student Type','Status','Date Submitted'].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
@@ -250,8 +322,8 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {campusEnrollments.map(e => (
-                    <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
-                      <td className="px-4 py-3 font-mono text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">{e.referenceNumber}</td>
+                    <tr key={e.id} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_30%,transparent)]">
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--color-success-text)] whitespace-nowrap">{e.referenceNumber}</td>
                       <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student?.firstName} {e.student?.lastName}</td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
                       <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{e.enrollment.studentType}</td>
@@ -273,13 +345,16 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
 
 // ── Per-campus College block (mirrors registrar_college dashboard) ────
 function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchoolYear }) {
-  const { isCollegeGrade } = useAppConfig()
+  const { isCollegeGrade, collegeYearLevels: YEAR_LEVELS } = useAppConfig()
+  const chart = useChartColors()
+  const chartOpts = makeChartOpts(chart)
+  const pieOpts = makePieOpts(chart)
   const programs          = campus.collegePrograms || []
   const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isCollegeGrade(s.academic.gradeLevel))
   const campusEnrollments = allEnrollments.filter(e => e.enrollment?.campus === campus.name && isCollegeGrade(e.enrollment?.gradeLevel))
 
   const programStats = programs.reduce((acc, prog) => {
-    const students = campusStudents.filter(s => s.academic.gradeLevel.startsWith(prog))
+    const students = campusStudents.filter(s => s.academic.gradeLevel.split(' - ')[0] === prog)
     acc[prog] = {
       total: students.length,
       byYear: YEAR_LEVELS.reduce((y, yr) => {
@@ -297,31 +372,31 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
     rejected: campusEnrollments.filter(e => e.status === 'rejected').length,
   }
 
-  // Solid-fill-safe text per background — PROG_COLORS' own `text` field is
-  // designed for pairing with its pale `light`/`lightBg` variant, not the
-  // solid `bg` used here, so that can't be reused directly for this case.
+  // Solid-fill-safe text per background. These keys mirror PROG_COLORS.bg in
+  // SchoolComponents.jsx; they go away when PROG_COLORS carries its own `on`
+  // field (planned with the SchoolComponents migration).
   const ON_COLOR_FOR_BG = {
     'bg-primary':         'text-[var(--color-primary-contrast)]',
     'bg-secondary':       'text-[var(--color-secondary-contrast)]',
-    // Fixed neutral, not tied to a school's custom color — see tailwind.config.js
-    // + index.css (#7A7A7A light mode / #f8fcfd dark mode).
-    'bg-light-secondary': 'text-white dark:text-gray-900',
-    'bg-violet-600':      'text-white',
+    // bg-light-secondary is a fixed neutral that is mid-gray in light mode and
+    // near-white in dark mode, so its text must flip: card colour does exactly that.
+    'bg-light-secondary': 'text-[var(--color-bg-card)]',
+    'bg-violet-600':      'text-[var(--color-text-inverse)]',
   }
   const progColors = PROG_COLORS.map(c => c.bg)
 
+  const yearColors = [chart.primary, chart.secondary, chart.secondaryLight, chart.info]
   const programBarData = {
     labels: programs,
-    datasets: [
-      { label: '1st Year', data: programs.map(p => programStats[p]?.byYear['1st Year'] || 0), backgroundColor: 'var(--color-primary)' },
-      { label: '2nd Year', data: programs.map(p => programStats[p]?.byYear['2nd Year'] || 0), backgroundColor: 'var(--color-secondary)' },
-      { label: '3rd Year', data: programs.map(p => programStats[p]?.byYear['3rd Year'] || 0), backgroundColor: 'var(--color-secondary-light)' },
-      { label: '4th Year', data: programs.map(p => programStats[p]?.byYear['4th Year'] || 0), backgroundColor: '#6b7280' },
-    ],
+    datasets: YEAR_LEVELS.map((yr, i) => ({
+      label: yr,
+      data: programs.map(p => programStats[p]?.byYear[yr] || 0),
+      backgroundColor: yearColors[i % yearColors.length],
+    })),
   }
   const enrollStatusData = {
     labels: ['Approved','Pending','Rejected'],
-    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: ['#10b981','#f59e0b','#ef4444'], borderWidth: 0 }],
+    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderWidth: 0 }],
   }
 
   if (programs.length === 0) return null
@@ -343,7 +418,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
             <p className="text-sm opacity-70">Programs offered</p>
             <p className="text-3xl font-bold">{programs.length}</p>
             <div className="flex flex-wrap justify-end gap-1 mt-2">
-              {programs.map(p => <span key={p} className="text-xs bg-white/20 px-2 py-0.5 rounded-full">{p}</span>)}
+              {programs.map(p => <span key={p} className="text-xs bg-[color-mix(in_srgb,var(--color-secondary-contrast)_20%,transparent)] px-2 py-0.5 rounded-full">{p}</span>)}
             </div>
           </div>
         </div>
@@ -353,9 +428,9 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Total Students',    value: campusStudents.length,  border: 'border-[var(--color-primary-readable)]',     icon: <Users className="w-5 h-5 text-[var(--color-primary-readable)]"/>,            sub: 'All programs combined' },
-          { label: 'Pending Review',    value: enrollStats.pending,    border: 'border-yellow-500',  icon: <Clock className="w-5 h-5 text-yellow-500"/>,         sub: `${enrollStats.total > 0 ? Math.round(enrollStats.pending/enrollStats.total*100) : 0}% of total` },
-          { label: 'Approved',          value: enrollStats.approved,   border: 'border-green-500',   icon: <CheckCircle className="w-5 h-5 text-green-500"/>,    sub: `${enrollStats.total > 0 ? Math.round(enrollStats.approved/enrollStats.total*100) : 0}% approval rate` },
-          { label: 'Total Enrollments', value: enrollStats.total,      border: 'border-blue-500',    icon: <FileText className="w-5 h-5 text-blue-500"/>,        sub: currentSchoolYear },
+          { label: 'Pending Review',    value: enrollStats.pending,    border: 'border-[var(--color-warning)]',  icon: <Clock className="w-5 h-5 text-[var(--color-pending-text)]"/>,         sub: `${enrollStats.total > 0 ? Math.round(enrollStats.pending/enrollStats.total*100) : 0}% of total` },
+          { label: 'Approved',          value: enrollStats.approved,   border: 'border-[var(--color-success)]',   icon: <CheckCircle className="w-5 h-5 text-[var(--color-success-text)]"/>,    sub: `${enrollStats.total > 0 ? Math.round(enrollStats.approved/enrollStats.total*100) : 0}% approval rate` },
+          { label: 'Total Enrollments', value: enrollStats.total,      border: 'border-[var(--color-info)]',    icon: <FileText className="w-5 h-5 text-[var(--color-info-text)]"/>,        sub: currentSchoolYear },
         ].map(({ label, value, border, icon, sub }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <div className="flex items-center justify-between mb-2">
@@ -377,7 +452,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
           {programs.map((prog, idx) => {
             const pd = programStats[prog]
             const color = progColors[idx % progColors.length]
-            const onColor = ON_COLOR_FOR_BG[color] || 'text-white'
+            const onColor = ON_COLOR_FOR_BG[color] || 'text-[var(--color-text-inverse)]'
             const maxCount = Math.max(...YEAR_LEVELS.map(y => pd.byYear[y]), 1)
             return (
               <div key={prog} className="card-section">
@@ -464,7 +539,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
             {/* Desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-[var(--color-bg-subtle)]/50">
+                <thead className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)]">
                   <tr>
                     {['Reference','Student Name','Program & Year','Type','Status','Date'].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
@@ -473,7 +548,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {campusEnrollments.map(e => (
-                    <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
+                    <tr key={e.id} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_30%,transparent)]">
                       <td className="px-4 py-3 font-mono text-xs text-[var(--color-primary-readable)] whitespace-nowrap">{e.referenceNumber}</td>
                       <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student?.firstName} {e.student?.lastName}</td>
                       <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
@@ -562,7 +637,9 @@ function normaliseSubmissions() {
 
 export default function Students() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS } = useAppConfig()
+  const BASIC_GROUPS = useMemo(() => buildBasicGroups(basicEdGroups), [basicEdGroups])
+  const allBasicGrades = BASIC_GROUPS.flatMap(g => g.grades)
   const location = useLocation()
   const { toasts, addToast, removeToast } = useToast()
   // Load approved submissions and normalise into student shape
@@ -606,7 +683,14 @@ export default function Students() {
   }, [location.state])
 
   const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' || user?.role === 'principal_basic' || user?.role === 'program_head'
+  // Both Basic Ed roles share the same Basic Ed views (breakdown table, banner, export tag)
+  const isBasicRole = user?.role === 'registrar_basic' || user?.role === 'principal_basic'
   const effectiveCampusFilter = isCampusLocked ? user.campus : campusFilter
+  // The header filter holds a campus KEY ('Talisay'); a locked role holds the
+  // campus NAME. Resolve both to the name so the comparison below is exact.
+  const effectiveCampusName = effectiveCampusFilter === 'all'
+    ? 'all'
+    : (activeCampuses.find(c => c.key === effectiveCampusFilter || c.name === effectiveCampusFilter)?.name ?? effectiveCampusFilter)
 
   const roleFiltered = students.filter(s => {
     if (user?.role === 'admin' || user?.role === 'technical_admin') return true
@@ -623,7 +707,7 @@ export default function Students() {
     return (
       (name.includes(searchQuery.toLowerCase()) || s.studentId.toLowerCase().includes(searchQuery.toLowerCase())) &&
       (statusFilter === 'all' || s.status === statusFilter) &&
-      (effectiveCampusFilter === 'all' || s.academic.campus.includes(effectiveCampusFilter)) &&
+      (effectiveCampusName === 'all' || s.academic.campus === effectiveCampusName) &&
       (gradeLevelFilter === 'all' || s.academic.gradeLevel === gradeLevelFilter)
     )
   })
@@ -646,7 +730,7 @@ export default function Students() {
       }, {})
     : null
 
-  const basicBreakdown = user?.role === 'registrar_basic'
+  const basicBreakdown = isBasicRole
     ? BASIC_GROUPS.map(group => ({
         ...group,
         total: roleFiltered.filter(s => group.grades.includes(s.academic.gradeLevel)).length,
@@ -656,8 +740,8 @@ export default function Students() {
 
   const StatusBadge = ({ status }) => {
     const map = {
-      active:    'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      graduated: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+      active:    'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+      graduated: 'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
       inactive:  'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
     }
     return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || map.inactive}`}>{status.charAt(0).toUpperCase()+status.slice(1)}</span>
@@ -691,7 +775,7 @@ export default function Students() {
         scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff',
+        backgroundColor: '#ffffff', // print output is always light (Rev.16 exception, like PrintableStudent)
       })
 
       // Validate canvas actually captured something
@@ -746,11 +830,14 @@ export default function Students() {
       'Enrolled': new Date(s.enrollmentDate).toLocaleDateString(),
     }))
     const campusTag = isCampusLocked ? user.campus.replace(/\s+/g,'_') + '_' : ''
-    const deptTag   = user?.role === 'registrar_college' ? 'College_' : user?.role === 'registrar_basic' ? 'BasicEd_' : ''
+    const deptTag   = user?.role === 'registrar_college' ? 'College_' : isBasicRole ? 'BasicEd_' : ''
     exportToExcel(data, `Students_${campusTag}${deptTag}${new Date().toISOString().split('T')[0]}`, 'Students')
     addToast(`Exported ${data.length} student records!`, 'success')
   }
 
+  const bannerTone = isBasicRole
+    ? { box: 'bg-[var(--color-success-light)] border-[var(--color-success-border)]', text: 'text-[var(--color-success-text)]' }
+    : { box: 'bg-[var(--color-cat-purple-bg)] border-[var(--color-cat-purple-border)]', text: 'text-[var(--color-cat-purple-text)]' }
   const hasFilters = searchQuery || statusFilter !== 'all' || gradeLevelFilter !== 'all'
   const clearFilters = () => { setSearchQuery(''); setStatusFilter('all'); setGradeLevelFilter('all') }
   const campusKeyForGradeSelect = isCampusLocked ? (activeCampuses.find(c => c.name === user.campus)?.key || 'all') : effectiveCampusFilter
@@ -852,16 +939,16 @@ export default function Students() {
       </div>
 
       {isCampusLocked && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${(user?.role === 'registrar_basic' || user?.role === 'principal_basic') ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'}`}>
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${user?.role === 'registrar_basic' ? 'bg-emerald-100 dark:bg-emerald-900/40' : 'bg-purple-100 dark:bg-purple-900/40'}`}>
-            <MapPin className={`w-4 h-4 ${user?.role === 'registrar_basic' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'}`} />
+        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${bannerTone.box}`}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--color-bg-card)]">
+            <MapPin className={`w-4 h-4 ${bannerTone.text}`} />
           </div>
           <div>
-            <p className={`text-sm font-semibold ${user?.role === 'registrar_basic' ? 'text-emerald-800 dark:text-emerald-200' : 'text-purple-800 dark:text-purple-200'}`}>
-              Viewing: {user.campus} — {user?.role === 'registrar_basic' ? 'Basic Education Department' : 'College Department'}
+            <p className={`text-sm font-semibold ${bannerTone.text}`}>
+              Viewing: {user.campus} — {isBasicRole ? 'Basic Education Department' : 'College Department'}
             </p>
-            <p className={`text-xs ${user?.role === 'registrar_basic' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'}`}>
-              Showing {user?.role === 'registrar_basic' ? 'basic education' : 'college'} students from your assigned campus only
+            <p className={`text-xs ${bannerTone.text}`}>
+              Showing {isBasicRole ? 'basic education' : 'college'} students from your assigned campus only
             </p>
           </div>
         </div>
@@ -870,9 +957,9 @@ export default function Students() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Total Students', value: stats.total,     border: 'border-[var(--color-primary-readable)]',   sub: isCampusLocked ? user.campus : (campusFilter !== 'all' ? activeCampuses.find(c=>c.key===campusFilter)?.name||campusFilter : 'All Campuses'), subCls: 'text-[var(--color-text-muted)]' },
-          { label: 'Active',         value: stats.active,    border: 'border-green-500', sub: `${stats.total>0?Math.round(stats.active/stats.total*100):0}% of total`, subCls: 'text-green-600 dark:text-green-400' },
-          { label: 'Graduated',      value: stats.graduated, border: 'border-blue-500',  sub: 'Completed studies',      subCls: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Inactive',       value: stats.inactive,  border: 'border-gray-400',  sub: 'Not currently enrolled', subCls: 'text-[var(--color-text-muted)]' },
+          { label: 'Active',         value: stats.active,    border: 'border-[var(--color-success)]', sub: `${stats.total>0?Math.round(stats.active/stats.total*100):0}% of total`, subCls: 'text-[var(--color-success-text)]' },
+          { label: 'Graduated',      value: stats.graduated, border: 'border-[var(--color-info)]',  sub: 'Completed studies',      subCls: 'text-[var(--color-info-text)]' },
+          { label: 'Inactive',       value: stats.inactive,  border: 'border-[var(--color-border-strong)]',  sub: 'Not currently enrolled', subCls: 'text-[var(--color-text-muted)]' },
         ].map(({ label, value, border, sub, subCls }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -891,7 +978,7 @@ export default function Students() {
           <div className="min-w-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[400px]">
-              <thead className="bg-[var(--color-bg-subtle)]/50">
+              <thead className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)]">
                 <tr>
                   <th className="px-5 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Program</th>
                   {YEAR_LEVELS.map(yr => <th key={yr} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">{yr}</th>)}
@@ -900,7 +987,7 @@ export default function Students() {
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {Object.entries(programBreakdown).map(([program, data]) => (
-                  <tr key={program} className="hover:bg-[var(--color-bg-subtle)]/30">
+                  <tr key={program} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_30%,transparent)]">
                     <td className="px-5 py-3 font-medium text-[var(--color-text-primary)]">{program}</td>
                     {YEAR_LEVELS.map(yr => (
                       <td key={yr} className="px-4 py-3">
@@ -911,7 +998,7 @@ export default function Students() {
                     <td className="px-4 py-3"><span className="inline-flex items-center px-2 py-0.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] text-xs font-bold rounded-full">{data.total}</span></td>
                   </tr>
                 ))}
-                <tr className="bg-[var(--color-bg-subtle)]/50 font-semibold">
+                <tr className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] font-semibold">
                   <td className="px-5 py-3 text-xs uppercase tracking-wider text-[var(--color-text-muted)]">Total</td>
                   {YEAR_LEVELS.map(yr => <td key={yr} className="px-4 py-3 text-[var(--color-text-primary)]">{Object.values(programBreakdown).reduce((s, d) => s + (d.byYear[yr] || 0), 0) || '—'}</td>)}
                   <td className="px-4 py-3 text-[var(--color-text-primary)]">{Object.values(programBreakdown).reduce((s, d) => s + d.total, 0)}</td>
@@ -926,7 +1013,7 @@ export default function Students() {
       {basicBreakdown && (
         <div className="card-section">
           <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-emerald-600" />
+            <BookOpen className="w-4 h-4 text-[var(--color-success-text)]" />
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Students by Department & Grade Level</h2>
           </div>
           <div className="md:hidden p-4 grid grid-cols-2 gap-3">
@@ -949,20 +1036,20 @@ export default function Students() {
           </div>
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-[var(--color-bg-subtle)]/50">
+              <thead className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)]">
                 <tr>
                   <th className="px-5 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Department</th>
-                  {['Nursery','Kinder','Prep','G1','G2','G3','G4','G5','G6','G7','G8','G9','G10','G11','G12'].map(h => (
-                    <th key={h} className="px-2 py-2.5 text-center text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">{h}</th>
+                  {allBasicGrades.map(g => (
+                    <th key={g} title={g} className="px-2 py-2.5 text-center text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">{shortGradeLabel(g)}</th>
                   ))}
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {basicBreakdown.map(group => (
-                  <tr key={group.label} className="hover:bg-[var(--color-bg-subtle)]/30">
+                  <tr key={group.label} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_30%,transparent)]">
                     <td className="px-5 py-3"><span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${group.light} ${group.text}`}>{group.label}</span></td>
-                    {['Nursery','Kindergarten','Preparatory','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10','Grade 11','Grade 12'].map(g => (
+                    {allBasicGrades.map(g => (
                       <td key={g} className="px-2 py-3 text-center">
                         {group.byGrade[g] > 0
                           ? <span className={`inline-flex items-center justify-center w-6 h-6 ${group.light} ${group.text} text-xs font-bold rounded-full`}>{group.byGrade[g]}</span>
@@ -972,9 +1059,9 @@ export default function Students() {
                     <td className="px-4 py-3 text-center"><span className={`inline-flex items-center px-2 py-0.5 ${group.light} ${group.text} text-xs font-bold rounded-full`}>{group.total}</span></td>
                   </tr>
                 ))}
-                <tr className="bg-[var(--color-bg-subtle)]/50">
+                <tr className="bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)]">
                   <td className="px-5 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Total</td>
-                  {['Nursery','Kindergarten','Preparatory','Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10','Grade 11','Grade 12'].map(g => {
+                  {allBasicGrades.map(g => {
                     const n = basicBreakdown.reduce((s, grp) => s + (grp.byGrade[g] || 0), 0)
                     return <td key={g} className="px-2 py-3 text-center text-xs font-semibold text-[var(--color-text-primary)]">{n || '—'}</td>
                   })}
@@ -1023,7 +1110,7 @@ export default function Students() {
             <ul className="md:hidden divide-y divide-[var(--color-border)]">
               {filtered.map(s => (
                 <li key={s.id}>
-                  <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-center gap-3">
+                  <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="w-full text-left px-4 py-4 hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] transition flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -1055,7 +1142,7 @@ export default function Students() {
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
                   {filtered.map(s => (
-                    <tr key={s.id} className="hover:bg-[var(--color-bg-subtle)]/50 transition-colors">
+                    <tr key={s.id} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] transition-colors">
                       <td className="px-4 py-3 text-sm font-mono font-medium text-[var(--color-primary-readable)] whitespace-nowrap">{s.studentId}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-3">
