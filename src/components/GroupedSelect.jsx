@@ -45,8 +45,8 @@
  * ─────────────────────────────────────────────────────
  *   gradeLevel   bool            enables grade level mode
  *   campusFilter string          campus key: 'all' | 'Carcar' | 'Talisay' | …
- *   userRole     string          'registrar_basic' hides college,
- *                                'registrar_college' hides basic ed
+ *   userRole     string          'registrar_basic' / 'principal_basic' hide college,
+ *                                'registrar_college' / 'program_head' hide basic ed
  */
 
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
@@ -62,8 +62,9 @@ function useGradeLevelGroups(campusFilter = 'all', userRole = 'admin', enabled =
 
   if (!enabled) return []
 
-  const isBasicOnly   = userRole === 'registrar_basic'
-  const isCollegeOnly = userRole === 'registrar_college'
+  // Department-locked roles only ever see their own department's grade levels.
+  const isBasicOnly   = userRole === 'registrar_basic' || userRole === 'principal_basic'
+  const isCollegeOnly = userRole === 'registrar_college' || userRole === 'program_head'
 
   const groups = []
 
@@ -278,7 +279,7 @@ export default function GroupedSelect({
         className={`w-full flex items-center justify-between px-3 py-2 border
           rounded-lg bg-[var(--color-bg-subtle)] text-sm outline-none transition-colors
           ${disabled
-            ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed text-gray-400'
+            ? 'border-[var(--color-border)] opacity-50 cursor-not-allowed text-[var(--color-text-muted)]'
             : 'border-[var(--color-border)] text-[var(--color-text-primary)] hover:border-primary/60 focus:ring-2 focus:ring-primary focus:border-transparent'
           }`}
       >
@@ -288,11 +289,11 @@ export default function GroupedSelect({
         <div className="flex items-center gap-1 ml-2 flex-shrink-0">
           {value !== 'all' && (
             <X
-              className="w-3.5 h-3.5 text-gray-400 hover:text-[var(--color-primary-readable)] transition-colors"
+              className="w-3.5 h-3.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] transition-colors"
               onClick={(e) => { e.stopPropagation(); select('all') }}
             />
           )}
-          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform ${open ? 'rotate-180' : ''}`} />
         </div>
       </button>
 
@@ -359,7 +360,7 @@ export default function GroupedSelect({
             ))}
 
             {resolvedGroups.length === 0 && (
-              <p className="px-4 py-4 text-sm text-gray-400 text-center">
+              <p className="px-4 py-4 text-sm text-[var(--color-text-muted)] text-center">
                 {gradeLevel ? 'No grades available' : 'No options available'}
               </p>
             )}
