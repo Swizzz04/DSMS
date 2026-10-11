@@ -45,7 +45,7 @@ function getSchoolInfo() {
     region:     w.region     || '',
     division:   w.division   || '',
     district:   w.district   || '',
-    schoolYear: (c.schoolYears || []).find(y => y.isActive)?.year || '2025-2026',
+    schoolYear: (c.schoolYears || []).find(y => y.isCurrent)?.year || '2026-2027',
   }
 }
 
