@@ -410,6 +410,7 @@ export function ConfirmDialog({
         className="relative rounded-[var(--radius-2xl)] p-6 w-full max-w-sm animate-scale-in"
         style={{
           backgroundColor: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-modal)',
         }}
       >
@@ -512,6 +513,7 @@ export function TypeToConfirmDialog({
         className="relative rounded-[var(--radius-2xl)] p-6 w-full max-w-sm animate-scale-in"
         style={{
           backgroundColor: 'var(--color-bg-card)',
+          border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-modal)',
         }}
       >

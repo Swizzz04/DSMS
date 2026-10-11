@@ -12,6 +12,7 @@ import { exportMultipleSheets } from '../utils/exportToExcel'
 import { useToast, ToastContainer, PageSkeleton, ModalPortal } from '../components/UIComponents'
 import { DeptToggle } from '../components/SchoolComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
 
 // ─────────────────────────────────────────────────────────────────────
@@ -305,8 +306,8 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
   const dateStr = fmtDate(txDateOf(tx), { year: 'numeric', month: 'long', day: 'numeric' })
   const totalPaidSoFar = tx.totalFee - tx.balance
 
-  const ReceiptCopy = ({ copyLabel }) => (
-    <div className="receipt-copy border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)]" style={{fontFamily:'Georgia,serif',fontSize:'13px'}}>
+  const receiptPaper = (
+    <div className="receipt-paper receipt-copy border border-[var(--color-border-strong)] rounded-xl p-5" style={{fontFamily:'Georgia,serif',fontSize:'13px'}}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-[var(--color-border-strong)]">
         {schoolName && <p className="font-bold text-sm uppercase tracking-wide text-[var(--color-text-primary)]">{schoolName}</p>}
@@ -324,7 +325,7 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
       </div>
 
       {/* Student info */}
-      <div className="bg-[var(--color-bg-subtle)] rounded p-3 mb-3 text-xs space-y-1">
+      <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3 mb-3 text-xs space-y-1">
         <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Student:</span><span className="font-bold">{tx.studentName}</span></div>
         <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Ref. No.:</span><span className="font-mono">{tx.refNum}</span></div>
         <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Program:</span><span>{tx.gradeLevel}</span></div>
@@ -375,38 +376,23 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
             </div>
           </div>
         </div>
-        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">{copyLabel} — Thank you for your payment!</p>
+        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
   )
 
   const handlePrint = () => {
-    const printContent = receiptRef.current?.innerHTML
-    if (!printContent) return
-    // The popup is a blank document: it has no Tailwind and none of our CSS variables.
-    // Carry over the app's stylesheets and the brand colours set on <html>. The popup
-    // has no `dark` class, so a receipt always prints on the light theme.
-    const appStyles = [...document.querySelectorAll('link[rel="stylesheet"], style')].map(n => n.outerHTML).join('\n')
-    const rootStyle = escHtml(document.documentElement.getAttribute('style') || '')
-    const w = window.open('', '_blank', 'width=780,height=900')
-    if (!w) { onPopupBlocked?.(); return }
-    w.document.write(`<!DOCTYPE html><html style="${rootStyle}"><head><meta charset="utf-8"><title>Receipt — ${escHtml(tx.studentName)}</title>
-      ${appStyles}
-      <style>
-        body { margin: 0; font-family: Georgia, serif; font-size: 13px; background: var(--color-bg-card); color: var(--color-text-primary); }
-        .print-page { width: 100%; padding: 16px; }
-        @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
-      </style></head><body>
-      <div class="print-page">${printContent}</div>
-      <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 800); }<\/script>
-      </body></html>`)
-    w.document.close()
+    printReceiptHtml({
+      html:  receiptRef.current?.innerHTML,
+      title: `Receipt — ${tx.studentName}`,
+      onBlocked: onPopupBlocked,
+    })
   }
 
   return (
     <ModalPortal>
       <div className="modal-backdrop">
-        <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
+        <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
           <div className="modal-header">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-[var(--color-success-light)] rounded-full flex items-center justify-center">
@@ -422,11 +408,7 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
             </button>
           </div>
           <div className="overflow-y-auto flex-1 p-5" ref={receiptRef}>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1"><ReceiptCopy copyLabel="School Copy"/></div>
-              <div className="hidden sm:block w-px border-l-2 border-dashed border-[var(--color-border)]"/>
-              <div className="flex-1"><ReceiptCopy copyLabel="Student Copy"/></div>
-            </div>
+            {receiptPaper}
           </div>
           <div className="modal-footer">
             <button onClick={onClose}
@@ -435,7 +417,7 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
             </button>
             <button onClick={handlePrint}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
-              <Printer className="w-4 h-4"/> Print (2 copies)
+              <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
         </div>
