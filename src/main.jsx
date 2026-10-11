@@ -22,6 +22,9 @@ listenForThemeChanges()
 // build, so this is guaranteed to never reach a real client's browser.
 if (import.meta.env.DEV) {
   exposeDevTools()
+  // window.almireneSeed — test data packs for walking every page in every role.
+  // Lazy-imported inside the DEV branch, so Vite drops it from production builds.
+  import('./utils/seedTestData').then(m => m.exposeSeedTools())
 }
 
 createRoot(document.getElementById('root')).render(

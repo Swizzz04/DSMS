@@ -649,7 +649,8 @@ export default function DocumentRequests() {
   const { currentSchoolYear, activeCampuses } = useAppConfig()
 
   const campusKey  = user?.campusKey || activeCampuses?.[0]?.key || ''
-  const schoolYear = currentSchoolYear?.year || '2025-2026'
+  // currentSchoolYear is already the year string (e.g. '2026-2027'), not an object
+  const schoolYear = currentSchoolYear || '2026-2027'
 
   const [requests,    setRequests]    = useState([])
   const [loading,     setLoading]     = useState(true)

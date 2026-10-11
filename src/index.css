@@ -1125,6 +1125,88 @@ body.modal-open {
   flex-shrink: 0;
 }
 
+/* ── Modal open transition ─────────────────────────
+   Every modal (any backdrop variant, any panel markup) fades in and its
+   panel slides up on mobile / scales in on desktop. Uses fill-mode
+   "backwards" (not "both") so no transform is left on the panel after the
+   animation — a lingering transform would trap position:fixed dropdowns
+   (GroupedSelect, DatePicker) inside the modal. */
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalPanelUp {
+  from { opacity: 0; transform: translateY(32px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes modalPanelPop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.modal-backdrop,
+.modal-backdrop-dark,
+.modal-backdrop-center {
+  animation: modalBackdropIn 180ms ease-out backwards;
+}
+.modal-backdrop > *,
+.modal-backdrop-dark > *,
+.modal-backdrop-center > * {
+  animation: modalPanelUp 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@media (min-width: 640px) {
+  .modal-backdrop > *,
+  .modal-backdrop-dark > *,
+  .modal-backdrop-center > * {
+    animation: modalPanelPop 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+
+/* ── Uniform modal surface ─────────────────────────
+   Every modal panel gets the SAME 1px token border, whichever markup the page
+   uses (.modal-panel, .modal-panel-sm, or a custom div inside a backdrop).
+   On mobile the panel is a bottom sheet, so its bottom edge stays open.
+   The last child (footer) inherits the panel's bottom radius so a tinted
+   footer never pokes past the rounded corners. */
+.modal-backdrop > *,
+.modal-backdrop-dark > *,
+.modal-backdrop-center > *,
+.modal-panel,
+.modal-panel-sm {
+  border: 1px solid var(--color-border);
+}
+@media (max-width: 639px) {
+  .modal-backdrop > *,
+  .modal-backdrop-dark > * {
+    border-bottom-width: 0;
+  }
+}
+.modal-backdrop > * > :last-child,
+.modal-backdrop-dark > * > :last-child,
+.modal-backdrop-center > * > :last-child,
+.modal-panel > :last-child {
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+}
+
+/* ── Receipt paper ─────────────────────────────────
+   A receipt is paper: it must stay light in dark mode (screen preview AND
+   print window). Scoping the tokens here means every var(--color-*) used
+   inside a receipt resolves to its light value. Intentional fixed values. */
+.receipt-paper {
+  --color-bg-card:        #ffffff;
+  --color-bg-subtle:      #f7f7f5;
+  --color-bg-muted:       #efefec;
+  --color-border:         #e0e0dc;
+  --color-border-strong:  #c8c8c3;
+  --color-text-primary:   #1a1a1a;
+  --color-text-secondary: #4a4a46;
+  --color-text-muted:     #6b6b66;
+  --color-success-text:   #15803d;
+  --color-error-text:     #b91c1c;
+  background-color: #ffffff;
+  color: #1a1a1a;
+}
+
 /* ── Action button row (modal footers, form actions) */
 .action-row {
   display: flex;

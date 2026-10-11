@@ -301,7 +301,7 @@ export const ALL_TABS = [
   { id: 'grades',        label: 'Grade Levels',    forRoles: ['principal_basic', 'program_head'] },
   { id: 'fees',          label: 'Fee Structure',   forRoles: ['accounting'] },
   { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
-  { id: 'receipt',       label: 'Receipt',          forRoles: ['accounting'] },
+  { id: 'receipt',       label: 'Receipt & Payment', forRoles: ['accounting'] },
   { id: 'workflow',      label: 'Workflow Config',  forRoles: ['technical_admin'] },
 ]
 
@@ -1133,6 +1133,127 @@ export function getSpecialRoles(campusKey, override) {
 export function getPaymentMethods(campusKey, override) {
   const campus = getCampusByKey(campusKey, override)
   return campus?.payment?.acceptedMethods ?? ['Cash']
+}
+
+/**
+ * Default minimum down payment (PHP) collected when accounting marks an
+ * enrollment as paid. Campuses can override it in Settings → Receipt & Payment
+ * (stored in almirene_campus_cfg_{campusKey}.minimumPayment).
+ */
+export const DEFAULT_MINIMUM_PAYMENT = 500
+
+/**
+ * Minimum payment for a campus. Accepts a campus name ('Carcar City Campus')
+ * or key ('Carcar'). Falls back to DEFAULT_MINIMUM_PAYMENT when unset/invalid.
+ * Reads localStorage directly so it works outside React (same pattern as
+ * the per-campus cashier name / discounts).
+ */
+export function getMinimumPayment(campusNameOrKey) {
+  try {
+    const key = !campusNameOrKey || campusNameOrKey === 'all'
+      ? 'all'
+      : String(campusNameOrKey).replace(/ (City |)Campus$/i, '').replace(/[^a-zA-Z]/g, '')
+    // Campus-specific value first, then the school-wide ('all') value, then default
+    for (const k of key === 'all' ? ['all'] : [key, 'all']) {
+      const cfg = JSON.parse(localStorage.getItem(`almirene_campus_cfg_${k}`) || '{}')
+      const n = Number(cfg.minimumPayment)
+      if (Number.isFinite(n) && n > 0) return n
+    }
+    return DEFAULT_MINIMUM_PAYMENT
+  } catch { return DEFAULT_MINIMUM_PAYMENT }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PAYMENT DUE DATE
+// Each campus decides how a student's default due date is set
+// (Settings → Receipt & Payment → Payment Due Date):
+//   mode 'exam'  → the first exam on the school calendar that is still ahead
+//                  (events whose name contains "exam"), minus offsetDays
+//   mode 'fixed' → one fixed date
+// If no exam is scheduled, the fixed date (when set) is used as a fallback.
+// A student's due date can later be moved (promissory note) — that override
+// is stored on the student's record, never here.
+// All dates are plain 'YYYY-MM-DD' strings (local time, no timezone drift).
+// ─────────────────────────────────────────────────────────────────────
+export const DEFAULT_DUE_DATE_POLICY = { mode: 'exam', offsetDays: 0, fixedDate: '' }
+
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/** Today as 'YYYY-MM-DD' in local time */
+export function todayYMD() { return ymd(new Date()) }
+
+/** Any date / ISO string → 'YYYY-MM-DD' (local). '' when empty or invalid. */
+export function toYMD(value) {
+  if (!value) return ''
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const d = new Date(value)
+  return isNaN(d) ? '' : ymd(d)
+}
+
+/** 'YYYY-MM-DD' minus N days */
+export function shiftDays(dateStr, days) {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() + days)
+  return ymd(d)
+}
+
+/** Whole days from dateStr to today (positive = dateStr is in the past) */
+export function daysPast(dateStr, today = todayYMD()) {
+  if (!dateStr) return 0
+  return Math.round((new Date(today + 'T12:00:00') - new Date(dateStr + 'T12:00:00')) / 86400000)
+}
+
+/** A balance is overdue the day AFTER its due date */
+export function isPastDue(dueDate, today = todayYMD()) {
+  return !!dueDate && dueDate < today
+}
+
+/** Due-date policy for a campus (name or key); falls back to the school-wide ('all') setting, then defaults */
+export function getDueDatePolicy(campusNameOrKey) {
+  const key = !campusNameOrKey || campusNameOrKey === 'all'
+    ? 'all'
+    : String(campusNameOrKey).replace(/ (City |)Campus$/i, '').replace(/[^a-zA-Z]/g, '')
+  try {
+    for (const k of key === 'all' ? ['all'] : [key, 'all']) {
+      const cfg = JSON.parse(localStorage.getItem(`almirene_campus_cfg_${k}`) || '{}')
+      if (cfg.dueDatePolicy) {
+        const p = cfg.dueDatePolicy
+        return {
+          mode:       p.mode === 'fixed' ? 'fixed' : 'exam',
+          offsetDays: Math.max(0, parseInt(p.offsetDays, 10) || 0),
+          fixedDate:  toYMD(p.fixedDate),
+        }
+      }
+    }
+  } catch { /* fall through */ }
+  return { ...DEFAULT_DUE_DATE_POLICY }
+}
+
+/** First exam event on/after fromDate for a school year + department ('basicEd' | 'college') */
+export function findNextExam(schoolYears, schoolYear, department, fromDate = todayYMD()) {
+  const years = schoolYears || SCHOOL_YEARS
+  const sy = years.find(y => y.year === schoolYear) || years.find(y => y.isCurrent) || years[0]
+  const events = (sy?.[department]?.events || [])
+    .filter(e => /exam/i.test(e.name || '') && e.startDate && e.startDate >= fromDate)
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+  return events[0] || null
+}
+
+/**
+ * Default due date for a student, per the campus policy.
+ * @returns {string} 'YYYY-MM-DD', or '' when no date can be worked out
+ */
+export function computeDefaultDueDate({ campusName, department, schoolYear, schoolYears, fromDate } = {}) {
+  const policy = getDueDatePolicy(campusName)
+  const from   = toYMD(fromDate) || todayYMD()
+  if (policy.mode === 'exam') {
+    const exam = findNextExam(schoolYears, schoolYear, department, from)
+    if (exam) {
+      const due = shiftDays(exam.startDate, -policy.offsetDays)
+      return due < from ? exam.startDate : due
+    }
+  }
+  return policy.fixedDate || ''
 }
 
 /** Check if a campus workflow has been confirmed */
