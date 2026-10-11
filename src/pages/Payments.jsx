@@ -14,7 +14,8 @@ import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, Export
 import GroupedSelect from '../components/GroupedSelect'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
-import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS, computeDefaultDueDate, isPastDue, daysPast, toYMD, todayYMD } from '../config/appConfig'
+import { isOrNumberUsed } from '../utils/orNumbers'
 import {
   DeptPaymentCard,
   ProgramPaymentCard,
@@ -146,10 +147,10 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
       {/* Grand stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Revenue',     value: php(grandRevenue),    border: 'border-green-500',  icon: <TrendingUp className="w-5 h-5 text-green-500"/>, sub: `${grandTotalFee > 0 ? Math.round((grandRevenue/grandTotalFee)*100) : 0}% collected`, cls: 'text-green-600 dark:text-green-400' },
-          { label: 'Outstanding',       value: php(grandOutstanding),border: 'border-red-400',    icon: <Banknote className="w-5 h-5 text-red-400"/>,    sub: 'Pending collection', cls: 'text-red-500 dark:text-red-400' },
-          { label: 'Fully Paid',        value: grandPaid,            border: 'border-blue-500',   icon: <CheckCircle className="w-5 h-5 text-blue-500"/>, sub: `${allShown.length > 0 ? Math.round((grandPaid/allShown.length)*100) : 0}% of students`, cls: 'text-blue-600 dark:text-blue-400' },
-          { label: 'Overdue Accounts',  value: grandOverdue,         border: 'border-orange-400', icon: <AlertCircle className="w-5 h-5 text-orange-400"/>,sub: 'Requires follow-up', cls: grandOverdue > 0 ? 'text-orange-500 dark:text-orange-400' : 'text-[var(--color-text-muted)]' },
+          { label: 'Total Revenue',     value: php(grandRevenue),    border: 'border-[var(--color-success)]',  icon: <TrendingUp className="w-5 h-5 text-[var(--color-success-text)]"/>, sub: `${grandTotalFee > 0 ? Math.round((grandRevenue/grandTotalFee)*100) : 0}% collected`, cls: 'text-[var(--color-success-text)]' },
+          { label: 'Outstanding',       value: php(grandOutstanding),border: 'border-[var(--color-error)]',    icon: <Banknote className="w-5 h-5 text-[var(--color-error-text)]"/>,    sub: 'Pending collection', cls: 'text-[var(--color-error-text)]' },
+          { label: 'Fully Paid',        value: grandPaid,            border: 'border-[var(--color-info)]',   icon: <CheckCircle className="w-5 h-5 text-[var(--color-info-text)]"/>, sub: `${allShown.length > 0 ? Math.round((grandPaid/allShown.length)*100) : 0}% of students`, cls: 'text-[var(--color-info-text)]' },
+          { label: 'Overdue Accounts',  value: grandOverdue,         border: 'border-[var(--color-warning)]', icon: <AlertCircle className="w-5 h-5 text-[var(--color-warning-text)]"/>,sub: 'Requires follow-up', cls: grandOverdue > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-muted)]' },
         ].map(({ label, value, border, icon, sub, cls }) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <div className="flex items-center justify-between mb-2">
@@ -172,11 +173,11 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
             </span>
           </div>
           <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-3 overflow-hidden">
-            <div className="bg-green-500 h-full rounded-full transition-all duration-700"
+            <div className="bg-[var(--color-success)] h-full rounded-full transition-all duration-700"
               style={{ width: `${(grandRevenue / grandTotalFee) * 100}%` }} />
           </div>
           <div className="flex justify-between mt-2 text-xs text-[var(--color-text-muted)]">
-            <span>Collected: <span className="font-semibold text-green-600 dark:text-green-400">{php(grandRevenue)}</span></span>
+            <span>Collected: <span className="font-semibold text-[var(--color-success-text)]">{php(grandRevenue)}</span></span>
             <span>Total Expected: <span className="font-semibold text-[var(--color-text-secondary)]">{php(grandTotalFee)}</span></span>
           </div>
 
@@ -192,10 +193,10 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
                   <div key={campus.key} className="flex items-center gap-3">
                     <span className="text-xs text-[var(--color-text-muted)] w-36 flex-shrink-0 truncate">{campus.name}</span>
                     <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2 overflow-hidden">
-                      <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                      <div className="bg-[var(--color-success)] h-full rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                     </div>
                     <span className="text-xs font-semibold text-[var(--color-text-secondary)] w-10 text-right">{pct}%</span>
-                    <span className="text-xs text-green-600 dark:text-green-400 w-28 text-right hidden sm:block">{php(cr)}</span>
+                    <span className="text-xs text-[var(--color-success-text)] w-28 text-right hidden sm:block">{php(cr)}</span>
                   </div>
                 )
               })}
@@ -207,7 +208,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-[var(--color-text-muted)]">
         <span className="font-medium">Bar legend:</span>
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Collected</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[var(--color-success)] inline-block" /> Collected</span>
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-[var(--color-border-strong)] inline-block" /> Outstanding</span>
       </div>
 
@@ -228,7 +229,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-bg-subtle)] rounded-full">
                   <MapPin className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
                   <span className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-secondary)]">{campus.name}</span>
-                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">· {php(campusRevenue)} collected</span>
+                  <span className="text-xs text-[var(--color-success-text)] font-semibold">· {php(campusRevenue)} collected</span>
                 </div>
                 <div className="flex-1 h-px bg-[var(--color-border)]" />
               </div>
@@ -238,9 +239,9 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'Total Expected', value: php(campusTotalFee),                                        cls: 'text-[var(--color-text-primary)]' },
-                { label: 'Collected',      value: php(campusRevenue),                                         cls: 'text-green-600 dark:text-green-400' },
-                { label: 'Outstanding',    value: php(campusPayments.reduce((s,p)=>s+p.balance,0)),           cls: 'text-red-500 dark:text-red-400' },
-                { label: 'Collection Rate',value: `${campusTotalFee>0?Math.round((campusRevenue/campusTotalFee)*100):0}%`, cls: 'text-blue-600 dark:text-blue-400' },
+                { label: 'Collected',      value: php(campusRevenue),                                         cls: 'text-[var(--color-success-text)]' },
+                { label: 'Outstanding',    value: php(campusPayments.reduce((s,p)=>s+p.balance,0)),           cls: 'text-[var(--color-error-text)]' },
+                { label: 'Collection Rate',value: `${campusTotalFee>0?Math.round((campusRevenue/campusTotalFee)*100):0}%`, cls: 'text-[var(--color-info-text)]' },
               ].map(({ label, value, cls }) => (
                 <div key={label} className="bg-[var(--color-bg-card)] rounded-xl p-3 shadow-sm text-center">
                   <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -253,11 +254,11 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
             {campus.hasBasicEd && basicPayments.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <div className="w-6 h-6 bg-[var(--color-success-light)] rounded-lg flex items-center justify-center">
+                    <BookOpen className="w-3.5 h-3.5 text-[var(--color-success-text)]" />
                   </div>
                   <h2 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wider">Basic Education</h2>
-                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                  <span className="text-xs text-[var(--color-success-text)] font-semibold">
                     · {php(basicPayments.reduce((s,p)=>s+p.amountPaid,0))} collected
                   </span>
                 </div>
@@ -277,7 +278,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
                     <GraduationCap className="w-3.5 h-3.5 text-[var(--color-primary-readable)]" />
                   </div>
                   <h2 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wider">College</h2>
-                  <span className="text-xs text-green-600 dark:text-green-400 font-semibold">
+                  <span className="text-xs text-[var(--color-success-text)] font-semibold">
                     · {php(collegePayments.reduce((s,p)=>s+p.amountPaid,0))} collected
                   </span>
                 </div>
@@ -306,6 +307,22 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
 // ════════════════════════════════════════════════════════════════════
 
 // ── OR Number generator ───────────────────────────────────────────
+// Status comes from the balance and the due date:
+//   paid     → nothing left to pay
+//   overdue  → balance left AND the due date has passed
+//   partial  → balance left, still within the due date
+function derivePaymentStatus(balance, dueDate) {
+  if ((balance || 0) <= 0) return 'paid'
+  return isPastDue(dueDate) ? 'overdue' : 'partial'
+}
+
+const fmtLongDate = (d) => d
+  ? new Date((toYMD(d) || '') + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : '—'
+const fmtShortDate = (d) => d
+  ? new Date((toYMD(d) || '') + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  : '—'
+
 function generateOR(prefix = 'OR') {
   const now = new Date()
   const yr  = now.getFullYear().toString().slice(-2)
@@ -324,16 +341,16 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
   const timeStr = now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
 
   const ReceiptCopy = ({ copyLabel }) => (
-    <div className="receipt-copy border border-gray-300 rounded-lg p-5 bg-white text-gray-900" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+    <div className="receipt-copy border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)]" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
       {/* Header */}
-      <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
+      <div className="text-center mb-3 pb-3 border-b-2 border-double border-[var(--color-border-strong)]">
         <div className="flex justify-center mb-1">
           <SchoolLogo src={getSchoolBrand().logo} alt="School Logo" size="sm" surface="light" style={{ height: 52, width: 52, objectFit: 'contain' }} />
         </div>
         <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName}</p>
-        <p className="text-xs text-gray-500">{payment.campus}</p>
-        <p className="text-xs text-gray-500">School Year {schoolYear}</p>
-        <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
+        <p className="text-xs text-[var(--color-text-muted)]">{payment.campus}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">School Year {schoolYear}</p>
+        <div className="mt-2 inline-block border border-[var(--color-border-strong)] px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
           Official Receipt
         </div>
       </div>
@@ -341,27 +358,27 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
       {/* OR info row */}
       <div className="flex justify-between text-xs mb-3">
         <div>
-          <span className="text-gray-500">OR No.: </span>
+          <span className="text-[var(--color-text-muted)]">OR No.: </span>
           <span className="font-bold font-mono">{newTransaction.orNumber}</span>
         </div>
         <div className="text-right">
-          <div><span className="text-gray-500">Date: </span><span className="font-semibold">{dateStr}</span></div>
-          <div><span className="text-gray-500">Time: </span><span className="font-semibold">{timeStr}</span></div>
+          <div><span className="text-[var(--color-text-muted)]">Date: </span><span className="font-semibold">{dateStr}</span></div>
+          <div><span className="text-[var(--color-text-muted)]">Time: </span><span className="font-semibold">{timeStr}</span></div>
         </div>
       </div>
 
       {/* Student info */}
       <div className="bg-[var(--color-bg-subtle)] rounded p-3 mb-3 text-xs space-y-1">
         <div className="flex gap-2">
-          <span className="text-gray-500 w-20 flex-shrink-0">Student:</span>
+          <span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Student:</span>
           <span className="font-bold">{payment.studentName}</span>
         </div>
         <div className="flex gap-2">
-          <span className="text-gray-500 w-20 flex-shrink-0">Student ID:</span>
+          <span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Ref. No.:</span>
           <span className="font-mono">{payment.studentId}</span>
         </div>
         <div className="flex gap-2">
-          <span className="text-gray-500 w-20 flex-shrink-0">Program:</span>
+          <span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Program:</span>
           <span>{payment.gradeLevel}</span>
         </div>
       </div>
@@ -369,9 +386,9 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
       {/* Payment breakdown */}
       <table className="w-full text-xs mb-3">
         <thead>
-          <tr className="border-b border-gray-300">
-            <th className="text-left py-1 text-gray-500 font-normal">Description</th>
-            <th className="text-right py-1 text-gray-500 font-normal">Amount</th>
+          <tr className="border-b border-[var(--color-border)]">
+            <th className="text-left py-1 text-[var(--color-text-muted)] font-normal">Description</th>
+            <th className="text-right py-1 text-[var(--color-text-muted)] font-normal">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -380,55 +397,55 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             <td className="py-1 text-right font-mono font-bold">₱{newTransaction.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
           </tr>
           <tr>
-            <td className="py-1 text-gray-500">Payment Method</td>
+            <td className="py-1 text-[var(--color-text-muted)]">Payment Method</td>
             <td className="py-1 text-right">{newTransaction.method}</td>
           </tr>
         </tbody>
       </table>
 
       {/* Totals */}
-      <div className="border-t border-gray-300 pt-2 mb-3 space-y-1 text-xs">
+      <div className="border-t border-[var(--color-border)] pt-2 mb-3 space-y-1 text-xs">
         <div className="flex justify-between">
-          <span className="text-gray-500">Total Fee:</span>
+          <span className="text-[var(--color-text-muted)]">Total Fee:</span>
           <span className="font-mono">₱{payment.totalFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">Previously Paid:</span>
+          <span className="text-[var(--color-text-muted)]">Previously Paid:</span>
           <span className="font-mono">₱{payment.amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
-        <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
+        <div className="flex justify-between font-bold text-sm border-t border-[var(--color-border)] pt-1 mt-1">
           <span style={{ color: 'var(--color-primary)' }}>Amount This Payment:</span>
           <span className="font-mono" style={{ color: 'var(--color-primary)' }}>₱{newTransaction.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">Total Paid:</span>
-          <span className="font-mono font-semibold text-green-700">₱{totalPaidAfter.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          <span className="text-[var(--color-text-muted)]">Total Paid:</span>
+          <span className="font-mono font-semibold text-[var(--color-success-text)]">₱{totalPaidAfter.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">Remaining Balance:</span>
-          <span className={`font-mono font-semibold ${balanceAfter > 0 ? 'text-red-600' : 'text-green-700'}`}>
+          <span className="text-[var(--color-text-muted)]">Remaining Balance:</span>
+          <span className={`font-mono font-semibold ${balanceAfter > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success-text)]'}`}>
             ₱{balanceAfter.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
           </span>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="border-t border-dashed border-gray-300 pt-3 text-xs text-center text-gray-500">
+      <div className="border-t border-dashed border-[var(--color-border)] pt-3 text-xs text-center text-[var(--color-text-muted)]">
         <div className="flex justify-between items-end mt-4">
           <div className="text-center">
-            <div className="border-t border-gray-400 pt-1 w-32">
-              <p className="font-semibold text-gray-700">{cashierName}</p>
+            <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+              <p className="font-semibold text-[var(--color-text-secondary)]">{cashierName}</p>
               <p>Cashier / Accounting</p>
             </div>
           </div>
           <div className="text-center">
-            <div className="border-t border-gray-400 pt-1 w-32">
-              <p className="italic text-gray-400">Received by</p>
+            <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+              <p className="italic text-[var(--color-text-muted)]">Received by</p>
               <p>Student / Parent</p>
             </div>
           </div>
         </div>
-        <p className="mt-3 text-gray-400 text-[10px]">{copyLabel} — Thank you for your payment!</p>
+        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">{copyLabel} — Thank you for your payment!</p>
       </div>
     </div>
   )
@@ -467,7 +484,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-[var(--color-primary-readable)]" />
             <h2 className="text-base font-bold text-[var(--color-text-primary)]">Receipt Preview</h2>
-            <span className="text-xs text-gray-400 ml-1">— 2 copies per page</span>
+            <span className="text-xs text-[var(--color-text-muted)] ml-1">— 2 copies per page</span>
           </div>
           <button onClick={onClose} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
             <X className="w-5 h-5" />
@@ -480,10 +497,10 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             <div className="flex-1"><ReceiptCopy copyLabel="School Copy" /></div>
             <div className="flex-1"><ReceiptCopy copyLabel="Student Copy" /></div>
           </div>
-          <p className="text-center text-xs text-gray-400 mt-3 flex items-center justify-center gap-1">
-            <span className="inline-block w-10 border-t border-dashed border-gray-300"></span>
+          <p className="text-center text-xs text-[var(--color-text-muted)] mt-3 flex items-center justify-center gap-1">
+            <span className="inline-block w-10 border-t border-dashed border-[var(--color-border)]"></span>
             cut here
-            <span className="inline-block w-10 border-t border-dashed border-gray-300"></span>
+            <span className="inline-block w-10 border-t border-dashed border-[var(--color-border)]"></span>
           </p>
         </div>
 
@@ -505,6 +522,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
 
 // ── Record Payment Modal ──────────────────────────────────────────
 function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear }) {
+  const { isCollegeGrade } = useAppConfig()
   const [amount,     setAmount]     = useState('')
   const [method,     setMethod]     = useState('Cash')
   const [orNumber,   setOrNumber]   = useState(generateOR('OR'))
@@ -517,11 +535,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 
   // Build fee component options from the payment's fee breakdown
   const fb = payment.feeBreakdown
-  const isCollegePay = payment.gradeLevel
-    ? !['nursery','kindergarten','preparatory','grade 1','grade 2','grade 3','grade 4',
-        'grade 5','grade 6','grade 7','grade 8','grade 9','grade 10','grade 11','grade 12']
-        .includes((payment.gradeLevel || '').toLowerCase())
-    : false
+  const isCollegePay = payment.gradeLevel ? isCollegeGrade(payment.gradeLevel) : false
 
   const feeOptions = fb ? [
     { key: 'tuition',  label: 'Tuition Fee',  amount: fb.tuitionAfterDiscount || fb.originalTuition || 0 },
@@ -550,6 +564,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
     if (!amount || isNaN(amt) || amt <= 0)         e.amount   = 'Enter a valid amount'
     if (amt > maxAmount + 0.01)                     e.amount   = `Max payable is ₱${maxAmount.toLocaleString()}`
     if (!orNumber.trim())                           e.orNumber = 'OR number is required'
+    else if (isOrNumberUsed(orNumber))              e.orNumber = 'This OR number is already used on another payment'
     if (paymentFor.length === 0)                    e.paymentFor = 'Select at least one fee type'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -582,8 +597,8 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
         {/* Header */}
         <div className="modal-header">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-              <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="w-9 h-9 bg-[var(--color-success-light)] rounded-full flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-5 h-5 text-[var(--color-success-text)]" />
             </div>
             <div className="min-w-0">
               <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">Record Payment</h2>
@@ -600,8 +615,8 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               { label: 'Total Fee',   value: `₱${payment.totalFee.toLocaleString()}`,   cls: 'text-[var(--color-text-primary)]' },
-              { label: 'Paid',        value: `₱${payment.amountPaid.toLocaleString()}`,  cls: 'text-green-600 dark:text-green-400' },
-              { label: 'Balance',     value: `₱${(payment.totalFee - payment.amountPaid).toLocaleString()}`, cls: 'text-red-500 dark:text-red-400' },
+              { label: 'Paid',        value: `₱${payment.amountPaid.toLocaleString()}`,  cls: 'text-[var(--color-success-text)]' },
+              { label: 'Balance',     value: `₱${(payment.totalFee - payment.amountPaid).toLocaleString()}`, cls: 'text-[var(--color-error-text)]' },
             ].map(({ label, value, cls }) => (
               <div key={label} className="bg-[var(--color-bg-subtle)] rounded-xl p-3 text-center">
                 <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5 uppercase tracking-wide">{label}</p>
@@ -617,14 +632,14 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               <span>{newPct}%</span>
             </div>
             <div className="h-2.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-              <div className="h-full bg-green-500 rounded-full transition-all duration-300" style={{ width: `${newPct}%` }} />
+              <div className="h-full bg-[var(--color-success)] rounded-full transition-all duration-300" style={{ width: `${newPct}%` }} />
             </div>
           </div>
 
           {/* Amount input */}
           <div>
             <label className="form-label">
-              Amount to Record <span className="text-red-500">*</span>
+              Amount to Record <span className="text-[var(--color-error-text)]">*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-semibold text-sm">₱</span>
@@ -633,10 +648,10 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                 value={amount} onChange={e => setAmount(e.target.value)}
                 placeholder={`Max: ₱${maxAmount.toLocaleString()}`}
                 className={`w-full pl-7 pr-4 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.amount ? 'border-red-400 focus:ring-red-400/30' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.amount ? 'border-[var(--color-error)] focus:ring-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
             </div>
-            {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
+            {errors.amount && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.amount}</p>}
             {/* Quick amount buttons */}
             <div className="flex gap-2 mt-2 flex-wrap">
               {[500, 1000, 2000, 5000].filter(v => v <= maxAmount + 1).map(v => (
@@ -646,7 +661,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                 </button>
               ))}
               <button onClick={() => setAmount(String(maxAmount))}
-                className="text-xs px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-600 hover:text-white transition font-medium">
+                className="text-xs px-2.5 py-1 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-lg hover:opacity-90 hover:text-[var(--color-text-inverse)] transition font-medium">
                 Full Balance
               </button>
             </div>
@@ -672,26 +687,26 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
           {/* OR Number */}
           <div>
             <label className="form-label">
-              OR Number <span className="text-red-500">*</span>
+              OR Number <span className="text-[var(--color-error-text)]">*</span>
             </label>
             <div className="flex gap-2">
               <input
                 type="text" value={orNumber} onChange={e => setOrNumber(e.target.value)}
                 className={`flex-1 px-3 py-2.5 text-sm font-mono border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.orNumber ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.orNumber ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
               <button onClick={() => setOrNumber(generateOR('OR'))}
                 className="px-3 py-2.5 text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-xl hover:bg-[var(--color-bg-muted)] transition font-medium whitespace-nowrap">
                 Generate
               </button>
             </div>
-            {errors.orNumber && <p className="text-xs text-red-500 mt-1">{errors.orNumber}</p>}
+            {errors.orNumber && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.orNumber}</p>}
           </div>
 
           {/* Payment For */}
           <div>
             <label className="form-label">
-              Payment For <span className="text-red-500">*</span>
+              Payment For <span className="text-[var(--color-error-text)]">*</span>
               <span className="ml-1 font-normal text-[var(--color-text-muted)]">(select all that apply)</span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -722,7 +737,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
               })}
             </div>
             {paymentFor.length === 0 && (
-              <p className="text-xs text-red-500 mt-1">Please select at least one fee type</p>
+              <p className="text-xs text-[var(--color-error-text)] mt-1">Please select at least one fee type</p>
             )}
           </div>
 
@@ -736,9 +751,9 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
           </div>
 
           {/* Cashier info */}
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-2.5 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <p className="text-xs text-amber-700 dark:text-amber-300">
+          <div className="bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-[var(--color-warning-text)] flex-shrink-0" />
+            <p className="text-xs text-[var(--color-warning-text)]">
               Recorded by: <span className="font-semibold">{cashierName}</span> · {new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
@@ -750,9 +765,9 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold disabled:opacity-60 shadow-sm">
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl hover:opacity-90 transition font-semibold disabled:opacity-60 shadow-sm">
             {saving
-              ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</>
+              ? <><span className="w-4 h-4 border-2 border-[var(--color-bg-card)] border-t-white rounded-full animate-spin" /> Saving...</>
               : <><CheckCircle className="w-4 h-4" /> Record Payment & Preview Receipt</>
             }
           </button>
@@ -789,7 +804,7 @@ function DeptToggle({ value, onChange }) {
               ? t.id === 'all'
                 ? 'bg-primary text-[var(--color-primary-contrast)]'
                 : t.id === 'basic'
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-[var(--color-success)] text-[var(--color-text-inverse)]'
                   : 'bg-secondary text-[var(--color-secondary-contrast)]'
               : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
           ].filter(Boolean).join(' ')}
@@ -960,7 +975,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
           </div>
           {hasFilters && (
             <button onClick={clearAll}
-              className="text-xs px-3 py-1.5 text-[var(--color-text-muted)] hover:text-red-500 border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
+              className="text-xs px-3 py-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-error-text)] border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
               ✕ Clear all
             </button>
           )}
@@ -970,7 +985,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
         {deptFilter === 'all' && (basicTotal > 0 || collegeTotal > 0) && (
           <div className="flex gap-3 pt-1">
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>
+              <span className="w-2 h-2 rounded-full bg-[var(--color-success)] inline-block"/>
               Basic Ed: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(basicTotal)}</span>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
@@ -994,7 +1009,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
               <span className="text-xs bg-primary/10 text-[var(--color-primary-readable)] px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
             )}
           </div>
-          <span className="text-sm font-bold text-green-600 dark:text-green-400 font-mono">{phpFmt(totalFiltered)}</span>
+          <span className="text-sm font-bold text-[var(--color-success-text)] font-mono">{phpFmt(totalFiltered)}</span>
         </div>
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-[var(--color-text-muted)]">
@@ -1022,8 +1037,8 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
                     <td className="px-4 py-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
                         ${isBasic
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                          : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                          : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
                         }`}>
                         {isBasic ? 'Basic Ed' : 'College'}
                       </span>
@@ -1040,7 +1055,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{tx.method||'—'}</td>
                     <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{fmtDate(tx.date)}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right font-mono">{phpFmt(tx.amount)}</td>
+                    <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">{phpFmt(tx.amount)}</td>
                   </tr>
                   )
                 })}
@@ -1048,7 +1063,7 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
               <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
                 <tr>
                   <td colSpan={7} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">Total</td>
-                  <td className="px-4 py-3 text-sm font-bold text-green-600 dark:text-green-400 text-right font-mono">{phpFmt(totalFiltered)}</td>
+                  <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">{phpFmt(totalFiltered)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -1071,7 +1086,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
   const [sortBy,     setSortBy]     = useState('balance_desc')
 
   const phpFmt  = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}`
-  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—'
+  const fmtDate = d => fmtShortDate(d)
 
   const handleDeptChange = (dept) => { setDeptFilter(dept); setYearFilter('all') }
 
@@ -1103,13 +1118,12 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
     if (sortBy === 'balance_asc')  return a.balance - b.balance
     if (sortBy === 'name')         return a.studentName.localeCompare(b.studentName)
     if (sortBy === 'oldest')       return new Date(a.submittedDate||0) - new Date(b.submittedDate||0)
+    if (sortBy === 'due')          return (a.dueDate || '9999-12-31').localeCompare(b.dueDate || '9999-12-31')
     return 0
   })
 
-  const daysSince = d => d ? Math.floor((Date.now() - new Date(d)) / 86400000) : 0
-
   const totalOutstanding = filtered.reduce((s,p) => s+p.balance, 0)
-  const overdue          = filtered.filter(p => daysSince(p.submittedDate) > 30)
+  const overdue          = filtered.filter(p => p.status === 'overdue')
 
   // Dept subtotals for all-mode display
   const basicOut   = withBalance.filter(p => isBasicGrade(p.gradeLevel)).reduce((s,p) => s+p.balance, 0)
@@ -1125,8 +1139,9 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
       'Total Fee':     p.totalFee,
       'Amount Paid':   p.amountPaid,
       'Balance':       p.balance,
-      'Days Since Enrollment': daysSince(p.submittedDate),
-      'Status':        daysSince(p.submittedDate) > 30 ? 'Overdue' : 'Partial'
+      'Due Date':      p.dueDate || '',
+      'Days Overdue':  p.status === 'overdue' ? daysPast(p.dueDate) : 0,
+      'Status':        p.status === 'overdue' ? 'Overdue' : 'Partial'
     }))
     exportToExcel(data, `Student_Balances_${new Date().toISOString().split('T')[0]}`, 'Balances')
     addToast('Student balances exported!', 'success')
@@ -1137,9 +1152,9 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { label:'Students with Balance', value: withBalance.length, icon:<Users className="w-5 h-5 text-amber-500"/>, border:'border-amber-400', cls:'text-amber-600 dark:text-amber-400' },
-          { label:'Total Outstanding',     value: phpFmt(totalOutstanding), icon:<DollarSign className="w-5 h-5 text-red-500"/>, border:'border-red-400', cls:'text-red-500 dark:text-red-400' },
-          { label:'Overdue (>30 days)',    value: overdue.length, icon:<AlertCircle className="w-5 h-5 text-orange-500"/>, border:'border-orange-400', cls:'text-orange-600 dark:text-orange-400' },
+          { label:'Students with Balance', value: withBalance.length, icon:<Users className="w-5 h-5 text-[var(--color-warning-text)]"/>, border:'border-[var(--color-warning)]', cls:'text-[var(--color-warning-text)]' },
+          { label:'Total Outstanding',     value: phpFmt(totalOutstanding), icon:<DollarSign className="w-5 h-5 text-[var(--color-error-text)]"/>, border:'border-[var(--color-error)]', cls:'text-[var(--color-error-text)]' },
+          { label:'Overdue',               value: overdue.length, icon:<AlertCircle className="w-5 h-5 text-[var(--color-warning-text)]"/>, border:'border-[var(--color-warning)]', cls:'text-[var(--color-warning-text)]' },
         ].map(({label,value,icon,border,cls}) => (
           <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
             <div className="flex items-center justify-between mb-1">
@@ -1185,6 +1200,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                 { value: 'balance_desc', label: 'Highest Balance' },
                 { value: 'balance_asc',  label: 'Lowest Balance'  },
                 { value: 'name',         label: 'Name A–Z'        },
+                { value: 'due',          label: 'Earliest Due Date' },
                 { value: 'oldest',       label: 'Oldest First'    },
               ]}
             />
@@ -1201,12 +1217,12 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
         {deptFilter === 'all' && (basicOut > 0 || collegeOut > 0) && (
           <div className="flex gap-4 pt-1 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>
-              Basic Ed: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(basicOut)}</span>
+              <span className="w-2 h-2 rounded-full bg-[var(--color-success)] inline-block"/>
+              Basic Ed: <span className="font-semibold text-[var(--color-warning-text)] font-mono">{phpFmt(basicOut)}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-secondary inline-block"/>
-              College: <span className="font-semibold text-amber-600 dark:text-amber-400 font-mono">{phpFmt(collegeOut)}</span>
+              College: <span className="font-semibold text-[var(--color-warning-text)] font-mono">{phpFmt(collegeOut)}</span>
             </span>
           </div>
         )}
@@ -1219,15 +1235,15 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
           <span className="text-sm font-semibold text-[var(--color-text-primary)]">
             {deptFilter === 'basic' ? 'Basic Ed Students with Balance' : deptFilter === 'college' ? 'College Students with Balance' : 'Students with Outstanding Balance'}
           </span>
-          <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full">{filtered.length}</span>
+          <span className="text-xs bg-[var(--color-warning-light)] text-[var(--color-warning-text)] px-2 py-0.5 rounded-full">{filtered.length}</span>
           {yearFilter !== 'all' && (
             <span className="text-xs bg-primary/10 text-[var(--color-primary-readable)] px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
           )}
         </div>
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-[var(--color-text-muted)]">
-            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400 opacity-60"/>
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">
+            <CheckCircle className="w-8 h-8 mx-auto mb-2 text-[var(--color-success-text)] opacity-60"/>
+            <p className="text-sm font-medium text-[var(--color-success-text)]">
               {yearFilter !== 'all' ? `No students with balance in ${yearFilter}` : deptFilter !== 'all' ? `No ${deptFilter === 'basic' ? 'Basic Ed' : 'College'} students with balance` : 'All students are fully paid!'}
             </p>
           </div>
@@ -1237,19 +1253,18 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
             <table className="w-full min-w-[580px]">
               <thead className="bg-[var(--color-bg-subtle)]">
                 <tr>
-                  {['Student','Dept','Grade/Program','Total Fee','Paid','Balance','Days','Status'].map(h=>(
+                  {['Student','Dept','Grade/Program','Total Fee','Paid','Balance','Due Date','Status'].map(h=>(
                     <th key={h} className={`px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide ${['Total Fee','Paid','Balance'].includes(h)?'text-right':'text-left'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {filtered.map((p,i) => {
-                  const days    = daysSince(p.submittedDate)
                   const paidPct = p.totalFee > 0 ? Math.round((p.amountPaid/p.totalFee)*100) : 0
-                  const isOld   = days > 30
+                  const isOld   = p.status === 'overdue'
                   const isBasic = isBasicGrade(p.gradeLevel)
                   return (
-                    <tr key={i} className={`transition ${isOld ? 'bg-red-50/40 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
+                    <tr key={i} className={`transition ${isOld ? 'bg-[var(--color-error-light)] hover:bg-[var(--color-error-light)]' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-[var(--color-text-primary)]">{p.studentName}</p>
                         <p className="text-xs text-[var(--color-text-muted)] font-mono">{p.studentId}</p>
@@ -1257,8 +1272,8 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
                           ${isBasic
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                            ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                            : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
                           }`}>
                           {isBasic ? 'Basic Ed' : 'College'}
                         </span>
@@ -1266,17 +1281,20 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                       <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{p.gradeLevel}</td>
                       <td className="px-4 py-3 text-sm font-mono text-right text-[var(--color-text-primary)]">{phpFmt(p.totalFee)}</td>
                       <td className="px-4 py-3 text-right">
-                        <p className="text-sm font-mono text-green-600 dark:text-green-400">{phpFmt(p.amountPaid)}</p>
+                        <p className="text-sm font-mono text-[var(--color-success-text)]">{phpFmt(p.amountPaid)}</p>
                         <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-1 mt-1">
-                          <div className="bg-green-500 h-full rounded-full" style={{width:`${paidPct}%`}}/>
+                          <div className="bg-[var(--color-success)] h-full rounded-full" style={{width:`${paidPct}%`}}/>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm font-bold text-right font-mono text-amber-600 dark:text-amber-400">{phpFmt(p.balance)}</td>
-                      <td className="px-4 py-3 text-xs text-center text-[var(--color-text-muted)]">{days}d</td>
+                      <td className="px-4 py-3 text-sm font-bold text-right font-mono text-[var(--color-warning-text)]">{phpFmt(p.balance)}</td>
+                      <td className="px-4 py-3 text-xs text-center text-[var(--color-text-muted)] whitespace-nowrap">
+                        {p.dueDate ? fmtDate(p.dueDate) : '—'}
+                        {isOld && <span className="block text-[10px] text-[var(--color-error-text)]">{daysPast(p.dueDate)}d late</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] px-2 py-1 rounded-full font-semibold ${isOld
-                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
+                          ? 'bg-[var(--color-error-light)] text-[var(--color-error-text)]'
+                          : 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)]'}`}>
                           {isOld ? 'Overdue' : 'Partial'}
                         </span>
                       </td>
@@ -1287,7 +1305,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
                 <tr>
                   <td colSpan={5} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">Total Outstanding</td>
-                  <td className="px-4 py-3 text-sm font-bold text-amber-600 dark:text-amber-400 text-right font-mono">{phpFmt(totalOutstanding)}</td>
+                  <td className="px-4 py-3 text-sm font-bold text-[var(--color-warning-text)] text-right font-mono">{phpFmt(totalOutstanding)}</td>
                   <td colSpan={2}/>
                 </tr>
               </tfoot>
@@ -1451,8 +1469,8 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
               className={`w-full text-left px-4 py-3 transition flex items-start gap-3 ${selectedStudent?.studentId===p.studentId
                 ? 'bg-primary/5 dark:bg-primary/10 border-l-2 border-[var(--color-primary-readable)]'
                 : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white
-                ${p.balance<=0 ? 'bg-green-500' : 'bg-amber-500'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-[var(--color-text-inverse)]
+                ${p.balance<=0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]'}`}>
                 {p.studentName.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -1462,7 +1480,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 <p className="text-[10px] text-[var(--color-text-muted)] truncate">{p.gradeLevel}</p>
                 <div className="flex items-center justify-between mt-0.5">
                   <span className="text-[10px] font-mono text-[var(--color-text-muted)]">{p.studentId}</span>
-                  <span className={`text-[10px] font-bold font-mono ${p.balance<=0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  <span className={`text-[10px] font-bold font-mono ${p.balance<=0 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>
                     {p.balance<=0 ? 'PAID' : `Bal: ${php(p.balance)}`}
                   </span>
                 </div>
@@ -1503,7 +1521,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold
-                      ${p.balance<=0 ? 'bg-green-500/20 text-green-200 border border-green-400/30' : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'}`}>
+                      ${p.balance<=0 ? 'bg-[var(--color-success)] text-[var(--color-success-text)] border border-[var(--color-success)]' : 'bg-[var(--color-warning)] text-[var(--color-warning-text)] border border-[var(--color-warning)]'}`}>
                       {p.balance<=0 ? <CheckCircle className="w-3 h-3"/> : <Clock className="w-3 h-3"/>}
                       {p.balance<=0 ? 'Fully Paid' : 'Has Balance'}
                     </div>
@@ -1515,12 +1533,12 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
               <div className="p-5 space-y-4">
                 {/* Fee breakdown */}
                 {(fb.originalTuition||0) > 0 && (
-                  <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-                    <h3 className="text-xs font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide mb-3">Fee Assessment</h3>
+                  <div className="bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl p-4">
+                    <h3 className="text-xs font-semibold text-[var(--color-warning-text)] uppercase tracking-wide mb-3">Fee Assessment</h3>
                     <div className="space-y-1.5 text-xs">
                       {[
                         ['Original Tuition', fb.originalTuition],
-                        fb.totalDiscount > 0 && ['Discount Applied', -fb.totalDiscount, 'text-red-500'],
+                        fb.totalDiscount > 0 && ['Discount Applied', -fb.totalDiscount, 'text-[var(--color-error-text)]'],
                         fb.misc   > 0 && ['Misc Fee', fb.misc],
                         fb.lab    > 0 && ['Lab Fee',  fb.lab],
                         fb.books  > 0 && ['Books',    fb.books],
@@ -1533,7 +1551,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                           </span>
                         </div>
                       ))}
-                      <div className="flex justify-between font-bold text-sm pt-2 border-t border-amber-200 dark:border-amber-700">
+                      <div className="flex justify-between font-bold text-sm pt-2 border-t border-[var(--color-warning-border)]">
                         <span className="text-[var(--color-text-primary)]">Grand Total</span>
                         <span className="font-mono text-[var(--color-primary-readable)]">{php(p.totalFee)}</span>
                       </div>
@@ -1575,8 +1593,8 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                                     ))}
                                   </div>
                                 </td>
-                                <td className="px-3 py-2.5 text-xs font-bold text-green-600 dark:text-green-400 text-right font-mono">{php(h.amount)}</td>
-                                <td className={`px-3 py-2.5 text-xs font-bold text-right font-mono ${bal<=0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{php(bal)}</td>
+                                <td className="px-3 py-2.5 text-xs font-bold text-[var(--color-success-text)] text-right font-mono">{php(h.amount)}</td>
+                                <td className={`px-3 py-2.5 text-xs font-bold text-right font-mono ${bal<=0 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>{php(bal)}</td>
                               </tr>
                             )
                           })}
@@ -1589,15 +1607,15 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
 
                 {/* Balance summary */}
                 <div className={`rounded-xl p-4 flex items-center justify-between ${p.balance<=0
-                  ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700'
-                  : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700'}`}>
+                  ? 'bg-[var(--color-success-light)] border border-[var(--color-success-border)]'
+                  : 'bg-[var(--color-warning-light)] border border-[var(--color-warning-border)]'}`}>
                   <div>
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${p.balance<=0 ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                    <p className={`text-xs font-semibold uppercase tracking-wide ${p.balance<=0 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>
                       {p.balance<=0 ? '✓ Account Fully Settled' : 'Remaining Balance'}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Total paid: {php(p.amountPaid)}</p>
                   </div>
-                  <span className={`text-2xl font-bold font-mono ${p.balance<=0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                  <span className={`text-2xl font-bold font-mono ${p.balance<=0 ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>
                     {php(p.balance)}
                   </span>
                 </div>
@@ -1620,9 +1638,104 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
 }
 
 
+// ─────────────────────────────────────────────────────────────────────
+// EXTEND DUE DATE — promissory note
+// A student who cannot pay on time submits a promissory note; accounting
+// moves that student's due date and the reason is kept on record.
+// ─────────────────────────────────────────────────────────────────────
+function ExtendDueDateModal({ payment, onClose, onSave }) {
+  const [newDate,  setNewDate]  = useState('')
+  const [reason,   setReason]   = useState('')
+  const [noteRef,  setNoteRef]  = useState('')
+  const [errors,   setErrors]   = useState({})
+
+  const current = payment.dueDate || ''
+  const minDate = current && current > todayYMD() ? current : todayYMD()
+
+  const validate = () => {
+    const e = {}
+    if (!newDate)                    e.date   = 'Pick the new due date'
+    else if (newDate <= minDate)     e.date   = current && current > todayYMD()
+      ? 'The new date must be later than the current due date'
+      : 'The new date must be after today'
+    if (reason.trim().length < 5)    e.reason = 'Enter the reason (e.g. promissory note details)'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  const handleSave = () => {
+    if (!validate()) return
+    onSave({ newDate, reason: reason.trim(), noteRef: noteRef.trim() })
+  }
+
+  return (
+    <ModalPortal>
+    <div className="modal-backdrop">
+      <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[94vh] flex flex-col shadow-[var(--shadow-modal)]">
+        <div className="modal-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 bg-[var(--color-warning-light)] rounded-full flex items-center justify-center flex-shrink-0">
+              <Calendar className="w-5 h-5 text-[var(--color-warning-text)]" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold text-[var(--color-text-primary)] truncate">Extend Due Date</h2>
+              <p className="text-xs text-[var(--color-text-muted)] truncate">{payment.studentName} · {payment.studentId}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl p-3 text-center">
+              <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5 uppercase tracking-wide">Current Due Date</p>
+              <p className="text-sm font-bold text-[var(--color-text-primary)]">{fmtShortDate(current)}</p>
+            </div>
+            <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-xl p-3 text-center">
+              <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5 uppercase tracking-wide">Balance</p>
+              <p className="text-sm font-bold text-[var(--color-warning-text)]">{php(payment.balance)}</p>
+            </div>
+          </div>
+
+          <div>
+            <DatePicker label="New Due Date" value={newDate} onChange={v => { setNewDate(v); setErrors(p => ({ ...p, date: '' })) }} />
+            {errors.date && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.date}</p>}
+          </div>
+
+          <div>
+            <label className="form-label">Reason / Promissory Note <span className="text-[var(--color-error-text)]">*</span></label>
+            <textarea rows={3} value={reason} onChange={e => { setReason(e.target.value); setErrors(p => ({ ...p, reason: '' })) }}
+              placeholder="e.g. Parent submitted a promissory note — will pay after harvest season"
+              className={`w-full px-3 py-2.5 text-sm rounded-xl border bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition resize-none
+                ${errors.reason ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`} />
+            {errors.reason && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.reason}</p>}
+          </div>
+
+          <div>
+            <label className="form-label">Promissory Note No. (optional)</label>
+            <input type="text" value={noteRef} onChange={e => setNoteRef(e.target.value)} placeholder="e.g. PN-2026-014"
+              className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition" />
+          </div>
+        </div>
+
+        <div className="modal-footer gap-3">
+          <button onClick={onClose} className="btn-cancel">Cancel</button>
+          <button onClick={handleSave}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+            <Calendar className="w-4 h-4" /> Save New Due Date
+          </button>
+        </div>
+      </div>
+    </div>
+  </ModalPortal>
+  )
+}
+
 export default function Payments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
 
   const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
   const accountingCampus   = isAccountingLocked ? user.campus : null
@@ -1647,6 +1760,7 @@ export default function Payments() {
   const [gradeLevelFilter, setGradeLevelFilter]     = useState('all')
   const [selectedPayment, setSelectedPayment]       = useState(null)
   const [showModal, setShowModal]                   = useState(false)
+  const [showExtendModal, setShowExtendModal]     = useState(false)
   const { campusFilter } = useCampusFilter()
   const [loading, setLoading]                       = useState(true)
   const { toasts, addToast, removeToast }           = useToast()
@@ -1663,31 +1777,49 @@ export default function Payments() {
           (s.status === 'payment_received' || s.status === 'approved') &&
           (s.amountPaid > 0 || s.paymentHistory?.length > 0) &&
           (!baseCampusFilter || s.enrollment?.campus === baseCampusFilter)
-        ).map(s => ({
-          studentId:      s.referenceNumber,
-          studentName:    s.student?.fullName ||
-            `${(s.student?.lastName||'').toUpperCase()}, ${(s.student?.firstName||'').toUpperCase()}`,
-          gradeLevel:     s.enrollment?.gradeLevel  || '',
-          campus:         s.enrollment?.campus      || '',
-          semester:       s.enrollment?.semester    || '',
-          studentType:    s.enrollment?.studentType || '',
-          schoolYear:     s.enrollment?.schoolYear  || '',
-          totalFee:       s.totalFee    || 0,
-          amountPaid:     s.amountPaid  || 0,
-          balance:        s.balance     || 0,
-          status:         s.balance <= 0 ? 'paid' : 'partial',
-          paymentMethod:  s.paymentMethod || '',
-          paymentHistory: s.paymentHistory || (s.amountPaid > 0 ? [{
+        ).map(s => {
+          const gradeLevel  = s.enrollment?.gradeLevel || ''
+          const campus      = s.enrollment?.campus     || ''
+          const history     = s.paymentHistory || (s.amountPaid > 0 ? [{
             id: 1, amount: s.amountPaid, method: s.paymentMethod,
             date: s.lastPaymentDate || s.updatedAt || s.submittedDate,
             orNumber: '', notes: '', paymentFor: ['tuition']
-          }] : []),
-          feeBreakdown:     s.feeBreakdown     || null,
-          discountsApplied: s.discountsApplied || [],
-          lastPaymentDate:  s.lastPaymentDate  || s.updatedAt,
-          submittedDate:    s.submittedDate
-        }))
-        if (paid.length > 0) setPayments(paid)
+          }] : [])
+          // Due date: the one saved on the record (set at enrollment or moved by a
+          // promissory note); otherwise worked out from the campus policy.
+          const dueDate = s.dueDate || computeDefaultDueDate({
+            campusName: campus,
+            department: isCollegeGrade(gradeLevel) ? 'college' : 'basicEd',
+            schoolYear: s.enrollment?.schoolYear,
+            schoolYears,
+            fromDate:   history[0]?.date || s.lastPaymentDate || s.submittedDate,
+          })
+          const balance = s.balance || 0
+          return {
+            studentId:      s.referenceNumber,
+            studentName:    s.student?.fullName ||
+              `${(s.student?.lastName||'').toUpperCase()}, ${(s.student?.firstName||'').toUpperCase()}`,
+            gradeLevel,
+            campus,
+            semester:       s.enrollment?.semester    || '',
+            studentType:    s.enrollment?.studentType || '',
+            schoolYear:     s.enrollment?.schoolYear  || '',
+            totalFee:       s.totalFee    || 0,
+            amountPaid:     s.amountPaid  || 0,
+            balance,
+            dueDate,
+            dueDateExtensions: s.dueDateExtensions || [],
+            status:         derivePaymentStatus(balance, dueDate),
+            paymentMethod:  s.paymentMethod || '',
+            paymentHistory: history,
+            feeBreakdown:     s.feeBreakdown     || null,
+            discountsApplied: s.discountsApplied || [],
+            lastPaymentDate:  s.lastPaymentDate  || s.updatedAt,
+            submittedDate:    s.submittedDate
+          }
+        })
+        // Always replace — otherwise switching to a campus with no payments keeps showing the previous list
+        setPayments(paid)
       } catch {}
       const t = setTimeout(() => setLoading(false), 100)
       return () => clearTimeout(t)
@@ -1702,7 +1834,7 @@ export default function Payments() {
       window.removeEventListener('almirene_enrollment_updated', load)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [baseCampusFilter])
+  }, [baseCampusFilter, schoolYears, isCollegeGrade])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
     const t = setTimeout(() => setLoading(false), 100)
@@ -1717,6 +1849,12 @@ export default function Payments() {
   }
 
   const handleSavePayment = (transaction) => {
+    // Safety net: an OR number identifies exactly one payment
+    if (isOrNumberUsed(transaction.orNumber)) {
+      addToast('That OR number is already used on another payment.', 'error')
+      return
+    }
+
     const newEntry = {
       id:         Date.now(),
       amount:     transaction.amount,
@@ -1734,11 +1872,13 @@ export default function Payments() {
         const sub            = subs[idx]
         const newAmountPaid  = (sub.amountPaid || 0) + transaction.amount
         const newBalance     = Math.max(0, (sub.totalFee || 0) - newAmountPaid)
+        // The enrollment STATUS is never changed here. Approving an enrollment is the
+        // registrar's decision — a full payment must not skip it, and a partial payment
+        // must not pull an already-approved student back to "payment received".
         subs[idx] = {
           ...sub,
           amountPaid:      newAmountPaid,
           balance:         newBalance,
-          status:          newBalance <= 0 ? 'approved' : 'payment_received',
           paymentMethod:   transaction.method,
           lastPaymentDate: transaction.date,
           paymentHistory:  [...(sub.paymentHistory || []), newEntry]
@@ -1754,26 +1894,67 @@ export default function Payments() {
     setPayments(prev => prev.map(p => {
       if (p.studentId !== selectedPayment.studentId) return p
       const newAmountPaid = p.amountPaid + transaction.amount
-      const newBalance    = p.totalFee - newAmountPaid
-      const newStatus     = newBalance <= 0 ? 'paid' : 'partial'
+      const newBalance    = Math.max(0, p.totalFee - newAmountPaid)
       return {
         ...p,
         amountPaid:      newAmountPaid,
-        balance:         Math.max(0, newBalance),
-        status:          newStatus,
+        balance:         newBalance,
+        status:          derivePaymentStatus(newBalance, p.dueDate),
         paymentMethod:   transaction.method,
         lastPaymentDate: transaction.date,
         paymentHistory:  [...(p.paymentHistory || []), newEntry]
       }
     }))
-    setSelectedPayment(prev => ({
-      ...prev,
-      amountPaid: prev.amountPaid + transaction.amount,
-      balance:    Math.max(0, prev.totalFee - prev.amountPaid - transaction.amount)
-    }))
+    setSelectedPayment(prev => {
+      const newBalance = Math.max(0, prev.totalFee - prev.amountPaid - transaction.amount)
+      return {
+        ...prev,
+        amountPaid: prev.amountPaid + transaction.amount,
+        balance:    newBalance,
+        status:     derivePaymentStatus(newBalance, prev.dueDate),
+      }
+    })
     setPendingTransaction(transaction)
     setShowRecordModal(false)
     setShowReceiptModal(true)
+  }
+
+  // Promissory note: move this student's due date and keep the reason on record
+  const handleExtendDueDate = ({ newDate, reason, noteRef }) => {
+    const ext = {
+      id:     Date.now(),
+      from:   selectedPayment.dueDate || '',
+      to:     newDate,
+      reason,
+      noteRef,
+      by:     user?.name || 'Accounting',
+      date:   new Date().toISOString(),
+    }
+    try {
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+      const idx  = subs.findIndex(s => s.referenceNumber === selectedPayment.studentId)
+      if (idx !== -1) {
+        subs[idx] = {
+          ...subs[idx],
+          dueDate: newDate,
+          dueDateExtensions: [...(subs[idx].dueDateExtensions || []), ext],
+        }
+        localStorage.setItem('almirene_submissions', JSON.stringify(subs))
+        window.dispatchEvent(new Event('almirene_enrollment_updated'))
+      }
+    } catch (e) {
+      console.error('Failed to save due date extension:', e)
+    }
+    const apply = (p) => ({
+      ...p,
+      dueDate: newDate,
+      dueDateExtensions: [...(p.dueDateExtensions || []), ext],
+      status: derivePaymentStatus(p.balance, newDate),
+    })
+    setPayments(prev => prev.map(p => p.studentId === selectedPayment.studentId ? apply(p) : p))
+    setSelectedPayment(prev => apply(prev))
+    setShowExtendModal(false)
+    addToast(`Due date moved to ${fmtShortDate(newDate)}.`, 'success')
   }
 
   if (user?.role === 'admin' || user?.role === 'technical_admin') {
@@ -1882,7 +2063,7 @@ export default function Payments() {
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition whitespace-nowrap flex-1 justify-center
               ${activeTab === tab.id
-                ? 'bg-[var(--color-bg-subtle)] text-[var(--color-primary-readable)] shadow-sm'
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-primary-readable)] shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}>
             {tab.icon} {tab.label}
@@ -1896,10 +2077,10 @@ export default function Payments() {
           {/* Stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {[
-              { label:'Total Revenue',    value:php(stats.revenue),     border:'border-green-500', icon:<TrendingUp className="w-5 h-5 text-green-500"/>, sub:'Collected payments',   cls:'text-green-600 dark:text-green-400' },
-              { label:'Outstanding',      value:php(stats.outstanding), border:'border-amber-400', icon:<Clock className="w-5 h-5 text-amber-400"/>,      sub:'Pending collection',   cls:'text-amber-500 dark:text-amber-400' },
-              { label:'Fully Paid',       value:stats.paid,             border:'border-blue-500',  icon:<CheckCircle className="w-5 h-5 text-blue-500"/>, sub:'Students',             cls:'text-blue-600 dark:text-blue-400' },
-              { label:'Overdue',          value:stats.overdue,          border:'border-red-400',   icon:<AlertCircle className="w-5 h-5 text-red-400"/>,  sub:'Requires follow-up',   cls:stats.overdue > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]' },
+              { label:'Total Revenue',    value:php(stats.revenue),     border:'border-[var(--color-success)]', icon:<TrendingUp className="w-5 h-5 text-[var(--color-success-text)]"/>, sub:'Collected payments',   cls:'text-[var(--color-success-text)]' },
+              { label:'Outstanding',      value:php(stats.outstanding), border:'border-[var(--color-warning)]', icon:<Clock className="w-5 h-5 text-[var(--color-warning-text)]"/>,      sub:'Pending collection',   cls:'text-[var(--color-warning-text)]' },
+              { label:'Fully Paid',       value:stats.paid,             border:'border-[var(--color-info)]',  icon:<CheckCircle className="w-5 h-5 text-[var(--color-info-text)]"/>, sub:'Students',             cls:'text-[var(--color-info-text)]' },
+              { label:'Overdue',          value:stats.overdue,          border:'border-[var(--color-error)]',   icon:<AlertCircle className="w-5 h-5 text-[var(--color-error-text)]"/>,  sub:'Requires follow-up',   cls:stats.overdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]' },
             ].map(({ label, value, border, icon, sub, cls }) => (
               <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
                 <div className="flex items-center justify-between mb-2">
@@ -1949,7 +2130,6 @@ export default function Payments() {
                     { value: 'paid',    label: 'Paid'    },
                     { value: 'partial', label: 'Partial' },
                     { value: 'overdue', label: 'Overdue' },
-                    { value: 'pending', label: 'Pending' },
                   ]}
                 />
               </div>
@@ -1983,18 +2163,23 @@ export default function Payments() {
                             <StatusBadge status={p.status} />
                           </div>
                           <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
+                          {p.balance > 0 && p.dueDate && (
+                            <p className={`text-[11px] mt-0.5 ${p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
+                              Due {fmtShortDate(p.dueDate)}{p.status === 'overdue' ? ` · ${daysPast(p.dueDate)}d overdue` : ''}
+                            </p>
+                          )}
                           <div className="flex items-center justify-between mt-1">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
                                 ${isBasicGrade(p.gradeLevel)
-                                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                  ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                                  : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
                                 }`}>
                                 {isBasicGrade(p.gradeLevel) ? 'Basic Ed' : 'College'}
                               </span>
                               <span className="text-xs text-[var(--color-text-muted)]">{p.gradeLevel}</span>
                             </div>
-                            <span className="text-sm font-bold text-green-600 dark:text-green-400">{php(p.amountPaid)}</span>
+                            <span className="text-sm font-bold text-[var(--color-success-text)]">{php(p.amountPaid)}</span>
                           </div>
                         </div>
                         <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
@@ -2006,10 +2191,10 @@ export default function Payments() {
                 {/* Desktop table */}
                 <div className="hidden md:block min-w-0">
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[860px]">
+                    <table className="w-full min-w-[960px]">
                       <thead className="bg-[var(--color-bg-subtle)]">
                         <tr>
-                          {['Student','Dept',!isAccountingLocked?'Campus':null,'Grade / Program','Total Fee','Paid','Balance','Status','Last Payment','Actions'].filter(Boolean).map(h => (
+                          {['Student','Dept',!isAccountingLocked?'Campus':null,'Grade / Program','Total Fee','Paid','Balance','Status','Due Date','Last Payment','Actions'].filter(Boolean).map(h => (
                             <th key={h} className="th">{h}</th>
                           ))}
                         </tr>
@@ -2026,8 +2211,8 @@ export default function Payments() {
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold
                                 ${isBasic
-                                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                  ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                                  : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
                                 }`}>
                                 {isBasic ? 'Basic Ed' : 'College'}
                               </span>
@@ -2035,11 +2220,19 @@ export default function Payments() {
                             {!isAccountingLocked && <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{p.campus}</td>}
                             <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{p.gradeLevel}</td>
                             <td className="px-4 py-3 text-sm text-[var(--color-text-primary)] whitespace-nowrap font-medium">{php(p.totalFee)}</td>
-                            <td className="px-4 py-3 text-sm text-green-600 dark:text-green-400 whitespace-nowrap font-semibold">{php(p.amountPaid)}</td>
+                            <td className="px-4 py-3 text-sm text-[var(--color-success-text)] whitespace-nowrap font-semibold">{php(p.amountPaid)}</td>
                             <td className="px-4 py-3 text-sm whitespace-nowrap font-semibold">
-                              <span className={p.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
+                              <span className={p.balance > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={p.status} /></td>
+                            <td className="px-4 py-3 text-xs whitespace-nowrap">
+                              {p.balance > 0 && p.dueDate ? (
+                                <span className={p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-secondary)]'}>
+                                  {fmtShortDate(p.dueDate)}
+                                  {p.status === 'overdue' && <span className="block text-[10px] font-normal">{daysPast(p.dueDate)}d overdue</span>}
+                                </span>
+                              ) : <span className="text-[var(--color-text-muted)]">—</span>}
+                            </td>
                             <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">
                               {p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}
                             </td>
@@ -2051,7 +2244,7 @@ export default function Payments() {
                                 </button>
                                 {p.status !== 'paid' && (
                                   <button onClick={() => handleRecordPayment(p)}
-                                    className="inline-flex items-center gap-1 text-xs text-white bg-green-600 hover:bg-green-700 px-2.5 py-1 rounded-lg font-medium transition">
+                                    className="inline-flex items-center gap-1 text-xs text-[var(--color-text-inverse)] bg-[var(--color-success)] hover:opacity-90 px-2.5 py-1 rounded-lg font-medium transition">
                                     <Plus className="w-3.5 h-3.5" /> Pay
                                   </button>
                                 )}
@@ -2069,7 +2262,7 @@ export default function Payments() {
                   {yearFilter !== 'all' && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-[var(--color-primary-readable)] rounded-full font-medium">
                       {yearFilter}
-                      <button onClick={() => setYearFilter('all')} className="hover:text-red-600 transition">×</button>
+                      <button onClick={() => setYearFilter('all')} className="hover:text-[var(--color-error-text)] transition">×</button>
                     </span>
                   )}
                 </div>
@@ -2103,8 +2296,8 @@ export default function Payments() {
                     <StatusBadge status={selectedPayment.status} />
                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold
                       ${isBasicGrade(selectedPayment.gradeLevel)
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+                        : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
                       }`}>
                       {isBasicGrade(selectedPayment.gradeLevel) ? 'Basic Ed' : 'College'}
                     </span>
@@ -2114,8 +2307,8 @@ export default function Payments() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { label: 'Total Fee',    value: php(selectedPayment.totalFee),    cls: 'text-[var(--color-text-primary)]'        },
-                      { label: 'Amount Paid',  value: php(selectedPayment.amountPaid),  cls: 'text-green-600 dark:text-green-400'   },
-                      { label: 'Balance',      value: php(selectedPayment.balance),     cls: selectedPayment.balance > 0 ? 'text-red-500 dark:text-red-400' : 'text-[var(--color-text-muted)]' },
+                      { label: 'Amount Paid',  value: php(selectedPayment.amountPaid),  cls: 'text-[var(--color-success-text)]'   },
+                      { label: 'Balance',      value: php(selectedPayment.balance),     cls: selectedPayment.balance > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]' },
                     ].map(({ label, value, cls }) => (
                       <div key={label} className="bg-[var(--color-bg-subtle)] rounded-xl p-3 text-center">
                         <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -2131,7 +2324,7 @@ export default function Payments() {
                         <span>{Math.round((selectedPayment.amountPaid / selectedPayment.totalFee) * 100)}%</span>
                       </div>
                       <div className="w-full bg-[var(--color-bg-subtle)] rounded-full h-2.5 overflow-hidden">
-                        <div className="bg-green-500 h-full rounded-full transition-all duration-500"
+                        <div className="bg-[var(--color-success)] h-full rounded-full transition-all duration-500"
                           style={{ width: `${(selectedPayment.amountPaid / selectedPayment.totalFee) * 100}%` }} />
                       </div>
                     </div>
@@ -2144,7 +2337,9 @@ export default function Payments() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                       {[
                         ['Payment Method', selectedPayment.paymentMethod || '—'],
-                        ['Due Date', selectedPayment.dueDate ? new Date(selectedPayment.dueDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—'],
+                        ['Due Date', selectedPayment.balance > 0 && selectedPayment.dueDate
+                          ? `${fmtLongDate(selectedPayment.dueDate)}${selectedPayment.status === 'overdue' ? ` (${daysPast(selectedPayment.dueDate)}d overdue)` : ''}`
+                          : (selectedPayment.balance > 0 ? 'Not set' : '—')],
                         ['Last Payment', selectedPayment.lastPaymentDate ? new Date(selectedPayment.lastPaymentDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : '—'],
                         ['Installments', selectedPayment.paymentHistory.length],
                       ].map(([label, value]) => (
@@ -2155,6 +2350,26 @@ export default function Payments() {
                       ))}
                     </div>
                   </div>
+
+                  {(selectedPayment.dueDateExtensions || []).length > 0 && (
+                    <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4">
+                      <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-3 flex items-center gap-2">
+                        <Calendar className="w-4 h-4" /> Due Date Extensions
+                      </h3>
+                      <div className="space-y-2">
+                        {selectedPayment.dueDateExtensions.map(x => (
+                          <div key={x.id} className="py-2 border-b border-[var(--color-border)] last:border-0">
+                            <p className="text-xs font-semibold text-[var(--color-text-primary)]">
+                              {fmtShortDate(x.from)} → {fmtShortDate(x.to)}
+                              {x.noteRef && <span className="ml-2 font-mono font-normal text-[var(--color-primary-readable)]">{x.noteRef}</span>}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{x.reason}</p>
+                            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{x.by} · {fmtShortDate(x.date)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedPayment.paymentHistory.length > 0 && (
                     <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4">
@@ -2169,7 +2384,7 @@ export default function Payments() {
                               <p className="text-xs text-[var(--color-text-muted)]">{h.method} · {new Date(h.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
                               {h.notes && <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{h.notes}</p>}
                             </div>
-                            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(h.amount)}</p>
+                            <p className="text-sm font-bold text-[var(--color-success-text)]">{php(h.amount)}</p>
                           </div>
                         ))}
                       </div>
@@ -2183,10 +2398,16 @@ export default function Payments() {
                     Close
                   </button>
                   {(user?.role === 'accounting' || (user?.role === 'admin' || user?.role === 'technical_admin')) && selectedPayment.status !== 'paid' && (
-                    <button onClick={() => { setShowModal(false); handleRecordPayment(selectedPayment) }}
-                      className="flex items-center gap-2 px-5 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold shadow-sm">
-                      <Plus className="w-4 h-4" /> Record Payment
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      <button onClick={() => setShowExtendModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-semibold">
+                        <Calendar className="w-4 h-4" /> Extend Due Date
+                      </button>
+                      <button onClick={() => { setShowModal(false); handleRecordPayment(selectedPayment) }}
+                        className="flex items-center gap-2 px-5 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl hover:opacity-90 transition font-semibold shadow-sm">
+                        <Plus className="w-4 h-4" /> Record Payment
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2226,6 +2447,15 @@ export default function Payments() {
           onSave={handleSavePayment}
           cashierName={cashierName}
           schoolYear={currentSchoolYear}
+        />
+      )}
+
+      {/* Extend Due Date Modal */}
+      {showExtendModal && selectedPayment && (
+        <ExtendDueDateModal
+          payment={selectedPayment}
+          onClose={() => setShowExtendModal(false)}
+          onSave={handleExtendDueDate}
         />
       )}
 

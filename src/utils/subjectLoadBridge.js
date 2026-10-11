@@ -74,8 +74,7 @@ function getCollegeEnrolledCount(campusName, program, yearLevel) {
     return subs.filter(s =>
       s.status === 'approved' &&
       s.enrollment?.campus === campusName &&
-      (s.enrollment?.gradeLevel || '').startsWith(program) &&
-      (s.enrollment?.gradeLevel || '').includes(yearLevel)
+      s.enrollment?.gradeLevel === `${program} - ${yearLevel}`
     ).length
   } catch { return 0 }
 }

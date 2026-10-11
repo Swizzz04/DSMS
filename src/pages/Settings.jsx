@@ -10,7 +10,7 @@ import { PageSkeleton, useToast, ToastContainer, ModalPortal, ConfirmDialog, Typ
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, findNextExam, todayYMD, shiftDays } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -1286,6 +1286,18 @@ export default function Settings() {
     } catch { return '' }
   })
   const [cashierSaved,    setCashierSaved]    = useState(false)
+  // Minimum down payment (campus-scoped, default ₱500) — kept as a string so the
+  // field can be cleared while typing
+  const [minPayment,      setMinPayment]      = useState(() => {
+    try {
+      const n = Number(loadCampusCfg(user?.campus).minimumPayment)
+      return String(Number.isFinite(n) && n > 0 ? n : DEFAULT_MINIMUM_PAYMENT)
+    } catch { return String(DEFAULT_MINIMUM_PAYMENT) }
+  })
+  const [minPaymentError, setMinPaymentError] = useState('')
+  // Payment due-date policy (campus-scoped): 'exam' = next exam on the school calendar, 'fixed' = one date
+  const [duePolicy,       setDuePolicy]       = useState(() => getDueDatePolicy(user?.campus))
+  const patchDuePolicy = (patch) => { setDuePolicy(p => ({ ...p, ...patch })); setCashierSaved(false) }
   const [discounts,       setDiscounts]       = useState(() => {
     try {
       // Load campus-scoped discounts — each campus manages their own
@@ -1315,7 +1327,7 @@ export default function Settings() {
     { id: 'grades',        label: 'Grade Levels',      icon: GraduationCap },
     { id: 'fees',          label: 'Fee Structure',     icon: DollarSign },
     { id: 'discounts',     label: 'Discounts',         icon: Tag },
-    { id: 'receipt',       label: 'Receipt',            icon: Receipt },
+    { id: 'receipt',       label: 'Receipt & Payment',  icon: Receipt },
     { id: 'workflow',      label: 'Workflow Config',   icon: GitBranch },
   ]
   const tabs = allTabs.filter(t => userTabs.includes(t.id))
@@ -3126,7 +3138,7 @@ export default function Settings() {
                 <Receipt className="w-5 h-5 text-[var(--color-primary-readable)]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Receipt Settings</h2>
+                <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Receipt &amp; Payment Settings</h2>
                 <p className="text-sm text-[var(--color-text-muted)]">
                   Configure receipts for <strong>{user?.campus || 'your campus'}</strong> only — other campuses are not affected.
                 </p>
@@ -3147,6 +3159,111 @@ export default function Settings() {
                   placeholder="e.g. Maria Santos"
                   className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-card)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition"
                 />
+              </div>
+
+              {/* Minimum payment */}
+              <div className="bg-[var(--color-bg-subtle)] rounded-xl p-5">
+                <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">Minimum Payment (Down Payment)</h3>
+                <p className="text-xs text-[var(--color-text-muted)] mb-3">
+                  The least amount accounting can accept when confirming an enrollment payment. Default is ₱{DEFAULT_MINIMUM_PAYMENT.toLocaleString()}.
+                  If a student's total is lower than this, the total is used instead.
+                </p>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-semibold text-sm">₱</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={minPayment}
+                    onChange={e => { setMinPayment(e.target.value); setMinPaymentError(''); setCashierSaved(false) }}
+                    placeholder={String(DEFAULT_MINIMUM_PAYMENT)}
+                    className={`w-full pl-7 pr-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none transition ${minPaymentError ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`}
+                  />
+                </div>
+                {minPaymentError && <p className="text-xs text-[var(--color-error-text)] mt-1">{minPaymentError}</p>}
+                {String(minPayment) !== String(DEFAULT_MINIMUM_PAYMENT) && (
+                  <button
+                    type="button"
+                    onClick={() => { setMinPayment(String(DEFAULT_MINIMUM_PAYMENT)); setMinPaymentError(''); setCashierSaved(false) }}
+                    className="mt-2 text-xs text-[var(--color-primary-readable)] hover:underline"
+                  >
+                    Reset to default (₱{DEFAULT_MINIMUM_PAYMENT.toLocaleString()})
+                  </button>
+                )}
+              </div>
+
+              {/* Payment due date */}
+              <div className="bg-[var(--color-bg-subtle)] rounded-xl p-5 space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1">Payment Due Date</h3>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    The default date a student's remaining balance is due. Accounting can move an individual
+                    student's date (promissory note) from the Payments page — that never changes this default.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="form-label">Default due date is based on</label>
+                  <GroupedSelect
+                    value={duePolicy.mode}
+                    onChange={v => patchDuePolicy({ mode: v })}
+                    allLabel={null}
+                    options={[
+                      { value: 'exam',  label: 'Exam date (from the school calendar)' },
+                      { value: 'fixed', label: 'A fixed date' },
+                    ]}
+                  />
+                </div>
+
+                {duePolicy.mode === 'exam' && (
+                  <div>
+                    <label className="form-label">Days before the exam</label>
+                    <input
+                      type="number" min="0" step="1" inputMode="numeric"
+                      value={duePolicy.offsetDays}
+                      onChange={e => patchDuePolicy({ offsetDays: e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-card)] text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary outline-none transition"
+                    />
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-1">0 = due on the first day of the exam. Uses events named "…Exam…" in Settings → School Year.</p>
+                  </div>
+                )}
+
+                <div>
+                  <DatePicker
+                    label={duePolicy.mode === 'exam' ? 'Fallback date (used when no exam is scheduled)' : 'Due date'}
+                    value={duePolicy.fixedDate}
+                    onChange={v => patchDuePolicy({ fixedDate: v })}
+                  />
+                </div>
+
+                {/* What the policy gives right now */}
+                {(() => {
+                  const sy = currentSchoolYear
+                  const rows = [['basicEd', 'Basic Ed'], ['college', 'College']].map(([dept, label]) => {
+                    let text
+                    if (duePolicy.mode === 'exam') {
+                      const exam = findNextExam(schoolYears, sy, dept, todayYMD())
+                      if (exam) {
+                        const off = parseInt(duePolicy.offsetDays, 10) || 0
+                        text = `${shiftDays(exam.startDate, -off)} (${exam.name})`
+                      } else {
+                        text = duePolicy.fixedDate ? `${duePolicy.fixedDate} (fallback — no upcoming exam on the calendar)` : 'No upcoming exam on the calendar and no fallback date'
+                      }
+                    } else {
+                      text = duePolicy.fixedDate || 'No date set'
+                    }
+                    return [label, text]
+                  })
+                  return (
+                    <div className="border border-dashed border-[var(--color-border)] rounded-xl p-3 text-xs space-y-1">
+                      <p className="font-semibold text-[var(--color-text-secondary)]">Right now, a new student's due date would be:</p>
+                      {rows.map(([label, text]) => (
+                        <p key={label} className="text-[var(--color-text-muted)]"><span className="font-semibold text-[var(--color-text-primary)]">{label}:</span> {text}</p>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Receipt preview */}
@@ -3185,8 +3302,21 @@ export default function Settings() {
                 <button
                   onClick={() => {
                     try {
+                      const min = Number(minPayment)
+                      if (!Number.isFinite(min) || min <= 0) {
+                        setMinPaymentError('Enter an amount greater than 0')
+                        return
+                      }
                       // Save scoped to this campus — never affects other campuses
-                      saveCampusCfg(user?.campus, { cashierName })
+                      saveCampusCfg(user?.campus, {
+                        cashierName,
+                        minimumPayment: Math.round(min * 100) / 100,
+                        dueDatePolicy: {
+                          mode:       duePolicy.mode === 'fixed' ? 'fixed' : 'exam',
+                          offsetDays: Math.max(0, parseInt(duePolicy.offsetDays, 10) || 0),
+                          fixedDate:  duePolicy.fixedDate || '',
+                        },
+                      })
                       setCashierSaved(true)
                       setTimeout(() => setCashierSaved(false), 2000)
                     } catch {}

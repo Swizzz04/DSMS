@@ -11,7 +11,9 @@ import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { useLocation } from 'react-router-dom'
 import { useToast, ToastContainer, ConfirmDialog, PageSkeleton, EmptyState, ModalPortal } from '../components/UIComponents'
 import { useAppConfig } from '../context/AppConfigContext'
-import { getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS, BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { getMinimumPayment, computeDefaultDueDate, getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS, BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { printReceiptHtml } from '../utils/printReceipt'
+import { isOrNumberUsed } from '../utils/orNumbers'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
 import { useCampusFilter } from '../context/CampusFilterContext'
@@ -206,9 +208,9 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
 
 // ════════════════════════════════════════════════════════════════════
 // RECEIPT PRINT MODAL
-// Shown after accounting records payment — prints two-copy receipt
+// Shown after accounting records payment — prints a single official receipt
 // ════════════════════════════════════════════════════════════════════
-function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClose }) {
+function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClose, onPopupBlocked }) {
   const receiptRef = useRef(null)
   const studentName = formatStudentName(enrollment.student, { short: true })
   const gradeLevel  = enrollment.enrollment.gradeLevel || ''
@@ -226,8 +228,8 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
   const amtPaid     = paymentData.amountPaid || 0
   const balance     = paymentData.balance || 0
 
-  const ReceiptCopy = ({ copyLabel }) => (
-    <div className="receipt-copy border border-gray-300 rounded-lg p-5 bg-white text-gray-900" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+  const receiptPaper = (
+    <div className="receipt-paper receipt-copy border border-[var(--color-border-strong)] rounded-xl p-5" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
         <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName || 'School Name'}</p>
@@ -251,7 +253,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
       </div>
 
       {/* Student info */}
-      <div className="bg-[var(--color-bg-subtle)] rounded p-3 mb-3 text-xs space-y-1">
+      <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3 mb-3 text-xs space-y-1">
         <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Student:</span><span className="font-bold">{studentName}</span></div>
         <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Ref. No.:</span><span className="font-mono">{enrollment.referenceNumber}</span></div>
         <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Program:</span><span>{gradeLevel}</span></div>
@@ -346,42 +348,28 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
             </div>
           </div>
         </div>
-        <p className="mt-3 text-gray-400 text-[10px]">{copyLabel} — Thank you for your payment!</p>
+        <p className="mt-3 text-gray-400 text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
   )
 
   const handlePrint = () => {
-    const printContent = receiptRef.current?.innerHTML
-    if (!printContent) return
-    const w = window.open('', '_blank', 'width=780,height=900')
-    w.document.write(`<!DOCTYPE html><html><head><title>Receipt — ${studentName}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Georgia, serif; font-size: 13px; color: #111; background: #fff; }
-        .print-page { width: 100%; padding: 16px; }
-        .receipt-pair { display: flex; gap: 16px; }
-        .receipt-copy { flex: 1; border: 1px solid #999; border-radius: 8px; padding: 20px; }
-        .cut-line { border-top: 1px dashed #aaa; margin: 16px 0; text-align: center; font-size: 10px; color: #aaa; padding-top: 4px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 3px 0; }
-        @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
-      </style></head><body>
-      <div class="print-page">${printContent}</div>
-      <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 800); }<\/script>
-      </body></html>`)
-    w.document.close()
+    printReceiptHtml({
+      html:  receiptRef.current?.innerHTML,
+      title: `Receipt — ${studentName}`,
+      onBlocked: onPopupBlocked,
+    })
   }
 
   return (
     <ModalPortal>
       <div className="modal-backdrop">
-        <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
+        <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
           {/* Header */}
           <div className="modal-header">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                <Receipt className="w-5 h-5 text-green-600 dark:text-green-400"/>
+              <div className="w-10 h-10 bg-[var(--color-success-light)] rounded-full flex items-center justify-center">
+                <Receipt className="w-5 h-5 text-[var(--color-success-text)]"/>
               </div>
               <div>
                 <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Payment Receipt</h2>
@@ -394,27 +382,19 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
           </div>
 
           {/* Success banner */}
-          <div className="mx-5 mt-4 flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-4 py-3">
-            <BadgeCheck className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0"/>
+          <div className="mx-5 mt-4 flex items-center gap-2 bg-[var(--color-success-light)] border border-[var(--color-success-border)] rounded-xl px-4 py-3">
+            <BadgeCheck className="w-5 h-5 text-[var(--color-success-text)] flex-shrink-0"/>
             <div>
-              <p className="text-sm font-semibold text-green-800 dark:text-green-200">Payment recorded successfully!</p>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+              <p className="text-sm font-semibold text-[var(--color-success-text)]">Payment recorded successfully!</p>
+              <p className="text-xs text-[var(--color-success-text)] mt-0.5">
                 {php(amtPaid)} received · Balance: {balance > 0 ? php(balance) : 'Fully paid ✓'} · Registrar notified
               </p>
             </div>
           </div>
 
-          {/* Preview (two copies side by side on screen) */}
+          {/* Preview — one official receipt */}
           <div className="overflow-y-auto flex-1 p-5" ref={receiptRef}>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1">
-                <ReceiptCopy copyLabel="School Copy" />
-              </div>
-              <div className="hidden sm:block w-px bg-dashed border-l-2 border-dashed border-[var(--color-border)]" />
-              <div className="flex-1">
-                <ReceiptCopy copyLabel="Student Copy" />
-              </div>
-            </div>
+            {receiptPaper}
           </div>
 
           {/* Footer */}
@@ -425,7 +405,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
             </button>
             <button onClick={handlePrint}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
-              <Printer className="w-4 h-4"/> Print Receipt (2 copies)
+              <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
         </div>
@@ -785,17 +765,22 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
   })()
 
   const balance    = bill ? bill.grandTotal - (parseFloat(amountPaid)||0) : 0
-  const minPayment = bill?.enrollment || 1
+  // Minimum down payment is configurable per campus (Settings → Receipt & Payment,
+  // default ₱500). It is NOT the enrollment fee, and is capped at the grand total
+  // so a fully-discounted / small bill can still be settled.
+  const configuredMin = getMinimumPayment(campusName)
+  const minPayment    = bill ? Math.min(configuredMin, bill.grandTotal || configuredMin) : configuredMin
 
   const validate = () => {
     const errs = {}
     const paid = parseFloat(amountPaid)
     if (!amountPaid || paid <= 0) errs.amount = 'Enter a valid amount'
     else if (bill && paid < minPayment - 0.01)
-      errs.amount = `Minimum payment is ${php(minPayment)} (enrollment fee)`
+      errs.amount = `Minimum payment is ${php(minPayment)}`
     else if (bill && paid > bill.grandTotal + 0.01)
       errs.amount = `Cannot exceed grand total ${php(bill.grandTotal)}`
     if (!orNumber.trim()) errs.or = 'OR number is required'
+    else if (isOrNumberUsed(orNumber)) errs.or = 'This OR number is already used on another payment'
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -815,10 +800,21 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
     })
   }
 
+  // Shared look: every box inside this modal uses ONE border (1px, token colour)
+  // and ONE radius (rounded-xl) so edges line up. Semantic boxes only swap the
+  // colour tokens — never the width or radius.
+  const box      = 'rounded-xl border border-[var(--color-border)]'
+  const boxInfo  = 'rounded-xl border border-[var(--color-info-border)] bg-[var(--color-info-light)]'
+  const boxWarn  = 'rounded-xl border border-[var(--color-warning-border)] bg-[var(--color-warning-light)]'
+  const field    = 'w-full px-3 py-2.5 text-sm rounded-xl border bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition'
+  const fieldOk  = 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'
+  const fieldErr = 'border-[var(--color-error)] focus:ring-2 focus:ring-[var(--color-error-border)]'
+  const chip     = 'text-xs px-2.5 py-1 rounded-lg border transition font-medium'
+
   return (
     <ModalPortal>
     <div className="modal-backdrop">
-      <div className="bg-[var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)]">
+      <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[95vh] flex flex-col shadow-[var(--shadow-modal)] overflow-hidden">
         {/* Header */}
         <div className="modal-header">
           <div className="flex items-center gap-3 min-w-0">
@@ -843,12 +839,12 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         <div className="overflow-y-auto flex-1 p-5 space-y-5">
           {/* No fee entry warning */}
           {!feeEntry && (
-            <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
-              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"/>
-              <div className="text-xs text-amber-700 dark:text-amber-300">
+            <div className={`flex items-start gap-2 ${boxWarn} px-4 py-3`}>
+              <AlertCircle className="w-4 h-4 text-[var(--color-warning-text)] flex-shrink-0 mt-0.5"/>
+              <div className="text-xs text-[var(--color-warning-text)]">
                 <p className="font-semibold">No fee entry found for:</p>
                 <p className="mt-0.5">{gradeLevel} {yearLevel ? `· ${yearLevel}` : ''} {semesterRaw ? `· ${semesterRaw}` : ''} @ {campusName}</p>
-                <p className="mt-1 text-amber-600 dark:text-amber-400">
+                <p className="mt-1">
                   Please configure the fee structure in <strong>Settings → Fee Structure</strong> for this program, year level, and semester.
                 </p>
               </div>
@@ -857,38 +853,37 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
           {/* College unit inputs */}
           {isCollege && feeEntry?.tuitionRatePerUnit != null && (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
-              <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-3 flex items-center gap-1.5">
+            <div className={`${boxInfo} p-4`}>
+              <h3 className="text-xs font-semibold text-[var(--color-info-text)] mb-3 flex items-center gap-1.5 flex-wrap">
                 <GraduationCap className="w-3.5 h-3.5"/> Unit Load
-                {isTransferee && <span className="ml-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-[10px] font-medium">Transferee</span>}
+                {isTransferee && <span className="ml-1 px-2 py-0.5 bg-[var(--color-bg-subtle)] border border-[var(--color-border)] text-[var(--color-text-secondary)] rounded-full text-[10px] font-medium">Transferee</span>}
                 {bill?.loadStatus && bill.loadStatus !== 'Regular' && (
-                  <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-medium
-                    ${bill.loadStatus === 'Underload' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'}`}>
+                  <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--color-warning-border)] bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">
                     {bill.loadStatus}
                   </span>
                 )}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
+                  <label className="block text-xs text-[var(--color-info-text)] mb-1">
                     Lecture Units <span className="text-[var(--color-text-muted)]">(typical: {feeEntry.typicalUnits})</span>
                   </label>
                   <input type="number" min="0" max="40" value={actualUnits}
                     onChange={e => setActualUnits(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 dark:border-blue-700 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-blue-400 transition text-center font-mono font-bold"
+                    className={`${field} ${fieldOk} text-center font-mono font-bold`}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-blue-600 dark:text-blue-400 mb-1">
+                  <label className="block text-xs text-[var(--color-info-text)] mb-1">
                     Lab Units <span className="text-[var(--color-text-muted)]">(typical: {feeEntry.typicalLabUnits})</span>
                   </label>
                   <input type="number" min="0" max="20" value={actualLabUnits}
                     onChange={e => setActualLabUnits(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 dark:border-blue-700 rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-blue-400 transition text-center font-mono font-bold"
+                    className={`${field} ${fieldOk} text-center font-mono font-bold`}
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-2">
+              <p className="text-[10px] text-[var(--color-info-text)] mt-2">
                 Rate: {php(feeEntry.tuitionRatePerUnit)}/unit · Lab: {php(feeEntry.labRatePerUnit)}/unit
               </p>
             </div>
@@ -896,7 +891,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
 
           {/* Fee breakdown */}
           {bill && (
-            <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4 space-y-2">
+            <div className={`${box} bg-[var(--color-bg-subtle)] p-4 space-y-2`}>
               <h3 className="text-xs font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-3">Fee Breakdown</h3>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--color-text-secondary)]">
@@ -905,13 +900,13 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 <span className="font-mono">{php(bill.originalTuition)}</span>
               </div>
               {bill.discountBreakdown?.map((d, i) => (
-                <div key={i} className="flex justify-between text-xs text-red-500 dark:text-red-400 pl-3">
+                <div key={i} className="flex justify-between text-xs text-[var(--color-error-text)] pl-3">
                   <span>— {d.name} ({d.type === 'fixed' ? php(d.rate) : `${d.rate}%`} off)</span>
                   <span className="font-mono">- {php(d.deduction)}</span>
                 </div>
               ))}
               {bill.totalDiscount > 0 && (
-                <div className="flex justify-between text-sm font-semibold text-green-600 dark:text-green-400 border-t border-dashed border-[var(--color-border)] pt-2">
+                <div className="flex justify-between text-sm font-semibold text-[var(--color-success-text)] border-t border-dashed border-[var(--color-border)] pt-2">
                   <span>Tuition after discount</span>
                   <span className="font-mono">{php(bill.tuitionAfterDiscount)}</span>
                 </div>
@@ -927,18 +922,12 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                   <span className="font-mono">{php(f.val)}</span>
                 </div>
               ))}
-              <div className="flex justify-between text-base font-bold text-[var(--color-text-primary)] border-t-2 border-[var(--color-border-strong)] pt-2 mt-1">
+              <div className="flex justify-between text-base font-bold text-[var(--color-text-primary)] border-t border-[var(--color-border-strong)] pt-2 mt-1">
                 <span>Grand Total</span>
                 <span className="font-mono text-[var(--color-primary-readable)]">{php(bill.grandTotal)}</span>
               </div>
-              {bill.enrollment > 0 && (
-                <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  <span>Minimum payment required (enrollment fee)</span>
-                  <span className="font-mono font-semibold">{php(bill.enrollment)}</span>
-                </div>
-              )}
               {bill.totalDiscount > 0 && (
-                <p className="text-xs text-green-600 dark:text-green-400 text-right">
+                <p className="text-xs text-[var(--color-success-text)] text-right">
                   Saved {php(bill.totalDiscount)} on tuition!
                 </p>
               )}
@@ -959,7 +948,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                       className={`text-left px-3 py-2.5 rounded-xl border text-xs transition flex items-start gap-2
                         ${selected
                           ? 'border-[var(--color-primary-readable)] bg-primary/5 dark:bg-primary/10'
-                          : 'border-[var(--color-border)] hover:border-primary/50'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
                         }`}>
                       <div className={`w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border transition
                         ${selected ? 'bg-primary border-primary' : 'border-[var(--color-border-strong)]'}`}>
@@ -987,42 +976,39 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
             {/* Amount */}
             <div>
               <label className="form-label">
-                Amount Paid Now <span className="text-red-500">*</span>
+                Amount Paid Now <span className="text-[var(--color-error-text)]">*</span>
                 {bill && <span className="ml-1 font-normal text-[var(--color-text-muted)]">(grand total: {php(bill.grandTotal)})</span>}
               </label>
-              {bill?.enrollment > 0 && (
-                <div className="flex items-center gap-1.5 mb-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg px-3 py-2">
-                  <Info className="w-3.5 h-3.5 flex-shrink-0"/>
-                  Minimum payment: <strong>{php(bill.enrollment)}</strong> — whatever is paid now is deducted from the grand total
-                </div>
-              )}
+              <div className={`flex items-center gap-1.5 mb-2 text-xs text-[var(--color-warning-text)] ${boxWarn} px-3 py-2`}>
+                <Info className="w-3.5 h-3.5 flex-shrink-0"/>
+                <span>Minimum payment: <strong>{php(minPayment)}</strong> — whatever is paid now is deducted from the grand total</span>
+              </div>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-semibold text-sm">₱</span>
                 <input type="number" min="1" value={amountPaid}
                   onChange={e => setAmountPaid(e.target.value)}
                   placeholder="Enter amount"
-                  className={`w-full pl-7 pr-4 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.amount ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                  className={`${field} pl-7 pr-4 ${errors.amount ? fieldErr : fieldOk}`}
                 />
               </div>
-              {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
+              {errors.amount && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.amount}</p>}
               {/* Quick amount buttons */}
               <div className="flex gap-2 mt-2 flex-wrap">
-                {bill?.enrollment > 0 && (
-                  <button onClick={() => setAmountPaid(String(bill.enrollment))}
-                    className="text-xs px-2.5 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg hover:bg-amber-500 hover:text-white transition font-medium border border-amber-300 dark:border-amber-700">
-                    Min ₱{bill.enrollment.toLocaleString()}
-                  </button>
-                )}
-                {[500,1000,2000,5000].filter(v => !bill?.enrollment || v !== bill.enrollment).map(v => (
+                <button onClick={() => setAmountPaid(String(minPayment))}
+                  className={`${chip} bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)] hover:bg-[var(--color-warning)] hover:text-[var(--color-text-inverse)] hover:border-[var(--color-warning)]`}>
+                  Min ₱{minPayment.toLocaleString()}
+                </button>
+                {[500,1000,2000,5000]
+                  .filter(v => v > minPayment && (!bill || v < bill.grandTotal))
+                  .map(v => (
                   <button key={v} onClick={() => setAmountPaid(String(v))}
-                    className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
+                    className={`${chip} bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-primary hover:text-[var(--color-primary-contrast)] hover:border-primary`}>
                     ₱{v.toLocaleString()}
                   </button>
                 ))}
                 {bill && (
                   <button onClick={() => setAmountPaid(String(bill.grandTotal))}
-                    className="text-xs px-2.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-600 hover:text-white transition font-medium">
+                    className={`${chip} bg-[var(--color-success-light)] text-[var(--color-success-text)] border-[var(--color-success-border)] hover:bg-[var(--color-success)] hover:text-[var(--color-text-inverse)] hover:border-[var(--color-success)]`}>
                     Full ₱{bill.grandTotal.toLocaleString()}
                   </button>
                 )}
@@ -1031,7 +1017,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               {bill && amountPaid && parseFloat(amountPaid) > 0 && (
                 <div className="mt-2 flex justify-between text-xs">
                   <span className="text-[var(--color-text-muted)]">Remaining balance after this payment:</span>
-                  <span className={`font-mono font-semibold ${balance > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
+                  <span className={`font-mono font-semibold ${balance > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-success-text)]'}`}>
                     {balance > 0 ? php(balance) : 'Fully paid ✓'}
                   </span>
                 </div>
@@ -1055,20 +1041,18 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
             {/* OR number */}
             <div>
               <label className="form-label">
-                OR Number <span className="text-red-500">*</span>
+                OR Number <span className="text-[var(--color-error-text)]">*</span>
               </label>
               <div className="flex gap-2">
                 <input type="text" value={orNumber} onChange={e => setOrNumber(e.target.value)}
-                  className={`flex-1 px-3 py-2.5 text-sm font-mono border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.or ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                  className={`${field} flex-1 font-mono ${errors.or ? fieldErr : fieldOk}`}
                 />
-                <button onClick={() => setOrNumber(`OR-${new Date().getFullYear().toString().slice(-2)}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.floor(Math.random()*9000+1000)}`)
-                }
-                  className="px-3 py-2.5 text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-xl hover:bg-[var(--color-bg-muted)] transition font-medium whitespace-nowrap">
+                <button onClick={() => setOrNumber(`OR-${new Date().getFullYear().toString().slice(-2)}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.floor(Math.random()*9000+1000)}`)}
+                  className="px-3 py-2.5 text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-xl border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition font-medium whitespace-nowrap">
                   Generate
                 </button>
               </div>
-              {errors.or && <p className="text-xs text-red-500 mt-1">{errors.or}</p>}
+              {errors.or && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.or}</p>}
             </div>
 
             {/* Notes */}
@@ -1076,20 +1060,20 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
               <label className="form-label">Notes (optional)</label>
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
                 placeholder="e.g. Down payment, Monthly installment — March..."
-                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition"
+                className={`${field} ${fieldOk}`}
               />
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer">
+        <div className="modal-footer gap-3">
           <button onClick={onClose}
             className="btn-cancel">
             Cancel
           </button>
           <button onClick={handleConfirm}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition font-semibold shadow-sm">
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl border border-[var(--color-success)] hover:opacity-90 transition font-semibold shadow-sm">
             <CheckCircle className="w-4 h-4"/> Confirm Payment & Update Status
           </button>
         </div>
@@ -1121,7 +1105,7 @@ function toTitleCase(str) {
 // ════════════════════════════════════════════════════════════════════
 export default function Enrollments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
 
   const campusDiscounts = (() => {
     try {
@@ -1256,8 +1240,15 @@ export default function Enrollments() {
     }
   }, [location.state])
 
-  const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' || (user?.role === 'accounting' && user?.campus !== 'all')
+  const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' ||
+    user?.role === 'principal_basic' || user?.role === 'program_head' ||
+    (user?.role === 'accounting' && user?.campus !== 'all')
   const effectiveCampusFilter = isCampusLocked ? user.campus : campusFilter
+  // campusFilter holds a campus KEY ('Carcar'); enrollment.campus holds the NAME
+  // ('Carcar City Campus'), so resolve key -> name before comparing.
+  const campusFilterName = effectiveCampusFilter === 'all'
+    ? 'all'
+    : (activeCampuses.find(c => c.key === effectiveCampusFilter)?.name || effectiveCampusFilter)
 
   if (loading) return <PageSkeleton title="Enrollments" />
 
@@ -1284,6 +1275,7 @@ export default function Enrollments() {
       const campusMatch = user?.campus === 'all' || c === user.campus
       return campusMatch && (e.status === 'pending' || e.status === 'payment_received')
     }
+    if (user?.role === 'principal_basic' || user?.role === 'program_head') return c === user.campus
     if (user?.role === 'registrar_basic')   return isBasicGrade(g) && c === user.campus
     if (user?.role === 'registrar_college') return isCollegeGrade(g) && c === user.campus
     return true
@@ -1293,7 +1285,7 @@ export default function Enrollments() {
     const name = formatStudentName(e.student, {short: true}).toLowerCase()
     const matchSearch = name.includes(searchQuery.toLowerCase()) || e.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())
     const matchStatus = statusFilter === 'all' || e.status === statusFilter
-    const matchCampus = isCampusLocked || effectiveCampusFilter === 'all' || e.enrollment.campus === effectiveCampusFilter
+    const matchCampus = isCampusLocked || campusFilterName === 'all' || e.enrollment.campus === campusFilterName
     const matchGrade  = gradeLevelFilter === 'all' || e.enrollment.gradeLevel === gradeLevelFilter
     let matchTime = true
     if (timeFilter !== 'all') {
@@ -1348,6 +1340,7 @@ export default function Enrollments() {
     const lastPayment = enrollment.paymentHistory?.[enrollment.paymentHistory.length - 1]
     if (!lastPayment) return
     setReceiptData({
+      isReprint: true,
       enrollment,
       paymentData: {
         feeBreakdown:     enrollment.feeBreakdown,
@@ -1365,19 +1358,53 @@ export default function Enrollments() {
     setShowDetailDrawer(false)
   }
 
-  const handleFeeAssessmentConfirm = (paymentData) => {
+  const handleFeeAssessmentConfirm = (incoming) => {
     const id  = feeModalEnroll.id
     const ref = feeModalEnroll.referenceNumber
+
+    // Re-check the rules here too (the modal checks them, but this is the
+    // point where data is saved — and where a backend will enforce them).
+    const minRequired = Math.min(getMinimumPayment(feeModalEnroll.enrollment?.campus), incoming.totalFee || Infinity)
+    if (!(incoming.amountPaid > 0) || incoming.amountPaid < minRequired - 0.01) {
+      addToast(`Minimum payment is ${php(minRequired)}.`, 'error')
+      return
+    }
+    if (incoming.totalFee > 0 && incoming.amountPaid > incoming.totalFee + 0.01) {
+      addToast('Payment cannot exceed the grand total.', 'error')
+      return
+    }
+
+    if (isOrNumberUsed(incoming.orNumber)) {
+      addToast('That OR number is already used on another payment.', 'error')
+      return
+    }
+
+    // Default due date for the remaining balance, from the campus policy (Settings → Receipt & Payment).
+    // Only set once — a date already on the record (e.g. moved by a promissory note) is kept.
+    const dueDate = feeModalEnroll.dueDate || computeDefaultDueDate({
+      campusName: feeModalEnroll.enrollment?.campus,
+      department: isCollegeGrade(feeModalEnroll.enrollment?.gradeLevel || '') ? 'college' : 'basicEd',
+      schoolYear: feeModalEnroll.enrollment?.schoolYear,
+      schoolYears,
+    })
+
+    // Keep any payments already on record — append, never replace.
+    const prevHistory = Array.isArray(feeModalEnroll.paymentHistory) ? feeModalEnroll.paymentHistory : []
+    const prevPaid    = prevHistory.length ? (feeModalEnroll.amountPaid || 0) : 0
+    const totalPaid   = prevPaid + incoming.amountPaid
+    const balance     = Math.max(0, (incoming.totalFee || 0) - totalPaid)
+    // The receipt shows the balance after ALL payments
+    const paymentData = { ...incoming, balance }
 
     const updatedFields = {
       status:           'payment_received',
       totalFee:         paymentData.totalFee,
-      amountPaid:       paymentData.amountPaid,
-      balance:          paymentData.balance,
+      amountPaid:       totalPaid,
+      balance,
       feeBreakdown:     paymentData.feeBreakdown,
       discountsApplied: paymentData.discountsApplied,
-      paymentHistory:   [{
-        id:         1,
+      paymentHistory:   [...prevHistory, {
+        id:         prevHistory.length + 1,
         amount:     paymentData.amountPaid,
         method:     paymentData.paymentMethod,
         date:       paymentData.paymentDate,
@@ -1390,7 +1417,8 @@ export default function Enrollments() {
         ]
       }],
       lastPaymentDate: paymentData.paymentDate,
-      paymentMethod:   paymentData.paymentMethod
+      paymentMethod:   paymentData.paymentMethod,
+      ...(dueDate ? { dueDate } : {}),
     }
 
     setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...updatedFields } : e))
@@ -1469,7 +1497,7 @@ export default function Enrollments() {
   }
 
   const hasFilters = searchQuery || statusFilter !== defaultStatus() || timeFilter !== 'all' || gradeLevelFilter !== 'all'
-  const clearFilters = () => { setSearchQuery(''); setStatusFilter('all'); setTimeFilter('all'); setGradeLevelFilter('all') }
+  const clearFilters = () => { setSearchQuery(''); setStatusFilter(defaultStatus()); setTimeFilter('all'); setGradeLevelFilter('all') }
   const fmtDate = (d) => new Date(d).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
 
   // ── Accounting: today's collection summary bar ──
@@ -1503,12 +1531,6 @@ export default function Enrollments() {
               ? 'Record and manage student payments for enrollment'
               : 'Review and manage enrollment applications'}
           </p>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <button onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
-            <Download className="w-4 h-4" /> Export
-          </button>
         </div>
       </div>
 
@@ -1972,7 +1994,13 @@ export default function Enrollments() {
           paymentData={receiptData.paymentData}
           cashierName={cashierName}
           schoolYear={currentSchoolYear}
-          onClose={() => { setShowReceiptModal(false); setReceiptData(null); addToast('Payment recorded — registrar has been notified! ✓', 'success'); window.dispatchEvent(new CustomEvent('almirene_enrollment_updated')); loadBridge() }}
+          onPopupBlocked={() => addToast('Pop-up blocked — allow pop-ups for this site to print the receipt.', 'error')}
+          onClose={() => {
+            const wasReprint = receiptData?.isReprint
+            setShowReceiptModal(false); setReceiptData(null)
+            if (!wasReprint) addToast('Payment recorded — registrar has been notified! ✓', 'success')
+            window.dispatchEvent(new CustomEvent('almirene_enrollment_updated')); loadBridge()
+          }}
         />
       )}
 
