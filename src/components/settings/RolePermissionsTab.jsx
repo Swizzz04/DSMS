@@ -171,8 +171,8 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
                             : 'bg-[var(--color-bg-card)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary/30'}`}
                       >
                         <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                          ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border)]'}`}>
-                          {checked && <Check size={10} className="text-[var(--color-primary-contrast)]" />}
+                          ${checked ? 'is-selected' : 'border-[var(--color-border)]'}`}>
+                          {checked && <Check size={10} className="text-[var(--color-selected-contrast)]" />}
                         </div>
                         <input
                           type="checkbox"
@@ -205,8 +205,8 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
                           : 'bg-[var(--color-bg-card)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-primary/30'}`}
                     >
                       <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors
-                        ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border)]'}`}>
-                        {checked && <Check size={10} className="text-[var(--color-primary-contrast)]" />}
+                        ${checked ? 'is-selected' : 'border-[var(--color-border)]'}`}>
+                        {checked && <Check size={10} className="text-[var(--color-selected-contrast)]" />}
                       </div>
                       <input
                         type="checkbox"

@@ -951,8 +951,8 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                           : 'border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
                         }`}>
                       <div className={`w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border transition
-                        ${selected ? 'bg-primary border-primary' : 'border-[var(--color-border-strong)]'}`}>
-                        {selected && <CheckCircle className="w-3 h-3 text-[var(--color-primary-contrast)]"/>}
+                        ${selected ? 'is-selected' : 'border-[var(--color-border-strong)]'}`}>
+                        {selected && <CheckCircle className="w-3 h-3 text-[var(--color-selected-contrast)]"/>}
                       </div>
                       <div>
                         <p className={`font-semibold ${selected ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-primary)]'}`}>
@@ -1031,7 +1031,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                 {['Cash','Bank Transfer'].map(m => (
                   <button key={m} onClick={() => setPayMethod(m)}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition
-                      ${payMethod === m ? 'bg-primary text-[var(--color-primary-contrast)] border-primary' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
+                      ${payMethod === m ? 'is-selected' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
                     {m === 'Cash' ? '💵' : '🏦'} {m}
                   </button>
                 ))}

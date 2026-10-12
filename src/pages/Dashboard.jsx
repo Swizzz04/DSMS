@@ -33,6 +33,7 @@ import {
   PointElement, LineElement,
   Title, Tooltip, Legend
 } from 'chart.js'
+import { getSubmissionDueDate, getPaymentStatus } from '../config/appConfig'
 import { useAuth } from '../context/AuthContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -87,7 +88,7 @@ function chartTheme() {
 // ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
   const { campusFilter = 'all' } = useCampusFilter()
   const [loading, setLoading] = useState(true)
   const [submissions, setSubmissions] = useState(loadSubmissions)
@@ -171,7 +172,7 @@ export default function Dashboard() {
       totalFee:   s.totalFee   || 0,
       amountPaid: s.amountPaid || 0,
       balance:    s.balance    || 0,
-      status:     (s.balance || 0) <= 0 ? 'paid' : 'partial'
+      status:     getPaymentStatus(s.balance || 0, getSubmissionDueDate(s, { schoolYears, isCollegeGrade }))
     }))
 
   const filteredStudents = submissions

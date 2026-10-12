@@ -508,7 +508,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
       <div className="flex gap-2">
         {SEMESTERS.map(sem => (
           <button key={sem} onClick={() => setSemFilter(sem)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${semFilter === sem ? 'bg-primary text-[var(--color-primary-contrast)]' : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${semFilter === sem ? 'is-selected' : 'bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}>
             {sem} Semester
           </button>
         ))}

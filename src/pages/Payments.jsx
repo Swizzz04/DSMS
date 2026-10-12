@@ -14,13 +14,14 @@ import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, Export
 import GroupedSelect from '../components/GroupedSelect'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
-import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS, computeDefaultDueDate, isPastDue, daysPast, toYMD, todayYMD } from '../config/appConfig'
+import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS, getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD } from '../config/appConfig'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import {
   DeptPaymentCard,
   ProgramPaymentCard,
   PaymentStatusBadge as StatusBadge,
-  DEPT_STYLES, PROG_COLORS
+  DEPT_STYLES, PROG_COLORS,
+  DeptToggle as SharedDeptToggle
 } from '../components/SchoolComponents'
 
 
@@ -307,14 +308,8 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
 // ════════════════════════════════════════════════════════════════════
 
 // ── OR Number generator ───────────────────────────────────────────
-// Status comes from the balance and the due date:
-//   paid     → nothing left to pay
-//   overdue  → balance left AND the due date has passed
-//   partial  → balance left, still within the due date
-function derivePaymentStatus(balance, dueDate) {
-  if ((balance || 0) <= 0) return 'paid'
-  return isPastDue(dueDate) ? 'overdue' : 'partial'
-}
+// Status comes from the balance and the due date (shared rule in appConfig.js)
+const derivePaymentStatus = getPaymentStatus
 
 const fmtLongDate = (d) => d
   ? new Date((toYMD(d) || '') + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -675,7 +670,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                 <button key={m} onClick={() => setMethod(m)}
                   className={`flex-1 py-2.5 text-sm font-semibold rounded-xl border transition
                     ${method === m
-                      ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                      ? 'is-selected'
                       : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'
                     }`}>
                   {m === 'Cash' ? '💵' : '🏦'} {m}
@@ -721,8 +716,8 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
                         : 'border-[var(--color-border)] hover:border-primary/50 bg-[var(--color-bg-subtle)]'
                       }`}>
                     <div className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition
-                      ${checked ? 'bg-primary border-primary' : 'border-[var(--color-border-strong)]'}`}>
-                      {checked && <CheckCircle className="w-2.5 h-2.5 text-[var(--color-primary-contrast)]"/>}
+                      ${checked ? 'is-selected' : 'border-[var(--color-border-strong)]'}`}>
+                      {checked && <CheckCircle className="w-2.5 h-2.5 text-[var(--color-selected-contrast)]"/>}
                     </div>
                     <div className="min-w-0">
                       <p className={`text-xs font-semibold truncate ${checked ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-primary)]'}`}>
@@ -785,35 +780,13 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
 // ── Department Toggle ─────────────────────────────────────────────
 // Reusable All / Basic Ed / College pill-toggle
 // value: 'all' | 'basic' | 'college'
+const PAYMENT_DEPT_OPTIONS = [
+  { val: 'all',     label: 'All'      },
+  { val: 'basic',   label: 'Basic Ed' },
+  { val: 'college', label: 'College'  },
+]
 function DeptToggle({ value, onChange }) {
-  const tabs = [
-    { id: 'all',     label: 'All'      },
-    { id: 'basic',   label: 'Basic Ed' },
-    { id: 'college', label: 'College'  },
-  ]
-  return (
-    <div className="inline-flex items-stretch border border-[var(--color-border)] rounded-lg overflow-hidden flex-shrink-0">
-      {tabs.map((t, idx) => (
-        <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          className={[
-            'px-3 py-2 text-sm font-semibold transition whitespace-nowrap touch-manipulation',
-            idx > 0 && 'border-l border-[var(--color-border)]',
-            value === t.id
-              ? t.id === 'all'
-                ? 'bg-primary text-[var(--color-primary-contrast)]'
-                : t.id === 'basic'
-                  ? 'bg-[var(--color-success)] text-[var(--color-text-inverse)]'
-                  : 'bg-secondary text-[var(--color-secondary-contrast)]'
-              : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
-          ].filter(Boolean).join(' ')}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SharedDeptToggle value={value} onChange={onChange} options={PAYMENT_DEPT_OPTIONS} />
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -1645,12 +1618,14 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
 // ─────────────────────────────────────────────────────────────────────
 function ExtendDueDateModal({ payment, onClose, onSave }) {
   const [newDate,  setNewDate]  = useState('')
-  const [reason,   setReason]   = useState('')
-  const [noteRef,  setNoteRef]  = useState('')
+  const [reasonCode, setReasonCode] = useState('')
+  const [remarks,  setRemarks]  = useState('')
+  const [letterOk, setLetterOk] = useState(false)
   const [errors,   setErrors]   = useState({})
 
   const current = payment.dueDate || ''
   const minDate = current && current > todayYMD() ? current : todayYMD()
+  const extDays = newDate ? daysPast(current || todayYMD(), newDate) : 0
 
   const validate = () => {
     const e = {}
@@ -1658,14 +1633,17 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
     else if (newDate <= minDate)     e.date   = current && current > todayYMD()
       ? 'The new date must be later than the current due date'
       : 'The new date must be after today'
-    if (reason.trim().length < 5)    e.reason = 'Enter the reason (e.g. promissory note details)'
+    if (!reasonCode)                 e.reason  = 'Select the reason'
+    if (reasonCode === 'other' && remarks.trim().length < 5) e.remarks = 'Describe the reason'
+    if (!letterOk)                   e.letter  = 'Confirm that the signed letter was received'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   const handleSave = () => {
     if (!validate()) return
-    onSave({ newDate, reason: reason.trim(), noteRef: noteRef.trim() })
+    const label = EXTENSION_REASONS.find(r => r.value === reasonCode)?.label || reasonCode
+    onSave({ newDate, reasonCode, reason: label, remarks: remarks.trim(), letterReceived: true })
   }
 
   return (
@@ -1701,22 +1679,56 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
 
           <div>
             <DatePicker label="New Due Date" value={newDate} onChange={v => { setNewDate(v); setErrors(p => ({ ...p, date: '' })) }} />
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-[11px] text-[var(--color-text-muted)]">Quick:</span>
+              {EXTENSION_QUICK_DAYS.map(n => (
+                <button key={n} type="button"
+                  onClick={() => { setNewDate(shiftDays(minDate, n)); setErrors(p => ({ ...p, date: '' })) }}
+                  className="min-h-[40px] px-3.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)] transition">
+                  +{n} days
+                </button>
+              ))}
+            </div>
             {errors.date && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.date}</p>}
+            {!errors.date && extDays > 0 && (
+              <p className={`text-xs mt-1 ${extDays > DEFAULT_MAX_EXTENSION_DAYS ? 'text-[var(--color-warning-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
+                +{extDays} day{extDays !== 1 ? 's' : ''}{extDays > DEFAULT_MAX_EXTENSION_DAYS ? ` — longer than the usual ${DEFAULT_MAX_EXTENSION_DAYS} days; make sure the promissory note covers it` : ''}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="form-label">Reason / Promissory Note <span className="text-[var(--color-error-text)]">*</span></label>
-            <textarea rows={3} value={reason} onChange={e => { setReason(e.target.value); setErrors(p => ({ ...p, reason: '' })) }}
-              placeholder="e.g. Parent submitted a promissory note — will pay after harvest season"
-              className={`w-full px-3 py-2.5 text-sm rounded-xl border bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition resize-none
-                ${errors.reason ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`} />
+            <label className="form-label">Reason <span className="text-[var(--color-error-text)]">*</span></label>
+            <GroupedSelect
+              value={reasonCode || 'all'}
+              onChange={v => { setReasonCode(v === 'all' ? '' : v); setErrors(p => ({ ...p, reason: '' })) }}
+              placeholder="Select a reason"
+              allLabel={null}
+              options={EXTENSION_REASONS}
+            />
             {errors.reason && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.reason}</p>}
           </div>
 
+          {reasonCode === 'other' && (
+            <div>
+              <label className="form-label">Remarks <span className="text-[var(--color-error-text)]">*</span></label>
+              <input type="text" value={remarks} onChange={e => { setRemarks(e.target.value); setErrors(p => ({ ...p, remarks: '' })) }}
+                placeholder="Short description"
+                className={`w-full px-3 py-2.5 text-sm rounded-xl border bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition ${errors.remarks ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`} />
+              {errors.remarks && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.remarks}</p>}
+            </div>
+          )}
+
           <div>
-            <label className="form-label">Promissory Note No. (optional)</label>
-            <input type="text" value={noteRef} onChange={e => setNoteRef(e.target.value)} placeholder="e.g. PN-2026-014"
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20 transition" />
+            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${errors.letter ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)]'}`}>
+              <input type="checkbox" checked={letterOk}
+                onChange={e => { setLetterOk(e.target.checked); setErrors(p => ({ ...p, letter: '' })) }}
+                className="mt-0.5 w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+              <span className="text-sm text-[var(--color-text-secondary)]">
+                I received the signed promissory note letter from the parent / guardian or student.
+              </span>
+            </label>
+            {errors.letter && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.letter}</p>}
           </div>
         </div>
 
@@ -1773,6 +1785,7 @@ export default function Payments() {
     const load = () => {
       try {
         const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+        const frozenDates = new Map()
         const paid = subs.filter(s =>
           (s.status === 'payment_received' || s.status === 'approved') &&
           (s.amountPaid > 0 || s.paymentHistory?.length > 0) &&
@@ -1787,13 +1800,10 @@ export default function Payments() {
           }] : [])
           // Due date: the one saved on the record (set at enrollment or moved by a
           // promissory note); otherwise worked out from the campus policy.
-          const dueDate = s.dueDate || computeDefaultDueDate({
-            campusName: campus,
-            department: isCollegeGrade(gradeLevel) ? 'college' : 'basicEd',
-            schoolYear: s.enrollment?.schoolYear,
-            schoolYears,
-            fromDate:   history[0]?.date || s.lastPaymentDate || s.submittedDate,
-          })
+          const dueDate = getSubmissionDueDate(s, { schoolYears, isCollegeGrade })
+          // Freeze: a date worked out from the calendar is saved on the record, so later
+          // calendar edits only affect new students (existing dates move only by extension).
+          if (!s.dueDate && dueDate) frozenDates.set(s.referenceNumber, dueDate)
           const balance = s.balance || 0
           return {
             studentId:      s.referenceNumber,
@@ -1818,6 +1828,12 @@ export default function Payments() {
             submittedDate:    s.submittedDate
           }
         })
+        if (frozenDates.size > 0) {
+          const next = subs.map(s => (!s.dueDate && frozenDates.has(s.referenceNumber))
+            ? { ...s, dueDate: frozenDates.get(s.referenceNumber), dueDateSource: 'auto' }
+            : s)
+          localStorage.setItem('almirene_submissions', JSON.stringify(next))
+        }
         // Always replace — otherwise switching to a campus with no payments keeps showing the previous list
         setPayments(paid)
       } catch {}
@@ -1920,15 +1936,25 @@ export default function Payments() {
   }
 
   // Promissory note: move this student's due date and keep the reason on record
-  const handleExtendDueDate = ({ newDate, reason, noteRef }) => {
+  const handleExtendDueDate = ({ newDate, reasonCode, reason, remarks, letterReceived }) => {
+    if (user?.role !== 'accounting') {
+      addToast('Only accounting can extend a due date.', 'error')
+      return
+    }
     const ext = {
       id:     Date.now(),
       from:   selectedPayment.dueDate || '',
       to:     newDate,
+      reasonCode,
       reason,
-      noteRef,
-      by:     user?.name || 'Accounting',
-      date:   new Date().toISOString(),
+      remarks,
+      letterReceived,
+      days:    daysPast(selectedPayment.dueDate || todayYMD(), newDate),
+      balance: selectedPayment.balance,
+      by:      user?.name || 'Accounting',
+      role:    user?.role || '',
+      campus:  selectedPayment.campus || '',
+      date:    new Date().toISOString(),
     }
     try {
       const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
@@ -2360,10 +2386,10 @@ export default function Payments() {
                         {selectedPayment.dueDateExtensions.map(x => (
                           <div key={x.id} className="py-2 border-b border-[var(--color-border)] last:border-0">
                             <p className="text-xs font-semibold text-[var(--color-text-primary)]">
-                              {fmtShortDate(x.from)} → {fmtShortDate(x.to)}
-                              {x.noteRef && <span className="ml-2 font-mono font-normal text-[var(--color-primary-readable)]">{x.noteRef}</span>}
+                              {fmtShortDate(x.from)} → {fmtShortDate(x.to)}{x.days > 0 && <span className="ml-2 font-normal text-[var(--color-text-muted)]">(+{x.days}d)</span>}
                             </p>
-                            <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{x.reason}</p>
+                            <p className="text-xs text-[var(--color-text-muted)] italic mt-0.5">{x.reason}{x.remarks ? ` — ${x.remarks}` : ''}</p>
+                            {x.letterReceived && <p className="text-[10px] text-[var(--color-success-text)] mt-0.5">Signed letter received</p>}
                             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{x.by} · {fmtShortDate(x.date)}</p>
                           </div>
                         ))}
@@ -2399,10 +2425,12 @@ export default function Payments() {
                   </button>
                   {(user?.role === 'accounting' || (user?.role === 'admin' || user?.role === 'technical_admin')) && selectedPayment.status !== 'paid' && (
                     <div className="flex items-center gap-2 flex-wrap justify-end">
-                      <button onClick={() => setShowExtendModal(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-semibold">
-                        <Calendar className="w-4 h-4" /> Extend Due Date
-                      </button>
+                      {user?.role === 'accounting' && (
+                        <button onClick={() => setShowExtendModal(true)}
+                          className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-xl hover:bg-[var(--color-bg-subtle)] transition font-semibold">
+                          <Calendar className="w-4 h-4" /> Extend Due Date
+                        </button>
+                      )}
                       <button onClick={() => { setShowModal(false); handleRecordPayment(selectedPayment) }}
                         className="flex items-center gap-2 px-5 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl hover:opacity-90 transition font-semibold shadow-sm">
                         <Plus className="w-4 h-4" /> Record Payment

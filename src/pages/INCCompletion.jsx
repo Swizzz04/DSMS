@@ -453,7 +453,7 @@ export default function INCCompletion() {
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
                   ${statusFilter === f.id
-                    ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                    ? 'is-selected'
                     : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                 {f.label}
               </button>

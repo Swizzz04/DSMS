@@ -157,6 +157,27 @@ function readableForeground(hex, isDarkMode) {
   return rgbToHex(r, g, b)
 }
 
+/**
+ * The fill for a SELECTED toggle / chip / tab / segmented button — the
+ * "inverted chip": dark fill + light text on a light page, light fill + dark
+ * text on a dark page. Derived from the school's SECONDARY colour, pushed far
+ * enough toward black (light mode) or white (dark mode) that it always stands
+ * out from the card surface, so it works for any colour a school configures.
+ * With the default palette this gives #212121 (light) and #F4FAFC (dark).
+ */
+function selectedFill(hex, isDarkMode) {
+  let { r, g, b } = hexToRgb(hex)
+  let tries = 0
+  if (!isDarkMode) {
+    while (relativeLuminance(rgbToHex(r, g, b)) > 0.05 && tries < 40) { r *= 0.88; g *= 0.88; b *= 0.88; tries++ }
+  } else {
+    while (relativeLuminance(rgbToHex(r, g, b)) < 0.5 && tries < 40) {
+      r += (255 - r) * 0.2; g += (255 - g) * 0.2; b += (255 - b) * 0.2; tries++
+    }
+  }
+  return rgbToHex(r, g, b)
+}
+
 /** WCAG 2.x contrast ratio between two colors (1 = no contrast, 21 = max). */
 export function contrastRatio(hexA, hexB) {
   const lA = relativeLuminance(hexA)
@@ -244,6 +265,11 @@ export function applyTheme(config) {
   root.style.setProperty('--color-secondary-contrast-rgb', hexToRgbTriplet(contrastOn(secondary)))
   root.style.setProperty('--color-primary-readable', readableForeground(primary, isDarkMode))
   root.style.setProperty('--color-secondary-readable', readableForeground(secondary, isDarkMode))
+
+  // Selected state of every toggle / chip / tab (.is-selected in index.css)
+  const selected = selectedFill(secondary, isDarkMode)
+  root.style.setProperty('--color-selected', selected)
+  root.style.setProperty('--color-selected-contrast', contrastOn(selected))
 
   // For text sitting on the SCHOOL'S OTHER custom color rather than the page
   // (e.g. primary-colored brand text on the login screen's secondary-colored
