@@ -1239,21 +1239,72 @@ export function findNextExam(schoolYears, schoolYear, department, fromDate = tod
   return events[0] || null
 }
 
+/** Longest promissory-note extension (days) accounting can grant without a warning */
+export const DEFAULT_MAX_EXTENSION_DAYS = 60
+
+/** Quick-pick reasons for a due-date extension (promissory note). 'other' requires a typed remark. */
+export const EXTENSION_REASONS = [
+  { value: 'financial',   label: 'Financial difficulty' },
+  { value: 'remittance',  label: 'Waiting for remittance (OFW / family abroad)' },
+  { value: 'income',      label: 'Waiting for harvest / seasonal income' },
+  { value: 'scholarship', label: 'Waiting for scholarship / grant release' },
+  { value: 'emergency',   label: 'Medical / family emergency' },
+  { value: 'other',       label: 'Other (specify)' },
+]
+
+/** Quick-extend buttons in the Extend Due Date modal (days) */
+export const EXTENSION_QUICK_DAYS = [7, 14, 30]
+
+/**
+ * Work out a due date from an explicit policy (so Settings can preview unsaved edits).
+ * @returns {{ date: string, source: 'exam'|'fallback'|'fixed'|'none', exam: object|null }}
+ *   source 'fallback' = exam mode but no upcoming exam, so the fixed date was used;
+ *   source 'none'     = nothing to base a date on (the student would show "Not set").
+ */
+export function resolveDueDate(policy, { department, schoolYear, schoolYears, fromDate } = {}) {
+  const from  = toYMD(fromDate) || todayYMD()
+  const fixed = toYMD(policy?.fixedDate)
+  if (policy?.mode === 'exam') {
+    const exam = findNextExam(schoolYears, schoolYear, department, from)
+    if (exam) {
+      const off = Math.max(0, parseInt(policy.offsetDays, 10) || 0)
+      const due = shiftDays(exam.startDate, -off)
+      return { date: due < from ? exam.startDate : due, source: 'exam', exam }
+    }
+    return fixed ? { date: fixed, source: 'fallback', exam: null } : { date: '', source: 'none', exam: null }
+  }
+  return fixed ? { date: fixed, source: 'fixed', exam: null } : { date: '', source: 'none', exam: null }
+}
+
 /**
  * Default due date for a student, per the campus policy.
  * @returns {string} 'YYYY-MM-DD', or '' when no date can be worked out
  */
-export function computeDefaultDueDate({ campusName, department, schoolYear, schoolYears, fromDate } = {}) {
-  const policy = getDueDatePolicy(campusName)
-  const from   = toYMD(fromDate) || todayYMD()
-  if (policy.mode === 'exam') {
-    const exam = findNextExam(schoolYears, schoolYear, department, from)
-    if (exam) {
-      const due = shiftDays(exam.startDate, -policy.offsetDays)
-      return due < from ? exam.startDate : due
-    }
-  }
-  return policy.fixedDate || ''
+export function computeDefaultDueDate(args = {}) {
+  return resolveDueDate(getDueDatePolicy(args.campusName), args).date
+}
+
+/**
+ * The due date for an enrollment submission: the one saved on the record,
+ * otherwise worked out from the campus policy. Pass the live isCollegeGrade
+ * from useAppConfig() so admin-edited grade lists are respected.
+ */
+export function getSubmissionDueDate(sub, { schoolYears, isCollegeGrade } = {}) {
+  if (sub?.dueDate) return toYMD(sub.dueDate)
+  const grade = sub?.enrollment?.gradeLevel || ''
+  return computeDefaultDueDate({
+    campusName: sub?.enrollment?.campus,
+    department: isCollegeGrade?.(grade) ? 'college' : 'basicEd',
+    schoolYear: sub?.enrollment?.schoolYear,
+    schoolYears,
+    fromDate:   sub?.paymentHistory?.[0]?.date || sub?.lastPaymentDate || sub?.updatedAt || sub?.submittedDate,
+  })
+}
+
+/** paid → nothing left; overdue → balance left AND past due date; partial → balance left, still on time */
+export function getPaymentStatus(balance, dueDate) {
+  if ((balance || 0) <= 0) return 'paid'
+  return isPastDue(dueDate) ? 'overdue' : 'partial'
 }
 
 /** Check if a campus workflow has been confirmed */

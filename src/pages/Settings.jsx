@@ -10,7 +10,7 @@ import { PageSkeleton, useToast, ToastContainer, ModalPortal, ConfirmDialog, Typ
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, findNextExam, todayYMD, shiftDays } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -203,7 +203,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                     onClick={() => setNewDiscount(p => ({ ...p, discountType: opt.val, defaultRate: 0 }))}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold transition
                       ${newDiscount.discountType === opt.val
-                        ? 'bg-primary text-[var(--color-primary-contrast)]'
+                        ? 'is-selected'
                         : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]'
                       }`}>
                     {opt.icon} {opt.label}
@@ -1297,7 +1297,8 @@ export default function Settings() {
   const [minPaymentError, setMinPaymentError] = useState('')
   // Payment due-date policy (campus-scoped): 'exam' = next exam on the school calendar, 'fixed' = one date
   const [duePolicy,       setDuePolicy]       = useState(() => getDueDatePolicy(user?.campus))
-  const patchDuePolicy = (patch) => { setDuePolicy(p => ({ ...p, ...patch })); setCashierSaved(false) }
+  const [dueError,        setDueError]        = useState('')
+  const patchDuePolicy = (patch) => { setDuePolicy(p => ({ ...p, ...patch })); setCashierSaved(false); setDueError('') }
   const [discounts,       setDiscounts]       = useState(() => {
     try {
       // Load campus-scoped discounts — each campus manages their own
@@ -1422,7 +1423,7 @@ export default function Settings() {
                 ].map(dept => (
                   <button key={dept.key} onClick={() => { setSyDeptView(dept.key); setExpandedSY(null) }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                      syDeptView === dept.key ? 'bg-primary text-[var(--color-primary-contrast)] shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
+                      syDeptView === dept.key ? 'is-selected shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
                     }`}>
                     <dept.icon className="w-4 h-4" /> {dept.label}
                   </button>
@@ -1621,7 +1622,7 @@ export default function Settings() {
                 {editFrameworks.map(f => (
                   <button key={f.id} onClick={() => setActiveFrameworkId(f.id)}
                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
-                      activeFrameworkId === f.id ? 'bg-primary text-[var(--color-primary-contrast)]' : 'border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
+                      activeFrameworkId === f.id ? 'is-selected' : 'border border-[var(--color-border)] hover:bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
                     }`}>
                     {f.label}
                   </button>
@@ -3235,33 +3236,53 @@ export default function Settings() {
                     value={duePolicy.fixedDate}
                     onChange={v => patchDuePolicy({ fixedDate: v })}
                   />
+                  {duePolicy.fixedDate && (
+                    <button
+                      type="button"
+                      onClick={() => patchDuePolicy({ fixedDate: '' })}
+                      className="mt-1 inline-flex items-center gap-1.5 min-h-[40px] pr-2 text-xs text-[var(--color-primary-readable)] hover:underline"
+                    >
+                      <X className="w-3 h-3" /> Clear date
+                    </button>
+                  )}
                 </div>
 
-                {/* What the policy gives right now */}
+                {/* What the policy gives right now — uses the same logic as Payments/Enrollments */}
                 {(() => {
-                  const sy = currentSchoolYear
+                  const today = todayYMD()
                   const rows = [['basicEd', 'Basic Ed'], ['college', 'College']].map(([dept, label]) => {
-                    let text
-                    if (duePolicy.mode === 'exam') {
-                      const exam = findNextExam(schoolYears, sy, dept, todayYMD())
-                      if (exam) {
-                        const off = parseInt(duePolicy.offsetDays, 10) || 0
-                        text = `${shiftDays(exam.startDate, -off)} (${exam.name})`
-                      } else {
-                        text = duePolicy.fixedDate ? `${duePolicy.fixedDate} (fallback — no upcoming exam on the calendar)` : 'No upcoming exam on the calendar and no fallback date'
-                      }
-                    } else {
-                      text = duePolicy.fixedDate || 'No date set'
-                    }
-                    return [label, text]
+                    const r = resolveDueDate(duePolicy, { department: dept, schoolYear: currentSchoolYear, schoolYears, fromDate: today })
+                    let text, tone = 'ok'
+                    if (r.source === 'exam')          text = `${r.date} (${r.exam.name})`
+                    else if (r.source === 'fallback') { text = `${r.date} (fallback — no upcoming exam on the calendar)`; tone = 'warn' }
+                    else if (r.source === 'fixed')    text = r.date
+                    else { text = duePolicy.mode === 'exam' ? 'Not set — no upcoming exam on the calendar and no fallback date' : 'Not set — pick a date above'; tone = 'error' }
+                    if (r.date && r.date < today) { text += ' — already passed'; tone = 'warn' }
+                    return { label, text, tone }
                   })
+                  const hasError = rows.some(r => r.tone === 'error')
+                  const hasWarn  = rows.some(r => r.tone === 'warn')
+                  const toneCls  = { ok: 'text-[var(--color-text-muted)]', warn: 'text-[var(--color-warning-text)]', error: 'text-[var(--color-error-text)] font-semibold' }
                   return (
-                    <div className="border border-dashed border-[var(--color-border)] rounded-xl p-3 text-xs space-y-1">
-                      <p className="font-semibold text-[var(--color-text-secondary)]">Right now, a new student's due date would be:</p>
-                      {rows.map(([label, text]) => (
-                        <p key={label} className="text-[var(--color-text-muted)]"><span className="font-semibold text-[var(--color-text-primary)]">{label}:</span> {text}</p>
-                      ))}
-                    </div>
+                    <>
+                      <div className="border border-dashed border-[var(--color-border)] rounded-xl p-3 text-xs space-y-1">
+                        <p className="font-semibold text-[var(--color-text-secondary)]">Right now, a new student's due date would be:</p>
+                        {rows.map(r => (
+                          <p key={r.label} className={toneCls[r.tone]}><span className="font-semibold text-[var(--color-text-primary)]">{r.label}:</span> {r.text}</p>
+                        ))}
+                      </div>
+                      {(hasError || hasWarn) && (
+                        <div className={`flex items-start gap-2 p-3 rounded-xl border text-xs ${hasError ? 'bg-[var(--color-error-light)] border-[var(--color-error-border)] text-[var(--color-error-text)]' : 'bg-[var(--color-warning-light)] border-[var(--color-warning-border)] text-[var(--color-warning-text)]'}`}>
+                          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <p>
+                            {hasError
+                              ? 'Students enrolled now would have no due date, so their balance can never become overdue. Add an "…Exam…" event in Settings → School Year, or set a fallback date.'
+                              : 'A date is already in the past or comes from the fallback. Check the School Year calendar so new students get the date you expect.'}
+                          </p>
+                        </div>
+                      )}
+                      {dueError && <p className="text-xs text-[var(--color-error-text)]">{dueError}</p>}
+                    </>
                   )
                 })()}
               </div>
@@ -3305,6 +3326,10 @@ export default function Settings() {
                       const min = Number(minPayment)
                       if (!Number.isFinite(min) || min <= 0) {
                         setMinPaymentError('Enter an amount greater than 0')
+                        return
+                      }
+                      if (duePolicy.mode === 'fixed' && !duePolicy.fixedDate) {
+                        setDueError('Pick the fixed due date, or switch to "Exam date".')
                         return
                       }
                       // Save scoped to this campus — never affects other campuses
