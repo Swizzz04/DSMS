@@ -133,7 +133,7 @@ function RoleChips({ value = [], onChange, label }) {
               onClick={() => onChange(on ? value.filter(v => v !== r.value) : [...value, r.value])}
               className={`px-2 py-0.5 rounded-lg text-xs font-mono border transition-colors
                 ${on
-                  ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                  ? 'is-selected'
                   : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border-[var(--color-border)] hover:border-[var(--color-primary-readable)]'}`}
             >
               {r.value}
@@ -820,7 +820,7 @@ export default function WorkflowConfigTab() {
                 }
                 className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors
                   ${selectedId === wf.workflowId
-                    ? 'bg-primary text-[var(--color-primary-contrast)]'
+                    ? 'is-selected'
                     : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'}`}
               >
                 <div className="font-medium text-[13px] truncate">{wf.label}</div>

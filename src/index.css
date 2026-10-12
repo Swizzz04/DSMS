@@ -94,6 +94,8 @@ button, a, [role="button"] {
   --color-secondary-contrast:  #ffffff;  /* text ON a bg-secondary fill */
   --color-primary-readable:    #646667;  /* text-primary/border-primary on the page bg */
   --color-secondary-readable:  #212121;  /* text-secondary/border-secondary on the page bg */
+  --color-selected:            #212121;  /* selected chip / tab / toggle fill (from secondary) */
+  --color-selected-contrast:   #ffffff;  /* text on the selected fill */
 
   /* ── Surface colors (light mode) ─────────────── */
   --color-bg-page:          #f4f5f0;   /* warm off-white page bg   */
@@ -273,6 +275,8 @@ button, a, [role="button"] {
   --color-secondary-contrast:  #1a1a1a;
   --color-primary-readable:    #b7b7b7;
   --color-secondary-readable:  #f4fafc;
+  --color-selected:            #F4FAFC;
+  --color-selected-contrast:   #1a1a1a;
 
   --shadow-xs:   0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -672,6 +676,16 @@ button, a, [role="button"] {
   color: var(--color-secondary-contrast);
 }
 .btn-secondary:hover:not(:disabled) { background-color: var(--color-secondary-hover); }
+
+/* Selected state of every toggle, chip, tab and segmented button.
+   Colours come from the school's secondary colour (see selectedFill() in
+   themeInitializer.js): dark fill / light text in light mode, light fill /
+   dark text in dark mode. Use this class — never bg-primary — for "active". */
+.is-selected {
+  background-color: var(--color-selected);
+  border-color: var(--color-selected);
+  color: var(--color-selected-contrast);
+}
 
 .btn-ghost {
   background-color: transparent;
@@ -1158,6 +1172,102 @@ body.modal-open {
   .modal-backdrop-dark > *,
   .modal-backdrop-center > * {
     animation: modalPanelPop 220ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+
+/* ── Modal exit transition ─────────────────────────
+   ModalPortal leaves a non-interactive copy of a closed modal in <body>
+   (.modal-ghost-exit) that plays this and removes itself. Everything inside
+   the copy is frozen first (no restarted enter animations), then the backdrop
+   fades and the panel slides down (phone) / shrinks slightly (desktop). */
+@keyframes modalFadeOut     { to { opacity: 0; } }
+@keyframes modalPanelDown   { to { opacity: 0; transform: translateY(24px); } }
+@keyframes modalPanelShrink { to { opacity: 0; transform: scale(0.97) translateY(6px); } }
+.modal-ghost-exit { pointer-events: none; }
+.modal-ghost-exit * { animation: none !important; }
+.modal-ghost-exit > * { animation: modalFadeOut 180ms ease-in forwards !important; }
+.modal-ghost-exit > .modal-backdrop > *,
+.modal-ghost-exit > .modal-backdrop-dark > *,
+.modal-ghost-exit > .modal-backdrop-center > * {
+  animation: modalPanelDown 180ms cubic-bezier(0.4, 0, 1, 1) forwards !important;
+}
+@media (min-width: 640px) {
+  .modal-ghost-exit > .modal-backdrop > *,
+  .modal-ghost-exit > .modal-backdrop-dark > *,
+  .modal-ghost-exit > .modal-backdrop-center > * {
+    animation: modalPanelShrink 160ms cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-ghost-exit { display: none; }
+}
+
+/* ── Modal footers on phones ─────────────────────────
+   One rule for every modal footer, whatever markup the page used: the footer
+   is the last child of the panel, either .modal-footer / .modal-footer-end or
+   any block with a top border that contains buttons. (.modal-actions marks an
+   inline button row inside a modal body.)
+   • exactly two buttons → side by side, equal width (Cancel | Save)
+   • anything else      → full-width stack, main action on top, cancel last
+     (page markup lists Cancel/Close first, so column-reverse puts it last)
+   • every button is at least 44px tall; the footer clears the home bar.
+   From 640px up the pages' own layout applies unchanged. */
+@media (max-width: 639px) {
+  .modal-footer,
+  .modal-footer-end,
+  .modal-actions,
+  :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"]:has(button),
+  :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]:has(button) {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    gap: 0.625rem !important;
+  }
+  .modal-footer,
+  .modal-footer-end,
+  :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"]:has(button),
+  :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]:has(button) {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* a group of buttons inside the footer (e.g. Extend + Record) stacks the same way */
+  :is(.modal-footer, .modal-footer-end, .modal-actions,
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"]:has(button),
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]:has(button)) > div:has(> button) {
+    display: flex !important;
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+    flex-wrap: nowrap !important;
+    gap: 0.625rem !important;
+    width: 100%;
+  }
+
+  /* the buttons themselves */
+  :is(.modal-footer, .modal-footer-end, .modal-actions,
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"],
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]) :is(button, a):is(.btn, .btn-cancel, .btn-action, .btn-submit, .btn-primary, .btn-ghost, [class*="rounded"]) {
+    width: 100% !important;
+    flex: none !important;
+    min-height: 44px;
+    margin: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* exactly two buttons → one balanced row */
+  :is(.modal-footer, .modal-footer-end, .modal-actions,
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"],
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]):has(> button:first-child + button:last-child) {
+    flex-direction: row !important;
+  }
+  :is(.modal-footer, .modal-footer-end, .modal-actions,
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > :last-child[class*="border-t"],
+      :is(.modal-backdrop, .modal-backdrop-dark, .modal-backdrop-center) > * > form > :last-child[class*="border-t"]):has(> button:first-child + button:last-child) > button {
+    width: auto !important;
+    flex: 1 1 0 !important;
   }
 }
 

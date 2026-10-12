@@ -24,10 +24,9 @@ const php = n => `₱${(n || 0).toLocaleString('en-PH', { minimumFractionDigits:
 const FEE_LABELS = { tuition: 'Tuition Fee', misc: 'Misc Fee', lab: 'Lab Fee', books: 'Books', other: 'Other Fees' }
 const FEE_FILTER_KEYS = ['tuition', 'misc', 'lab', 'books']
 
-// Selected state for filter chips. Brand colours cannot be trusted here: the default
-// primary is near-white and a school's saved secondary can equal the card colour in dark
-// mode, which hides the chip. Inverting the page's own text/card colours is always readable.
-const CHIP_ACTIVE = 'bg-[var(--color-text-primary)] text-[var(--color-bg-card)] shadow-sm'
+// Selected state for filter chips: the shared .is-selected class (index.css) — the school's
+// secondary colour, pushed dark in light mode / light in dark mode so it always stands out.
+const CHIP_ACTIVE = 'is-selected shadow-sm'
 
 // A transaction's date lives under different keys depending on how it was recorded.
 const txDateOf = tx => tx.date || tx.paymentDate || tx.lastPaymentDate || tx.submittedDate
@@ -264,7 +263,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
                         <div>
                           <p className={`font-mono font-semibold ${isThis ? 'text-[var(--color-primary-readable)]' : 'text-[var(--color-text-secondary)]'}`}>
                             {h.orNumber || '—'}
-                            {isThis && <span className="ml-1.5 text-[10px] bg-primary text-[var(--color-primary-contrast)] px-1.5 py-0.5 rounded-full">This</span>}
+                            {isThis && <span className="ml-1.5 text-[10px] is-selected px-1.5 py-0.5 rounded-full">This</span>}
                           </p>
                           <p className="text-[var(--color-text-muted)] mt-0.5">
                             {h.method || '—'} · {fmtDate(h.date)}

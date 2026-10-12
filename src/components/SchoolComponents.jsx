@@ -990,7 +990,7 @@ export function DeptToggle({ value = 'all', onChange, options = DEFAULT_DEPT_OPT
             'px-3 py-2 transition-colors whitespace-nowrap',
             idx > 0 && 'border-l border-[var(--color-border)]',
             value === opt.val
-              ? 'bg-primary text-[var(--color-primary-contrast)]'
+              ? 'is-selected'
               : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]',
           ].filter(Boolean).join(' ')}
         >

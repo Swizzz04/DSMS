@@ -503,7 +503,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                   rows={3} placeholder="Reason for rejection (required)..."
                   value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                 />
-                <div className="flex justify-end gap-2 mt-3">
+                <div className="modal-actions flex justify-end gap-2 mt-3">
                   <button onClick={() => setRejectModal(false)} className="btn btn-ghost text-sm">Cancel</button>
                   <button onClick={handleReject} disabled={!rejectReason.trim()}
                     className="btn text-sm bg-[var(--color-error)] text-[var(--color-text-inverse)] hover:brightness-90 gap-1.5 disabled:opacity-50">
@@ -643,7 +643,7 @@ export default function GradeChangeRequests() {
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
                   ${statusFilter === f.id
-                    ? 'bg-primary text-[var(--color-primary-contrast)] border-primary'
+                    ? 'is-selected'
                     : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                 {f.label}
               </button>

@@ -174,7 +174,7 @@ export default function DatePicker({
               <button key={y} type="button"
                 onClick={() => { setViewYear(y); setShowYearPicker(false) }}
                 className={`py-2 rounded-lg text-xs font-medium transition ${
-                  y === viewYear ? 'bg-primary text-[var(--color-primary-contrast)]'
+                  y === viewYear ? 'is-selected'
                   : y === today.getFullYear() ? 'bg-primary/10 text-[var(--color-primary-readable)] font-bold'
                   : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]'
                 }`}
@@ -220,7 +220,7 @@ export default function DatePicker({
               return (
                 <button key={day} type="button" onClick={() => selectDate(day)}
                   className={`w-full aspect-square flex items-center justify-center rounded-lg text-xs font-medium transition ${
-                    isSelected ? 'bg-primary text-[var(--color-primary-contrast)] shadow-sm'
+                    isSelected ? 'is-selected shadow-sm'
                     : isToday ? 'bg-primary/10 text-[var(--color-primary-readable)] font-bold'
                     : 'text-[var(--color-text-primary)] hover:bg-[var(--color-bg-subtle)]'
                   }`}

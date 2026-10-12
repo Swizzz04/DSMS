@@ -16,7 +16,7 @@
  *  - No gradients, no shadow-2xl, no hover:scale, no backdrop-blur
  * ─────────────────────────────────────────────────────────────────
  */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FileText, Users, DollarSign, BarChart3, Search,
@@ -28,9 +28,58 @@ import {
 // escaping any scroll/overflow/stacking-context trap in the layout.
 // Use this as the outermost wrapper for every modal backdrop.
 // ─────────────────────────────────────────────────────────────────
+//
+// Exit animation: pages unmount a modal the instant it closes, so there is
+// nothing left to animate. When the portal unmounts it therefore leaves a
+// non-interactive copy of the modal in <body> that fades/slides out
+// (.modal-ghost-exit in index.css) and removes itself. Every modal that uses
+// ModalPortal gets this with no change to the page. Skipped for users who
+// prefer reduced motion.
+// ─────────────────────────────────────────────────────────────────
+const MODAL_EXIT_MS = 180
+
+function ModalPortalInner({ children }) {
+  const hostRef   = useRef(null)
+  const mountedAt = useRef(0)
+
+  useLayoutEffect(() => {
+    mountedAt.current = performance.now()
+    const host = hostRef.current
+    return () => {
+      try {
+        if (!host || !host.firstElementChild) return
+        // Ignore React StrictMode's simulated unmount and instant open/close flickers
+        if (performance.now() - mountedAt.current < 120) return
+        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+
+        const ghost = host.cloneNode(true)
+        // cloneNode drops typed values — copy them so the fading copy looks identical
+        const from = host.querySelectorAll('input, textarea')
+        const to   = ghost.querySelectorAll('input, textarea')
+        from.forEach((el, i) => {
+          const d = to[i]
+          if (!d) return
+          if (el.type === 'checkbox' || el.type === 'radio') d.checked = el.checked
+          else d.value = el.value
+        })
+        ghost.classList.add('modal-ghost-exit')
+        ghost.setAttribute('aria-hidden', 'true')
+        ghost.inert = true
+        document.body.appendChild(ghost)
+        setTimeout(() => ghost.remove(), MODAL_EXIT_MS + 80)
+      } catch { /* the exit animation is cosmetic — never block closing */ }
+    }
+  }, [])
+
+  return createPortal(
+    <div ref={hostRef} style={{ display: 'contents' }}>{children}</div>,
+    document.body
+  )
+}
+
 export function ModalPortal({ children, open = true }) {
   if (!open) return null
-  return createPortal(children, document.body)
+  return <ModalPortalInner>{children}</ModalPortalInner>
 }
 
 // ─────────────────────────────────────────────────────
@@ -397,7 +446,8 @@ export function ConfirmDialog({
   }, [open])
 
   if (!open) return null
-  return createPortal(
+  return (
+    <ModalPortal>
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in">
       {/* Backdrop — no backdrop-blur */}
       <div
@@ -464,8 +514,8 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
+    </ModalPortal>
   )
 }
 
@@ -502,7 +552,8 @@ export function TypeToConfirmDialog({
 
   const isMatch = typed.trim() === matchText
 
-  return createPortal(
+  return (
+    <ModalPortal>
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in">
       <div
         className="absolute inset-0"
@@ -578,8 +629,8 @@ export function TypeToConfirmDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
+    </ModalPortal>
   )
 }
 

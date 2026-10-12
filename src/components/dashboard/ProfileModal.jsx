@@ -15,7 +15,7 @@
  * ─────────────────────────────────────────────────────────────────
  */
 import { useState, useRef } from 'react'
-import { createPortal } from 'react-dom'
+import { ModalPortal } from '../UIComponents'
 import {
   X, Camera, User, Mail, Phone, Lock, Eye, EyeOff,
   CheckCircle, AlertCircle, Shield, Save, ChevronRight, ArrowLeft
@@ -691,7 +691,8 @@ export default function ProfileModal({ onClose }) {
     )
   }
 
-  return createPortal(
+  return (
+    <ModalPortal>
     <>
       {/* Backdrop — no backdrop-blur */}
       <div
@@ -739,7 +740,7 @@ export default function ProfileModal({ onClose }) {
           {renderSection()}
         </div>
       </div>
-    </>,
-    document.body
+    </>
+    </ModalPortal>
   )
 }

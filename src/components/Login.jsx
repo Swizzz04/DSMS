@@ -144,7 +144,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
               background: 'var(--color-bg-card)',
               border: '3px solid var(--color-primary-readable)',
               boxShadow: 'var(--shadow-md)', overflow: 'hidden',
-              marginBottom: '0.75rem',
+              margin: '0 auto 0.75rem',
             }}>
               <SchoolLogo src={school.logo} alt="School Logo" size="sm"
                 style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
