@@ -1622,6 +1622,7 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
   const [remarks,  setRemarks]  = useState('')
   const [letterOk, setLetterOk] = useState(false)
   const [errors,   setErrors]   = useState({})
+  const submittedRef = useRef(false)
 
   const current = payment.dueDate || ''
   const minDate = current && current > todayYMD() ? current : todayYMD()
@@ -1641,7 +1642,9 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
   }
 
   const handleSave = () => {
+    if (submittedRef.current) return
     if (!validate()) return
+    submittedRef.current = true
     const label = EXTENSION_REASONS.find(r => r.value === reasonCode)?.label || reasonCode
     onSave({ newDate, reasonCode, reason: label, remarks: remarks.trim(), letterReceived: true })
   }
@@ -1941,15 +1944,31 @@ export default function Payments() {
       addToast('Only accounting can extend a due date.', 'error')
       return
     }
+    // The saved record is the source of truth: the open modal can hold a stale copy
+    let storedDue = selectedPayment.dueDate || ''
+    let subs = []
+    let idx  = -1
+    try {
+      subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+      idx  = subs.findIndex(s => s.referenceNumber === selectedPayment.studentId)
+      if (idx !== -1 && subs[idx].dueDate) storedDue = subs[idx].dueDate
+    } catch (e) {
+      console.error('Failed to read due date:', e)
+    }
+    // This date is already saved (double tap or stale modal): add no second entry
+    if (storedDue === newDate) {
+      setShowExtendModal(false)
+      return
+    }
     const ext = {
       id:     Date.now(),
-      from:   selectedPayment.dueDate || '',
+      from:   storedDue,
       to:     newDate,
       reasonCode,
       reason,
       remarks,
       letterReceived,
-      days:    daysPast(selectedPayment.dueDate || todayYMD(), newDate),
+      days:    daysPast(storedDue || todayYMD(), newDate),
       balance: selectedPayment.balance,
       by:      user?.name || 'Accounting',
       role:    user?.role || '',
@@ -1957,8 +1976,6 @@ export default function Payments() {
       date:    new Date().toISOString(),
     }
     try {
-      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
-      const idx  = subs.findIndex(s => s.referenceNumber === selectedPayment.studentId)
       if (idx !== -1) {
         subs[idx] = {
           ...subs[idx],
@@ -1971,12 +1988,17 @@ export default function Payments() {
     } catch (e) {
       console.error('Failed to save due date extension:', e)
     }
-    const apply = (p) => ({
-      ...p,
-      dueDate: newDate,
-      dueDateExtensions: [...(p.dueDateExtensions || []), ext],
-      status: derivePaymentStatus(p.balance, newDate),
-    })
+    // The save above already fired a reload from storage, so the list may hold this
+    // extension by now; add it only when it is not there yet (no duplicate on screen).
+    const apply = (p) => {
+      const list = p.dueDateExtensions || []
+      return {
+        ...p,
+        dueDate: newDate,
+        dueDateExtensions: list.some(x => x.id === ext.id) ? list : [...list, ext],
+        status: derivePaymentStatus(p.balance, newDate),
+      }
+    }
     setPayments(prev => prev.map(p => p.studentId === selectedPayment.studentId ? apply(p) : p))
     setSelectedPayment(prev => apply(prev))
     setShowExtendModal(false)
