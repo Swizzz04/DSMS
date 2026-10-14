@@ -78,9 +78,11 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade }) {
 }
 
 // ── Badge pill ────────────────────────────────────────────────────
-function NavBadge({ count, active, theme }) {
+// Always the alert colour (red by default) so a counter is noticed at a glance.
+// themeInitializer.js alertFill() swaps it for a clearly different hue when the
+// school's own brand colour is red or near red.
+function NavBadge({ count }) {
   if (!count || count <= 0) return null
-  const activeLight = active && theme !== 'dark'
   return (
     <span style={{
       marginLeft:      'auto',
@@ -95,15 +97,8 @@ function NavBadge({ count, active, theme }) {
       justifyContent:  'center',
       flexShrink:      0,
       letterSpacing:   '0.02em',
-      backgroundColor: active
-        ? (activeLight ? 'rgb(var(--color-secondary-contrast-rgb) / 0.20)' : 'rgba(255,255,255,0.20)')
-        : 'var(--color-primary)',
-      color:           active
-        ? (activeLight ? 'var(--color-secondary-contrast)' : '#fff')
-        : 'var(--color-primary-contrast)',
-      border:          active
-        ? (activeLight ? '1px solid rgb(var(--color-secondary-contrast-rgb) / 0.30)' : '1px solid rgba(255,255,255,0.30)')
-        : 'none',
+      backgroundColor: 'var(--color-alert)',
+      color:           'var(--color-alert-contrast)',
     }}>
       {count > 99 ? '99+' : count}
     </span>
@@ -404,7 +399,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                 </span>
 
                 {/* Badge */}
-                <NavBadge count={badgeCount} active={active} theme={theme} />
+                <NavBadge count={badgeCount} />
               </Link>
             )
           })}

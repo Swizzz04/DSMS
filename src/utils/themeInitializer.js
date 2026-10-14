@@ -187,6 +187,94 @@ export function contrastRatio(hexA, hexB) {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
+/** Minimum contrast a button fill needs against the card it sits on
+ *  (WCAG 2.x non-text contrast for UI components = 3:1). */
+export const ACTION_MIN_CONTRAST = 3
+
+/**
+ * The fill for MAIN ACTION buttons (Save, Record Payment, Submit ...).
+ * Keeps the school's brand primary whenever it is visible against the card;
+ * when it is not (the neutral default primary is almost the card colour, and
+ * a dark brand colour disappears on the dark card) it falls back to the
+ * selected-state colour, which is always high-contrast. Both the fill and the
+ * label colour are therefore readable for any colour a school configures.
+ */
+export function actionFill(primaryHex, selectedHex, cardHex) {
+  return contrastRatio(primaryHex, cardHex) >= ACTION_MIN_CONTRAST ? primaryHex : selectedHex
+}
+
+/**
+ * Label colour for an action fill: whichever of near-black / white has the
+ * higher real contrast ratio with the fill. (contrastOn() switches at
+ * luminance 0.5, which gives a mid-tone fill such as #3b82f6 white text at
+ * only 3.7:1 although dark text reaches 4.7:1.)
+ */
+export function bestTextOn(hex) {
+  return contrastRatio(hex, '#1a1a1a') >= contrastRatio(hex, '#ffffff') ? '#1a1a1a' : '#ffffff'
+}
+
+// ── Alert colour (notification counters, "needs attention" badges) ──────
+// Red by default so a counter is noticed at a glance. If a school's brand is
+// itself red (or near red: rose, pink, orange), a red counter would read as
+// brand decoration, so the next candidate that is clearly different in hue
+// AND visible on every surface the counter sits on is used instead.
+export const ALERT_CANDIDATES = ['#dc2626', '#f59e0b', '#c026d3', '#7c3aed', '#0891b2']
+export const ALERT_MIN_HUE_GAP = 40   // degrees away from a saturated brand colour
+export const ALERT_MIN_CONTRAST = 3   // counter fill vs the surface behind it
+
+/** Hue (0-360), saturation-ish chroma flag, for "is this a real colour?" */
+export function hueInfo(hex) {
+  const { r, g, b } = hexToRgb(hex)
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  const chroma = max - min
+  const lightness = (max + min) / 510
+  let h = 0
+  if (chroma > 0) {
+    if (max === r) h = ((g - b) / chroma) % 6
+    else if (max === g) h = (b - r) / chroma + 2
+    else h = (r - g) / chroma + 4
+    h = (h * 60 + 360) % 360
+  }
+  // Greys, near-white and near-black have no meaningful hue to clash with.
+  const coloured = chroma >= 40 && lightness > 0.12 && lightness < 0.92
+  return { hue: h, coloured }
+}
+
+function hueGap(a, b) {
+  const d = Math.abs(a - b) % 360
+  return d > 180 ? 360 - d : d
+}
+
+/**
+ * @param brandHexes   the school's brand colours (primary, secondary)
+ * @param surfaceHexes the surfaces the counter must be visible on (the sidebar
+ *                     card). The active pill is not listed: the counter has a
+ *                     light ring there, which separates it from any pill colour.
+ */
+export function alertFill(brandHexes, surfaceHexes) {
+  const brand = brandHexes.map(hueInfo).filter(x => x.coloured)
+  const fits = c => {
+    const { hue } = hueInfo(c)
+    return surfaceHexes.every(s => contrastRatio(c, s) >= ALERT_MIN_CONTRAST) &&
+           brand.every(b => hueGap(hue, b.hue) >= ALERT_MIN_HUE_GAP)
+  }
+  const found = ALERT_CANDIDATES.find(fits)
+  if (found) return found
+  // Nothing satisfies both rules: take the candidate most visible on the surfaces.
+  const score = c => Math.min(...surfaceHexes.map(s => contrastRatio(c, s)))
+  return ALERT_CANDIDATES.slice().sort((a, b) => score(b) - score(a))[0]
+}
+
+/** The card surface colour the buttons sit on, read from the live CSS token
+ *  (so a changed card colour is respected); falls back per mode. */
+function cardSurfaceHex(root, isDarkMode) {
+  try {
+    const v = getComputedStyle(root).getPropertyValue('--color-bg-card').trim()
+    if (/^#[0-9a-f]{6}$/i.test(v)) return v
+  } catch (e) { /* use fallback */ }
+  return isDarkMode ? '#212121' : '#ffffff'
+}
+
 /**
  * A variant of `fgHex` guaranteed to be readable as plain text directly
  * against a SPECIFIC other color `bgHex` — not "the page". Use this when
@@ -270,6 +358,20 @@ export function applyTheme(config) {
   const selected = selectedFill(secondary, isDarkMode)
   root.style.setProperty('--color-selected', selected)
   root.style.setProperty('--color-selected-contrast', contrastOn(selected))
+
+  // Main action buttons (.btn-primary, .btn-action, .btn-submit, .icon-btn-primary):
+  // brand primary when it is visible on the card, otherwise the selected-state
+  // colour. Never put bg-primary on a button directly — use these tokens.
+  const action = actionFill(primary, selected, cardSurfaceHex(root, isDarkMode))
+  root.style.setProperty('--color-action', action)
+  root.style.setProperty('--color-action-hover', darken(action, 20))
+  root.style.setProperty('--color-action-contrast', bestTextOn(action))
+
+  // Notification counters: red unless it clashes with the school's colours or is
+  // not visible on the sidebar / active pill (see alertFill()).
+  const alert = alertFill([primary, secondary], [cardSurfaceHex(root, isDarkMode)])
+  root.style.setProperty('--color-alert', alert)
+  root.style.setProperty('--color-alert-contrast', bestTextOn(alert))
 
   // For text sitting on the SCHOOL'S OTHER custom color rather than the page
   // (e.g. primary-colored brand text on the login screen's secondary-colored
