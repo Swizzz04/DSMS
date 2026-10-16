@@ -14,6 +14,7 @@ import { DeptToggle } from '../components/SchoolComponents'
 import GroupedSelect from '../components/GroupedSelect'
 import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
+import { getRequests } from '../utils/documentBridge'
 
 // ─────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -620,6 +621,29 @@ export default function Reports() {
     } catch { return [] }
   }, [effectiveCampusName])
 
+  // Document fees confirmed by accounting (Document Requests → Confirm Payment).
+  // Kept apart from enrollment/tuition income, so they never inflate "Total Collected".
+  const docPayments = useMemo(() => {
+    try {
+      const campusObj = activeCampuses.find(c => c.name === effectiveCampusName)
+      return getRequests()
+        .filter(r => r.payment)
+        .filter(r => effectiveCampusName === 'all'
+          || r.campusName === effectiveCampusName
+          || (campusObj && r.campusKey === campusObj.key))
+        .map(r => ({
+          id:          r.id,
+          orNumber:    r.payment.orNumber,
+          studentName: r.studentName,
+          label:       r.documentLabel,
+          method:      r.payment.method,
+          amount:      Number(r.payment.amount) || 0,
+          receivedBy:  r.payment.receivedBy,
+          date:        r.payment.at,
+        }))
+    } catch { return [] }
+  }, [effectiveCampusName, activeCampuses])
+
   // Extract all individual transactions from payment history
   const allTransactions = useMemo(() => {
     const txs = []
@@ -690,6 +714,21 @@ export default function Reports() {
   const cashTotal       = filteredTxs.filter(t => t.method === 'Cash').reduce((s,t)=>s+(t.amount||0),0)
   const bankTotal       = filteredTxs.filter(t => t.method !== 'Cash' && t.method).reduce((s,t)=>s+(t.amount||0),0)
 
+  // Document fees in the selected period
+  const docTxs   = useMemo(() => filterByPeriod(docPayments, period, customStart, customEnd), [docPayments, period, customStart, customEnd])
+  const docTotal = docTxs.reduce((s, d) => s + d.amount, 0)
+  const docByType = useMemo(() => {
+    const map = {}
+    docTxs.forEach(d => {
+      map[d.label] = map[d.label] || { label: d.label, count: 0, total: 0 }
+      map[d.label].count += 1
+      map[d.label].total += d.amount
+    })
+    return Object.values(map).sort((a, b) => b.total - a.total)
+  }, [docTxs])
+  const docCash = docTxs.filter(d => d.method === 'Cash').reduce((s, d) => s + d.amount, 0)
+  const docBank = docTxs.filter(d => d.method !== 'Cash').reduce((s, d) => s + d.amount, 0)
+
   // Build grade option lists for filter dropdowns
   // College options: build from fee structure filtered by CURRENT campus
   const collegeProgramsFromFees = [...new Set(
@@ -757,8 +796,19 @@ export default function Reports() {
       'Fully Paid':        fullyPaid,
       'Partial':           partialPaid,
       'Cash':              cashTotal,
-      'Bank Transfer':     bankTotal
+      'Bank Transfer':     bankTotal,
+      'Document Fees (separate)': docTotal
     }]
+
+    const docData = docTxs.map(d => ({
+      'OR Number':   d.orNumber || '—',
+      'Student Name': d.studentName,
+      'Document':    d.label,
+      'Method':      d.method || '—',
+      'Received By': d.receivedBy || '—',
+      'Date':        fmtDate(d.date),
+      'Amount':      d.amount
+    }))
 
     const txData = filteredTxs.map(tx => ({
       'OR Number':     tx.orNumber || '—',
@@ -782,6 +832,7 @@ export default function Reports() {
       { data: summaryData,   sheetName: 'Summary'     },
       { data: breakdownData, sheetName: 'By Grade'    },
       { data: txData,        sheetName: 'Transactions' },
+      { data: docData,       sheetName: 'Document Fees' },
     ], `ALMIRENE_Income_Report_${period}_${new Date().toISOString().split('T')[0]}`)
     addToast('Income report exported!', 'success')
   }
@@ -872,6 +923,65 @@ export default function Reports() {
           sub="balance still due"
           icon={<Clock className="w-5 h-5 text-[var(--color-warning-text)]"/>}
           border="border-[var(--color-warning)]" cls="text-[var(--color-warning-text)]"/>
+      </div>
+
+      {/* Document fees — separate from enrollment income */}
+      <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-[var(--color-primary-readable)]"/>
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Document Fees</h3>
+            <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
+              {docTxs.length} payment{docTxs.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <p className="text-[11px] text-[var(--color-text-muted)]">Not included in Total Collected above.</p>
+        </div>
+
+        {docTxs.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-muted)] py-4 text-center">No document fees collected in this period.</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide border-b border-[var(--color-border)]">
+                    <th className="py-2 pr-3">Document</th>
+                    <th className="py-2 pr-3 text-right">Count</th>
+                    <th className="py-2 text-right">Collected</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  {docByType.map(r => (
+                    <tr key={r.label}>
+                      <td className="py-2.5 pr-3 text-[var(--color-text-primary)]">{r.label}</td>
+                      <td className="py-2.5 pr-3 text-right text-[var(--color-text-muted)]">{r.count}</td>
+                      <td className="py-2.5 text-right font-mono font-semibold text-[var(--color-success-text)]">{php(r.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-[var(--color-border)]">
+                    <td className="py-2.5 pr-3 font-bold text-[var(--color-text-primary)]">Total</td>
+                    <td className="py-2.5 pr-3 text-right font-semibold text-[var(--color-text-muted)]">{docTxs.length}</td>
+                    <td className="py-2.5 text-right font-mono font-bold text-[var(--color-text-primary)]">{php(docTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div className="space-y-3 lg:border-l lg:border-[var(--color-border)] lg:pl-5">
+              {[
+                { label: 'Cash',          val: php(docCash), cls: 'text-[var(--color-success-text)]' },
+                { label: 'Bank Transfer', val: php(docBank), cls: 'text-[var(--color-info-text)]' },
+              ].map(({ label, val, cls }) => (
+                <div key={label} className="flex justify-between items-center">
+                  <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
+                  <span className={`text-sm font-semibold font-mono ${cls}`}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main content — 2 col on desktop */}

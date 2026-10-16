@@ -7,14 +7,18 @@
  * localStorage keys:
  *   almirene_documents  — document request records
  *   almirene_clearance  — clearance records per student per school year
+ *   almirene_document_catalog — per-campus document types and prices (set by accounting)
  *
  * Events:
  *   almirene_documents_updated
  *   almirene_clearance_updated
+ *   almirene_document_catalog_updated
  */
 
 import { getWorkflowDefinition } from './workflowConfigBridge'
 import * as workflowEngine       from '../engines/workflowEngine'
+import { isOrNumberUsed }        from './orNumbers'
+import { DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -24,31 +28,106 @@ const DOC_KEY       = 'almirene_documents'
 const CLEAR_KEY     = 'almirene_clearance'
 const DOC_EVENT     = 'almirene_documents_updated'
 const CLEAR_EVENT   = 'almirene_clearance_updated'
+const CATALOG_KEY   = 'almirene_document_catalog'
+const CATALOG_EVENT = 'almirene_document_catalog_updated'
 
 function uid(prefix = 'doc') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
 
 // ── Document types per department ──────────────────────────────
-export const BASIC_ED_DOCUMENT_TYPES = [
-  { id: 'enrollment_form',       label: 'Enrollment Form',                  requiresClearance: false, fee: 0   },
-  { id: 'form138',               label: 'Report Card (Form 138)',            requiresClearance: false, fee: 0   },
-  { id: 'certificate_enrollment',label: 'Certificate of Enrollment',         requiresClearance: false, fee: 50  },
-  { id: 'good_moral',            label: 'Good Moral Certificate',            requiresClearance: false, fee: 50  },
-  { id: 'transfer_credentials',  label: 'Transfer Credentials',              requiresClearance: true,  fee: 100 },
-  { id: 'form137',               label: 'Form 137 (Permanent Record)',        requiresClearance: true,  fee: 0   },
-  { id: 'form138_transfer',      label: 'Form 138 (for Transfer)',            requiresClearance: true,  fee: 0   },
-]
+// Defaults live in appConfig.js. These two stay exported for anything that wants
+// the unedited list; pages should call getDocumentTypes(campusKey, department),
+// which returns the campus's own prices when accounting has set them.
+export const BASIC_ED_DOCUMENT_TYPES = DEFAULT_DOCUMENT_TYPES.basicEd
+export const COLLEGE_DOCUMENT_TYPES  = DEFAULT_DOCUMENT_TYPES.college
 
-export const COLLEGE_DOCUMENT_TYPES = [
-  { id: 'certificate_enrollment',label: 'Certificate of Enrollment',         requiresClearance: false, fee: 50  },
-  { id: 'certificate_grades',    label: 'Certificate of Grades',             requiresClearance: false, fee: 50  },
-  { id: 'transcript',            label: 'Transcript of Records',             requiresClearance: true,  fee: 200 },
-  { id: 'good_moral',            label: 'Good Moral Certificate',            requiresClearance: false, fee: 50  },
-  { id: 'honorable_dismissal',   label: 'Honorable Dismissal',               requiresClearance: true,  fee: 100 },
-  { id: 'certification',         label: 'Certification',                     requiresClearance: false, fee: 50  },
-  { id: 'cor',                   label: 'Certificate of Registration (COR)', requiresClearance: false, fee: 0   },
-]
+function loadCatalog() {
+  try { return JSON.parse(localStorage.getItem(CATALOG_KEY) || '{}') || {} }
+  catch { return {} }
+}
+
+function saveCatalog(data) {
+  localStorage.setItem(CATALOG_KEY, JSON.stringify(data))
+  window.dispatchEvent(new CustomEvent(CATALOG_EVENT))
+}
+
+const normDept = (d) => (d === 'college' ? 'college' : 'basicEd')
+
+/**
+ * Document types (with this campus's prices) for a department.
+ * Falls back to the defaults until accounting edits the campus's list.
+ */
+export function getDocumentTypes(campusKey, department = 'basicEd') {
+  const dept   = normDept(department)
+  const custom = loadCatalog()?.[campusKey]?.[dept]
+  const list   = Array.isArray(custom) ? custom : DEFAULT_DOCUMENT_TYPES[dept]
+  return list.map(t => ({ ...t }))
+}
+
+/** True when the campus has its own list for this department (not the defaults). */
+export function hasCustomDocumentTypes(campusKey, department = 'basicEd') {
+  return Array.isArray(loadCatalog()?.[campusKey]?.[normDept(department)])
+}
+
+const CATALOG_ROLES = ['accounting', 'admin', 'technical_admin']
+
+/**
+ * Save a campus's document list for one department.
+ * Replaces the whole list (rows can be edited, added or removed).
+ * Requests already recorded keep the label and fee they were recorded with.
+ *
+ * @param {string} campusKey
+ * @param {'basicEd'|'college'} department
+ * @param {Array}  types  [{ id?, label, fee, requiresClearance }]
+ * @param {object} user   must be accounting / admin / technical_admin
+ * @returns {Array} the saved list
+ */
+export function saveDocumentTypes(campusKey, department, types, user) {
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  if (!campusKey) throw new Error('Campus is missing.')
+  if (!Array.isArray(types) || types.length === 0) throw new Error('Keep at least one document.')
+
+  const seenLabels = new Set()
+  const seenIds    = new Set()
+  const clean = types.map(t => {
+    const label = String(t.label ?? '').trim()
+    if (!label) throw new Error('Every document needs a name.')
+    const key = label.toLowerCase()
+    if (seenLabels.has(key)) throw new Error(`"${label}" is listed twice.`)
+    seenLabels.add(key)
+
+    const fee = Number(t.fee)
+    if (!Number.isFinite(fee) || fee < 0) throw new Error(`Enter a valid fee for "${label}".`)
+
+    let id = String(t.id ?? '').trim()
+    if (!id || seenIds.has(id)) {
+      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'document'
+      id = `custom_${slug}_${Math.random().toString(36).slice(2, 6)}`
+    }
+    seenIds.add(id)
+
+    return { id, label, fee: Math.round(fee * 100) / 100, requiresClearance: !!t.requiresClearance }
+  })
+
+  const all  = loadCatalog()
+  const dept = normDept(department)
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: clean }
+  saveCatalog(all)
+  return clean.map(t => ({ ...t }))
+}
+
+/** Put a campus's department list back to the defaults. */
+export function resetDocumentTypes(campusKey, department, user) {
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  const all  = loadCatalog()
+  const dept = normDept(department)
+  if (all[campusKey]) {
+    delete all[campusKey][dept]
+    if (Object.keys(all[campusKey]).length === 0) delete all[campusKey]
+    saveCatalog(all)
+  }
+}
 
 export const REQUEST_STATUSES = [
   { id: 'requested',   label: 'Requested',        color: 'yellow' },
@@ -153,6 +232,7 @@ export function createRequest(data) {
     // Fee
     fee:           data.fee           ?? 0,
     paidAt:        null,
+    payment:       null,   // set by confirmDocumentPayment(): { orNumber, amount, method, receivedBy, ... }
 
     // Clearance requirement
     requiresClearance: data.requiresClearance ?? false,
@@ -169,6 +249,92 @@ export function createRequest(data) {
     }],
 
     // Release info
+    claimSlip:     null,
+    releasedTo:    null,
+    releasedAt:    null,
+
+    createdAt:     now,
+    updatedAt:     now,
+  }
+
+  docs.push(record)
+  saveDocs(docs)
+  return record
+}
+
+/**
+ * File a request for a graduate (a former student who walks in to the registrar).
+ * Graduates are no longer active students, so the details are typed in.
+ * It follows the normal document flow: it starts at Requested, the registrar
+ * prepares it, marks it For Payment (which notifies accounting), accounting
+ * confirms the payment, and the registrar releases it. A document with no fee
+ * skips the payment step, like any other request.
+ *
+ * @param {object} data { department:'basicEd'|'college', documentType, firstName, lastName,
+ *                        formerStudentId?, lastLevel?, yearGraduated?, purpose?, campusKey,
+ *                        campusName?, schoolYear }
+ * @param {object} user  the logged-in user (recorded in the history)
+ */
+export function createGraduateRequest(data, user) {
+  const role = user?.role
+  if (!['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)) {
+    throw new Error('Only the registrar can file a graduate request.')
+  }
+  const department = data.department === 'college' ? 'college' : data.department === 'basicEd' ? 'basicEd' : null
+  if (!department) throw new Error('Choose Basic Ed or College graduate.')
+  if ((role === 'registrar_basic' && department !== 'basicEd') || (role === 'registrar_college' && department !== 'college')) {
+    throw new Error('You can only file requests for your own department.')
+  }
+
+  const types = getDocumentTypes(data.campusKey, department)
+  const docType = types.find(t => t.id === data.documentType)
+  if (!docType) throw new Error('Choose a document.')
+
+  const firstName = String(data.firstName ?? '').trim()
+  const lastName  = String(data.lastName ?? '').trim()
+  if (!firstName || !lastName) throw new Error('First and last name are required.')
+  if (!data.campusKey) throw new Error('Campus is missing.')
+
+  const docs = loadDocs()
+  const now  = new Date().toISOString()
+  const name = `${lastName}, ${firstName}`
+  const byName = user?.name ?? 'System'
+
+  const record = {
+    id:            uid('doc'),
+    studentId:     String(data.formerStudentId ?? '').trim() || uid('grad'),
+    studentName:   name,
+    studentGrade:  String(data.lastLevel ?? '').trim(),
+    campusKey:     data.campusKey,
+    campusName:    data.campusName ?? '',
+    schoolYear:    data.schoolYear,
+    department,
+
+    isGraduate:    true,
+    yearGraduated: String(data.yearGraduated ?? '').trim(),
+
+    documentType:  docType.id,
+    documentLabel: docType.label,
+    purpose:       String(data.purpose ?? '').trim(),
+    requestedBy:   'graduate',
+    requestorName: name,
+
+    fee:           docType.fee,
+    paidAt:        null,
+    payment:       null,
+
+    requiresClearance: docType.requiresClearance,
+    clearanceId:   null,
+
+    status:        'requested',
+    statusHistory: [{
+      status: 'requested',
+      by:     user?.id ?? user?.email ?? 'system',
+      byName,
+      note:   `Graduate request filed by ${byName}`,
+      at:     now,
+    }],
+
     claimSlip:     null,
     releasedTo:    null,
     releasedAt:    null,
@@ -229,6 +395,70 @@ export function recordPayment(id, byName) {
   }
   saveDocs(docs)
   return docs[idx]
+}
+
+/**
+ * Accounting confirms the processing fee was paid.
+ *
+ * Stores the cashier's record on the request (OR number, amount, method, who
+ * received it), then moves the request along the workflow so the status history
+ * stays the single trail. The amount is always the request's fee: a document is
+ * paid in full or not at all.
+ *
+ * Everything is checked before anything is written. If the workflow step still
+ * fails afterwards, the payment record is removed again.
+ *
+ * @param {string} requestId
+ * @param {{ orNumber: string, method: string, remarks?: string }} details
+ * @param {object} user  the logged-in user (needs the confirm_payment action)
+ * @returns {object} the updated request
+ */
+export function confirmDocumentPayment(requestId, { orNumber, method, remarks = '' } = {}, user) {
+  const request = getRequestById(requestId)
+  if (!request) throw new Error(`Document request "${requestId}" not found.`)
+
+  if (normaliseStatus(request.status) !== 'for_payment') throw new Error('This request is not waiting for payment.')
+  if (request.payment) throw new Error('The payment for this request was already confirmed.')
+
+  const fee = Number(request.fee) || 0
+  if (fee <= 0) throw new Error('This request has no fee to confirm.')
+
+  const or = String(orNumber ?? '').trim()
+  if (!or) throw new Error('OR number is required.')
+  if (isOrNumberUsed(or)) throw new Error('This OR number is already used on another payment.')
+  if (!DOCUMENT_PAYMENT_METHODS.includes(method)) throw new Error('Choose a payment method.')
+
+  const allowed = getDocumentActions(user, request).some(a => a.id === 'confirm_payment')
+  if (!allowed) throw new Error('You are not allowed to confirm this payment.')
+
+  const now = new Date().toISOString()
+  const payment = {
+    orNumber:       or,
+    amount:         fee,
+    method,
+    remarks:        String(remarks || '').trim(),
+    receivedBy:     user?.name ?? 'System',
+    receivedById:   user?.id ?? user?.email ?? null,
+    receivedByRole: user?.role ?? '',
+    campusKey:      request.campusKey,
+    campusName:     request.campusName ?? '',
+    at:             now,
+  }
+
+  const patch = (changes) => saveDocs(loadDocs().map(r => (r.id === requestId ? { ...r, ...changes } : r)))
+
+  patch({ paidAt: now, payment })
+  try {
+    advanceDocumentStep(
+      requestId, 'confirm_payment',
+      `OR# ${or} · ${method} · ₱${fee.toLocaleString()}`,
+      user
+    )
+  } catch (err) {
+    patch({ paidAt: null, payment: null })
+    throw err
+  }
+  return getRequestById(requestId)
 }
 
 /**
@@ -475,6 +705,31 @@ export function getPendingRequestsCount(campusKey) {
   return loadDocs().filter(
     r => r.campusKey === campusKey &&
          !['released', 'cancelled'].includes(r.status)
+  ).length
+}
+
+/**
+ * Requests waiting for accounting to collect payment (status For Payment).
+ * Used for accounting's Doc Requests badge.
+ */
+export function getForPaymentCount(campusKey) {
+  return loadDocs().filter(
+    r => r.campusKey === campusKey && normaliseStatus(r.status) === 'for_payment' && !r.payment
+  ).length
+}
+
+/**
+ * Requests that are paid and waiting for the registrar to release them.
+ * Routed by campus and department so each registrar only sees their own.
+ * @param {string} campusKey
+ * @param {'basicEd'|'college'|null} [department] null = every department
+ */
+export function getPaidAwaitingReleaseCount(campusKey, department = null) {
+  return loadDocs().filter(
+    r => r.campusKey === campusKey &&
+         !!r.payment &&
+         normaliseStatus(r.status) === 'ready_for_pickup' &&
+         (!department || (r.department ?? 'basicEd') === department)   // no department = Basic Ed, same as the list
   ).length
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import {
   Search, DollarSign, Eye, Download, Receipt, Clock,
   CheckCircle, AlertCircle, XCircle, ChevronRight,
@@ -140,7 +140,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
+          className="btn btn-primary self-start sm:self-auto">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
@@ -1764,6 +1764,33 @@ export default function Payments() {
   })()
 
   const [activeTab, setActiveTab]                   = useState('records')
+
+  // Sliding pill behind the active tab. It is measured from the real button,
+  // so it follows any label width and any screen size. The first placement is
+  // instant; only later moves animate.
+  const tabBarRef = useRef(null)
+  const tabRefs   = useRef({})
+  const [pill, setPill]                 = useState(null)
+  const [pillAnimated, setPillAnimated] = useState(false)
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = tabRefs.current[activeTab]
+      if (!el || el.offsetWidth === 0) return
+      const next = { left: el.offsetLeft, width: el.offsetWidth }
+      setPill(p => (p && p.left === next.left && p.width === next.width) ? p : next)
+    }
+    measure()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+    if (ro && tabBarRef.current) ro.observe(tabBarRef.current)
+    window.addEventListener('resize', measure)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', measure) }
+  }, [activeTab])
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setPillAnimated(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
   const [payments, setPayments]                     = useState([])
   const [showRecordModal, setShowRecordModal]       = useState(false)
   const [showReceiptModal, setShowReceiptModal]     = useState(false)
@@ -2106,18 +2133,29 @@ export default function Payments() {
 
 
       {/* Tab navigation */}
-      <div className="flex gap-1 bg-[var(--color-bg-subtle)] p-1 rounded-xl border border-[var(--color-border)] overflow-x-auto">
+      <div ref={tabBarRef} className="relative flex gap-1 bg-[var(--color-bg-subtle)] p-1 rounded-xl border border-[var(--color-border)] overflow-x-auto">
+        {pill && (
+          <span aria-hidden="true"
+            className={`is-selected absolute top-1 bottom-1 left-0 rounded-lg shadow-sm pointer-events-none
+              ${pillAnimated ? 'transition-[transform,width] duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none' : ''}`}
+            style={{ width: pill.width, transform: `translateX(${pill.left}px)` }} />
+        )}
         {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition whitespace-nowrap flex-1 justify-center
+          <button key={tab.id} ref={el => { tabRefs.current[tab.id] = el }} onClick={() => setActiveTab(tab.id)}
+            className={`relative z-10 flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-colors duration-200 whitespace-nowrap flex-1 justify-center
               ${activeTab === tab.id
-                ? 'bg-[var(--color-bg-card)] text-[var(--color-primary-readable)] shadow-sm'
+                ? (pill ? 'text-[var(--color-selected-contrast)]' : 'is-selected shadow-sm')
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}>
             {tab.icon} {tab.label}
           </button>
         ))}
       </div>
+
+      {/* Tab content. Re-keyed so each tab fades in on switch. The fade releases
+          its transform when it ends (fill: backwards), so fixed dropdowns inside
+          the tabs are not trapped by it. */}
+      <div key={activeTab} className="space-y-5 [animation:fadeIn_200ms_ease-out_backwards] motion-reduce:[animation:none]">
 
       {/* ── TAB: Payment Records ── */}
       {activeTab === 'records' && (
@@ -2488,6 +2526,8 @@ export default function Payments() {
           addToast={addToast}
         />
       )}
+
+      </div>
 
       {/* Record Payment Modal */}
       {showRecordModal && selectedPayment && (

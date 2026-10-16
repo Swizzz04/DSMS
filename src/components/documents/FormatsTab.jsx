@@ -1,0 +1,497 @@
+/**
+ * FormatsTab.jsx — ALMIRENE DX (Document Requests → Formats)
+ *
+ * The registrar uploads a PDF/image format for each document type, then places
+ * the fields (student name, grade level, purpose, dates...) on it once.
+ * Every request of that type is later filled in automatically from the Print tab.
+ */
+
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { Upload, Pencil, Trash2, X, Plus, Minus, FileText, Check, AlertCircle, Loader2, Bold, AlignLeft, AlignCenter, AlignRight } from 'lucide-react'
+import GroupedSelect from '../GroupedSelect'
+import { ConfirmDialog, ModalPortal } from '../UIComponents'
+import FilledPage from './FilledPage'
+import { getDocumentTypes } from '../../utils/documentBridge'
+import {
+  getTemplates, saveTemplate, removeTemplate, formatDepartmentsFor, sampleFieldValues,
+} from '../../utils/documentTemplates'
+import { fileToTemplateImage } from '../../utils/templateFiles'
+import { DOCUMENT_FORMAT_FIELDS, DOCUMENT_FORMAT_LIMITS } from '../../config/appConfig'
+
+const DEPT_LABEL = { basicEd: 'Basic Education', college: 'College' }
+const FIELD_BY_KEY = Object.fromEntries(DOCUMENT_FORMAT_FIELDS.map(f => [f.key, f]))
+const FIELD_GROUPS = (() => {
+  const map = new Map()
+  DOCUMENT_FORMAT_FIELDS.forEach(f => {
+    if (!map.has(f.group)) map.set(f.group, [])
+    map.get(f.group).push({ value: f.key, label: f.label })
+  })
+  return [...map.entries()].map(([label, options]) => ({ label, options }))
+})()
+
+const fmtWhen = (iso) => iso
+  ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+  : ''
+
+const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EDITOR MODAL — place fields on the uploaded page
+// ─────────────────────────────────────────────────────────────────────────────
+
+function FormatEditorModal({ draft, docLabel, onSave, onClose, saving, error }) {
+  const [page, setPage]       = useState(draft)       // image, size, fontFamily, fields
+  const [selectedId, setSel]  = useState(draft.fields[0]?.id ?? null)
+  const [showSample, setShowSample] = useState(true)
+  const [dirty, setDirty]     = useState(!!draft.isNew)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const pageElRef = useRef(null)
+  const dragRef   = useRef(null)
+  const samples   = useMemo(() => sampleFieldValues(), [])
+
+  const selected = page.fields.find(f => f.id === selectedId) || null
+
+  const patchField = useCallback((id, patch) => {
+    setPage(p => ({ ...p, fields: p.fields.map(f => f.id === id ? { ...f, ...patch } : f) }))
+    setDirty(true)
+  }, [])
+
+  const addField = (key) => {
+    if (!key || key === 'all') return
+    const n = page.fields.length
+    const id = `f_${Date.now().toString(36)}_${n}`
+    const field = { id, key, x: 0.25, y: clamp(0.2 + n * 0.05, 0.05, 0.95), w: 0.4, fontPt: 12, bold: false, align: 'left' }
+    setPage(p => ({ ...p, fields: [...p.fields, field] }))
+    setSel(id)
+    setDirty(true)
+  }
+
+  const removeField = (id) => {
+    setPage(p => ({ ...p, fields: p.fields.filter(f => f.id !== id) }))
+    setSel(null)
+    setDirty(true)
+  }
+
+  // ── drag (pointer events work for mouse, pen and touch) ──
+  const onChipPointerDown = (e, f) => {
+    e.stopPropagation()
+    setSel(f.id)
+    const rect = pageElRef.current?.getBoundingClientRect()
+    if (!rect) return
+    dragRef.current = { id: f.id, startX: e.clientX, startY: e.clientY, x: f.x, y: f.y, w: f.w, rect }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
+  const onChipPointerMove = (e) => {
+    const d = dragRef.current
+    if (!d) return
+    const nx = clamp(d.x + (e.clientX - d.startX) / d.rect.width, 0, 1 - Math.min(d.w, 0.98))
+    const ny = clamp(d.y + (e.clientY - d.startY) / d.rect.height, 0, 1)
+    patchField(d.id, { x: nx, y: ny })
+  }
+  const onChipPointerUp = () => { dragRef.current = null }
+
+  const onChipKeyDown = (e, f) => {
+    const step = e.shiftKey ? 0.01 : 0.002
+    const move = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key]
+    if (move) {
+      e.preventDefault()
+      patchField(f.id, { x: clamp(f.x + move[0], 0, 1 - Math.min(f.w, 0.98)), y: clamp(f.y + move[1], 0, 1) })
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault()
+      removeField(f.id)
+    }
+  }
+
+  const renderField = (f, style) => {
+    const isSel = f.id === selectedId
+    const label = FIELD_BY_KEY[f.key]?.label ?? f.key
+    const text  = showSample ? (samples[f.key] || label) : label
+    return (
+      <button
+        key={f.id}
+        type="button"
+        onPointerDown={e => onChipPointerDown(e, f)}
+        onPointerMove={onChipPointerMove}
+        onPointerUp={onChipPointerUp}
+        onPointerCancel={onChipPointerUp}
+        onKeyDown={e => onChipKeyDown(e, f)}
+        onFocus={() => setSel(f.id)}
+        aria-label={`${label} field. Drag or use arrow keys to move.`}
+        className="cursor-grab active:cursor-grabbing"
+        style={{
+          ...style,
+          touchAction: 'none',
+          background: isSel ? 'color-mix(in srgb, var(--color-action) 15%, transparent)' : 'transparent',
+          outline: `${isSel ? 2 : 1}px ${isSel ? 'solid' : 'dashed'} var(--color-action)`,
+          outlineOffset: '1px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          padding: 0,
+        }}
+      >
+        {text}
+      </button>
+    )
+  }
+
+  const requestClose = () => (dirty ? setConfirmClose(true) : onClose())
+
+  const submit = () => onSave({
+    image: page.image, pageWidthPt: page.pageWidthPt, pageHeightPt: page.pageHeightPt,
+    fileName: page.fileName, fontFamily: page.fontFamily, fields: page.fields,
+  })
+
+  return (
+    <ModalPortal>
+      <div className="modal-backdrop">
+        <div className="modal-panel" style={{ maxWidth: '72rem' }}>
+          <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[var(--color-border)]">
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-[var(--color-text-primary)] truncate">{docLabel} format</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">
+                {page.fileName || 'Uploaded file'} · add the fields, then drag each one onto its blank space
+              </p>
+            </div>
+            <button onClick={requestClose} aria-label="Close" className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+              <X size={16} className="text-[var(--color-text-muted)]" />
+            </button>
+          </div>
+
+          <div className="p-4 sm:p-5 max-h-[72vh] overflow-y-auto">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+              {/* Page */}
+              <div className="min-w-0">
+                <FilledPage
+                  template={page}
+                  renderField={renderField}
+                  onPageRef={el => { pageElRef.current = el }}
+                  onPagePointerDown={() => setSel(null)}
+                />
+              </div>
+
+              {/* Controls */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">Add a field</label>
+                  <GroupedSelect
+                    value="all"
+                    onChange={addField}
+                    placeholder="Choose what to place…"
+                    allLabel="Choose what to place…"
+                    groups={FIELD_GROUPS}
+                  />
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-1">
+                    The same field can be added more than once, for example the name on two lines.
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  {[['serif', 'Serif'], ['sans', 'Sans']].map(([id, label]) => (
+                    <button key={id} type="button"
+                      onClick={() => { setPage(p => ({ ...p, fontFamily: id })); setDirty(true) }}
+                      className={`flex-1 py-2 text-xs rounded-xl border transition-colors font-medium
+                        ${page.fontFamily === id ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                      {label} font
+                    </button>
+                  ))}
+                </div>
+
+                <button type="button" onClick={() => setShowSample(s => !s)}
+                  className={`w-full py-2 text-xs rounded-xl border transition-colors font-medium
+                    ${showSample ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                  {showSample ? 'Showing sample data' : 'Showing field names'}
+                </button>
+
+                {selected ? (
+                  <div className="p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-subtle)] space-y-3">
+                    <p className="text-xs font-bold text-[var(--color-text-primary)]">
+                      {FIELD_BY_KEY[selected.key]?.label}
+                    </p>
+
+                    <div>
+                      <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] block mb-1">Text size</span>
+                      <div className="flex items-center gap-2">
+                        <button type="button" aria-label="Smaller"
+                          onClick={() => patchField(selected.id, { fontPt: clamp(selected.fontPt - 1, 6, 72) })}
+                          className="btn btn-ghost p-2"><Minus size={14} /></button>
+                        <span className="flex-1 text-center text-sm font-semibold text-[var(--color-text-primary)]">{selected.fontPt} pt</span>
+                        <button type="button" aria-label="Larger"
+                          onClick={() => patchField(selected.id, { fontPt: clamp(selected.fontPt + 1, 6, 72) })}
+                          className="btn btn-ghost p-2"><Plus size={14} /></button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] block mb-1">Width</span>
+                      <input type="range" min="5" max="100" step="1"
+                        value={Math.round(selected.w * 100)}
+                        onChange={e => patchField(selected.id, { w: Number(e.target.value) / 100 })}
+                        className="w-full" aria-label="Field width" />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button type="button" aria-label="Bold" onClick={() => patchField(selected.id, { bold: !selected.bold })}
+                        className={`p-2 rounded-xl border transition-colors ${selected.bold ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                        <Bold size={14} />
+                      </button>
+                      {[['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]].map(([id, Icon]) => (
+                        <button key={id} type="button" aria-label={`Align ${id}`} onClick={() => patchField(selected.id, { align: id })}
+                          className={`p-2 rounded-xl border transition-colors ${selected.align === id ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                          <Icon size={14} />
+                        </button>
+                      ))}
+                      <button type="button" aria-label="Remove field" onClick={() => removeField(selected.id)}
+                        className="ml-auto p-2 rounded-xl border border-[var(--color-border)] text-[var(--color-error-text)] hover:bg-[var(--color-error-light)] transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    {page.fields.length === 0
+                      ? 'No fields yet. Add one above, then drag it onto the page.'
+                      : 'Tap a field on the page to change its size, width or alignment.'}
+                  </p>
+                )}
+
+                {error && (
+                  <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5" /> {error}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 p-4 sm:p-5 border-t border-[var(--color-border)]">
+            <button onClick={requestClose} className="btn btn-ghost text-sm">Cancel</button>
+            <button onClick={submit} disabled={saving || page.fields.length === 0}
+              className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save format
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirmClose}
+        title="Discard your changes?"
+        message="The fields you placed on this format have not been saved."
+        confirmLabel="Discard"
+        danger
+        onConfirm={() => { setConfirmClose(false); onClose() }}
+        onCancel={() => setConfirmClose(false)}
+      />
+    </ModalPortal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORMATS TAB
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function FormatsTab({ campusKey, currentUser, addToast }) {
+  const departments = formatDepartmentsFor(currentUser)
+  const [department, setDepartment] = useState(departments[0] || 'basicEd')
+  const [templates, setTemplates]   = useState({})
+  const [types, setTypes]           = useState([])
+  const [busyId, setBusyId]         = useState(null)   // document type being read
+  const [editing, setEditing]       = useState(null)   // { docType, draft }
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
+  const [toRemove, setToRemove]     = useState(null)
+  const fileRef   = useRef(null)
+  const uploadFor = useRef(null)                        // { docType, keepFields }
+
+  const load = useCallback(() => {
+    setTemplates(getTemplates(campusKey, department))
+    setTypes(getDocumentTypes(campusKey, department))
+  }, [campusKey, department])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const h = () => load()
+    window.addEventListener('almirene_document_templates_updated', h)
+    window.addEventListener('almirene_document_catalog_updated', h)
+    return () => {
+      window.removeEventListener('almirene_document_templates_updated', h)
+      window.removeEventListener('almirene_document_catalog_updated', h)
+    }
+  }, [load])
+
+  const pickFile = (docType, keepFields) => {
+    uploadFor.current = { docType, keepFields }
+    fileRef.current?.click()
+  }
+
+  const onFileChosen = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const target = uploadFor.current
+    if (!file || !target) return
+    setBusyId(target.docType.id)
+    try {
+      const res = await fileToTemplateImage(file)
+      const existing = templates[target.docType.id]
+      setError('')
+      setEditing({
+        docType: target.docType,
+        draft: {
+          image: res.image, pageWidthPt: res.pageWidthPt, pageHeightPt: res.pageHeightPt,
+          fileName: res.fileName,
+          fontFamily: existing?.fontFamily || 'serif',
+          fields: target.keepFields && existing ? existing.fields : [],
+          isNew: true,
+        },
+      })
+      if (res.pages > 1) addToast?.(`This PDF has ${res.pages} pages. Only page 1 is used.`, 'info')
+    } catch (err) {
+      addToast?.(err.message || 'The file could not be used.', 'error')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const openEditor = (docType) => {
+    const t = templates[docType.id]
+    if (!t) return
+    setError('')
+    setEditing({ docType, draft: { ...t, isNew: false } })
+  }
+
+  const handleSave = (page) => {
+    setSaving(true)
+    setError('')
+    try {
+      saveTemplate({
+        campusKey, department,
+        documentType: editing.docType.id,
+        documentLabel: editing.docType.label,
+        ...page,
+      }, currentUser)
+      addToast?.(`${editing.docType.label} format saved.`, 'success')
+      setEditing(null)
+      load()
+    } catch (err) {
+      setError(err.message || 'Could not save the format.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemove = () => {
+    try {
+      removeTemplate(campusKey, department, toRemove.id, currentUser)
+      addToast?.(`${toRemove.label} format removed.`, 'success')
+      load()
+    } catch (err) {
+      addToast?.(err.message, 'error')
+    }
+    setToRemove(null)
+  }
+
+  if (departments.length === 0) return null
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <p className="text-sm text-[var(--color-text-muted)] max-w-xl">
+          Upload your school's own PDF for each document, then place the fields once. After that, every request is filled in automatically and ready to print.
+        </p>
+        {departments.length > 1 && (
+          <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl w-fit shrink-0">
+            {departments.map(d => (
+              <button key={d} onClick={() => setDepartment(d)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors
+                  ${department === d ? 'is-selected shadow-sm' : 'text-[var(--color-text-muted)]'}`}>
+                {DEPT_LABEL[d]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <input ref={fileRef} type="file" accept="application/pdf,image/png,image/jpeg,image/webp"
+        className="hidden" onChange={onFileChosen} />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {types.map(t => {
+          const tpl  = templates[t.id]
+          const busy = busyId === t.id
+          return (
+            <div key={t.id} className="p-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="w-14 h-[4.5rem] shrink-0 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)] overflow-hidden flex items-center justify-center">
+                  {tpl
+                    ? <img src={tpl.image} alt="" className="w-full h-full object-cover object-top" />
+                    : <FileText size={20} className="text-[var(--color-text-muted)]" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{t.label}</p>
+                  {tpl ? (
+                    <>
+                      <p className="text-xs text-[var(--color-success-text)] font-medium mt-0.5">
+                        Format ready · {tpl.fields.length} field{tpl.fields.length !== 1 ? 's' : ''}
+                      </p>
+                      <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 truncate">
+                        {tpl.fileName} · {fmtWhen(tpl.updatedAt)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">No format uploaded yet</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-auto">
+                {tpl ? (
+                  <>
+                    <button onClick={() => openEditor(t)} className="btn btn-primary text-xs gap-1.5">
+                      <Pencil size={13} /> Edit fields
+                    </button>
+                    <button onClick={() => pickFile(t, false)} disabled={busy} className="btn btn-ghost text-xs gap-1.5">
+                      {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Replace file
+                    </button>
+                    <button onClick={() => setToRemove(t)} aria-label={`Remove ${t.label} format`} className="btn btn-ghost text-xs p-2 ml-auto">
+                      <Trash2 size={13} />
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => pickFile(t, false)} disabled={busy} className="btn btn-primary text-xs gap-1.5">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} Upload format
+                  </button>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-[11px] text-[var(--color-text-muted)]">
+        PDF, PNG, JPG or WebP up to {DOCUMENT_FORMAT_LIMITS.maxFileMB} MB. Only the first page of a PDF is used.
+      </p>
+
+      {editing && (
+        <FormatEditorModal
+          key={editing.docType.id}
+          draft={editing.draft}
+          docLabel={editing.docType.label}
+          saving={saving}
+          error={error}
+          onSave={handleSave}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      <ConfirmDialog
+        open={!!toRemove}
+        title="Remove this format?"
+        message={toRemove ? `${toRemove.label} will have no format until you upload a new one. Requests are not affected.` : ''}
+        confirmLabel="Remove"
+        danger
+        onConfirm={handleRemove}
+        onCancel={() => setToRemove(null)}
+      />
+    </div>
+  )
+}

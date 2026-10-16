@@ -3346,7 +3346,7 @@ export default function Settings() {
                       setTimeout(() => setCashierSaved(false), 2000)
                     } catch {}
                   }}
-                  className="flex items-center gap-2 px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition text-sm font-semibold"
+                  className="btn btn-primary"
                 >
                   {cashierSaved ? <><Check className="w-4 h-4" /> Saved!</> : <><Save className="w-4 h-4" /> Save Settings</>}
                 </button>
