@@ -203,7 +203,10 @@ export default function Dashboard() {
   const payOutstanding = filteredPayments.reduce((s, p) => s + p.balance, 0)
   const payTotalFee    = filteredPayments.reduce((s, p) => s + p.totalFee, 0)
   const payPaid        = filteredPayments.filter(p => p.status === 'paid').length
-  const payOverdue     = filteredPayments.filter(p => p.status === 'overdue').length
+  const payOverdueRows = filteredPayments.filter(p => p.status === 'overdue')
+  const payOverdue     = payOverdueRows.length
+  const payOverdueAmt  = payOverdueRows.reduce((s, p) => s + p.balance, 0)
+  const payWithBalance = filteredPayments.filter(p => p.balance > 0).length
   const collectionRate = payTotalFee > 0 ? Math.round((payRevenue / payTotalFee) * 100) : 0
 
   // ── Per-campus stats ──────────────────────────────────────────
@@ -701,7 +704,7 @@ export default function Dashboard() {
       {/* ── Campus-locked banner ──────────────────────────────── */}
 
       {/* ── Grand stat cards ──────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 stagger">
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 stagger">
 
         {/* Total Students */}
         <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-info)' }}>
@@ -765,7 +768,28 @@ export default function Dashboard() {
             {php(payOutstanding)}
           </p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">
-            {payOverdue > 0 ? `${payOverdue} overdue accounts` : 'No overdue'}
+            {payWithBalance > 0
+              ? `${payWithBalance} account${payWithBalance === 1 ? '' : 's'} with a balance`
+              : 'All accounts paid'}
+          </p>
+        </div>
+
+        {/* Overdue Accounts */}
+        <div
+          className="stat-card animate-fade-in col-span-2 lg:col-span-4 xl:col-span-1"
+          style={{ borderLeftColor: payOverdue > 0 ? 'var(--color-error)' : 'var(--color-success)' }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+              Overdue Accounts
+            </p>
+            <Clock className={`w-4 h-4 opacity-80 ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success)]'}`} />
+          </div>
+          <p className={`text-2xl font-bold ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-primary)]'}`}>
+            {payOverdue.toLocaleString()}
+          </p>
+          <p className="text-caption text-[var(--color-text-muted)] mt-1">
+            {payOverdue > 0 ? `${php(payOverdueAmt)} past due` : 'Nothing past due'}
           </p>
         </div>
 

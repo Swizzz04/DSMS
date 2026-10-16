@@ -1143,6 +1143,93 @@ export function getPaymentMethods(campusKey, override) {
 export const DEFAULT_MINIMUM_PAYMENT = 500
 
 /**
+ * Payment methods the cashier can record when confirming a document fee
+ * (Document Requests → Confirm Payment). Matches the methods offered on the
+ * Payments page.
+ */
+export const DOCUMENT_PAYMENT_METHODS = ['Cash', 'Bank Transfer']
+
+/**
+ * Purposes offered when a document request is recorded. "Other" lets the
+ * person type their own. Edit this list to change the dropdown everywhere.
+ */
+export const DOCUMENT_REQUEST_PURPOSES = [
+  'Employment',
+  'Scholarship application',
+  'Further studies / transfer',
+  'Board exam / licensure',
+  'Overseas / visa application',
+  'Personal records',
+]
+
+/**
+ * Document formats (Document Requests → Formats / Print).
+ * The registrar uploads a PDF or image of a format once, places the fields on it,
+ * and every request is then filled in automatically.
+ */
+export const DOCUMENT_FORMAT_LIMITS = {
+  maxFileMB:      10,    // largest PDF / image accepted
+  renderWidthPx:  1240,  // the page is stored as an image this wide (about A4 at 150 dpi)
+  jpegQuality:    0.82,
+  defaultPageWidthPt: 595.28,   // A4 width, used for image uploads that carry no page size
+}
+
+/**
+ * Fields the registrar can place on a format. `sample` is only used in the editor preview.
+ * Add a field here and it appears in the Formats editor and fills on every printout.
+ */
+export const DOCUMENT_FORMAT_FIELDS = [
+  { group: 'Student',  key: 'student_name',            label: 'Student name (First Last)',  sample: 'Maria Dela Cruz' },
+  { group: 'Student',  key: 'student_name_upper',      label: 'Student name (UPPERCASE)',   sample: 'MARIA DELA CRUZ' },
+  { group: 'Student',  key: 'student_name_last_first', label: 'Student name (LAST, FIRST)', sample: 'DELA CRUZ, MARIA' },
+  { group: 'Student',  key: 'student_id',              label: 'Student ID',                 sample: '2026-1001' },
+  { group: 'Student',  key: 'grade_level',             label: 'Grade level / program',      sample: 'Grade 10' },
+  { group: 'Student',  key: 'year_graduated',          label: 'Year graduated',             sample: '2023' },
+  { group: 'Request',  key: 'document_type',           label: 'Document requested',         sample: 'Good Moral Certificate' },
+  { group: 'Request',  key: 'purpose',                 label: 'Purpose',                    sample: 'Employment' },
+  { group: 'Request',  key: 'requestor_name',          label: 'Requested by',               sample: 'Maria Dela Cruz' },
+  { group: 'Request',  key: 'date_requested',          label: 'Date requested',             sample: 'October 15, 2026' },
+  { group: 'Request',  key: 'school_year',             label: 'School year',                sample: '2026-2027' },
+  { group: 'Date issued', key: 'date_today',           label: 'Date (October 16, 2026)',    sample: 'October 16, 2026' },
+  { group: 'Date issued', key: 'date_given',           label: 'Date (16th day of October, 2026)', sample: '16th day of October, 2026' },
+  { group: 'Date issued', key: 'day_today',            label: 'Day only (16th)',            sample: '16th' },
+  { group: 'Date issued', key: 'month_today',          label: 'Month only (October)',       sample: 'October' },
+  { group: 'Date issued', key: 'year_today',           label: 'Year only (2026)',           sample: '2026' },
+  { group: 'Payment',  key: 'or_number',               label: 'OR number',                  sample: 'OR-2610-0001' },
+  { group: 'Payment',  key: 'amount_paid',             label: 'Amount paid',                sample: '₱50.00' },
+  { group: 'School',   key: 'school_name',             label: 'School name',                sample: 'Sample School' },
+  { group: 'School',   key: 'campus_name',             label: 'Campus',                     sample: 'Carcar City Campus' },
+  { group: 'School',   key: 'prepared_by',             label: 'Prepared by (logged-in registrar)', sample: 'Registrar Name' },
+]
+
+/**
+ * Default document catalog for Document Requests (labels, fees, clearance).
+ * These are only the starting point: accounting sets each campus's own prices
+ * (and can add or remove documents) in Settings → Fees → Document Fees.
+ * A fee of 0 means the document is free.
+ */
+export const DEFAULT_DOCUMENT_TYPES = {
+  basicEd: [
+    { id: 'enrollment_form',        label: 'Enrollment Form',                  requiresClearance: false, fee: 0   },
+    { id: 'form138',                label: 'Report Card (Form 138)',           requiresClearance: false, fee: 0   },
+    { id: 'certificate_enrollment', label: 'Certificate of Enrollment',        requiresClearance: false, fee: 50  },
+    { id: 'good_moral',             label: 'Good Moral Certificate',           requiresClearance: false, fee: 50  },
+    { id: 'transfer_credentials',   label: 'Transfer Credentials',             requiresClearance: true,  fee: 100 },
+    { id: 'form137',                label: 'Form 137 (Permanent Record)',      requiresClearance: true,  fee: 0   },
+    { id: 'form138_transfer',       label: 'Form 138 (for Transfer)',          requiresClearance: true,  fee: 0   },
+  ],
+  college: [
+    { id: 'certificate_enrollment', label: 'Certificate of Enrollment',        requiresClearance: false, fee: 50  },
+    { id: 'certificate_grades',     label: 'Certificate of Grades',            requiresClearance: false, fee: 50  },
+    { id: 'transcript',             label: 'Transcript of Records',            requiresClearance: true,  fee: 200 },
+    { id: 'good_moral',             label: 'Good Moral Certificate',           requiresClearance: false, fee: 50  },
+    { id: 'honorable_dismissal',    label: 'Honorable Dismissal',              requiresClearance: true,  fee: 100 },
+    { id: 'certification',          label: 'Certification',                    requiresClearance: false, fee: 50  },
+    { id: 'cor',                    label: 'Certificate of Registration (COR)', requiresClearance: false, fee: 0  },
+  ],
+}
+
+/**
  * Minimum payment for a campus. Accepts a campus name ('Carcar City Campus')
  * or key ('Carcar'). Falls back to DEFAULT_MINIMUM_PAYMENT when unset/invalid.
  * Reads localStorage directly so it works outside React (same pattern as

@@ -11,31 +11,53 @@
  *   technical_admin   — sees everything
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   FileText, Plus, Search, Filter, ChevronDown,
   Check, X, Clock, AlertCircle, Package, Send,
   User, CreditCard, Eye, RotateCcw, CheckCircle,
-  ClipboardList, ShieldCheck, Building2, BookOpen,
+  ClipboardList, ShieldCheck, Building2, BookOpen, Receipt, Printer, GraduationCap, Tag, Trash2, Upload,
 } from 'lucide-react'
 import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import GroupedSelect    from '../components/GroupedSelect'
+import DatePicker       from '../components/DatePicker'
 import { ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton } from '../components/UIComponents'
 import {
-  getRequests, getRequestById, createRequest,
-  updateStatus, recordPayment, releaseDocument, cancelRequest,
+  getRequests, getRequestById, createRequest, createGraduateRequest,
+  updateStatus, confirmDocumentPayment, releaseDocument, cancelRequest,
   getClearances, getClearanceById, createClearance, updateDepartmentClearance,
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
-  BASIC_ED_DOCUMENT_TYPES, COLLEGE_DOCUMENT_TYPES,
+  getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, resetDocumentTypes,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
   getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches,
 } from '../utils/documentBridge'
 import { getStudents } from '../utils/enrollmentBridge'
+import { suggestOrNumber, isOrNumberUsed } from '../utils/orNumbers'
+import { printReceiptHtml } from '../utils/printReceipt'
+import FormatsTab from '../components/documents/FormatsTab'
+import PrintTab   from '../components/documents/PrintTab'
+import { DOCUMENT_PAYMENT_METHODS, DOCUMENT_REQUEST_PURPOSES } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Years offered for "year graduated": this year back 40 years. Built from the
+// clock, so it moves forward by itself every January.
+const graduationYears = () => {
+  const y = new Date().getFullYear()
+  return Array.from({ length: 41 }, (_, i) => String(y - i))
+}
+
+// The day a timestamp falls on in the user's own time zone, as YYYY-MM-DD
+const localYMD = (iso) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const peso = n => '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const STATUS_STYLE = {
   requested:   'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',
@@ -116,7 +138,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
     : []
 
   const department = selectedStudent?.department ?? 'basicEd'
-  const docTypes   = department === 'college' ? COLLEGE_DOCUMENT_TYPES : BASIC_ED_DOCUMENT_TYPES
+  const docTypes   = getDocumentTypes(campusKey, department)
   const selectedDoc = docTypes.find(d => d.id === docType)
 
   const handleSave = () => {
@@ -170,7 +192,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
               <h2 className="text-base font-bold text-[var(--color-text-primary)]">New Document Request</h2>
               <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Fill in all fields to submit a request</p>
             </div>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+            <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
               <X size={16} className="text-[var(--color-text-muted)]" />
             </button>
           </div>
@@ -444,7 +466,7 @@ function ClearancePanel({ clearanceId, currentUser }) {
             {!cleared && (
               <button
                 onClick={() => setConfirming(dept.id)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-primary hover:text-[var(--color-primary-contrast)] transition-colors font-medium">
+                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-[var(--color-action)] hover:border-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition-colors font-medium">
                 Sign
               </button>
             )}
@@ -466,12 +488,494 @@ function ClearancePanel({ clearanceId, currentUser }) {
   )
 }
 
+// ─────────────────────────────────────────────────────────────────
+// GRADUATE REQUEST MODAL (the registrar files a request for a former student)
+// ─────────────────────────────────────────────────────────────────
+
+const OTHER_PURPOSE = 'Other'
+
+const GRADUATE_DEPARTMENTS = [
+  { id: 'basicEd', label: 'Basic Ed graduate' },
+  { id: 'college', label: 'College graduate'  },
+]
+
+function RecordGraduateRequestModal({ campusKey, campusName, schoolYear, currentUser, lockedDepartment, onRecorded, onClose }) {
+  // A department registrar can only file for their own department; technical admin chooses
+  const [department, setDepartment] = useState(lockedDepartment || 'basicEd')
+  const [docType,    setDocType]    = useState('')
+  const [firstName,  setFirstName]  = useState('')
+  const [lastName,   setLastName]   = useState('')
+  const [formerId,   setFormerId]   = useState('')
+  const [lastLevel,  setLastLevel]  = useState('')   // Basic Ed grade level, or college program
+  const [yearLevel,  setYearLevel]  = useState('')   // college year level (1st Year ...)
+  const [yearGrad,   setYearGrad]   = useState('')
+  const [purposeChoice, setPurposeChoice] = useState('')   // a listed purpose, or OTHER_PURPOSE
+  const [purposeOther,  setPurposeOther]  = useState('')
+  const [error,      setError]      = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const { basicEdGroups, getCampus, campuses, collegeYearLevels } = useAppConfig()
+
+  // Last level: Basic Ed grade levels, or this campus's college programs (all programs if the campus lists none)
+  const campusPrograms = getCampus?.(campusKey)?.college?.programs ?? []
+  const programList    = campusPrograms.length > 0
+    ? campusPrograms
+    : [...new Set((campuses || []).flatMap(c => c.college?.programs ?? []))]
+  const levelGroups = department === 'college'
+    ? [{ label: 'Programs', options: programList.map(p => ({ value: p, label: p })) }]
+    : (basicEdGroups || []).map(g => ({ label: g.label, options: g.options.map(o => ({ value: o, label: o })) }))
+
+  const purpose = purposeChoice === OTHER_PURPOSE ? purposeOther.trim() : purposeChoice
+
+  const docTypes = getDocumentTypes(campusKey, department)
+  const selectedDoc = docTypes.find(d => d.id === docType)
+
+  const yearOptions = graduationYears().map(y => ({ value: y, label: y }))
+
+  const canSave = !saving && !!selectedDoc && firstName.trim() !== '' && lastName.trim() !== '' && purpose !== ''
+
+  const pickDepartment = (id) => {
+    if (id === department) return
+    setDepartment(id)
+    setDocType('')   // the document list is different for each department
+    setLastLevel('') // and so is the list of levels / programs
+    setYearLevel('')
+    setError('')
+  }
+
+  const handleSave = () => {
+    if (!canSave) return
+    setSaving(true)
+    setError('')
+    try {
+      const record = createGraduateRequest({
+        department,
+        documentType:   docType,
+        firstName, lastName,
+        formerStudentId: formerId,
+        // College: "Program - 4th Year" (same format as enrolled students); Basic Ed: the grade level
+        lastLevel: department === 'college' ? [lastLevel, yearLevel].filter(Boolean).join(' - ') : lastLevel,
+        yearGraduated:  yearGrad,
+        purpose,
+        campusKey, campusName, schoolYear,
+      }, currentUser)
+
+      // Documents that need clearance get a clearance record, same as a registrar request
+      if (record.requiresClearance) {
+        const clr = createClearance(record.studentId, record.studentName, campusKey, schoolYear, `For: ${record.documentLabel}`)
+        linkClearanceToRequest(record.id, clr.id)
+      }
+      onRecorded(getRequestById(record.id) ?? record)
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition'
+  const labelCls = 'text-xs font-semibold text-[var(--color-text-secondary)] block mb-1'
+
+  return (
+    <ModalPortal>
+      <div className="modal-backdrop">
+        <div className="modal-panel" style={{ maxWidth: '36rem' }}>
+          <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+            <div>
+              <h2 className="text-base font-bold text-[var(--color-text-primary)]">New Graduate Request</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">For a former student asking for a document.</p>
+            </div>
+            <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+              <X size={16} className="text-[var(--color-text-muted)]" />
+            </button>
+          </div>
+
+          <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            {/* Basic Ed or College (fixed for a department registrar) */}
+            {!lockedDepartment && (
+            <div>
+              <label className={labelCls}>Graduate of *</label>
+              <div className="flex gap-2">
+                {GRADUATE_DEPARTMENTS.map(d => (
+                  <button key={d.id} type="button" onClick={() => pickDepartment(d.id)}
+                    className={`flex-1 py-2.5 text-xs rounded-xl border transition-colors font-medium flex items-center justify-center gap-1.5
+                      ${department === d.id
+                        ? 'is-selected'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+                    <GraduationCap size={14} /> {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            )}
+
+            {/* Document */}
+            <div>
+              <label className={labelCls}>Document *</label>
+              <GroupedSelect
+                value={docType || 'all'}
+                onChange={v => setDocType(v === 'all' ? '' : v)}
+                options={docTypes.map(d => ({ value: d.id, label: d.fee > 0 ? `${d.label} — ₱${d.fee}` : `${d.label} — Free` }))}
+                allLabel="Select document..."
+                placeholder="Select document..."
+              />
+              {selectedDoc?.requiresClearance && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-[var(--color-warning-text)]">
+                  <AlertCircle size={12} />
+                  This document requires clearance before release.
+                </div>
+              )}
+            </div>
+
+            {/* Name */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>First name *</label>
+                <input className={inputCls} value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" />
+              </div>
+              <div>
+                <label className={labelCls}>Last name *</label>
+                <input className={inputCls} value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" />
+              </div>
+            </div>
+
+            {/* Former record */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>
+                  Former student ID <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+                </label>
+                <input className={inputCls} value={formerId} onChange={e => setFormerId(e.target.value)} placeholder="If the graduate remembers it" />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  {department === 'college' ? 'Program' : 'Last grade level'} <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+                </label>
+                <GroupedSelect
+                  value={lastLevel || 'all'}
+                  onChange={v => setLastLevel(v === 'all' ? '' : v)}
+                  groups={levelGroups}
+                  allLabel={department === 'college' ? 'Select program...' : 'Select grade level...'}
+                  placeholder={department === 'college' ? 'Select program...' : 'Select grade level...'}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>
+                  Year graduated <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+                </label>
+                <GroupedSelect
+                  value={yearGrad || 'all'}
+                  onChange={v => setYearGrad(v === 'all' ? '' : v)}
+                  options={yearOptions}
+                  allLabel="Select year..."
+                  placeholder="Select year..."
+                />
+              </div>
+              {department === 'college' && (
+                <div>
+                  <label className={labelCls}>
+                    Last year level <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+                  </label>
+                  <GroupedSelect
+                    value={yearLevel || 'all'}
+                    onChange={v => setYearLevel(v === 'all' ? '' : v)}
+                    options={(collegeYearLevels || []).map(y => ({ value: y, label: y }))}
+                    allLabel="Select year level..."
+                    placeholder="Select year level..."
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Purpose */}
+            <div>
+              <label className={labelCls}>Purpose *</label>
+              <GroupedSelect
+                value={purposeChoice || 'all'}
+                onChange={v => setPurposeChoice(v === 'all' ? '' : v)}
+                options={[...DOCUMENT_REQUEST_PURPOSES, OTHER_PURPOSE].map(p => ({ value: p, label: p }))}
+                allLabel="Select purpose..."
+                placeholder="Select purpose..."
+              />
+              {purposeChoice === OTHER_PURPOSE && (
+                <input className={`${inputCls} mt-2`} value={purposeOther} onChange={e => setPurposeOther(e.target.value)}
+                  placeholder="Type the purpose" autoFocus />
+              )}
+            </div>
+
+            {selectedDoc && (
+              <div className="bg-[var(--color-bg-subtle)] rounded-xl p-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] text-[var(--color-text-muted)] font-medium uppercase tracking-wide">Fee</p>
+                  <p className="text-lg font-bold text-[var(--color-text-primary)]">{selectedDoc.fee > 0 ? peso(selectedDoc.fee) : 'Free'}</p>
+                </div>
+                <p className="text-xs text-[var(--color-text-muted)] text-right">
+                  {selectedDoc.fee > 0
+                    ? 'After you prepare it, mark it For Payment so accounting can collect.'
+                    : 'No fee. Mark it ready for pickup once it is prepared.'}
+                </p>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                {error}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 p-5 border-t border-[var(--color-border)]">
+            <button onClick={onClose} className="btn btn-ghost text-sm">Cancel</button>
+            <button onClick={handleSave} disabled={!canSave} className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
+              <Plus size={14} /> Submit Request
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CONFIRM PAYMENT MODAL (accounting records the cashier's details)
+// ─────────────────────────────────────────────────────────────────
+
+function ConfirmPaymentModal({ request, currentUser, onConfirmed, onClose }) {
+  const [orNumber, setOrNumber] = useState(() => suggestOrNumber())
+  const [method,   setMethod]   = useState(DOCUMENT_PAYMENT_METHODS[0] || '')
+  const [remarks,  setRemarks]  = useState('')
+  const [error,    setError]    = useState('')
+  const [saving,   setSaving]   = useState(false)
+
+  const orTaken = orNumber.trim() !== '' && isOrNumberUsed(orNumber)
+  const canSave = !saving && orNumber.trim() !== '' && !orTaken && !!method
+
+  const handleSave = () => {
+    if (!canSave) return
+    setSaving(true)
+    setError('')
+    try {
+      confirmDocumentPayment(request.id, { orNumber, method, remarks }, currentUser)
+      onConfirmed()
+    } catch (err) {
+      setError(err.message)
+      setSaving(false)
+    }
+  }
+
+  return (
+    <ModalPortal>
+      <div className="modal-backdrop">
+        <div className="modal-panel" style={{ maxWidth: '26rem' }}>
+          <div className="p-5 border-b border-[var(--color-border)]">
+            <h3 className="text-base font-bold text-[var(--color-text-primary)]">Confirm Payment</h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+              {request.documentLabel} · {request.studentName}
+            </p>
+          </div>
+
+          <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="bg-[var(--color-bg-subtle)] rounded-xl p-3 text-center">
+              <p className="text-[10px] text-[var(--color-text-muted)] font-medium uppercase tracking-wide">Amount to collect</p>
+              <p className="text-2xl font-bold text-[var(--color-text-primary)] mt-0.5">{peso(request.fee)}</p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
+                OR Number *
+              </label>
+              <input
+                className="w-full px-3 py-2.5 text-sm font-mono border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition"
+                value={orNumber}
+                onChange={e => setOrNumber(e.target.value)}
+                placeholder="Number on the official receipt"
+                autoFocus
+              />
+              {orTaken && (
+                <p className="text-xs text-[var(--color-error-text)] mt-1">
+                  This OR number is already used on another payment.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
+                Payment Method *
+              </label>
+              <GroupedSelect
+                value={method || 'all'}
+                onChange={v => setMethod(v === 'all' ? '' : v)}
+                allLabel="Select method..."
+                placeholder="Select method..."
+                options={DOCUMENT_PAYMENT_METHODS.map(m => ({ value: m, label: m }))}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
+                Remarks <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
+              </label>
+              <input
+                className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition"
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                placeholder="e.g. paid by parent"
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                {error}
+              </div>
+            )}
+
+            <p className="text-xs text-[var(--color-text-muted)]">
+              This records the payment under your name and cannot be undone.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 p-5 border-t border-[var(--color-border)]">
+            <button onClick={onClose} className="btn btn-ghost text-sm">Cancel</button>
+            <button onClick={handleSave} disabled={!canSave}
+              className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
+              <CheckCircle size={14} /> Confirm Payment
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// DOCUMENT FEE RECEIPT (one copy; also used to reprint)
+// ─────────────────────────────────────────────────────────────────
+
+function DocumentReceiptModal({ request, onPopupBlocked, onClose }) {
+  const paperRef = useRef(null)
+  const p        = request.payment
+  const schoolName = (() => {
+    try { return JSON.parse(localStorage.getItem('almirene_website_content') || '{}').schoolName || '' }
+    catch { return '' }
+  })()
+  const when    = new Date(p.at)
+  const dateStr = when.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+  const timeStr = when.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
+
+  const handlePrint = () => {
+    printReceiptHtml({
+      html:  paperRef.current?.innerHTML,
+      title: `Receipt — ${request.studentName}`,
+      onBlocked: onPopupBlocked,
+    })
+  }
+
+  return (
+    <ModalPortal>
+      <div className="modal-backdrop">
+        <div className="modal-panel" style={{ maxWidth: '28rem' }}>
+          <div className="p-5 border-b border-[var(--color-border)]">
+            <h3 className="text-base font-bold text-[var(--color-text-primary)]">Official Receipt</h3>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">OR# {p.orNumber}</p>
+          </div>
+
+          <div className="p-5 max-h-[70vh] overflow-y-auto">
+            <div ref={paperRef} className="receipt-paper border border-[var(--color-border-strong)] rounded-xl p-5"
+              style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+              <div className="text-center mb-3 pb-3 border-b-2 border-double border-[var(--color-border-strong)]">
+                <p className="font-bold text-sm uppercase tracking-wide text-[var(--color-text-primary)]">{schoolName || 'School Name'}</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{p.campusName || request.campusName}</p>
+                <p className="text-xs text-[var(--color-text-muted)]">School Year {request.schoolYear}</p>
+                <div className="mt-2 inline-block border border-[var(--color-border-strong)] px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Official Receipt
+                </div>
+              </div>
+
+              <div className="flex justify-between text-xs mb-3">
+                <div>
+                  <span className="text-[var(--color-text-muted)]">OR No.: </span>
+                  <span className="font-bold font-mono">{p.orNumber}</span>
+                </div>
+                <div className="text-right">
+                  <div><span className="text-[var(--color-text-muted)]">Date: </span><span className="font-semibold">{dateStr}</span></div>
+                  <div><span className="text-[var(--color-text-muted)]">Time: </span><span className="font-semibold">{timeStr}</span></div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3 mb-3 text-xs space-y-1">
+                <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Student:</span><span className="font-bold">{request.studentName}</span></div>
+                <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Grade:</span><span>{request.studentGrade || '—'}</span></div>
+              </div>
+
+              <table className="w-full text-xs mb-4">
+                <thead>
+                  <tr className="border-b border-[var(--color-border-strong)] text-[var(--color-text-muted)]">
+                    <th className="text-left py-1 font-semibold">Description</th>
+                    <th className="text-right py-1 font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-1.5">
+                      {request.documentLabel}
+                      {request.purpose && <span className="block text-[var(--color-text-muted)]">Purpose: {request.purpose}</span>}
+                    </td>
+                    <td className="py-1.5 text-right align-top">{peso(p.amount)}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-[var(--color-border-strong)]">
+                    <td className="pt-2 font-bold">Total Paid</td>
+                    <td className="pt-2 text-right font-bold text-sm">{peso(p.amount)}</td>
+                  </tr>
+                  <tr>
+                    <td className="pt-1 text-[var(--color-text-muted)]">Payment method</td>
+                    <td className="pt-1 text-right">{p.method}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              <div className="flex justify-between items-end text-xs mt-6">
+                <div className="text-center">
+                  <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+                    <p className="font-semibold">{p.receivedBy}</p>
+                    <p>Cashier / Accounting</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+                    <p className="italic text-[var(--color-text-muted)]">Received by</p>
+                    <p>Student / Parent</p>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-[var(--color-text-muted)] text-[10px] text-center">Thank you for your payment!</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 p-5 border-t border-[var(--color-border)]">
+            <button onClick={onClose} className="btn btn-ghost text-sm">Close</button>
+            <button onClick={handlePrint} className="btn btn-primary text-sm gap-1.5">
+              <Printer size={14} /> Print Receipt
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // REQUEST DETAIL DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const [releaseModal, setReleaseModal] = useState(false)
+  const [payModal,     setPayModal]     = useState(false)
+  const [receiptModal, setReceiptModal] = useState(false)
   const [noteInput,    setNoteInput]    = useState('')
   const { toasts, addToast, removeToast } = useToast()
 
@@ -502,6 +1006,13 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
     }
   }
 
+  const handlePaymentConfirmed = () => {
+    setPayModal(false)
+    addToast('Payment confirmed.', 'success')
+    onUpdate()
+    setReceiptModal(true)   // show the receipt right away so it can be printed
+  }
+
   const handleRelease = (data) => {
     try {
       releaseDocument(request.id, { ...data, byName: currentUser?.name })
@@ -527,7 +1038,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge request={request} />
-              <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+              <button onClick={onClose} aria-label="Close" className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                 <X size={16} className="text-[var(--color-text-muted)]" />
               </button>
             </div>
@@ -539,7 +1050,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
               {[
                 ['Purpose',      request.purpose],
                 ['Requested By', `${request.requestedBy}${request.requestorName ? ` — ${request.requestorName}` : ''}`],
-                ['Fee',          request.fee > 0 ? `₱${request.fee}` : 'Free'],
+                ['Fee',          request.fee > 0 ? `₱${Number(request.fee).toLocaleString()}` : 'Free'],
                 ['Filed On',     fmtDate(request.createdAt)],
                 ...(request.paidAt ? [['Paid On', fmtDate(request.paidAt)]] : []),
                 ...(request.releasedTo ? [['Released To', request.releasedTo]] : []),
@@ -551,6 +1062,34 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                 </div>
               ))}
             </div>
+
+            {/* Payment record (set when accounting confirms the fee) */}
+            {request.payment && (
+              <div className="border border-[var(--color-success-border)] bg-[var(--color-success-light)] rounded-xl p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-[var(--color-success-text)] flex items-center gap-1.5">
+                      <CheckCircle size={13} /> Fee paid
+                    </p>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)] mt-1">
+                      {peso(request.payment.amount)} · {request.payment.method}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                      OR# <span className="font-mono">{request.payment.orNumber}</span>
+                    </p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                      Received by {request.payment.receivedBy} · {fmtDate(request.payment.at)}
+                    </p>
+                    {request.payment.remarks && (
+                      <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{request.payment.remarks}</p>
+                    )}
+                  </div>
+                  <button onClick={() => setReceiptModal(true)} className="btn btn-ghost text-xs gap-1.5 shrink-0">
+                    <Receipt size={12} /> Receipt
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Clearance panel */}
             {request.requiresClearance && (
@@ -568,7 +1107,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
               <div className="space-y-2">
                 {[...request.statusHistory].reverse().map((h, i) => (
                   <div key={i} className="flex items-start gap-3 text-xs">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-selected)] mt-1.5 shrink-0" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <StatusBadge request={h} />
@@ -601,13 +1140,13 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     </button>
                   )}
                   {canRequirePayment && (
-                    <button onClick={() => act('require_payment', `Processing fee of ₱${request.fee} required.`)}
+                    <button onClick={() => act('require_payment', `Processing fee of ₱${Number(request.fee).toLocaleString()} required.`)}
                       className="btn text-xs gap-1.5 border border-[var(--color-warning-border)] text-[var(--color-warning-text)] hover:bg-[var(--color-warning-light)]">
-                      <CreditCard size={12} /> Require Payment (₱{request.fee})
+                      <CreditCard size={12} /> Require Payment (₱{Number(request.fee).toLocaleString()})
                     </button>
                   )}
                   {canConfirmPayment && (
-                    <button onClick={() => act('confirm_payment')}
+                    <button onClick={() => setPayModal(true)}
                       className="btn btn-primary text-xs gap-1.5">
                       <CheckCircle size={12} /> Confirm Payment
                     </button>
@@ -636,6 +1175,23 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
       {releaseModal && (
         <ReleaseModal request={request} onRelease={handleRelease} onClose={() => setReleaseModal(false)} />
       )}
+
+      {payModal && (
+        <ConfirmPaymentModal
+          request={request}
+          currentUser={currentUser}
+          onConfirmed={handlePaymentConfirmed}
+          onClose={() => setPayModal(false)}
+        />
+      )}
+
+      {receiptModal && request.payment && (
+        <DocumentReceiptModal
+          request={request}
+          onPopupBlocked={() => addToast('Pop-up blocked. Allow pop-ups for this site to print the receipt.', 'error')}
+          onClose={() => setReceiptModal(false)}
+        />
+      )}
     </ModalPortal>
   )
 }
@@ -651,20 +1207,30 @@ export default function DocumentRequests() {
   const campusKey  = user?.campusKey || activeCampuses?.[0]?.key || ''
   // currentSchoolYear is already the year string (e.g. '2026-2027'), not an object
   const schoolYear = currentSchoolYear || '2026-2027'
+  const campusName = activeCampuses?.find(c => c.key === campusKey)?.name ?? user?.campus ?? ''
 
   const [requests,    setRequests]    = useState([])
   const [loading,     setLoading]     = useState(true)
-  const [activeTab,   setActiveTab]   = useState('requests') // 'requests' | 'clearance'
+  const [activeTab,   setActiveTab]   = useState('requests') // 'requests' | 'clearance' | 'fees' | 'print' | 'formats'
   const [statusFilter,setStatusFilter]= useState('all')
   const [deptFilter,  setDeptFilter]  = useState('all')
+  const [docFilter,   setDocFilter]   = useState('all')   // document type (its label)
+  const [dateFrom,    setDateFrom]    = useState('')      // date filed, from (YYYY-MM-DD)
+  const [dateTo,      setDateTo]      = useState('')      // date filed, to
+  const [showFilters, setShowFilters] = useState(false)
+  const [paidMine,    setPaidMine]    = useState(false)   // Paid tab: only payments I confirmed
   const [search,      setSearch]      = useState('')
   const [showNew,     setShowNew]     = useState(false)
+  const [showRecord,  setShowRecord]  = useState(false)
+  const [feesDirty,   setFeesDirty]   = useState(false)   // unsaved edits on the Fees tab
+  const [pendingTab,  setPendingTab]  = useState(null)    // tab the user tried to open while edits were unsaved
   const [selected,    setSelected]    = useState(null)
   const { toasts, addToast, removeToast } = useToast()
 
   const role = user?.role
   const isRegistrar  = ['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)
   const isAccounting = ['accounting', 'technical_admin'].includes(role)
+  const canManageFees = ['accounting', 'admin', 'technical_admin'].includes(role)
 
   const loadData = useCallback(() => {
     // Always load the FULL list for this campus + school year. The status tabs
@@ -681,20 +1247,68 @@ export default function DocumentRequests() {
     return () => window.removeEventListener('almirene_documents_updated', handler)
   }, [loadData])
 
-  // What this role may see — accounting only works the for_payment queue
-  const scopedRequests = requests.filter(r =>
-    !(isAccounting && !isRegistrar && r.status !== 'for_payment')
-  )
+  // What this role may see: accounting only works the for_payment queue, and
+  // each registrar only sees their own department (technical admin sees both).
+  const registrarDept = role === 'registrar_basic' ? 'basicEd' : role === 'registrar_college' ? 'college' : null
+  const accountingOnly = isAccounting && !isRegistrar
+  const scopedRequests = requests.filter(r => {
+    // accounting works the For Payment queue and tracks what has been paid
+    if (accountingOnly && r.status !== 'for_payment' && !r.payment) return false
+    if (registrarDept && (r.department ?? 'basicEd') !== registrarDept) return false
+    return true
+  })
+
+  // Paid and waiting for the registrar to release
+  const isPaidAwaiting = (r) => !!r.payment && statusMatches(r.status, 'ready_for_pickup')
+  const awaitingCount  = scopedRequests.filter(isPaidAwaiting).length
+  const myId           = user?.id ?? user?.email ?? null
+  // The 'Paid · awaiting release' chip disappears once nothing is waiting, so fall back to All
+  const activeFilter = statusFilter === 'paid_awaiting' && awaitingCount === 0 ? 'all' : statusFilter
 
   // The table: status tab + search applied on top of the scoped list
   const visibleRequests = scopedRequests.filter(r => {
-    if (statusFilter !== 'all' && !statusMatches(r.status, statusFilter)) return false
+    if (activeFilter === 'paid_awaiting') { if (!isPaidAwaiting(r)) return false }
+    else if (activeFilter === 'paid') {
+      if (!r.payment) return false
+      if (paidMine && String(r.payment.receivedById) !== String(myId)) return false
+    }
+    else if (activeFilter !== 'all' && !statusMatches(r.status, activeFilter)) return false
+
+    // Exact matches only (never .includes) so "Grade 1" can't match "Grade 10"
+    if (docFilter   !== 'all' && r.documentLabel !== docFilter)   return false
+    if (dateFrom || dateTo) {
+      const filed = localYMD(r.createdAt)
+      if (dateFrom && filed < dateFrom) return false
+      if (dateTo   && filed > dateTo)   return false
+    }
+    if (deptFilter  !== 'all' && (r.department ?? 'basicEd') !== deptFilter) return false
+
     if (search) {
       const q = search.toLowerCase()
-      return r.studentName?.toLowerCase().includes(q) || r.documentLabel?.toLowerCase().includes(q)
+      return r.studentName?.toLowerCase().includes(q)
+          || r.documentLabel?.toLowerCase().includes(q)
+          || r.payment?.orNumber?.toLowerCase().includes(q)
     }
     return true
   })
+
+  // Document choices come from the campus Fees list plus anything already on a request,
+  // so a renamed or removed document never goes missing from the filter.
+  const uniq = (vals) => [...new Set(vals.filter(Boolean))]
+  const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true })
+  const showBasic   = registrarDept !== 'college'
+  const showCollege = registrarDept !== 'basicEd'
+
+  const docOptions = uniq([
+    ...(showBasic   ? getDocumentTypes(campusKey, 'basicEd').map(t => t.label) : []),
+    ...(showCollege ? getDocumentTypes(campusKey, 'college').map(t => t.label) : []),
+    ...scopedRequests.map(r => r.documentLabel),
+  ]).sort(natural)
+
+  const toOpts = (list) => list.map(v => ({ value: v, label: v }))
+
+  const activeFilterCount = [docFilter, deptFilter].filter(v => v !== 'all').length + (dateFrom || dateTo ? 1 : 0)
+  const clearFilters = () => { setDocFilter('all'); setDeptFilter('all'); setDateFrom(''); setDateTo('') }
 
   // Tab counts and the header's "pending" always come from the scoped list —
   // never from the status-filtered one — so they stay put while the user
@@ -703,7 +1317,30 @@ export default function DocumentRequests() {
   REQUEST_STATUSES.forEach(s => {
     counts[s.id] = scopedRequests.filter(r => statusMatches(r.status, s.id)).length
   })
-  const pending = scopedRequests.filter(r => !['released', 'cancelled'].includes(r.status)).length
+  const paidCount = scopedRequests.filter(r => !!r.payment).length
+  const pending = accountingOnly
+    ? (counts.for_payment || 0)
+    : scopedRequests.filter(r => !['released', 'cancelled'].includes(r.status)).length
+
+  // Opening the page tells the registrar about paid documents to release, or accounting about requests to collect
+  const toldRef = useRef(false)
+  useEffect(() => {
+    if (loading || toldRef.current) return
+    if (!registrarDept && !accountingOnly) return
+    toldRef.current = true
+    if (registrarDept && awaitingCount > 0) {
+      addToast(`${awaitingCount} paid document${awaitingCount !== 1 ? 's are' : ' is'} waiting for you to release.`, 'info')
+    } else if (accountingOnly && (counts.for_payment || 0) > 0) {
+      const n = counts.for_payment
+      addToast(`${n} document request${n !== 1 ? 's are' : ' is'} waiting for payment.`, 'info')
+    }
+  }, [loading, registrarDept, accountingOnly, awaitingCount, counts.for_payment, addToast])
+
+  // Leaving the Fees tab with unsaved edits asks first
+  const goToTab = (id) => {
+    if (id !== activeTab && activeTab === 'fees' && feesDirty) setPendingTab(id)
+    else setActiveTab(id)
+  }
 
   if (loading) return <PageSkeleton />
 
@@ -719,11 +1356,18 @@ export default function DocumentRequests() {
             {schoolYear} · {pending > 0 ? `${pending} pending` : 'All up to date'}
           </p>
         </div>
-        {isRegistrar && (
-          <button onClick={() => setShowNew(true)} className="btn btn-primary gap-1.5 text-sm shrink-0">
-            <Plus size={15} /> New Request
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {isRegistrar && (
+            <>
+              <button onClick={() => setShowRecord(true)} className="btn btn-ghost gap-1.5 text-sm">
+                <GraduationCap size={15} /> Graduate Request
+              </button>
+              <button onClick={() => setShowNew(true)} className="btn btn-primary gap-1.5 text-sm">
+                <Plus size={15} /> New Request
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -731,11 +1375,16 @@ export default function DocumentRequests() {
         {[
           { id: 'requests',  label: 'Requests',  icon: FileText },
           { id: 'clearance', label: 'Clearance', icon: ShieldCheck },
+          ...(isRegistrar ? [
+            { id: 'print',   label: 'Print',   icon: Printer },
+            { id: 'formats', label: 'Formats', icon: Upload },
+          ] : []),
+          ...(canManageFees ? [{ id: 'fees', label: 'Fees', icon: Tag }] : []),
         ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+          <button key={tab.id} onClick={() => goToTab(tab.id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors
               ${activeTab === tab.id
-                ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                ? 'is-selected shadow-sm'
                 : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
             <tab.icon size={14} />
             {tab.label}
@@ -748,10 +1397,15 @@ export default function DocumentRequests() {
         <>
           {/* Status filter chips */}
           <div className="flex flex-wrap gap-2">
-            {[{ id: 'all', label: `All (${scopedRequests.length})` }, ...REQUEST_STATUSES.map(s => ({ id: s.id, label: `${s.label} (${counts[s.id] || 0})` }))].map(f => (
+            {[
+              { id: 'all', label: `All (${scopedRequests.length})` },
+              ...(registrarDept && awaitingCount > 0 ? [{ id: 'paid_awaiting', label: `Paid · awaiting release (${awaitingCount})` }] : []),
+              ...REQUEST_STATUSES.map(s => ({ id: s.id, label: `${s.label} (${counts[s.id] || 0})` })),
+              ...(isAccounting ? [{ id: 'paid', label: `Paid (${paidCount})` }] : []),
+            ].map(f => (
               <button key={f.id} onClick={() => setStatusFilter(f.id)}
                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
-                  ${statusFilter === f.id
+                  ${activeFilter === f.id
                     ? 'is-selected'
                     : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
                 {f.label}
@@ -759,16 +1413,73 @@ export default function DocumentRequests() {
             ))}
           </div>
 
-          {/* Search */}
-          <div className="relative max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-            <input
-              className="w-full pl-9 pr-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
-              placeholder="Search by student or document..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          {/* Search + filters */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="relative flex-1 sm:max-w-sm">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              <input
+                className="w-full pl-9 pr-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
+                placeholder="Search by student, document or OR number..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <button type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors
+                ${showFilters || activeFilterCount > 0
+                  ? 'is-selected'
+                  : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+              <Filter size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-alert)] text-white text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {activeFilter === 'paid' && (
+              <button type="button" onClick={() => setPaidMine(v => !v)} aria-pressed={paidMine}
+                className={`px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors
+                  ${paidMine
+                    ? 'is-selected'
+                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+                Confirmed by me
+              </button>
+            )}
           </div>
+
+          {showFilters && (
+            <div className="card p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">Document type</label>
+                  <GroupedSelect value={docFilter} onChange={setDocFilter} options={toOpts(docOptions)}
+                    allLabel="All documents" placeholder="All documents" />
+                </div>
+                {!registrarDept && (
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">Department</label>
+                    <GroupedSelect value={deptFilter} onChange={setDeptFilter}
+                      options={[{ value: 'basicEd', label: 'Basic Ed' }, { value: 'college', label: 'College' }]}
+                      allLabel="All departments" placeholder="All departments" />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">Filed from</label>
+                  <DatePicker value={dateFrom} onChange={setDateFrom} placeholder="Start date" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">Filed to</label>
+                  <DatePicker value={dateTo} onChange={setDateTo} placeholder="End date" />
+                </div>
+              </div>
+              {activeFilterCount > 0 && (
+                <button type="button" onClick={clearFilters} className="btn btn-ghost text-xs gap-1.5 mt-3">
+                  <X size={13} /> Clear filters
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Requests list */}
           {visibleRequests.length === 0 ? (
@@ -776,7 +1487,11 @@ export default function DocumentRequests() {
               <FileText size={40} className="text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">No requests found</p>
               <p className="text-xs text-[var(--color-text-muted)] mt-1">
-                {statusFilter !== 'all' ? 'Try a different status filter.' : 'Click "New Request" to add one.'}
+                {activeFilterCount > 0
+                  ? 'Nothing matches your filters. Try clearing some.'
+                  : activeFilter !== 'all'
+                  ? 'Try a different status filter.'
+                  : isRegistrar ? 'Click "New Request" or "Graduate Request" to add one.' : 'Requests appear here once the registrar marks them For Payment.'}
               </p>
             </div>
           ) : (
@@ -793,7 +1508,7 @@ export default function DocumentRequests() {
               <div className="divide-y divide-[var(--color-border)]">
                 {visibleRequests.map(req => (
                   <div key={req.id}
-                    className="grid grid-cols-1 sm:grid-cols-[1fr_180px_120px_100px_80px] gap-2 sm:gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)]/50 transition-colors items-center">
+                    className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_180px_120px_100px_80px] gap-2 sm:gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors items-center">
                     <div>
                       <p className="text-sm font-medium text-[var(--color-text-primary)]">{req.studentName}</p>
                       <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mt-0.5">
@@ -806,17 +1521,31 @@ export default function DocumentRequests() {
                         )}
                         {req.fee > 0 && (
                           <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-info-light)] text-[var(--color-info-text)]">
-                            ₱{req.fee}
+                            ₱{Number(req.fee).toLocaleString()}
+                          </span>
+                        )}
+                        {req.isGraduate && (
+                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">
+                            Graduate{req.yearGraduated ? ` ${req.yearGraduated}` : ''}
+                          </span>
+                        )}
+                        {isPaidAwaiting(req) && (
+                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)]">
+                            Paid · OR# {req.payment.orNumber}
                           </span>
                         )}
                       </p>
+                      <div className="flex items-center gap-2 mt-2 sm:hidden">
+                        <StatusBadge request={req} />
+                        <span className="text-xs text-[var(--color-text-muted)]">{fmtDate(req.createdAt)}</span>
+                      </div>
                     </div>
                     <p className="text-xs text-[var(--color-text-muted)] truncate hidden sm:block">{req.purpose}</p>
                     <div className="hidden sm:block"><StatusBadge request={req} /></div>
                     <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">{fmtDate(req.createdAt)}</p>
                     <div className="flex justify-end">
-                      <button onClick={() => setSelected(req)}
-                        className="p-2 rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)]">
+                      <button onClick={() => setSelected(req)} aria-label="View request"
+                        className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)]">
                         <Eye size={14} />
                       </button>
                     </div>
@@ -833,6 +1562,28 @@ export default function DocumentRequests() {
         <ClearanceTab campusKey={campusKey} schoolYear={schoolYear} currentUser={user} />
       )}
 
+      {/* ── PRINT TAB (registrar) ── */}
+      {activeTab === 'print' && isRegistrar && (
+        <PrintTab
+          requests={scopedRequests}
+          campusKey={campusKey}
+          currentUser={user}
+          renderStatus={(r) => <StatusBadge request={r} />}
+          onOpenFormats={() => goToTab('formats')}
+          addToast={addToast}
+        />
+      )}
+
+      {/* ── FORMATS TAB (registrar) ── */}
+      {activeTab === 'formats' && isRegistrar && (
+        <FormatsTab campusKey={campusKey} currentUser={user} addToast={addToast} />
+      )}
+
+      {/* ── FEES TAB ── */}
+      {activeTab === 'fees' && canManageFees && (
+        <DocumentFeesTab campusKey={campusKey} campusName={campusName} currentUser={user} onDirtyChange={setFeesDirty} />
+      )}
+
       {/* Modals */}
       {showNew && (
         <NewRequestModal
@@ -841,6 +1592,18 @@ export default function DocumentRequests() {
           currentUser={user}
           onSave={() => { setShowNew(false); loadData(); addToast('Request submitted.', 'success') }}
           onClose={() => setShowNew(false)}
+        />
+      )}
+
+      {showRecord && (
+        <RecordGraduateRequestModal
+          campusKey={campusKey}
+          campusName={campusName}
+          schoolYear={schoolYear}
+          currentUser={user}
+          lockedDepartment={registrarDept}
+          onRecorded={() => { setShowRecord(false); loadData(); addToast('Graduate request filed.', 'success') }}
+          onClose={() => setShowRecord(false)}
         />
       )}
 
@@ -858,6 +1621,216 @@ export default function DocumentRequests() {
         />
       )}
 
+      <ConfirmDialog
+        open={!!pendingTab}
+        title="Unsaved fee changes"
+        message="You have fee changes that are not saved. If you leave this tab they will be lost."
+        confirmLabel="Discard changes"
+        danger
+        onConfirm={() => { setActiveTab(pendingTab); setPendingTab(null) }}
+        onCancel={() => setPendingTab(null)}
+      />
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOCUMENT FEES TAB (accounting sets this campus's prices, on the same page)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FEE_DEPARTMENTS = [
+  { id: 'basicEd', label: 'Basic Ed' },
+  { id: 'college', label: 'College'  },
+]
+
+const toFeeRows = (list) => list.map(t => ({
+  _k: t.id, id: t.id, label: t.label, fee: String(t.fee), requiresClearance: !!t.requiresClearance,
+}))
+// What "unchanged" means — used to tell whether a department has unsaved edits
+const feeSnapshot = (rows) => JSON.stringify(rows.map(r => [r.id, r.label.trim(), r.fee.trim(), r.requiresClearance]))
+
+function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) {
+  const [dept, setDept] = useState('basicEd')
+  const load = (d) => toFeeRows(getDocumentTypes(campusKey, d))
+  const [drafts, setDrafts] = useState(() => ({ basicEd: load('basicEd'), college: load('college') }))
+  const [saved,  setSaved]  = useState(() => ({ basicEd: feeSnapshot(load('basicEd')), college: feeSnapshot(load('college')) }))
+  const [custom, setCustom] = useState(() => ({ basicEd: hasCustomDocumentTypes(campusKey, 'basicEd'), college: hasCustomDocumentTypes(campusKey, 'college') }))
+  const [error, setError]   = useState('')
+  const [confirmReset, setConfirmReset] = useState(false)
+  const newKey = useRef(0)
+  const { toasts, addToast, removeToast } = useToast()
+
+  const rows    = drafts[dept]
+  const isDirty = (d) => feeSnapshot(drafts[d]) !== saved[d]
+  const anyDirty = isDirty('basicEd') || isDirty('college')
+
+  // Tell the page, so it can warn before the user leaves this tab
+  useEffect(() => { onDirtyChange?.(anyDirty) }, [anyDirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  // Also warn before closing or refreshing the browser tab
+  useEffect(() => {
+    if (!anyDirty) return undefined
+    const warn = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [anyDirty])
+  const dirty   = isDirty(dept)
+  const deptLabel = FEE_DEPARTMENTS.find(d => d.id === dept).label
+
+  const setRows = (updater) => {
+    setError('')
+    setDrafts(prev => ({ ...prev, [dept]: updater(prev[dept]) }))
+  }
+  const updateRow = (key, patch) => setRows(rs => rs.map(r => (r._k === key ? { ...r, ...patch } : r)))
+  const removeRow = (key) => setRows(rs => rs.filter(r => r._k !== key))
+  const addRow    = () => setRows(rs => [...rs, { _k: `new_${newKey.current++}`, id: '', label: '', fee: '', requiresClearance: false }])
+
+  // Digits and a single decimal point only
+  const cleanFee = (v) => v.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1')
+
+  const applyLoaded = (d, list) => {
+    const fresh = toFeeRows(list)
+    setDrafts(prev => ({ ...prev, [d]: fresh }))
+    setSaved(prev => ({ ...prev, [d]: feeSnapshot(fresh) }))
+    setCustom(prev => ({ ...prev, [d]: hasCustomDocumentTypes(campusKey, d) }))
+  }
+
+  const handleSave = () => {
+    try {
+      const result = saveDocumentTypes(campusKey, dept, rows.map(r => ({
+        id: r.id, label: r.label, requiresClearance: r.requiresClearance,
+        fee: r.fee.trim() === '' ? NaN : Number(r.fee),
+      })), currentUser)
+      applyLoaded(dept, result)
+      setError('')
+      addToast(`${deptLabel} document fees saved.`, 'success')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const handleDiscard = () => { applyLoaded(dept, getDocumentTypes(campusKey, dept)); setError('') }
+
+  const handleReset = () => {
+    try {
+      resetDocumentTypes(campusKey, dept, currentUser)
+      applyLoaded(dept, getDocumentTypes(campusKey, dept))
+      setConfirmReset(false)
+      setError('')
+      addToast(`${deptLabel} document fees reset to defaults.`, 'info')
+    } catch (err) {
+      setConfirmReset(false)
+      setError(err.message)
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-[var(--color-border-focus)] transition'
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-bold text-[var(--color-text-primary)]">Document fees</h2>
+        <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+          {campusName ? `${campusName} · ` : ''}Set the price of each document. Use 0 for a free document.
+          Changes apply to new requests only; requests already recorded keep their price.
+        </p>
+      </div>
+
+      {/* Basic Ed / College */}
+      <div className="flex gap-2 max-w-sm">
+        {FEE_DEPARTMENTS.map(d => (
+          <button key={d.id} type="button" onClick={() => { setDept(d.id); setError('') }}
+            className={`flex-1 py-2.5 text-xs rounded-xl border transition-colors font-medium flex items-center justify-center gap-1.5
+              ${dept === d.id
+                ? 'is-selected'
+                : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+            {d.label}
+            {isDirty(d.id) && <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-warning)]" aria-label="Unsaved changes" />}
+          </button>
+        ))}
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[1fr_9rem_10rem_2.5rem] gap-3 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+          <span>Document</span>
+          <span>Fee (₱)</span>
+          <span>Clearance</span>
+          <span></span>
+        </div>
+
+        <div className="divide-y divide-[var(--color-border)]">
+          {rows.map(r => (
+            <div key={r._k} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_9rem_10rem_2.5rem] sm:gap-3 sm:items-center px-4 py-3">
+              <input className={inputCls} value={r.label} aria-label="Document name"
+                onChange={e => updateRow(r._k, { label: e.target.value })} placeholder="Document name" />
+              <div className="flex items-center gap-2 sm:contents">
+                <div className="relative w-32 sm:w-auto">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)]">₱</span>
+                  <input className={`${inputCls} pl-7 font-mono`} inputMode="decimal" value={r.fee} aria-label="Fee"
+                    onChange={e => updateRow(r._k, { fee: cleanFee(e.target.value) })} placeholder="0" />
+                </div>
+                <button type="button" onClick={() => updateRow(r._k, { requiresClearance: !r.requiresClearance })}
+                  aria-pressed={r.requiresClearance}
+                  className={`flex-1 sm:flex-none py-2.5 px-3 text-xs rounded-xl border transition-colors font-medium
+                    ${r.requiresClearance
+                      ? 'is-selected'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+                  {r.requiresClearance ? 'Needs clearance' : 'No clearance'}
+                </button>
+                <button type="button" onClick={() => removeRow(r._k)} aria-label={`Remove ${r.label || 'document'}`}
+                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-error-light)] transition text-[var(--color-text-muted)] hover:text-[var(--color-error-text)]">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {rows.length === 0 && (
+            <p className="px-4 py-6 text-center text-xs text-[var(--color-text-muted)]">No documents yet. Add one below.</p>
+          )}
+        </div>
+
+        <div className="px-4 py-3 border-t border-[var(--color-border)]">
+          <button type="button" onClick={addRow} className="btn btn-ghost text-xs gap-1.5">
+            <Plus size={14} /> Add document
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2 p-3 bg-[var(--color-error-light)] border border-[var(--color-error-border)] rounded-xl text-xs text-[var(--color-error-text)]">
+          <AlertCircle size={14} className="shrink-0 mt-0.5" />
+          {error}
+        </div>
+      )}
+
+      <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          {custom[dept] && (
+            <button type="button" onClick={() => setConfirmReset(true)} className="btn btn-ghost text-xs gap-1.5">
+              <RotateCcw size={13} /> Reset to defaults
+            </button>
+          )}
+        </div>
+        <div className="flex flex-col-reverse sm:flex-row gap-2">
+          {dirty && <button type="button" onClick={handleDiscard} className="btn btn-ghost text-sm">Discard changes</button>}
+          <button type="button" onClick={handleSave} disabled={!dirty} className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
+            <Check size={14} /> Save {deptLabel} fees
+          </button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={confirmReset}
+        title={`Reset ${deptLabel} fees`}
+        message={`This puts every ${deptLabel} document back to the default list and prices for this campus, and removes any documents you added. Requests already recorded are not affected.`}
+        confirmLabel="Reset to defaults"
+        danger
+        onConfirm={handleReset}
+        onCancel={() => setConfirmReset(false)}
+      />
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
@@ -973,7 +1946,7 @@ function ClearanceTab({ campusKey, schoolYear, currentUser }) {
                         </p>
                         {!cleared && !clr.isFullyCleared && (
                           <button onClick={() => handleSign(clr.id, dept.id)}
-                            className="mt-1.5 text-[10px] px-2 py-0.5 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-primary hover:text-[var(--color-primary-contrast)] transition-colors">
+                            className="mt-1.5 text-[10px] px-2 py-0.5 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-[var(--color-action)] hover:border-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition-colors">
                             Sign
                           </button>
                         )}

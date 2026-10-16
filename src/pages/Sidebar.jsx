@@ -1,0 +1,433 @@
+import { useState, useEffect, useCallback } from 'react'
+import {
+  LayoutDashboard, FileText, FileEdit, Calendar, ShieldCheck, Users, DollarSign,
+  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen, Hourglass
+} from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+import { useTheme } from '../../context/ThemeContext'
+import { useAppConfig } from '../../context/AppConfigContext'
+import { getUserPermissions } from '../../config/appConfig'
+import { getPaidAwaitingReleaseCount, getForPaymentCount } from '../../utils/documentBridge'
+import SchoolLogo from '../SchoolLogo'
+
+// Read school branding
+function getSchoolConfig() {
+  try {
+    const s = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
+    return { name: s.schoolName || 'Admin Portal', shortName: s.schoolShortName || (s.schoolName || 'Admin').split(' ')[0], logo: s.logoUrl || '' }
+  } catch { return { name: 'Admin Portal', shortName: 'Admin', logo: '' } }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+// isBasicGrade / isCollegeGrade come from useAppConfig() (live grade lists)
+function computeBadges(user, { isBasicGrade, isCollegeGrade, campusKey }) {
+  if (!user) return {}
+  const role   = user.role
+  const campus = user.campus
+  const campusMatch = (val) => {
+    if (!val || campus === 'all') return true
+    return val === campus || val.includes(campus) || campus.includes(val)
+  }
+  const campusEnr = []
+  const campusStu = []
+  let webSubs = []
+  try {
+    const all = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+    webSubs = all.filter(s => {
+      const subCampus = s.enrollment?.campus || s.campusName || s.campus || ''
+      return campusMatch(subCampus)
+    })
+  } catch {}
+  const allEnr = [...campusEnr, ...webSubs]
+  let enrBadge = 0, payBadge = 0, stuBadge = 0
+  let docBadge = 0   // registrar: paid requests to release · accounting: requests waiting for payment
+
+  if (role === 'admin') {
+    enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
+  }
+  if (role === 'technical_admin' || role === 'system_admin') {
+    // Super admin and system admin don't see enrollment badges
+    enrBadge = 0
+    payBadge = 0
+  }
+  if (role === 'registrar_basic') {
+    docBadge = getPaidAwaitingReleaseCount(campusKey, 'basicEd')
+    enrBadge = allEnr.filter(e => e.status === 'payment_received' && isBasicGrade(e.enrollment?.gradeLevel || '')).length
+    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
+  }
+  if (role === 'registrar_college') {
+    docBadge = getPaidAwaitingReleaseCount(campusKey, 'college')
+    enrBadge = allEnr.filter(e => e.status === 'payment_received' && isCollegeGrade(e.enrollment?.gradeLevel || '')).length
+    stuBadge = campusStu.filter(s => isCollegeGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
+  }
+  if (role === 'accounting') {
+    docBadge = getForPaymentCount(campusKey)
+    enrBadge = allEnr.filter(e => e.status === 'pending').length
+    payBadge = webSubs.filter(s =>
+      (s.status === 'payment_received' || s.status === 'approved') &&
+      s.balance > 0 && s.submittedDate &&
+      Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
+    ).length
+  }
+  if (role === 'principal_basic' || role === 'program_head') {
+    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
+  }
+  return {
+    dashboard:   enrBadge + payBadge + stuBadge,
+    enrollments: enrBadge,
+    payments:    payBadge,
+    students:    stuBadge,
+    'document-requests': docBadge,
+    settings:    0,
+  }
+}
+
+// ── Badge pill ────────────────────────────────────────────────────
+// Always the alert colour (red by default) so a counter is noticed at a glance.
+// themeInitializer.js alertFill() swaps it for a clearly different hue when the
+// school's own brand colour is red or near red.
+function NavBadge({ count }) {
+  if (!count || count <= 0) return null
+  return (
+    <span style={{
+      marginLeft:      'auto',
+      minWidth:        18,
+      height:          18,
+      padding:         '0 5px',
+      borderRadius:    999,
+      fontSize:        10,
+      fontWeight:      700,
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      flexShrink:      0,
+      letterSpacing:   '0.02em',
+      backgroundColor: 'var(--color-alert)',
+      color:           'var(--color-alert-contrast)',
+    }}>
+      {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+// ── Main Sidebar ──────────────────────────────────────────────────
+export default function Sidebar({ isOpen, toggleSidebar }) {
+  const location = useLocation()
+  const { user }  = useAuth()
+  const { theme } = useTheme()
+  const { isBasicGrade, isCollegeGrade, activeCampuses } = useAppConfig()
+  // Same campus the Document Requests page works with
+  const docCampusKey = user?.campusKey || activeCampuses?.[0]?.key || ''
+  const school    = getSchoolConfig()
+  const [badges, setBadges] = useState({})
+
+  const refreshBadges = useCallback(
+    () => setBadges(computeBadges(user, { isBasicGrade, isCollegeGrade, campusKey: docCampusKey })),
+    [user, isBasicGrade, isCollegeGrade, docCampusKey]
+  )
+
+  useEffect(() => {
+    refreshBadges()
+    const handleStorage = (e) => { if (e.key === 'almirene_submissions' || e.key === 'almirene_documents' || e.key === null) refreshBadges() }
+    window.addEventListener('almirene_enrollment_updated', refreshBadges)
+    window.addEventListener('almirene_new_submission',     refreshBadges)
+    window.addEventListener('almirene_documents_updated',  refreshBadges)
+    window.addEventListener('storage',                 handleStorage)
+    const t = setInterval(refreshBadges, 10_000)
+    return () => {
+      window.removeEventListener('almirene_enrollment_updated', refreshBadges)
+      window.removeEventListener('almirene_new_submission',     refreshBadges)
+      window.removeEventListener('almirene_documents_updated',  refreshBadges)
+      window.removeEventListener('storage',                 handleStorage)
+      clearInterval(t)
+    }
+  }, [refreshBadges])
+
+  const getNavItems = () => {
+    const perms = getUserPermissions(user)
+    const pages = perms.pages || []
+
+    const pageNavMap = {
+      enrollments:    { id: 'enrollments',  label: 'Enrollments',  icon: FileText,   path: '/enrollments' },
+      students:       { id: 'students',     label: 'Students',     icon: Users,      path: '/students' },
+      payments:       { id: 'payments',     label: 'Payments',     icon: DollarSign, path: '/payments' },
+      reports:        { id: 'reports',      label: 'Reports',      icon: BarChart2,  path: '/reports' },
+      settings:       { id: 'settings',     label: 'Settings',     icon: Settings,   path: '/settings' },
+      'subject-load': { id: 'subject-load', label: 'Subject Load', icon: Layers,        path: '/subject-load' },
+      grades:             { id: 'grades',           label: 'Grades',         icon: ClipboardList, path: '/grades' },
+      'e-class-record':   { id: 'e-class-record',   label: 'e-Class Record', icon: ClipboardList, path: '/e-class-record' },
+      'teacher-forms':       { id: 'teacher-forms',       label: 'Teacher Forms',      icon: FolderOpen,    path: '/teacher-forms' },
+      'document-requests':        { id: 'document-requests',        label: 'Doc Requests',    icon: FileText,      path: '/document-requests' },
+      'grade-change-requests':   { id: 'grade-change-requests',   label: 'Grade Changes',   icon: FileEdit,      path: '/grade-change-requests' },
+      'inc-completion':            { id: 'inc-completion',            label: 'INC Completion',  icon: Hourglass,     path: '/inc-completion' },
+      'attendance':              { id: 'attendance',              label: 'Attendance',      icon: Calendar,      path: '/attendance' },
+      'clearance':               { id: 'clearance',               label: 'Clearance',       icon: ShieldCheck,   path: '/clearance' },
+    }
+
+    const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
+    pages.forEach(pageId => {
+      if (pageId !== 'dashboard' && pageNavMap[pageId]) items.push(pageNavMap[pageId])
+    })
+    return items
+  }
+
+  const navItems = getNavItems()
+  const isActive = (path) => location.pathname === path
+
+  const getRoleLabel = () => ({
+    admin:             'Owner Dashboard',
+    technical_admin:   'Super Admin Portal',
+    system_admin:      'System Admin',
+    registrar_basic:   'Basic Ed Registrar',
+    registrar_college: 'College Registrar',
+    accounting:        'Accounting Portal',
+    principal_basic:   'Basic Ed Principal',
+    program_head:      'Program Head',
+    teacher:           'Teacher Portal',
+  }[user?.role] || 'Portal')
+
+  // ── Section label helper (visual grouping within long nav lists) ──
+  const getSectionLabel = (id) => ({
+    // Management
+    enrollments:               'Management',
+    students:                  'Management',
+    payments:                  'Management',
+    'document-requests':       'Management',
+    clearance:                 'Management',
+    // Analytics
+    reports:                   'Analytics',
+    // System
+    settings:                  'System',
+    // Academic
+    'subject-load':            'Academic',
+    'e-class-record':          'Academic',
+    'teacher-forms':           'Academic',
+    'grade-change-requests':   'Academic',
+    'inc-completion':          'Academic',
+    attendance:                'Academic',
+  }[id])
+
+  // Insert section dividers
+  const itemsWithDividers = []
+  let lastSection = null
+  navItems.forEach((item, idx) => {
+    if (idx === 0) { itemsWithDividers.push(item); return }
+    const sec = getSectionLabel(item.id)
+    if (sec && sec !== lastSection) {
+      itemsWithDividers.push({ type: 'divider', label: sec })
+      lastSection = sec
+    }
+    itemsWithDividers.push(item)
+  })
+
+  return (
+    <>
+      {/* Mobile overlay — uses CSS transition via overlay-backdrop class */}
+      <div
+        className={`overlay-backdrop fixed inset-0 z-[60] lg:hidden ${isOpen ? 'visible' : 'hidden'}`}
+        style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+        onClick={toggleSidebar}
+      />
+
+      {/* Sidebar panel — uses CSS sidebar-panel transition */}
+      <aside
+        className={`sidebar-panel fixed top-0 left-0 h-full z-[70] w-64 shrink-0 flex flex-col ${isOpen ? 'open' : 'closed'}`}
+        style={{
+          // Always the neutral card-surface color, in both modes — matches
+          // every other panel in the app. Dark mode previously used
+          // --color-secondary (the brand color) here, which looked like a
+          // mismatched navy/colored region against the rest of the neutral
+          // dark UI whenever a school's secondary color wasn't a plain
+          // near-black. Uniform now regardless of what any school configures.
+          backgroundColor: 'var(--color-bg-card)',
+          borderRight:     '1px solid var(--color-border)',
+          boxShadow:       isOpen ? 'var(--shadow-modal)' : 'none',
+        }}
+      >
+        {/* ── Brand header ── */}
+        <div style={{
+          height:         64,
+          display:        'flex',
+          alignItems:     'center',
+          justifyContent: 'space-between',
+          padding:        '0 1rem',
+          borderBottom:   '1px solid var(--color-border)',
+          flexShrink:     0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {/* Logo with red ring */}
+            <div style={{
+              width:        38,
+              height:       38,
+              borderRadius: '50%',
+              overflow:     'hidden',
+              flexShrink:   0,
+              border:       '2px solid var(--color-primary-readable)',
+              backgroundColor: '#fff',
+              boxShadow:    '0 0 0 3px var(--color-primary-muted)',
+            }}>
+              <SchoolLogo src={school.logo} alt={school.shortName} size="sm" surface="light" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
+            </div>
+            <div>
+              <div style={{
+                fontSize:      '0.8rem',
+                fontWeight:    700,
+                color:         'var(--color-text-primary)',
+                letterSpacing: '0.04em',
+                lineHeight:    1.2,
+              }}>
+                ALMIRENE
+              </div>
+              <div style={{
+                fontSize:      '0.62rem',
+                color:         'var(--color-text-muted)',
+                letterSpacing: '0.03em',
+                lineHeight:    1.3,
+                maxWidth:      140,
+                overflow:      'hidden',
+                whiteSpace:    'nowrap',
+                textOverflow:  'ellipsis',
+              }}>
+                {getRoleLabel()}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile close button */}
+          <button
+            onClick={toggleSidebar}
+            className="lg:hidden"
+            style={{
+              padding:         6,
+              borderRadius:    'var(--radius-sm)',
+              color:           'var(--color-text-muted)',
+              background:      'none',
+              border:          'none',
+              cursor:          'pointer',
+              transition:      'color var(--t-base)',
+            }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* ── Navigation ── */}
+        <nav style={{
+          flex:       1,
+          padding:    '0.75rem 0.75rem',
+          overflowY:  'auto',
+          overflowX:  'hidden',
+        }}>
+          {itemsWithDividers.map((item, idx) => {
+            // Section divider label
+            if (item.type === 'divider') {
+              return (
+                <div key={`div-${idx}`} style={{
+                  padding:       '0.85rem 0.75rem 0.35rem',
+                  fontSize:      '0.58rem',
+                  fontWeight:    700,
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color:         'var(--color-text-muted)',
+                }}>
+                  {item.label}
+                </div>
+              )
+            }
+
+            const active     = isActive(item.path)
+            const badgeCount = badges[item.id] || 0
+
+            return (
+              <Link
+                key={item.id}
+                to={item.path}
+                onClick={() => window.innerWidth < 1024 && toggleSidebar()}
+                style={{
+                  display:        'flex',
+                  alignItems:     'center',
+                  gap:            '0.65rem',
+                  padding:        '0.6rem 0.75rem',
+                  borderRadius:   'var(--radius-md)',
+                  marginBottom:   2,
+                  textDecoration: 'none',
+                  position:       'relative',
+                  transition:     `background-color var(--t-base), color var(--t-base)`,
+                  backgroundColor: active
+                    ? (theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'var(--color-secondary)')
+                    : 'transparent',
+                  color:          active ? (theme === 'dark' ? '#fff' : 'var(--color-secondary-contrast)') : 'var(--color-text-secondary)',
+                  // Active left-edge accent — uses the readable/on-secondary variants
+                  // (see themeInitializer.js) instead of raw --color-primary, which
+                  // is a fill color meant for buttons and can be too pale/dark to
+                  // read as a thin border. In light mode the pill's own background
+                  // is --color-secondary, so the border needs the variant computed
+                  // specifically for "primary-colored element sitting on secondary" —
+                  // plain --color-primary-readable (contrast vs. the page) isn't
+                  // enough here since the pill itself isn't the page background.
+                  borderLeft:     active
+                    ? (theme === 'dark' ? '3px solid var(--color-text-inverse)' : '3px solid var(--color-primary-on-secondary)')
+                    : '3px solid transparent',
+                }}
+                onMouseEnter={e => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--color-secondary-muted)'
+                    e.currentTarget.style.color           = theme === 'dark' ? '#fff' : 'var(--color-text-secondary)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = 'transparent'
+                    e.currentTarget.style.color           = 'var(--color-text-primary)'
+                  }
+                }}
+              >
+                {/* Icon */}
+                <item.icon
+                  size={16}
+                  style={{
+                    flexShrink: 0,
+                    color:      active ? '#fff' : 'var(--color-text-muted)',
+                    transition: 'color var(--t-base)',
+                  }}
+                />
+
+                {/* Label */}
+                <span style={{
+                  fontSize:     '0.82rem',
+                  fontWeight:   active ? 600 : 500,
+                  flex:         1,
+                  overflow:     'hidden',
+                  whiteSpace:   'nowrap',
+                  textOverflow: 'ellipsis',
+                  letterSpacing: '0.01em',
+                }}>
+                  {item.label}
+                </span>
+
+                {/* Badge */}
+                <NavBadge count={badgeCount} />
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* ── Footer ── */}
+        <div style={{
+          padding:       '0.75rem 1rem',
+          borderTop:     '1px solid var(--color-border)',
+          flexShrink:    0,
+          textAlign:     'center',
+          fontSize:      '0.62rem',
+          color:         'var(--color-text-muted)',
+          letterSpacing: '0.04em',
+        }}>
+          {'\u00A9 ' + new Date().getFullYear() + ' ' + school.shortName}
+        </div>
+      </aside>
+    </>
+  )
+}

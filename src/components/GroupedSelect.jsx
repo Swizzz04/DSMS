@@ -108,7 +108,9 @@ function useDropdownPosition(triggerRef, open) {
     const vw         = window.innerWidth
     const vh         = window.innerHeight
     const PAD        = 8
-    const DROPDOWN_H = 300  // max dropdown height
+    const LIST_H     = 300  // max height of the scrolling option list
+    const RESET_H    = 44   // the fixed "All" row above the list — part of the panel height too
+    const DROPDOWN_H = LIST_H + RESET_H  // full panel height
 
     const mobile = vw < 640
 
@@ -117,7 +119,7 @@ function useDropdownPosition(triggerRef, open) {
       const spaceAbove = rect.top - PAD
       // Flip upward when the dropdown won't fully fit below AND more room is above
       const flipUp     = spaceBelow < DROPDOWN_H && spaceAbove > spaceBelow
-      const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
+      const maxH       = Math.min(LIST_H, (flipUp ? spaceAbove : Math.max(spaceBelow, 130)) - RESET_H)
       setDropPos({
         // flipUp anchors by `bottom` (distance up from the trigger), not a
         // calculated `top` — a `top` computed as "rect.top - maxH" assumes
@@ -145,7 +147,7 @@ function useDropdownPosition(triggerRef, open) {
       const spaceAbove = rect.top - PAD
       // Flip upward when the dropdown won't fully fit below AND more room is above
       const flipUp     = spaceBelow < DROPDOWN_H && spaceAbove > spaceBelow
-      const maxH       = Math.min(DROPDOWN_H, flipUp ? spaceAbove : Math.max(spaceBelow, 80))
+      const maxH       = Math.min(LIST_H, (flipUp ? spaceAbove : Math.max(spaceBelow, 130)) - RESET_H)
 
       setDropPos({
         // Same bottom-anchoring rationale as the mobile branch above.
