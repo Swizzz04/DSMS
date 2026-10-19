@@ -11,6 +11,7 @@ import { Search, Printer, X, AlertCircle, FileText } from 'lucide-react'
 import { ModalPortal } from '../UIComponents'
 import FilledPage from './FilledPage'
 import { getTemplates, buildFieldValues, printFilledTemplate } from '../../utils/documentTemplates'
+import { statusMatches } from '../../utils/documentBridge'
 
 const fmtDate = (iso) => iso
   ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -21,9 +22,48 @@ function schoolNameFromSettings() {
   catch { return '' }
 }
 
+/**
+ * Why a request can't be printed yet, or null when it can.
+ * The request's own status decides, the same one the Requests tab shows:
+ *  - Ready for Pickup / Released: it has already been through payment, so it prints
+ *    (older records have no payment details saved, and must not be blocked by that).
+ *  - For Payment: waits for accounting to confirm the payment.
+ *  - Processing: prints only if the document is free.
+ *  - Requested / Cancelled: not yet.
+ */
+export function printBlockReason(request) {
+  const is = (id) => statusMatches(request.status, id)
+  if (is('cancelled'))                      return 'Cancelled'
+  if (is('ready_for_pickup') || is('released')) return null
+  if (is('for_payment'))                    return request.payment ? null : 'Waiting for payment'
+  if (is('processing'))                     return Number(request.fee) > 0 ? 'Waiting for payment' : null
+  return 'Start processing first'
+}
+export const isPrintable = (request) => printBlockReason(request) === null
+
+/**
+ * The format + filled values for one request, or null when its document type has no format yet.
+ * Shared by the Print tab and the request drawer.
+ */
+export function getPrintJob(request, campusKey, currentUser) {
+  const dept = request.department === 'college' ? 'college' : 'basicEd'
+  const template = getTemplates(campusKey, dept)[request.documentType] ?? null
+  if (!template) return null
+  const values = buildFieldValues(request, {
+    schoolName: schoolNameFromSettings(),
+    preparedBy: currentUser?.name || '',
+  })
+  return { request, template, values }
+}
+
 // ── Preview before printing ─────────────────────────────────────
 
-function PrintPreviewModal({ request, template, values, onPrint, onClose }) {
+export function PrintPreviewModal({ request, template, values, addToast, onClose }) {
+  const onPrint = () => printFilledTemplate({
+    template, values,
+    title: `${request.documentLabel} — ${request.studentName}`,
+    onBlocked: () => addToast?.('Your browser blocked the print window. Allow pop-ups for this site and try again.', 'error'),
+  })
   return (
     <ModalPortal>
       <div className="modal-backdrop">
@@ -88,22 +128,8 @@ export default function PrintTab({ requests, campusKey, currentUser, renderStatu
   }, [requests, search])
 
   const open = (r) => {
-    const template = templateFor(r)
-    if (!template) return
-    const values = buildFieldValues(r, {
-      schoolName: schoolNameFromSettings(),
-      preparedBy: currentUser?.name || '',
-    })
-    setPreview({ request: r, template, values })
-  }
-
-  const print = () => {
-    const { request, template, values } = preview
-    printFilledTemplate({
-      template, values,
-      title: `${request.documentLabel} — ${request.studentName}`,
-      onBlocked: () => addToast?.('Your browser blocked the print window. Allow pop-ups for this site and try again.', 'error'),
-    })
+    const job = getPrintJob(r, campusKey, currentUser)
+    if (job) setPreview(job)
   }
 
   return (
@@ -128,6 +154,7 @@ export default function PrintTab({ requests, campusKey, currentUser, renderStatu
         <div className="space-y-2">
           {rows.map(r => {
             const hasFormat = !!templateFor(r)
+            const printable = isPrintable(r)
             return (
               <div key={r.id} className="p-3 sm:p-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] flex flex-col sm:flex-row sm:items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -143,7 +170,9 @@ export default function PrintTab({ requests, campusKey, currentUser, renderStatu
                   </p>
                 </div>
 
-                {hasFormat ? (
+                {!printable ? (
+                  <p className="text-xs text-[var(--color-text-muted)] shrink-0">{printBlockReason(r)}</p>
+                ) : hasFormat ? (
                   <button onClick={() => open(r)} className="btn btn-primary text-xs gap-1.5 shrink-0 self-start sm:self-center">
                     <Printer size={13} /> Print
                   </button>
@@ -167,7 +196,7 @@ export default function PrintTab({ requests, campusKey, currentUser, renderStatu
           request={preview.request}
           template={preview.template}
           values={preview.values}
-          onPrint={print}
+          addToast={addToast}
           onClose={() => setPreview(null)}
         />
       )}

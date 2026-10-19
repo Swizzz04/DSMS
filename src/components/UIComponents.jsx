@@ -407,14 +407,21 @@ function SingleToast({ id, type = 'success', message, onRemove }) {
 
 export function ToastContainer({ toasts, onRemove, removeToast }) {
   const remove = onRemove || removeToast
-  return (
-    <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[10000] flex flex-col-reverse gap-2 pointer-events-none">
+  // Rendered on document.body so it is always pinned to the screen corner. Inside a page
+  // (which animates with a transform) a fixed element is positioned against the page
+  // instead, and the toast would sit over the table. Bottom-right of the screen.
+  return createPortal(
+    <div
+      className="fixed bottom-20 left-4 right-4 sm:left-auto lg:bottom-6 lg:right-6 z-[10000] flex flex-col-reverse items-end gap-2 pointer-events-none"
+      aria-live="polite"
+    >
       {toasts.map(t => (
-        <div key={t.id} className="pointer-events-auto">
+        <div key={t.id} className="pointer-events-auto w-full max-w-xs">
           <SingleToast {...t} onRemove={remove} />
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -687,11 +694,11 @@ export function ExportButton({ onClick, label = 'Export', size = 'md', className
         disabled:opacity-50 disabled:cursor-not-allowed
         ${sizecls} ${className}`}
       style={{
-        backgroundColor: 'var(--color-primary)',
-        color: 'var(--color-primary-contrast)',
+        backgroundColor: 'var(--color-action)',
+        color: 'var(--color-action-contrast)',
       }}
-      onMouseEnter={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)' }}
-      onMouseLeave={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-primary)' }}
+      onMouseEnter={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-action-hover)' }}
+      onMouseLeave={e => { if (!disabled) e.currentTarget.style.backgroundColor = 'var(--color-action)' }}
     >
       {/* Download icon — inline SVG so no lucide import needed in UIComponents */}
       <svg
