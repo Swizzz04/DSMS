@@ -18,7 +18,7 @@
 import { getWorkflowDefinition } from './workflowConfigBridge'
 import * as workflowEngine       from '../engines/workflowEngine'
 import { isOrNumberUsed }        from './orNumbers'
-import { DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES } from '../config/appConfig'
+import { DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES, DOCUMENT_TRASH_RETENTION_DAYS } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -30,6 +30,7 @@ const DOC_EVENT     = 'almirene_documents_updated'
 const CLEAR_EVENT   = 'almirene_clearance_updated'
 const CATALOG_KEY   = 'almirene_document_catalog'
 const CATALOG_EVENT = 'almirene_document_catalog_updated'
+const TRASH_KEY     = 'almirene_document_trash'   // deleted documents, kept for DOCUMENT_TRASH_RETENTION_DAYS
 
 function uid(prefix = 'doc') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -85,6 +86,8 @@ const CATALOG_ROLES = ['accounting', 'admin', 'technical_admin']
  */
 export function saveDocumentTypes(campusKey, department, types, user) {
   if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  // Accounting sets prices only (saveDocumentFees); the registrar owns the document list
+  if (user?.role === 'accounting') throw new Error('Accounting can set prices only. The registrar manages the document list.')
   if (!campusKey) throw new Error('Campus is missing.')
   if (!Array.isArray(types) || types.length === 0) throw new Error('Keep at least one document.')
 
@@ -117,9 +120,49 @@ export function saveDocumentTypes(campusKey, department, types, user) {
   return clean.map(t => ({ ...t }))
 }
 
+/**
+ * Accounting sets prices only. Updates the fee of the documents named in `fees` on the
+ * campus's CURRENT list, so a document the registrar added or removed in the meantime
+ * is never overwritten.
+ *
+ * @param {Object<string,number>} fees  { [documentTypeId]: fee }
+ * @returns {Array} the saved list
+ */
+export function saveDocumentFees(campusKey, department, fees, user) {
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  if (!campusKey) throw new Error('Campus is missing.')
+  const dept = normDept(department)
+  const list = getDocumentTypes(campusKey, dept)
+  const next = list.map(t => {
+    if (!(t.id in (fees || {}))) return t
+    const fee = Number(fees[t.id])
+    if (!Number.isFinite(fee) || fee < 0) throw new Error(`Enter a valid fee for "${t.label}".`)
+    return { ...t, fee: Math.round(fee * 100) / 100 }
+  })
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: next }
+  saveCatalog(all)
+  return next.map(t => ({ ...t }))
+}
+
+/**
+ * The registrar decides whether a document needs the student's clearance.
+ * Accounting cannot change this.
+ */
+export function setDocumentClearance(campusKey, department, documentTypeId, requiresClearance, user) {
+  const dept = normDept(department)
+  assertCanManageDocuments(user, dept)
+  const list = getDocumentTypes(campusKey, dept)
+  if (!list.some(t => t.id === documentTypeId)) throw new Error('This document is no longer in the list.')
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: list.map(t => t.id === documentTypeId ? { ...t, requiresClearance: !!requiresClearance } : t) }
+  saveCatalog(all)
+}
+
 /** Put a campus's department list back to the defaults. */
 export function resetDocumentTypes(campusKey, department, user) {
   if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  if (user?.role === 'accounting') throw new Error('Accounting can set prices only. The registrar manages the document list.')
   const all  = loadCatalog()
   const dept = normDept(department)
   if (all[campusKey]) {
@@ -127,6 +170,170 @@ export function resetDocumentTypes(campusKey, department, user) {
     if (Object.keys(all[campusKey]).length === 0) delete all[campusKey]
     saveCatalog(all)
   }
+}
+
+/**
+ * A registrar adds a document the school issues (for example "Certificate of Indigency").
+ * It joins the campus list at ₱0; accounting sets the price on the Fees tab.
+ * A department registrar can only add to their own department.
+ *
+ * @param {object} data { label, requiresClearance? }
+ * @returns {object} the new document type
+ */
+export function addDocumentType(campusKey, department, data, user) {
+  const dept = normDept(department)
+  assertCanManageDocuments(user, dept)
+  if (!campusKey) throw new Error('Campus is missing.')
+
+  const label = String(data?.label ?? '').trim()
+  if (!label) throw new Error('Enter the document name.')
+  if (label.length > 60) throw new Error('Keep the document name under 60 characters.')
+
+  const list = getDocumentTypes(campusKey, dept)
+  if (list.some(t => t.label.toLowerCase() === label.toLowerCase())) throw new Error(`"${label}" is already in the list.`)
+
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'document'
+  const created = { id: `custom_${slug}_${Math.random().toString(36).slice(2, 6)}`, label, fee: 0, requiresClearance: !!data?.requiresClearance }
+
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: [...list, created] }
+  saveCatalog(all)
+  return { ...created }
+}
+
+// ── Deleted documents (kept for DOCUMENT_TRASH_RETENTION_DAYS, then removed for good) ──
+//   almirene_document_trash: { [campusKey]: { [department]: [ { type, template, deletedAt, deletedBy } ] } }
+//   The document leaves the campus list at once, so every page stops offering it.
+//   Its uploaded format (if any) travels with it, so a restore brings everything back.
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function loadTrash() {
+  let data
+  try { data = JSON.parse(localStorage.getItem(TRASH_KEY) || '{}') || {} }
+  catch { data = {} }
+  // Drop anything older than the retention period
+  const cutoff = Date.now() - DOCUMENT_TRASH_RETENTION_DAYS * DAY_MS
+  let changed = false
+  Object.keys(data).forEach(campus => Object.keys(data[campus] || {}).forEach(dept => {
+    const kept = (data[campus][dept] || []).filter(e => new Date(e.deletedAt).getTime() > cutoff)
+    if (kept.length !== (data[campus][dept] || []).length) { data[campus][dept] = kept; changed = true }
+  }))
+  if (changed) { try { localStorage.setItem(TRASH_KEY, JSON.stringify(data)) } catch { /* retried on the next write */ } }
+  return data
+}
+
+function saveTrash(data) {
+  try {
+    localStorage.setItem(TRASH_KEY, JSON.stringify(data))
+  } catch {
+    throw new Error('Browser storage is full. Remove a format you no longer use, then try again.')
+  }
+  window.dispatchEvent(new CustomEvent(CATALOG_EVENT))
+}
+
+// Who decides WHICH documents the school issues (add, delete, restore, clearance):
+// the department registrar, plus admin / technical admin. Accounting only sets prices.
+function assertCanManageDocuments(user, dept) {
+  const allowed = ['admin', 'technical_admin'].includes(user?.role)
+    || (user?.role === 'registrar_basic'   && dept === 'basicEd')
+    || (user?.role === 'registrar_college' && dept === 'college')
+  if (!allowed) throw new Error('You are not allowed to change documents for this department.')
+}
+
+/**
+ * Delete a document from the campus list. It moves to "Deleted documents" and can be
+ * restored for DOCUMENT_TRASH_RETENTION_DAYS days. At least one document always stays.
+ * Requests already filed keep the label and fee they were recorded with.
+ *
+ * @param {object} [options] { template } the document's uploaded format, kept so a restore brings it back
+ */
+export function removeDocumentType(campusKey, department, documentTypeId, user, options = {}) {
+  const dept = normDept(department)
+  assertCanManageDocuments(user, dept)
+
+  const list = getDocumentTypes(campusKey, dept)
+  const type = list.find(t => t.id === documentTypeId)
+  if (!type) return
+  if (list.length <= 1) throw new Error('Keep at least one document in the list.')
+
+  // Trash first: if storage is full nothing has been removed yet
+  const trash = loadTrash()
+  trash[campusKey] = {
+    ...(trash[campusKey] || {}),
+    [dept]: [
+      ...(trash[campusKey]?.[dept] || []),
+      { type, template: options.template ?? null, deletedAt: new Date().toISOString(), deletedBy: user?.name ?? '' },
+    ],
+  }
+  saveTrash(trash)
+
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: list.filter(t => t.id !== documentTypeId) }
+  saveCatalog(all)
+}
+
+/** The deleted documents of a campus + department, newest first, with the days they have left. */
+export function getDeletedDocuments(campusKey, department) {
+  const dept = normDept(department)
+  return (loadTrash()?.[campusKey]?.[dept] || [])
+    .map(e => {
+      const left = Math.ceil((new Date(e.deletedAt).getTime() + DOCUMENT_TRASH_RETENTION_DAYS * DAY_MS - Date.now()) / DAY_MS)
+      return {
+        ...e.type,
+        deletedAt: e.deletedAt,
+        deletedBy: e.deletedBy,
+        daysLeft:  Math.max(1, left),
+        hasFormat: !!e.template,
+      }
+    })
+    .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt))
+}
+
+/**
+ * Put a deleted document back in the campus list.
+ * If another document now has its name, pass newLabel; without it this throws an error
+ * whose code is 'NAME_IN_USE'.
+ *
+ * @returns {{ type: object, template: object|null }} the restored document and its saved format (for the caller to save again)
+ */
+export function restoreDocumentType(campusKey, department, documentTypeId, user, newLabel) {
+  const dept = normDept(department)
+  assertCanManageDocuments(user, dept)
+
+  const trash = loadTrash()
+  const entries = trash?.[campusKey]?.[dept] || []
+  const entry = entries.find(e => e.type.id === documentTypeId)
+  if (!entry) throw new Error('This document is no longer in the deleted list.')
+
+  const label = String(newLabel ?? entry.type.label).trim()
+  if (!label) throw new Error('Enter the document name.')
+  const list = getDocumentTypes(campusKey, dept)
+  if (list.some(t => t.label.toLowerCase() === label.toLowerCase())) {
+    const err = new Error(`A document named "${label}" already exists. Choose another name.`)
+    err.code = 'NAME_IN_USE'
+    throw err
+  }
+
+  const restored = { ...entry.type, label }
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: [...list, restored] }
+  saveCatalog(all)
+
+  trash[campusKey][dept] = entries.filter(e => e !== entry)
+  try { saveTrash(trash) } catch { /* the document is back; the leftover copy expires by itself */ }
+  return { type: { ...restored }, template: entry.template ?? null }
+}
+
+/** Remove a deleted document for good (frees the storage its format used). */
+export function purgeDeletedDocument(campusKey, department, documentTypeId, user) {
+  const dept = normDept(department)
+  assertCanManageDocuments(user, dept)
+  const trash = loadTrash()
+  const entries = trash?.[campusKey]?.[dept] || []
+  if (!entries.some(e => e.type.id === documentTypeId)) return
+  trash[campusKey][dept] = entries.filter(e => e.type.id !== documentTypeId)
+  saveTrash(trash)
 }
 
 export const REQUEST_STATUSES = [

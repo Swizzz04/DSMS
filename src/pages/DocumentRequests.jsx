@@ -28,7 +28,7 @@ import {
   updateStatus, confirmDocumentPayment, releaseDocument, cancelRequest,
   getClearances, getClearanceById, createClearance, updateDepartmentClearance,
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
-  getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, resetDocumentTypes,
+  getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, saveDocumentFees, resetDocumentTypes,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
   getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches,
 } from '../utils/documentBridge'
@@ -36,7 +36,7 @@ import { getStudents } from '../utils/enrollmentBridge'
 import { suggestOrNumber, isOrNumberUsed } from '../utils/orNumbers'
 import { printReceiptHtml } from '../utils/printReceipt'
 import FormatsTab from '../components/documents/FormatsTab'
-import PrintTab   from '../components/documents/PrintTab'
+import PrintTab, { getPrintJob, isPrintable, PrintPreviewModal } from '../components/documents/PrintTab'
 import { DOCUMENT_PAYMENT_METHODS, DOCUMENT_REQUEST_PURPOSES } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,32 +119,52 @@ function fmtDate(iso) {
 
 function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }) {
   const [studentSearch, setStudentSearch] = useState('')
+  const [levelFilter, setLevelFilter] = useState('all')   // grade level (Basic Ed) or year level (College)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [docType, setDocType]   = useState('')
-  const [purpose, setPurpose]   = useState('')
+  const [purposeChoice, setPurposeChoice] = useState('')   // a listed purpose, or OTHER_PURPOSE
+  const [purposeOther,  setPurposeOther]  = useState('')
+  const purpose = (purposeChoice === OTHER_PURPOSE ? purposeOther : purposeChoice).trim()
   const [requestedBy, setRequestedBy] = useState('student')
   const [requestorName, setRequestorName] = useState('')
   const [saving, setSaving] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
 
   // Load students from enrollmentBridge
-  const allStudents = getStudents({ campusKey, schoolYear }) || []
-  const filteredStudents = studentSearch.length >= 2
-    ? allStudents.filter(s =>
-        s.firstName?.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.lastName?.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.studentId?.includes(studentSearch)
-      ).slice(0, 8)
+  // A department registrar only files for their own students (technical admin sees both)
+  const { isBasicGrade, basicEdGroups, collegeYearLevels } = useAppConfig()
+  const studentDept = (st) => st?.department || (isBasicGrade(st?.gradeLevel) ? 'basicEd' : 'college')
+  const lockedDept  = currentUser?.role === 'registrar_basic' ? 'basicEd'
+                    : currentUser?.role === 'registrar_college' ? 'college' : null
+  const allStudents = (getStudents({ campusKey, schoolYear }) || [])
+    .filter(st => !lockedDept || studentDept(st) === lockedDept)
+  // Results appear from the first letter typed
+  const q = studentSearch.trim().toLowerCase()
+  // College levels are stored as "Program - 1st Year"; Basic Ed as "Grade 7". Exact match only.
+  const matchesLevel = (st) => levelFilter === 'all'
+    || st.gradeLevel === levelFilter
+    || String(st.gradeLevel || '').split(' - ').pop() === levelFilter
+  const levelGroups = [
+    ...(lockedDept !== 'college' ? (basicEdGroups || []).map(g => ({ label: g.label, options: g.options.map(o => ({ value: o, label: o })) })) : []),
+    ...(lockedDept !== 'basicEd' ? [{ label: 'College year level', options: (collegeYearLevels || []).map(y => ({ value: y, label: y })) }] : []),
+  ]
+  const filteredStudents = (q || levelFilter !== 'all')
+    ? allStudents.filter(matchesLevel).filter(s => !q ||
+        s.firstName?.toLowerCase().includes(q) ||
+        s.lastName?.toLowerCase().includes(q) ||
+        `${s.lastName || ''}, ${s.firstName || ''}`.toLowerCase().includes(q) ||
+        String(s.studentId || '').toLowerCase().includes(q)
+      ).slice(0, 30)
     : []
 
-  const department = selectedStudent?.department ?? 'basicEd'
+  const department = selectedStudent ? studentDept(selectedStudent) : 'basicEd'
   const docTypes   = getDocumentTypes(campusKey, department)
   const selectedDoc = docTypes.find(d => d.id === docType)
 
   const handleSave = () => {
     if (!selectedStudent) { addToast('Please select a student', 'error'); return }
     if (!docType) { addToast('Please select a document type', 'error'); return }
-    if (!purpose.trim()) { addToast('Please state the purpose', 'error'); return }
+    if (!purpose) { addToast('Please state the purpose', 'error'); return }
     setSaving(true)
 
     const record = createRequest({
@@ -159,7 +179,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
       documentLabel: selectedDoc.label,
       fee:           selectedDoc.fee,
       requiresClearance: selectedDoc.requiresClearance,
-      purpose:       purpose.trim(),
+      purpose,
       requestedBy,
       requestorName: requestedBy === 'student' ? selectedStudent.firstName : requestorName,
       createdBy:     currentUser?.name,
@@ -219,16 +239,27 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                   </button>
                 </div>
               ) : (
-                <div className="relative">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                  <input
-                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
-                    placeholder="Search by name or student ID..."
-                    value={studentSearch}
-                    onChange={e => setStudentSearch(e.target.value)}
-                  />
+                <div>
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                    <input
+                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
+                      placeholder="Search by name or student ID..."
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-2">
+                    <GroupedSelect
+                      value={levelFilter}
+                      onChange={setLevelFilter}
+                      groups={levelGroups}
+                      allLabel={lockedDept === 'college' ? 'All year levels' : lockedDept === 'basicEd' ? 'All grade levels' : 'All levels'}
+                      placeholder={lockedDept === 'college' ? 'All year levels' : lockedDept === 'basicEd' ? 'All grade levels' : 'All levels'}
+                    />
+                  </div>
                   {filteredStudents.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-lg overflow-hidden">
+                    <div className="mt-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-y-auto max-h-56">
                       {filteredStudents.map(s => (
                         <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentSearch(''); setDocType('') }}
                           className="w-full text-left px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition text-sm">
@@ -242,7 +273,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                       ))}
                     </div>
                   )}
-                  {studentSearch.length >= 2 && filteredStudents.length === 0 && (
+                  {(q || levelFilter !== 'all') && filteredStudents.length === 0 && (
                     <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">No students found.</p>
                   )}
                 </div>
@@ -282,12 +313,22 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                 <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
                   Purpose *
                 </label>
-                <input
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
-                  placeholder="e.g. For scholarship application, for employment, for transfer"
-                  value={purpose}
-                  onChange={e => setPurpose(e.target.value)}
+                <GroupedSelect
+                  value={purposeChoice || 'all'}
+                  onChange={v => setPurposeChoice(v === 'all' ? '' : v)}
+                  options={[...DOCUMENT_REQUEST_PURPOSES, OTHER_PURPOSE].map(p => ({ value: p, label: p }))}
+                  allLabel="Select purpose..."
+                  placeholder="Select purpose..."
                 />
+                {purposeChoice === OTHER_PURPOSE && (
+                  <input
+                    className="w-full mt-2 px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
+                    placeholder="Type the purpose"
+                    value={purposeOther}
+                    onChange={e => setPurposeOther(e.target.value)}
+                    autoFocus
+                  />
+                )}
               </div>
             )}
 
@@ -322,7 +363,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
 
           <div className="flex justify-end gap-2 p-5 border-t border-[var(--color-border)]">
             <button onClick={onClose} className="btn btn-ghost text-sm">Cancel</button>
-            <button onClick={handleSave} disabled={saving || !selectedStudent || !docType || !purpose.trim()}
+            <button onClick={handleSave} disabled={saving || !selectedStudent || !docType || !purpose}
               className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
               <Plus size={14} /> Submit Request
             </button>
@@ -973,6 +1014,7 @@ function DocumentReceiptModal({ request, onPopupBlocked, onClose }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
+  const [printJob,      setPrintJob]     = useState(null)   // filled format, shown in a preview before printing
   const [releaseModal, setReleaseModal] = useState(false)
   const [payModal,     setPayModal]     = useState(false)
   const [receiptModal, setReceiptModal] = useState(false)
@@ -994,6 +1036,8 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const canConfirmPayment = hasAction('confirm_payment')
   const canRelease        = hasAction('release')
   const canCancel         = hasAction('cancel')
+  // registrars can print once the fee is paid (free documents: once processing has started)
+  const canPrint          = isRegistrar && isPrintable(request)
 
   const act = (actionId, note = '') => {
     try {
@@ -1122,11 +1166,12 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
             </div>
 
             {/* Actions */}
-            {(canProcess || canMarkReady || canRequirePayment || canConfirmPayment || canRelease || canCancel) && (
+            {(canPrint || canProcess || canMarkReady || canRequirePayment || canConfirmPayment || canRelease || canCancel) && (
               <div className="border-t border-[var(--color-border)] pt-4 space-y-3">
                 <p className="text-xs font-semibold text-[var(--color-text-secondary)]">Actions</p>
 
-                <div className="flex flex-wrap gap-2">
+                {/* Phone: full-width stacked buttons. Larger screens: one wrapping row. */}
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto">
                   {canProcess && (
                     <button onClick={() => act('start_processing')}
                       className="btn btn-primary text-xs gap-1.5">
@@ -1157,11 +1202,27 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                       <Send size={12} /> Release Document
                     </button>
                   )}
-                  {canCancel && (
-                    <button onClick={() => act('cancel', noteInput || 'Cancelled by registrar.')}
-                      className="btn text-xs gap-1.5 border border-[var(--color-error-border)] text-[var(--color-error-text)] hover:bg-[var(--color-error-light)]">
-                      <X size={12} /> Cancel
-                    </button>
+                  {/* Secondary actions sit at the far end, away from the main action */}
+                  {(canPrint || canCancel) && (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:ml-auto [&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto">
+                    {canPrint && (
+                      <button
+                        onClick={() => {
+                          const job = getPrintJob(request, request.campusKey || currentUser?.campusKey, currentUser)
+                          if (job) setPrintJob(job)
+                          else addToast(`No format uploaded for ${request.documentLabel}. Add one in the Formats tab.`, 'error')
+                        }}
+                        className="btn btn-ghost text-xs gap-1.5">
+                        <Printer size={12} /> Print document
+                      </button>
+                    )}
+                    {canCancel && (
+                      <button onClick={() => act('cancel', noteInput || 'Cancelled by registrar.')}
+                        className="btn text-xs gap-1.5 border border-[var(--color-error-border)] text-[var(--color-error-text)] hover:bg-[var(--color-error-light)]">
+                        <X size={12} /> Cancel
+                      </button>
+                    )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1171,6 +1232,16 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
           <ToastContainer toasts={toasts} removeToast={removeToast} />
         </div>
       </div>
+
+      {printJob && (
+        <PrintPreviewModal
+          request={printJob.request}
+          template={printJob.template}
+          values={printJob.values}
+          addToast={addToast}
+          onClose={() => setPrintJob(null)}
+        />
+      )}
 
       {releaseModal && (
         <ReleaseModal request={request} onRelease={handleRelease} onClose={() => setReleaseModal(false)} />
@@ -1662,6 +1733,8 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
   const newKey = useRef(0)
   const { toasts, addToast, removeToast } = useToast()
 
+  // Accounting sets prices only. The registrar owns the document list and the clearance rule.
+  const priceOnly = currentUser?.role === 'accounting'
   const rows    = drafts[dept]
   const isDirty = (d) => feeSnapshot(drafts[d]) !== saved[d]
   const anyDirty = isDirty('basicEd') || isDirty('college')
@@ -1700,10 +1773,13 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
 
   const handleSave = () => {
     try {
-      const result = saveDocumentTypes(campusKey, dept, rows.map(r => ({
-        id: r.id, label: r.label, requiresClearance: r.requiresClearance,
-        fee: r.fee.trim() === '' ? NaN : Number(r.fee),
-      })), currentUser)
+      const result = priceOnly
+        ? saveDocumentFees(campusKey, dept,
+            Object.fromEntries(rows.map(r => [r.id, r.fee.trim() === '' ? NaN : Number(r.fee)])), currentUser)
+        : saveDocumentTypes(campusKey, dept, rows.map(r => ({
+            id: r.id, label: r.label, requiresClearance: r.requiresClearance,
+            fee: r.fee.trim() === '' ? NaN : Number(r.fee),
+          })), currentUser)
       applyLoaded(dept, result)
       setError('')
       addToast(`${deptLabel} document fees saved.`, 'success')
@@ -1736,6 +1812,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
           {campusName ? `${campusName} · ` : ''}Set the price of each document. Use 0 for a free document.
           Changes apply to new requests only; requests already recorded keep their price.
+          {priceOnly && ' Documents and the clearance rule are managed by the registrar.'}
         </p>
       </div>
 
@@ -1754,49 +1831,64 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
       </div>
 
       <div className="card overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[1fr_9rem_10rem_2.5rem] gap-3 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
+        <div className={`hidden sm:grid ${priceOnly ? 'grid-cols-[1fr_9rem_10rem]' : 'grid-cols-[1fr_9rem_10rem_2.5rem]'} gap-3 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide`}>
           <span>Document</span>
           <span>Fee (₱)</span>
           <span>Clearance</span>
-          <span></span>
+          {!priceOnly && <span></span>}
         </div>
 
         <div className="divide-y divide-[var(--color-border)]">
           {rows.map(r => (
-            <div key={r._k} className="flex flex-col gap-2 sm:grid sm:grid-cols-[1fr_9rem_10rem_2.5rem] sm:gap-3 sm:items-center px-4 py-3">
-              <input className={inputCls} value={r.label} aria-label="Document name"
-                onChange={e => updateRow(r._k, { label: e.target.value })} placeholder="Document name" />
+            <div key={r._k} className={`flex flex-col gap-2 sm:grid ${priceOnly ? 'sm:grid-cols-[1fr_9rem_10rem]' : 'sm:grid-cols-[1fr_9rem_10rem_2.5rem]'} sm:gap-3 sm:items-center px-4 py-3`}>
+              {priceOnly
+                ? <p className="text-sm font-medium text-[var(--color-text-primary)] py-1">{r.label}</p>
+                : <input className={inputCls} value={r.label} aria-label="Document name"
+                    onChange={e => updateRow(r._k, { label: e.target.value })} placeholder="Document name" />}
               <div className="flex items-center gap-2 sm:contents">
                 <div className="relative w-32 sm:w-auto">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)]">₱</span>
                   <input className={`${inputCls} pl-7 font-mono`} inputMode="decimal" value={r.fee} aria-label="Fee"
                     onChange={e => updateRow(r._k, { fee: cleanFee(e.target.value) })} placeholder="0" />
                 </div>
-                <button type="button" onClick={() => updateRow(r._k, { requiresClearance: !r.requiresClearance })}
-                  aria-pressed={r.requiresClearance}
-                  className={`flex-1 sm:flex-none py-2.5 px-3 text-xs rounded-xl border transition-colors font-medium
-                    ${r.requiresClearance
-                      ? 'is-selected'
-                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
-                  {r.requiresClearance ? 'Needs clearance' : 'No clearance'}
-                </button>
-                <button type="button" onClick={() => removeRow(r._k)} aria-label={`Remove ${r.label || 'document'}`}
-                  className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-error-light)] transition text-[var(--color-text-muted)] hover:text-[var(--color-error-text)]">
-                  <Trash2 size={15} />
-                </button>
+                {priceOnly ? (
+                  // Read only for accounting: the registrar decides this
+                  <span className="flex-1 sm:flex-none text-xs text-[var(--color-text-muted)] px-1">
+                    {r.requiresClearance ? 'Needs clearance' : 'No clearance'}
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => updateRow(r._k, { requiresClearance: !r.requiresClearance })}
+                    aria-pressed={r.requiresClearance}
+                    className={`flex-1 sm:flex-none py-2.5 px-3 text-xs rounded-xl border transition-colors font-medium
+                      ${r.requiresClearance
+                        ? 'is-selected'
+                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
+                    {r.requiresClearance ? 'Needs clearance' : 'No clearance'}
+                  </button>
+                )}
+                {!priceOnly && (
+                  <button type="button" onClick={() => removeRow(r._k)} aria-label={`Remove ${r.label || 'document'}`}
+                    className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-error-light)] transition text-[var(--color-text-muted)] hover:text-[var(--color-error-text)]">
+                    <Trash2 size={15} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
           {rows.length === 0 && (
-            <p className="px-4 py-6 text-center text-xs text-[var(--color-text-muted)]">No documents yet. Add one below.</p>
+            <p className="px-4 py-6 text-center text-xs text-[var(--color-text-muted)]">
+              {priceOnly ? 'No documents yet. The registrar adds them.' : 'No documents yet. Add one below.'}
+            </p>
           )}
         </div>
 
-        <div className="px-4 py-3 border-t border-[var(--color-border)]">
-          <button type="button" onClick={addRow} className="btn btn-ghost text-xs gap-1.5">
-            <Plus size={14} /> Add document
-          </button>
-        </div>
+        {!priceOnly && (
+          <div className="px-4 py-3 border-t border-[var(--color-border)]">
+            <button type="button" onClick={addRow} className="btn btn-ghost text-xs gap-1.5">
+              <Plus size={14} /> Add document
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -1808,7 +1900,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
 
       <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          {custom[dept] && (
+          {custom[dept] && !priceOnly && (
             <button type="button" onClick={() => setConfirmReset(true)} className="btn btn-ghost text-xs gap-1.5">
               <RotateCcw size={13} /> Reset to defaults
             </button>

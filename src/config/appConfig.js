@@ -1167,6 +1167,9 @@ export const DOCUMENT_REQUEST_PURPOSES = [
  * The registrar uploads a PDF or image of a format once, places the fields on it,
  * and every request is then filled in automatically.
  */
+// Deleted documents can be restored for this many days, then they are removed for good
+export const DOCUMENT_TRASH_RETENTION_DAYS = 30
+
 export const DOCUMENT_FORMAT_LIMITS = {
   maxFileMB:      10,    // largest PDF / image accepted
   renderWidthPx:  1240,  // the page is stored as an image this wide (about A4 at 150 dpi)
