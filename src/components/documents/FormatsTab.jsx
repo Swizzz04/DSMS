@@ -1,7 +1,7 @@
 /**
  * FormatsTab.jsx — ALMIRENE DX (Document Requests → Formats)
  *
- * The registrar uploads a PDF/image format for each document type, then places
+ * The technical admin uploads a PDF/image format for each document type, then places
  * the fields (student name, grade level, purpose, dates...) on it once.
  * Every request of that type is later filled in automatically from the Print tab.
  */
@@ -419,7 +419,7 @@ function RestoreRenameModal({ doc, onRestore, onClose }) {
 // FORMATS TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function FormatsTab({ campusKey, currentUser, addToast }) {
+export default function FormatsTab({ campusKey, campusName, currentUser, addToast }) {
   const departments = formatDepartmentsFor(currentUser)
   const [department, setDepartment] = useState(departments[0] || 'basicEd')
   const [templates, setTemplates]   = useState({})
@@ -447,11 +447,16 @@ export default function FormatsTab({ campusKey, currentUser, addToast }) {
   useEffect(() => { load() }, [load])
   useEffect(() => {
     const h = () => load()
+    // Another browser tab or window (for example accounting changing a price) changed the data
+    const WATCHED = ['almirene_document_catalog', 'almirene_document_templates', 'almirene_document_trash']
+    const onStorage = (e) => { if (e.key === null || WATCHED.includes(e.key)) load() }
     window.addEventListener('almirene_document_templates_updated', h)
     window.addEventListener('almirene_document_catalog_updated', h)
+    window.addEventListener('storage', onStorage)
     return () => {
       window.removeEventListener('almirene_document_templates_updated', h)
       window.removeEventListener('almirene_document_catalog_updated', h)
+      window.removeEventListener('storage', onStorage)
     }
   }, [load])
 
@@ -541,7 +546,8 @@ export default function FormatsTab({ campusKey, currentUser, addToast }) {
     try {
       // The format travels with the document into "Deleted documents", so a restore brings it back
       removeDocumentType(campusKey, department, toDelete.id, currentUser, { template: templates[toDelete.id] ?? null })
-      removeTemplate(campusKey, department, toDelete.id, currentUser)
+      // The document is already in the trash with its format; a failure here only leaves a stray copy
+      try { removeTemplate(campusKey, department, toDelete.id, currentUser) } catch { /* ignore */ }
       addToast?.(`${toDelete.label} deleted. You can restore it for ${DOCUMENT_TRASH_RETENTION_DAYS} days.`, 'success')
       load()
     } catch (err) {
@@ -601,7 +607,8 @@ export default function FormatsTab({ campusKey, currentUser, addToast }) {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-[var(--color-text-muted)] max-w-xl">
-          Upload your school's own PDF for each document, then place the fields once. After that, every request is filled in automatically and ready to print.
+          {campusName && <span className="block font-semibold text-[var(--color-text-secondary)]">{campusName}</span>}
+          Set up the documents the school issues: upload its own PDF for each, then place the fields once. After that, every request is filled in automatically and ready to print.
         </p>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
           {departments.length > 1 && (
@@ -673,7 +680,7 @@ export default function FormatsTab({ campusKey, currentUser, addToast }) {
                 )}
               </div>
 
-              {/* The registrar decides whether this document needs the student's clearance */}
+              {/* The technical admin decides whether this document needs the student's clearance */}
               <button type="button" onClick={() => handleClearance(t)} aria-pressed={!!t.requiresClearance}
                 className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs font-medium transition-colors
                   ${t.requiresClearance ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
