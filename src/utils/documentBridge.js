@@ -7,7 +7,10 @@
  * localStorage keys:
  *   almirene_documents  — document request records
  *   almirene_clearance  — clearance records per student per school year
- *   almirene_document_catalog — per-campus document types and prices (set by accounting)
+ *   almirene_document_catalog — per-campus document list, prices and clearance rule.
+ *                               The technical admin sets up the documents (list, clearance rule, formats).
+ *                               Accounting and admin set the prices only (Fees tab).
+ *   almirene_document_trash   — deleted documents, restorable for DOCUMENT_TRASH_RETENTION_DAYS
  *
  * Events:
  *   almirene_documents_updated
@@ -39,7 +42,7 @@ function uid(prefix = 'doc') {
 // ── Document types per department ──────────────────────────────
 // Defaults live in appConfig.js. These two stay exported for anything that wants
 // the unedited list; pages should call getDocumentTypes(campusKey, department),
-// which returns the campus's own prices when accounting has set them.
+// which returns the campus's own prices once the technical admin has set them.
 export const BASIC_ED_DOCUMENT_TYPES = DEFAULT_DOCUMENT_TYPES.basicEd
 export const COLLEGE_DOCUMENT_TYPES  = DEFAULT_DOCUMENT_TYPES.college
 
@@ -57,7 +60,7 @@ const normDept = (d) => (d === 'college' ? 'college' : 'basicEd')
 
 /**
  * Document types (with this campus's prices) for a department.
- * Falls back to the defaults until accounting edits the campus's list.
+ * Falls back to the defaults until the technical admin edits the campus's list.
  */
 export function getDocumentTypes(campusKey, department = 'basicEd') {
   const dept   = normDept(department)
@@ -71,68 +74,100 @@ export function hasCustomDocumentTypes(campusKey, department = 'basicEd') {
   return Array.isArray(loadCatalog()?.[campusKey]?.[normDept(department)])
 }
 
+// Who may open the fee configuration. Everyone here sets prices (saveDocumentFees);
+// only the technical admin sets up the document list itself.
 const CATALOG_ROLES = ['accounting', 'admin', 'technical_admin']
+const NOT_ALLOWED   = 'You are not allowed to change document fees.'
+
+/** Error raised when the list changed (another user added or removed a document) since the caller loaded it. */
+function listChangedError() {
+  const err = new Error('The document list was changed by someone else. The list has been refreshed. Please review it and save again.')
+  err.code = 'LIST_CHANGED'
+  return err
+}
 
 /**
- * Save a campus's document list for one department.
- * Replaces the whole list (rows can be edited, added or removed).
+ * Save edits to a campus's document list for one department (technical admin only).
+ *
+ * Merges into the CURRENT list, so a document another user added in the meantime is never
+ * lost. Rows with an id update that document; rows with no id are new documents.
+ * It never removes a document: deleting goes through removeDocumentType (the trash).
+ * A row whose id is no longer in the list was deleted by someone else, so it throws
+ * an error whose code is 'LIST_CHANGED' and writes nothing.
  * Requests already recorded keep the label and fee they were recorded with.
  *
  * @param {string} campusKey
  * @param {'basicEd'|'college'} department
  * @param {Array}  types  [{ id?, label, fee, requiresClearance }]
- * @param {object} user   must be accounting / admin / technical_admin
+ * @param {object} user   must be the technical admin (accounting / admin set prices with saveDocumentFees)
  * @returns {Array} the saved list
  */
 export function saveDocumentTypes(campusKey, department, types, user) {
-  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
-  // Accounting sets prices only (saveDocumentFees); the registrar owns the document list
-  if (user?.role === 'accounting') throw new Error('Accounting can set prices only. The registrar manages the document list.')
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error(NOT_ALLOWED)
+  if (user?.role !== 'technical_admin') throw new Error('Only the technical admin can change the document list. You can set prices.')
   if (!campusKey) throw new Error('Campus is missing.')
-  if (!Array.isArray(types) || types.length === 0) throw new Error('Keep at least one document.')
+  if (!Array.isArray(types) || types.length === 0) throw new Error('There is nothing to save.')
 
-  const seenLabels = new Set()
-  const seenIds    = new Set()
-  const clean = types.map(t => {
+  const dept    = normDept(department)
+  const current = getDocumentTypes(campusKey, dept)
+  const known   = new Set(current.map(t => t.id))
+
+  const edits = new Map()    // id → cleaned row, for documents already in the list
+  const added = []           // cleaned rows for new documents
+  types.forEach(t => {
     const label = String(t.label ?? '').trim()
     if (!label) throw new Error('Every document needs a name.')
-    const key = label.toLowerCase()
-    if (seenLabels.has(key)) throw new Error(`"${label}" is listed twice.`)
-    seenLabels.add(key)
+    if (label.length > 60) throw new Error(`Keep "${label.slice(0, 20)}…" under 60 characters.`)
 
     const fee = Number(t.fee)
     if (!Number.isFinite(fee) || fee < 0) throw new Error(`Enter a valid fee for "${label}".`)
+    const base = { label, fee: Math.round(fee * 100) / 100, requiresClearance: !!t.requiresClearance }
 
-    let id = String(t.id ?? '').trim()
-    if (!id || seenIds.has(id)) {
+    const id = String(t.id ?? '').trim()
+    if (!id) {
       const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'document'
-      id = `custom_${slug}_${Math.random().toString(36).slice(2, 6)}`
+      added.push({ id: `custom_${slug}_${Math.random().toString(36).slice(2, 6)}`, ...base })
+    } else if (known.has(id)) {
+      edits.set(id, { id, ...base })
+    } else {
+      throw listChangedError()
     }
-    seenIds.add(id)
-
-    return { id, label, fee: Math.round(fee * 100) / 100, requiresClearance: !!t.requiresClearance }
   })
 
-  const all  = loadCatalog()
-  const dept = normDept(department)
-  all[campusKey] = { ...(all[campusKey] || {}), [dept]: clean }
+  const merged = [...current.map(t => edits.get(t.id) ?? t), ...added]
+
+  // Names must stay unique across the whole merged list
+  const seen = new Set()
+  merged.forEach(t => {
+    const key = t.label.toLowerCase()
+    if (seen.has(key)) throw new Error(`"${t.label}" is listed twice.`)
+    seen.add(key)
+  })
+
+  const all = loadCatalog()
+  all[campusKey] = { ...(all[campusKey] || {}), [dept]: merged }
   saveCatalog(all)
-  return clean.map(t => ({ ...t }))
+  return merged.map(t => ({ ...t }))
 }
 
 /**
- * Accounting sets prices only. Updates the fee of the documents named in `fees` on the
- * campus's CURRENT list, so a document the registrar added or removed in the meantime
+ * Accounting / admin set prices. Updates the fee of the documents named in `fees` on the
+ * campus's CURRENT list, so a document the technical admin added or removed in the meantime
  * is never overwritten.
+ *
+ * If a document named in `fees` is no longer in the list (the technical admin deleted it), nothing is
+ * saved and an error with code 'LIST_CHANGED' is thrown, so the caller can refresh and ask again.
  *
  * @param {Object<string,number>} fees  { [documentTypeId]: fee }
  * @returns {Array} the saved list
  */
 export function saveDocumentFees(campusKey, department, fees, user) {
-  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error(NOT_ALLOWED)
   if (!campusKey) throw new Error('Campus is missing.')
   const dept = normDept(department)
   const list = getDocumentTypes(campusKey, dept)
+  const ids  = new Set(list.map(t => t.id))
+  if (Object.keys(fees || {}).some(id => !ids.has(id))) throw listChangedError()
   const next = list.map(t => {
     if (!(t.id in (fees || {}))) return t
     const fee = Number(fees[t.id])
@@ -145,10 +180,7 @@ export function saveDocumentFees(campusKey, department, fees, user) {
   return next.map(t => ({ ...t }))
 }
 
-/**
- * The registrar decides whether a document needs the student's clearance.
- * Accounting cannot change this.
- */
+/** The technical admin decides whether a document needs the student's clearance. */
 export function setDocumentClearance(campusKey, department, documentTypeId, requiresClearance, user) {
   const dept = normDept(department)
   assertCanManageDocuments(user, dept)
@@ -161,8 +193,8 @@ export function setDocumentClearance(campusKey, department, documentTypeId, requ
 
 /** Put a campus's department list back to the defaults. */
 export function resetDocumentTypes(campusKey, department, user) {
-  if (!CATALOG_ROLES.includes(user?.role)) throw new Error('You are not allowed to change document fees.')
-  if (user?.role === 'accounting') throw new Error('Accounting can set prices only. The registrar manages the document list.')
+  if (!CATALOG_ROLES.includes(user?.role)) throw new Error(NOT_ALLOWED)
+  if (user?.role !== 'technical_admin') throw new Error('Only the technical admin can change the document list. You can set prices.')
   const all  = loadCatalog()
   const dept = normDept(department)
   if (all[campusKey]) {
@@ -173,9 +205,8 @@ export function resetDocumentTypes(campusKey, department, user) {
 }
 
 /**
- * A registrar adds a document the school issues (for example "Certificate of Indigency").
+ * The technical admin adds a document the school issues (for example "Certificate of Indigency").
  * It joins the campus list at ₱0; accounting sets the price on the Fees tab.
- * A department registrar can only add to their own department.
  *
  * @param {object} data { label, requiresClearance? }
  * @returns {object} the new document type
@@ -232,13 +263,11 @@ function saveTrash(data) {
   window.dispatchEvent(new CustomEvent(CATALOG_EVENT))
 }
 
-// Who decides WHICH documents the school issues (add, delete, restore, clearance):
-// the department registrar, plus admin / technical admin. Accounting only sets prices.
+// Who sets up WHICH documents the school issues (add, delete, restore, clearance): the technical admin.
+// `dept` is kept so every caller reads the same; the rule is the same for both departments.
+// eslint-disable-next-line no-unused-vars
 function assertCanManageDocuments(user, dept) {
-  const allowed = ['admin', 'technical_admin'].includes(user?.role)
-    || (user?.role === 'registrar_basic'   && dept === 'basicEd')
-    || (user?.role === 'registrar_college' && dept === 'college')
-  if (!allowed) throw new Error('You are not allowed to change documents for this department.')
+  if (user?.role !== 'technical_admin') throw new Error('Only the technical admin can set up the documents.')
 }
 
 /**
@@ -582,29 +611,6 @@ export function updateStatus(id, status, byName, note = '') {
 }
 
 /**
- * Accounting confirms processing fee paid.
- */
-export function recordPayment(id, byName) {
-  const docs = loadDocs()
-  const idx  = docs.findIndex(r => r.id === id)
-  if (idx < 0) throw new Error(`Document request "${id}" not found.`)
-
-  const now = new Date().toISOString()
-  docs[idx] = {
-    ...docs[idx],
-    paidAt:    now,
-    status:    'ready',
-    statusHistory: [
-      ...docs[idx].statusHistory,
-      { status: 'ready', by: byName, byName, note: 'Processing fee confirmed.', at: now },
-    ],
-    updatedAt: now,
-  }
-  saveDocs(docs)
-  return docs[idx]
-}
-
-/**
  * Accounting confirms the processing fee was paid.
  *
  * Stores the cashier's record on the request (OR number, amount, method, who
@@ -679,8 +685,12 @@ export function releaseDocument(id, { releasedTo, claimSlip, byName }) {
 
   const record = docs[idx]
 
-  // Guard — clearance required
-  if (record.requiresClearance && record.clearanceId) {
+  // Guard — clearance required. A request that needs clearance but has no clearance
+  // record linked is blocked too, so it can never be released by skipping the record.
+  if (record.requiresClearance) {
+    if (!record.clearanceId) {
+      throw new Error('This document needs the student\'s clearance, but no clearance record is linked to the request. Start the clearance first.')
+    }
     if (!isFullyCleared(record.clearanceId)) {
       throw new Error('Student clearance is not yet complete. Cannot release this document.')
     }

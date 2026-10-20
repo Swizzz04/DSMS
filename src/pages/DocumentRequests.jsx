@@ -8,7 +8,7 @@
  *   accounting        — sees "for_payment" queue, confirms fee payments
  *   principal_basic   — signs Admin Office clearance
  *   program_head      — signs Admin Office clearance (college)
- *   technical_admin   — sees everything
+ *   technical_admin   — sees everything; the only role that opens Formats (sets up the documents)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
+import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect    from '../components/GroupedSelect'
 import DatePicker       from '../components/DatePicker'
 import { ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton } from '../components/UIComponents'
@@ -29,6 +30,7 @@ import {
   getClearances, getClearanceById, createClearance, updateDepartmentClearance,
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
   getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, saveDocumentFees, resetDocumentTypes,
+  removeDocumentType,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
   getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches,
 } from '../utils/documentBridge'
@@ -37,7 +39,8 @@ import { suggestOrNumber, isOrNumberUsed } from '../utils/orNumbers'
 import { printReceiptHtml } from '../utils/printReceipt'
 import FormatsTab from '../components/documents/FormatsTab'
 import PrintTab, { getPrintJob, isPrintable, PrintPreviewModal } from '../components/documents/PrintTab'
-import { DOCUMENT_PAYMENT_METHODS, DOCUMENT_REQUEST_PURPOSES } from '../config/appConfig'
+import { getTemplate, removeTemplate } from '../utils/documentTemplates'
+import { DOCUMENT_PAYMENT_METHODS, DOCUMENT_REQUEST_PURPOSES, DOCUMENT_TRASH_RETENTION_DAYS } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -1210,7 +1213,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                         onClick={() => {
                           const job = getPrintJob(request, request.campusKey || currentUser?.campusKey, currentUser)
                           if (job) setPrintJob(job)
-                          else addToast(`No format uploaded for ${request.documentLabel}. Add one in the Formats tab.`, 'error')
+                          else addToast(`No format uploaded for ${request.documentLabel}. ${canSetupDocuments ? 'Add one in the Formats tab.' : 'Ask the technical admin to add its format.'}`, 'error')
                         }}
                         className="btn btn-ghost text-xs gap-1.5">
                         <Printer size={12} /> Print document
@@ -1275,7 +1278,15 @@ export default function DocumentRequests() {
   const { user }       = useAuth()
   const { currentSchoolYear, activeCampuses } = useAppConfig()
 
-  const campusKey  = user?.campusKey || activeCampuses?.[0]?.key || ''
+  // Campus: a campus user works in their own campus. A user with no campus of their own
+  // (admin / technical admin) follows the Campus menu in the header, so formats and fees are
+  // set for the campus they picked. With "all campuses" selected, the first campus is shown
+  // for the request lists, and Formats / Fees ask for a campus instead of editing a guess.
+  const { campusFilter = 'all' } = useCampusFilter()
+  const needsCampusPick = !user?.campusKey && campusFilter === 'all'
+  const campusKey  = user?.campusKey
+    || (campusFilter !== 'all' ? campusFilter : '')
+    || activeCampuses?.[0]?.key || ''
   // currentSchoolYear is already the year string (e.g. '2026-2027'), not an object
   const schoolYear = currentSchoolYear || '2026-2027'
   const campusName = activeCampuses?.find(c => c.key === campusKey)?.name ?? user?.campus ?? ''
@@ -1302,6 +1313,8 @@ export default function DocumentRequests() {
   const isRegistrar  = ['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)
   const isAccounting = ['accounting', 'technical_admin'].includes(role)
   const canManageFees = ['accounting', 'admin', 'technical_admin'].includes(role)
+  // The technical admin sets up the documents (list, clearance rule, formats); nobody else opens Formats
+  const canSetupDocuments = role === 'technical_admin'
 
   const loadData = useCallback(() => {
     // Always load the FULL list for this campus + school year. The status tabs
@@ -1314,8 +1327,14 @@ export default function DocumentRequests() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => {
     const handler = () => loadData()
+    // Another browser tab or window (for example the other account) changed the requests
+    const onStorage = (e) => { if (e.key === null || e.key === 'almirene_documents') loadData() }
     window.addEventListener('almirene_documents_updated', handler)
-    return () => window.removeEventListener('almirene_documents_updated', handler)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('almirene_documents_updated', handler)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [loadData])
 
   // What this role may see: accounting only works the for_payment queue, and
@@ -1446,10 +1465,8 @@ export default function DocumentRequests() {
         {[
           { id: 'requests',  label: 'Requests',  icon: FileText },
           { id: 'clearance', label: 'Clearance', icon: ShieldCheck },
-          ...(isRegistrar ? [
-            { id: 'print',   label: 'Print',   icon: Printer },
-            { id: 'formats', label: 'Formats', icon: Upload },
-          ] : []),
+          ...(isRegistrar ? [{ id: 'print', label: 'Print', icon: Printer }] : []),
+          ...(canSetupDocuments ? [{ id: 'formats', label: 'Formats', icon: Upload }] : []),
           ...(canManageFees ? [{ id: 'fees', label: 'Fees', icon: Tag }] : []),
         ].map(tab => (
           <button key={tab.id} onClick={() => goToTab(tab.id)}
@@ -1640,19 +1657,23 @@ export default function DocumentRequests() {
           campusKey={campusKey}
           currentUser={user}
           renderStatus={(r) => <StatusBadge request={r} />}
-          onOpenFormats={() => goToTab('formats')}
+          onOpenFormats={canSetupDocuments ? () => goToTab('formats') : undefined}
           addToast={addToast}
         />
       )}
 
-      {/* ── FORMATS TAB (registrar) ── */}
-      {activeTab === 'formats' && isRegistrar && (
-        <FormatsTab campusKey={campusKey} currentUser={user} addToast={addToast} />
+      {/* ── FORMATS TAB (technical admin) ── */}
+      {activeTab === 'formats' && canSetupDocuments && (
+        needsCampusPick
+          ? <PickCampusNotice what="document formats" />
+          : <FormatsTab key={campusKey} campusKey={campusKey} campusName={campusName} currentUser={user} addToast={addToast} />
       )}
 
       {/* ── FEES TAB ── */}
       {activeTab === 'fees' && canManageFees && (
-        <DocumentFeesTab campusKey={campusKey} campusName={campusName} currentUser={user} onDirtyChange={setFeesDirty} />
+        needsCampusPick
+          ? <PickCampusNotice what="document fees" />
+          : <DocumentFeesTab key={campusKey} campusKey={campusKey} campusName={campusName} currentUser={user} onDirtyChange={setFeesDirty} />
       )}
 
       {/* Modals */}
@@ -1707,6 +1728,18 @@ export default function DocumentRequests() {
   )
 }
 
+// Shown on Formats / Fees when no campus is selected: these are set per campus
+function PickCampusNotice({ what }) {
+  return (
+    <div className="card p-6 text-center">
+      <p className="text-sm font-semibold text-[var(--color-text-primary)]">Choose a campus first</p>
+      <p className="text-xs text-[var(--color-text-muted)] mt-1">
+        {what.charAt(0).toUpperCase() + what.slice(1)} are set for one campus at a time. Pick a campus from the Campus menu at the top of the page.
+      </p>
+    </div>
+  )
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DOCUMENT FEES TAB (accounting sets this campus's prices, on the same page)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1726,18 +1759,24 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
   const [dept, setDept] = useState('basicEd')
   const load = (d) => toFeeRows(getDocumentTypes(campusKey, d))
   const [drafts, setDrafts] = useState(() => ({ basicEd: load('basicEd'), college: load('college') }))
-  const [saved,  setSaved]  = useState(() => ({ basicEd: feeSnapshot(load('basicEd')), college: feeSnapshot(load('college')) }))
+  // The last saved rows per department (compared with the drafts to know what is unsaved)
+  const [saved,  setSaved]  = useState(() => ({ basicEd: load('basicEd'), college: load('college') }))
   const [custom, setCustom] = useState(() => ({ basicEd: hasCustomDocumentTypes(campusKey, 'basicEd'), college: hasCustomDocumentTypes(campusKey, 'college') }))
   const [error, setError]   = useState('')
   const [confirmReset, setConfirmReset] = useState(false)
+  const [toRemove, setToRemove] = useState(null)   // saved document the admin wants to delete
   const newKey = useRef(0)
   const { toasts, addToast, removeToast } = useToast()
 
-  // Accounting sets prices only. The registrar owns the document list and the clearance rule.
-  const priceOnly = currentUser?.role === 'accounting'
+  // Accounting and admin set prices only. The technical admin sets up the documents and the clearance rule.
+  const priceOnly = currentUser?.role !== 'technical_admin'
   const rows    = drafts[dept]
-  const isDirty = (d) => feeSnapshot(drafts[d]) !== saved[d]
+  const isDirty = (d) => feeSnapshot(drafts[d]) !== feeSnapshot(saved[d])
   const anyDirty = isDirty('basicEd') || isDirty('college')
+
+  // Always-current copies for the listeners below (they are set up once)
+  const latest = useRef({ drafts, saved })
+  latest.current = { drafts, saved }
 
   // Tell the page, so it can warn before the user leaves this tab
   useEffect(() => { onDirtyChange?.(anyDirty) }, [anyDirty, onDirtyChange])
@@ -1758,7 +1797,12 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
     setDrafts(prev => ({ ...prev, [dept]: updater(prev[dept]) }))
   }
   const updateRow = (key, patch) => setRows(rs => rs.map(r => (r._k === key ? { ...r, ...patch } : r)))
-  const removeRow = (key) => setRows(rs => rs.filter(r => r._k !== key))
+  // A saved document is deleted through the trash (after a confirmation); a row that was
+  // never saved is simply dropped.
+  const requestRemove = (row) => {
+    if (row.id) setToRemove(row)
+    else setRows(rs => rs.filter(r => r._k !== row._k))
+  }
   const addRow    = () => setRows(rs => [...rs, { _k: `new_${newKey.current++}`, id: '', label: '', fee: '', requiresClearance: false }])
 
   // Digits and a single decimal point only
@@ -1767,9 +1811,46 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
   const applyLoaded = (d, list) => {
     const fresh = toFeeRows(list)
     setDrafts(prev => ({ ...prev, [d]: fresh }))
-    setSaved(prev => ({ ...prev, [d]: feeSnapshot(fresh) }))
+    setSaved(prev => ({ ...prev, [d]: fresh }))
     setCustom(prev => ({ ...prev, [d]: hasCustomDocumentTypes(campusKey, d) }))
   }
+
+  // The list changed elsewhere while this department has unsaved edits: take the new list
+  // (deleted documents disappear, new ones appear, clearance updates) but keep what the user
+  // typed for the documents that are still there.
+  const mergeFresh = (d) => {
+    const fresh = toFeeRows(getDocumentTypes(campusKey, d))
+    setDrafts(prev => {
+      const typed = new Map(prev[d].filter(r => r.id).map(r => [r.id, r]))
+      const merged = fresh.map(f => {
+        const t = typed.get(f.id)
+        if (!t) return f
+        // Prices-only users type fees; the technical admin also edits the name and clearance
+        return priceOnly ? { ...f, fee: t.fee } : { ...f, fee: t.fee, label: t.label, requiresClearance: t.requiresClearance }
+      })
+      return { ...prev, [d]: [...merged, ...prev[d].filter(r => !r.id)] }   // unsaved new rows stay
+    })
+    setSaved(prev => ({ ...prev, [d]: fresh }))
+    setCustom(prev => ({ ...prev, [d]: hasCustomDocumentTypes(campusKey, d) }))
+  }
+
+  // Keep this tab in step with the registrar: same browser tab (custom event) and another
+  // browser tab or window (storage event), for example the two-account flow.
+  useEffect(() => {
+    const refresh = () => ['basicEd', 'college'].forEach(d => {
+      const { drafts: dr, saved: sv } = latest.current
+      if (feeSnapshot(dr[d]) === feeSnapshot(sv[d])) applyLoaded(d, getDocumentTypes(campusKey, d))
+      else mergeFresh(d)
+    })
+    const onStorage = (e) => { if (e.key === null || e.key === 'almirene_document_catalog') refresh() }
+    window.addEventListener('almirene_document_catalog_updated', refresh)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('almirene_document_catalog_updated', refresh)
+      window.removeEventListener('storage', onStorage)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campusKey, priceOnly])
 
   const handleSave = () => {
     try {
@@ -1783,6 +1864,24 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
       applyLoaded(dept, result)
       setError('')
       addToast(`${deptLabel} document fees saved.`, 'success')
+    } catch (err) {
+      if (err.code === 'LIST_CHANGED') mergeFresh(dept)   // nothing was saved; show the current list, keep the typed fees
+      setError(err.message)
+    }
+  }
+
+  const handleRemoveConfirmed = () => {
+    const row = toRemove
+    setToRemove(null)
+    if (!row) return
+    try {
+      // The uploaded format travels with the document into "Deleted documents", so a restore brings it back
+      removeDocumentType(campusKey, dept, row.id, currentUser, { template: getTemplate(campusKey, dept, row.id) ?? null })
+      try { removeTemplate(campusKey, dept, row.id, currentUser) } catch { /* the document is already in the trash with its format */ }
+      setDrafts(prev => ({ ...prev, [dept]: prev[dept].filter(r => r.id !== row.id) }))
+      setSaved(prev => ({ ...prev, [dept]: prev[dept].filter(r => r.id !== row.id) }))
+      setError('')
+      addToast(`${row.label} deleted. Restore it from the Formats tab within ${DOCUMENT_TRASH_RETENTION_DAYS} days.`, 'success')
     } catch (err) {
       setError(err.message)
     }
@@ -1812,7 +1911,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
           {campusName ? `${campusName} · ` : ''}Set the price of each document. Use 0 for a free document.
           Changes apply to new requests only; requests already recorded keep their price.
-          {priceOnly && ' Documents and the clearance rule are managed by the registrar.'}
+          {priceOnly && ' Documents and the clearance rule are set up by the technical admin.'}
         </p>
       </div>
 
@@ -1843,7 +1942,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
             <div key={r._k} className={`flex flex-col gap-2 sm:grid ${priceOnly ? 'sm:grid-cols-[1fr_9rem_10rem]' : 'sm:grid-cols-[1fr_9rem_10rem_2.5rem]'} sm:gap-3 sm:items-center px-4 py-3`}>
               {priceOnly
                 ? <p className="text-sm font-medium text-[var(--color-text-primary)] py-1">{r.label}</p>
-                : <input className={inputCls} value={r.label} aria-label="Document name"
+                : <input className={inputCls} value={r.label} aria-label="Document name" maxLength={60}
                     onChange={e => updateRow(r._k, { label: e.target.value })} placeholder="Document name" />}
               <div className="flex items-center gap-2 sm:contents">
                 <div className="relative w-32 sm:w-auto">
@@ -1852,7 +1951,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
                     onChange={e => updateRow(r._k, { fee: cleanFee(e.target.value) })} placeholder="0" />
                 </div>
                 {priceOnly ? (
-                  // Read only for accounting: the registrar decides this
+                  // Read only for accounting / admin: the technical admin decides this
                   <span className="flex-1 sm:flex-none text-xs text-[var(--color-text-muted)] px-1">
                     {r.requiresClearance ? 'Needs clearance' : 'No clearance'}
                   </span>
@@ -1867,7 +1966,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
                   </button>
                 )}
                 {!priceOnly && (
-                  <button type="button" onClick={() => removeRow(r._k)} aria-label={`Remove ${r.label || 'document'}`}
+                  <button type="button" onClick={() => requestRemove(r)} aria-label={`Delete ${r.label || 'document'}`}
                     className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-error-light)] transition text-[var(--color-text-muted)] hover:text-[var(--color-error-text)]">
                     <Trash2 size={15} />
                   </button>
@@ -1877,7 +1976,7 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
           ))}
           {rows.length === 0 && (
             <p className="px-4 py-6 text-center text-xs text-[var(--color-text-muted)]">
-              {priceOnly ? 'No documents yet. The registrar adds them.' : 'No documents yet. Add one below.'}
+              {priceOnly ? 'No documents yet. The technical admin adds them.' : 'No documents yet. Add one below.'}
             </p>
           )}
         </div>
@@ -1922,6 +2021,18 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
         danger
         onConfirm={handleReset}
         onCancel={() => setConfirmReset(false)}
+      />
+
+      <ConfirmDialog
+        open={!!toRemove}
+        title="Delete this document?"
+        message={toRemove
+          ? `"${toRemove.label}" will be removed from the document list for this campus. You can restore it from the Formats tab for ${DOCUMENT_TRASH_RETENTION_DAYS} days, with its price and uploaded format. Requests already filed for it stay as history.`
+          : ''}
+        confirmLabel="Delete document"
+        danger
+        onConfirm={handleRemoveConfirmed}
+        onCancel={() => setToRemove(null)}
       />
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

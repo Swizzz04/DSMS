@@ -97,7 +97,7 @@ export function PrintPreviewModal({ request, template, values, addToast, onClose
 /**
  * @param {Array}    requests      already scoped to this registrar's department
  * @param {function} renderStatus  (request) → status badge node (passed in to avoid a circular import)
- * @param {function} onOpenFormats switch to the Formats tab
+ * @param {function} [onOpenFormats] switch to the Formats tab (only passed to the technical admin)
  */
 export default function PrintTab({ requests, campusKey, currentUser, renderStatus, onOpenFormats, addToast }) {
   const [search, setSearch]   = useState('')
@@ -179,10 +179,12 @@ export default function PrintTab({ requests, campusKey, currentUser, renderStatu
                 ) : (
                   <div className="flex items-center gap-2 shrink-0 text-xs text-[var(--color-text-muted)]">
                     <AlertCircle size={13} className="shrink-0" />
-                    <span>No format uploaded</span>
-                    <button onClick={onOpenFormats} className="font-semibold text-[var(--color-primary-readable)] hover:underline">
-                      Upload
-                    </button>
+                    <span>No format uploaded{onOpenFormats ? '' : '. Ask the technical admin.'}</span>
+                    {onOpenFormats && (
+                      <button onClick={onOpenFormats} className="font-semibold text-[var(--color-primary-readable)] hover:underline">
+                        Upload
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

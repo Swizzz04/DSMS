@@ -1,7 +1,7 @@
 /**
  * documentTemplates.js — ALMIRENE DX document formats (Document Requests → Formats / Print)
  *
- * A "format" is a PDF or image the registrar uploaded for one document type
+ * A "format" is a PDF or image the technical admin uploaded for one document type
  * (for example Good Moral Certificate), plus the places on that page where the
  * request's details go (name, grade level, purpose, date...). Set it up once;
  * every request of that type is then filled in and ready to print.
@@ -53,12 +53,9 @@ function saveAll(data) {
 
 const normDept = (d) => (d === 'college' ? 'college' : 'basicEd')
 
-/** Which departments this user may manage formats for. */
+/** Which departments this user may manage formats for. Formats are set up by the technical admin only. */
 export function formatDepartmentsFor(user) {
-  if (user?.role === 'registrar_basic')   return ['basicEd']
-  if (user?.role === 'registrar_college') return ['college']
-  if (user?.role === 'technical_admin')   return ['basicEd', 'college']
-  return []
+  return user?.role === 'technical_admin' ? ['basicEd', 'college'] : []
 }
 
 function assertCanManage(user, department) {
