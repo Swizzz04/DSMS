@@ -19,7 +19,8 @@
  *   image,                  // the page as a JPEG data URL
  *   pageWidthPt, pageHeightPt,
  *   fontFamily,             // 'serif' | 'sans'
- *   fields: [{ id, key, x, y, w, fontPt, bold, align }],
+ *   fields: [{ id, key, x, y, w, fontPt, bold, align, fit }],
+ *     // fit (default true): when the text is wider than the field's width, shrink the font to fit.
  *     // x, y, w are fractions (0–1) of the page width / height.
  *     // x = left edge of the box, y = vertical centre of the line.
  *   updatedAt, updatedBy
@@ -99,6 +100,7 @@ function cleanFields(fields) {
       fontPt: num(f.fontPt, 6, 72, 12),
       bold:   !!f.bold,
       align:  ALIGNS.includes(f.align) ? f.align : 'left',
+      fit:    f.fit !== false,   // shrink long text to the field's width (on unless switched off)
     }
   })
 }
@@ -222,6 +224,38 @@ const FONT_STACKS = {
 }
 export const fontStack = (family) => FONT_STACKS[family] || FONT_STACKS.serif
 
+// ── Shrink to fit ───────────────────────────────────────────────
+// A field box has a width. Text that is wider than the box (a long name, a long school name)
+// gets a smaller font so it fits, never smaller than FIT_MIN_PT. The editor, the print preview
+// and the printout all use this one function, so they always agree.
+
+const FIT_MIN_PT = 6
+const FIT_MARGIN = 0.98     // keep a hair of room: screen and printer round widths a little differently
+let measureCtx
+function getMeasureCtx() {
+  if (measureCtx !== undefined) return measureCtx
+  try { measureCtx = document.createElement('canvas').getContext('2d') } catch { measureCtx = null }
+  return measureCtx
+}
+
+/**
+ * The font size (pt) to use for this text in this field.
+ * Returns the field's own size when shrinking is off, the text is empty, or it already fits.
+ */
+export function fitFontPt(text, field, template) {
+  const base = field.fontPt
+  const value = String(text ?? '')
+  if (field.fit === false || !value) return base
+  const ctx = getMeasureCtx()
+  if (!ctx) return base
+  ctx.font = `${field.bold ? 700 : 400} ${base}px ${fontStack(template.fontFamily)}`
+  const textWidth = ctx.measureText(value).width          // px at the base size; only the ratio matters
+  const boxWidth  = field.w * template.pageWidthPt * FIT_MARGIN
+  if (!(textWidth > boxWidth) || !(boxWidth > 0)) return base
+  const fitted = Math.floor((base * boxWidth / textWidth) * 100) / 100
+  return Math.min(base, Math.max(FIT_MIN_PT, fitted))
+}
+
 /**
  * Opens the filled page in a print window, at the real page size, with no margins.
  * The window is a blank document with no app styles, so the page carries its own.
@@ -236,7 +270,7 @@ export function printFilledTemplate({ template, values, title = 'Document', onBl
     const text = values?.[f.key] ?? ''
     if (!text) return ''
     return `<div style="position:absolute;left:${f.x * 100}%;top:${f.y * 100}%;width:${f.w * 100}%;transform:translateY(-50%);` +
-      `font-size:${f.fontPt}pt;line-height:1;white-space:nowrap;text-align:${f.align};font-weight:${f.bold ? 700 : 400};` +
+      `font-size:${fitFontPt(text, f, template)}pt;line-height:1;white-space:nowrap;text-align:${f.align};font-weight:${f.bold ? 700 : 400};` +
       `font-family:${fontStack(template.fontFamily)};color:#000">${esc(text)}</div>`
   }).join('')
 

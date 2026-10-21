@@ -97,7 +97,7 @@ function AddSubjectModal({ title, existing, onAdd, onClose }) {
         <p className="text-xs text-[var(--color-text-muted)] mb-4">{title}</p>
         <input autoFocus type="text" placeholder="e.g. Philippine History"
           value={value} onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && canAdd && (onAdd(trimmed), onClose())}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (canAdd) { onAdd(trimmed); onClose() } } }}
           className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition mb-1
             ${isDupe ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
         {isDupe && <p className="text-xs text-[var(--color-error-text)] mb-2">Subject already exists in this level.</p>}
@@ -123,7 +123,7 @@ function RenameSectionModal({ section, onRename, onClose }) {
         <p className="text-xs text-[var(--color-text-muted)] mb-4">Default: {section.defaultName}</p>
         <input autoFocus type="text" placeholder={section.defaultName}
           value={value} onChange={e => setValue(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && value.trim() && (onRename(value.trim()), onClose())}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (value.trim()) { onRename(value.trim()); onClose() } } }}
           className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-3" />
         <p className="text-xs text-[var(--color-text-muted)] mb-3">
           e.g. "Grade 7 Peridot", "Grade 7 Sapphire"

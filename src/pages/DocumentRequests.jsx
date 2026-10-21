@@ -32,13 +32,13 @@ import {
   getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, saveDocumentFees, resetDocumentTypes,
   removeDocumentType,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
-  getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches,
+  getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches, clearanceBlocksRelease,
 } from '../utils/documentBridge'
 import { getStudents } from '../utils/enrollmentBridge'
 import { suggestOrNumber, isOrNumberUsed } from '../utils/orNumbers'
 import { printReceiptHtml } from '../utils/printReceipt'
 import FormatsTab from '../components/documents/FormatsTab'
-import PrintTab, { getPrintJob, isPrintable, PrintPreviewModal } from '../components/documents/PrintTab'
+import PrintTab, { getPrintJob, isPrintable, PrintPreviewModal, hasFormat } from '../components/documents/PrintTab'
 import { getTemplate, removeTemplate } from '../utils/documentTemplates'
 import { DOCUMENT_PAYMENT_METHODS, DOCUMENT_REQUEST_PURPOSES, DOCUMENT_TRASH_RETENTION_DAYS } from '../config/appConfig'
 
@@ -163,14 +163,19 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
   const department = selectedStudent ? studentDept(selectedStudent) : 'basicEd'
   const docTypes   = getDocumentTypes(campusKey, department)
   const selectedDoc = docTypes.find(d => d.id === docType)
+  // No uploaded format → the request can't be filed (the technical admin uploads formats)
+  const missingFormat = !!selectedDoc && !hasFormat({ department, documentType: selectedDoc.id }, campusKey)
 
   const handleSave = () => {
     if (!selectedStudent) { addToast('Please select a student', 'error'); return }
     if (!docType) { addToast('Please select a document type', 'error'); return }
+    if (missingFormat) { addToast('This document has no format uploaded yet, so it can\'t be requested.', 'error'); return }
     if (!purpose) { addToast('Please state the purpose', 'error'); return }
     setSaving(true)
 
-    const record = createRequest({
+    let record
+    try {
+      record = createRequest({
       studentId:     selectedStudent.id,
       studentName:   `${selectedStudent.lastName}, ${selectedStudent.firstName}`,
       studentGrade:  selectedStudent.gradeLevel,
@@ -187,7 +192,13 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
       requestorName: requestedBy === 'student' ? selectedStudent.firstName : requestorName,
       createdBy:     currentUser?.name,
       createdByName: currentUser?.name,
-    })
+      })
+    } catch (err) {
+      // e.g. the format was removed while this window was open
+      addToast(err.message, 'error')
+      setSaving(false)
+      return
+    }
 
     // Auto-create clearance record if required
     if (selectedDoc.requiresClearance) {
@@ -302,6 +313,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
                     This document requires student clearance before release.
                   </div>
                 )}
+                <NoFormatNotice campusKey={campusKey} department={department} documentType={selectedDoc?.id} />
                 {selectedDoc?.fee > 0 && (
                   <p className="text-xs text-[var(--color-text-muted)] mt-1">
                     Processing fee: <strong className="text-[var(--color-text-primary)]">₱{selectedDoc.fee}</strong>
@@ -366,7 +378,7 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
 
           <div className="flex justify-end gap-2 p-5 border-t border-[var(--color-border)]">
             <button onClick={onClose} className="btn btn-ghost text-sm">Cancel</button>
-            <button onClick={handleSave} disabled={saving || !selectedStudent || !docType || !purpose}
+            <button onClick={handleSave} disabled={saving || !selectedStudent || !docType || !purpose || missingFormat}
               className="btn btn-primary text-sm gap-1.5 disabled:opacity-50">
               <Plus size={14} /> Submit Request
             </button>
@@ -381,6 +393,17 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
 // ─────────────────────────────────────────────────────────────────────────────
 // RELEASE MODAL
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Shown when the chosen document has no uploaded format: it can't be requested until one is uploaded
+function NoFormatNotice({ campusKey, department, documentType }) {
+  if (!documentType || hasFormat({ department, documentType }, campusKey)) return null
+  return (
+    <div className="flex items-start gap-1.5 mt-2 text-xs text-[var(--color-warning-text)]">
+      <AlertCircle size={12} className="shrink-0 mt-0.5" />
+      <span>No format uploaded for this document yet. It can't be requested until the technical admin uploads one.</span>
+    </div>
+  )
+}
 
 function ReleaseModal({ request, onRelease, onClose }) {
   const [releasedTo, setReleasedTo] = useState('')
@@ -572,10 +595,12 @@ function RecordGraduateRequestModal({ campusKey, campusName, schoolYear, current
 
   const docTypes = getDocumentTypes(campusKey, department)
   const selectedDoc = docTypes.find(d => d.id === docType)
+  // No uploaded format → the request can't be filed (the technical admin uploads formats)
+  const missingFormat = !!selectedDoc && !hasFormat({ department, documentType: selectedDoc.id }, campusKey)
 
   const yearOptions = graduationYears().map(y => ({ value: y, label: y }))
 
-  const canSave = !saving && !!selectedDoc && firstName.trim() !== '' && lastName.trim() !== '' && purpose !== ''
+  const canSave = !saving && !!selectedDoc && !missingFormat && firstName.trim() !== '' && lastName.trim() !== '' && purpose !== ''
 
   const pickDepartment = (id) => {
     if (id === department) return
@@ -667,6 +692,7 @@ function RecordGraduateRequestModal({ campusKey, campusName, schoolYear, current
                   This document requires clearance before release.
                 </div>
               )}
+              <NoFormatNotice campusKey={campusKey} department={department} documentType={selectedDoc?.id} />
             </div>
 
             {/* Name */}
@@ -1022,11 +1048,13 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const [payModal,     setPayModal]     = useState(false)
   const [receiptModal, setReceiptModal] = useState(false)
   const [noteInput,    setNoteInput]    = useState('')
+  const [confirmNoFormat, setConfirmNoFormat] = useState(false)   // warn before processing a document with no format
   const { toasts, addToast, removeToast } = useToast()
 
   const role = currentUser?.role
   const isRegistrar = role === 'registrar_basic' || role === 'registrar_college' || role === 'technical_admin'
   const isAccounting = role === 'accounting' || role === 'technical_admin'
+  const canSetupDocuments = role === 'technical_admin'   // only the technical admin uploads formats
 
   // Workflow engine determines available actions — no hardcoding
   const availableActions = getDocumentActions(currentUser, request)
@@ -1035,12 +1063,16 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
   const hasAction = (id) => availableActions.some(a => a.id === id)
   const canProcess        = hasAction('start_processing')
   const canRequirePayment = hasAction('require_payment')
-  const canMarkReady      = hasAction('mark_ready')
   const canConfirmPayment = hasAction('confirm_payment')
   const canRelease        = hasAction('release')
   const canCancel         = hasAction('cancel')
   // registrars can print once the fee is paid (free documents: once processing has started)
   const canPrint          = isRegistrar && isPrintable(request)
+  // The document's format must be uploaded (by the technical admin) before it can be printed
+  const isOpen   = !statusMatches(request.status, 'cancelled') && !statusMatches(request.status, 'released')
+  const noFormat = isRegistrar && isOpen && !hasFormat(request, request.campusKey || currentUser?.campusKey)
+  // Ready for pickup, but the student's clearance is not complete yet
+  const waitingClearance = isRegistrar && statusMatches(request.status, 'ready_for_pickup') && clearanceBlocksRelease(request)
 
   const act = (actionId, note = '') => {
     try {
@@ -1169,30 +1201,46 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
             </div>
 
             {/* Actions */}
-            {(canPrint || canProcess || canMarkReady || canRequirePayment || canConfirmPayment || canRelease || canCancel) && (
+            {(canPrint || canProcess || canRequirePayment || canConfirmPayment || canRelease || canCancel || noFormat || waitingClearance) && (
               <div className="border-t border-[var(--color-border)] pt-4 space-y-3">
                 <p className="text-xs font-semibold text-[var(--color-text-secondary)]">Actions</p>
+
+                {noFormat && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
+                    <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                    <span>
+                      No format is uploaded for {request.documentLabel}, so it can't be printed yet.
+                      {canSetupDocuments ? ' Upload one in the Formats tab.' : ' Ask the technical admin to upload one.'}
+                    </span>
+                  </div>
+                )}
+                {waitingClearance && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
+                    <ShieldCheck size={14} className="shrink-0 mt-0.5" />
+                    <span>Release is available once the student's clearance is complete.</span>
+                  </div>
+                )}
 
                 {/* Phone: full-width stacked buttons. Larger screens: one wrapping row. */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap [&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto">
                   {canProcess && (
-                    <button onClick={() => act('start_processing')}
+                    <button onClick={() => (noFormat ? setConfirmNoFormat(true) : act('start_processing'))}
                       className="btn btn-primary text-xs gap-1.5">
                       <RotateCcw size={12} /> Start Processing
                     </button>
                   )}
-                  {canMarkReady && (
-                    <button onClick={() => act('mark_ready', 'Document prepared.')}
-                      className="btn btn-primary text-xs gap-1.5">
-                      <Package size={12} /> Mark as Ready
-                    </button>
-                  )}
-                  {canRequirePayment && (
+                  {canRequirePayment && (Number(request.fee) > 0 ? (
                     <button onClick={() => act('require_payment', `Processing fee of ₱${Number(request.fee).toLocaleString()} required.`)}
                       className="btn text-xs gap-1.5 border border-[var(--color-warning-border)] text-[var(--color-warning-text)] hover:bg-[var(--color-warning-light)]">
                       <CreditCard size={12} /> Require Payment (₱{Number(request.fee).toLocaleString()})
                     </button>
-                  )}
+                  ) : (
+                    // Free document: the workflow passes the payment step on its own
+                    <button onClick={() => act('require_payment')}
+                      className="btn btn-primary text-xs gap-1.5">
+                      <Package size={12} /> Continue — no fee
+                    </button>
+                  ))}
                   {canConfirmPayment && (
                     <button onClick={() => setPayModal(true)}
                       className="btn btn-primary text-xs gap-1.5">
@@ -1210,12 +1258,14 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                     <div className="flex flex-col gap-2 sm:flex-row sm:ml-auto [&>button]:w-full [&>button]:justify-center sm:[&>button]:w-auto">
                     {canPrint && (
                       <button
+                        disabled={noFormat}
+                        title={noFormat ? 'No format uploaded for this document' : undefined}
                         onClick={() => {
                           const job = getPrintJob(request, request.campusKey || currentUser?.campusKey, currentUser)
                           if (job) setPrintJob(job)
                           else addToast(`No format uploaded for ${request.documentLabel}. ${canSetupDocuments ? 'Add one in the Formats tab.' : 'Ask the technical admin to add its format.'}`, 'error')
                         }}
-                        className="btn btn-ghost text-xs gap-1.5">
+                        className="btn btn-ghost text-xs gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                         <Printer size={12} /> Print document
                       </button>
                     )}
@@ -1249,6 +1299,15 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
       {releaseModal && (
         <ReleaseModal request={request} onRelease={handleRelease} onClose={() => setReleaseModal(false)} />
       )}
+
+      <ConfirmDialog
+        open={confirmNoFormat}
+        title="No format uploaded"
+        message={`"${request.documentLabel}" has no format uploaded, so it can't be printed. ${canSetupDocuments ? 'Upload one in the Formats tab' : 'Ask the technical admin to upload one'} before you print. Start processing anyway?`}
+        confirmLabel="Start processing anyway"
+        onConfirm={() => { setConfirmNoFormat(false); act('start_processing') }}
+        onCancel={() => setConfirmNoFormat(false)}
+      />
 
       {payModal && (
         <ConfirmPaymentModal

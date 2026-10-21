@@ -41,6 +41,12 @@ export function printBlockReason(request) {
 }
 export const isPrintable = (request) => printBlockReason(request) === null
 
+/** True when this request's document type has an uploaded format (so it can be printed). */
+export function hasFormat(request, campusKey) {
+  const dept = request?.department === 'college' ? 'college' : 'basicEd'
+  return !!getTemplates(campusKey, dept)[request?.documentType]
+}
+
 /**
  * The format + filled values for one request, or null when its document type has no format yet.
  * Shared by the Print tab and the request drawer.

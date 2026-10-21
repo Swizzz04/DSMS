@@ -99,15 +99,24 @@ export default function DatePicker({
       setShowYearPicker(false)
     }
     const handleScroll = () => updatePosition()
+    // Esc closes just the calendar — capture phase, so the modal behind stays open
+    const handleKey = (e) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault(); e.stopPropagation()
+      if (showYearPicker) setShowYearPicker(false)
+      else setOpen(false)
+    }
     document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey, true)
     window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', updatePosition)
     return () => {
       document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey, true)
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', updatePosition)
     }
-  }, [open, updatePosition])
+  }, [open, updatePosition, showYearPicker])
 
   // Recompute right after opening, synchronously before paint — catches a
   // click that lands right after (or during) a scroll gesture, before the

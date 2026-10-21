@@ -7,17 +7,20 @@
  * its text scale together on any screen and match the printed result.
  */
 
-import { fontStack } from '../../utils/documentTemplates'
+import { fontStack, fitFontPt } from '../../utils/documentTemplates'
 
-/** Position + size of one field box, as fractions of the page. */
-export function fieldBoxStyle(field, template) {
+/**
+ * Position + size of one field box, as fractions of the page.
+ * `text` is what will be shown in it: with "shrink to fit" on, a long text gets a smaller font.
+ */
+export function fieldBoxStyle(field, template, text = '') {
   return {
     position: 'absolute',
     left:  `${field.x * 100}%`,
     top:   `${field.y * 100}%`,
     width: `${field.w * 100}%`,
     transform: 'translateY(-50%)',
-    fontSize: `${(field.fontPt / template.pageWidthPt) * 100}cqw`,
+    fontSize: `${(fitFontPt(text, field, template) / template.pageWidthPt) * 100}cqw`,
     lineHeight: 1,
     whiteSpace: 'nowrap',
     textAlign: field.align,
@@ -29,7 +32,7 @@ export function fieldBoxStyle(field, template) {
 
 /**
  * @param {object}   template    { image, pageWidthPt, pageHeightPt, fontFamily, fields }
- * @param {object}   values      field key → text (used by the default field renderer)
+ * @param {object}   values      field key → text shown in the field (also used to shrink long text to fit)
  * @param {function} renderField optional (field, style) → node, for the editor
  * @param {function} onPageRef   optional ref callback for the page element (editor drag maths)
  */
@@ -53,9 +56,9 @@ export default function FilledPage({ template, values = {}, renderField, onPageR
           className="absolute inset-0 w-full h-full pointer-events-none"
         />
         {(template.fields || []).map(f => {
-          const style = fieldBoxStyle(f, template)
+          const text  = values[f.key] ?? ''
+          const style = fieldBoxStyle(f, template, text)
           if (renderField) return renderField(f, style)
-          const text = values[f.key] ?? ''
           return text ? <div key={f.id} style={style}>{text}</div> : null
         })}
       </div>
