@@ -21,6 +21,7 @@
 import { getWorkflowDefinition } from './workflowConfigBridge'
 import * as workflowEngine       from '../engines/workflowEngine'
 import { isOrNumberUsed }        from './orNumbers'
+import { getTemplate }           from './documentTemplates'
 import { DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES, DOCUMENT_TRASH_RETENTION_DAYS } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,10 +443,24 @@ export function getRequestById(id) {
 }
 
 /**
+ * A request can only be filed for a document whose format (template) has been uploaded,
+ * because the printed document is the whole point of the request.
+ */
+function assertHasFormat(campusKey, department, documentType, label) {
+  if (!getTemplate(campusKey, normDept(department), documentType)) {
+    const err = new Error(`No format is uploaded for ${label || 'this document'}, so it can't be requested yet. Ask the technical admin to upload it.`)
+    err.code = 'NO_FORMAT'
+    throw err
+  }
+}
+
+/**
  * Create a new document request.
+ * Refused (code 'NO_FORMAT') when the document has no uploaded format.
  * @param {object} data
  */
 export function createRequest(data) {
+  assertHasFormat(data.campusKey, data.department ?? 'basicEd', data.documentType, data.documentLabel)
   const docs = loadDocs()
   const now  = new Date().toISOString()
 
@@ -525,6 +540,7 @@ export function createGraduateRequest(data, user) {
   const types = getDocumentTypes(data.campusKey, department)
   const docType = types.find(t => t.id === data.documentType)
   if (!docType) throw new Error('Choose a document.')
+  assertHasFormat(data.campusKey, department, docType.id, docType.label)
 
   const firstName = String(data.firstName ?? '').trim()
   const lastName  = String(data.lastName ?? '').trim()
@@ -977,7 +993,45 @@ export function getDocumentActions(user, request) {
   const workflowDef = getWorkflowDefinition('document_request', request.campusKey || 'all')
   if (!workflowDef) return []
   const step = normaliseStatus(request.status)
-  return workflowEngine.getAvailableActions(user, step, request, workflowDef)
+  return workflowEngine
+    .getAvailableActions(user, step, withClearanceState(request), workflowDef)
+    .filter(a => !paymentRuleBlocks(a.id))
+}
+
+/**
+ * "Mark as Ready" is not part of the document flow: it jumped from Processing straight to Ready
+ * for Pickup and skipped the payment step. Every document goes through Require Payment instead.
+ * A free document passes through that step on its own (the workflow's skip rule), so it still
+ * ends up at Ready for Pickup without anyone collecting a fee.
+ * Returns the reason an action is not allowed, or null when it is fine.
+ */
+function paymentRuleReason(actionId) {
+  if (actionId === 'mark_ready') {
+    return 'Mark as Ready is not used. Use Require Payment; a free document skips the payment step by itself.'
+  }
+  return null
+}
+const paymentRuleBlocks = (actionId) => paymentRuleReason(actionId) !== null
+
+/**
+ * True while a document that needs the student's clearance is still waiting for it:
+ * no clearance record is linked, or the clearance is not fully signed yet.
+ * Once the clearance is complete this is false and the document can be released.
+ */
+export function clearanceBlocksRelease(request) {
+  if (!request?.requiresClearance) return false
+  if (!request.clearanceId) return true
+  return !isFullyCleared(request.clearanceId)
+}
+
+/**
+ * The workflow blocks "release" with the rule `requiresClearance equals true`. That flag says the
+ * document NEEDS clearance, not that it is still missing, so a fully cleared document stayed blocked
+ * and its Release button never appeared. For the workflow's checks, requiresClearance therefore
+ * means "still waiting for clearance".
+ */
+function withClearanceState(request) {
+  return { ...request, requiresClearance: clearanceBlocksRelease(request) }
 }
 
 /**
@@ -999,12 +1053,19 @@ export function advanceDocumentStep(requestId, actionId, note = '', user) {
   const action = stepDef.actions.find(a => a.id === actionId)
   if (!action) throw new Error(`Action "${actionId}" not available at step "${currentStep}".`)
 
-  const nextStep = action.nextStep
-  if (!nextStep) throw new Error(`Action "${actionId}" has no nextStep defined.`)
+  const feeRule = paymentRuleReason(actionId)
+  if (feeRule) throw new Error(feeRule)
 
-  // Check workflow conditions
+  if (!action.nextStep) throw new Error(`Action "${actionId}" has no nextStep defined.`)
+  // The workflow decides where the request really goes: steps with a skip rule (For Payment is
+  // skipped when the fee is 0) are passed over on their own.
+  const { nextStepId: nextStep, skipped } = workflowEngine.resolveNextStep(currentStep, action, request, workflowDef)
+  if (skipped.includes('for_payment')) note = note ? `${note} No fee: payment step skipped.` : 'No fee: payment step skipped.'
+
+  // Check workflow conditions (clearance counts as a block only while it is still missing)
+  const checked = withClearanceState(request)
   const blocked = (stepDef.conditions || []).find(c =>
-    c.type === 'block_if' && c.actionId === actionId && evaluateCondition(c, request)
+    c.type === 'block_if' && c.actionId === actionId && evaluateCondition(c, checked)
   )
   if (blocked) throw new Error(blocked.reason || 'This action is currently blocked.')
 

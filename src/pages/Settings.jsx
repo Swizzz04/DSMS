@@ -3032,7 +3032,7 @@ export default function Settings() {
                     )}
                     <div className="flex gap-2">
                       <input type="text" value={campusForm.newProgram} onChange={e => setCampusForm({ ...campusForm, newProgram: e.target.value })}
-                        onKeyDown={e => { if (e.key === 'Enter' && campusForm.newProgram.trim()) { const prog = campusForm.newProgram.trim(); if (!campusForm.collegePrograms.includes(prog)) setCampusForm({ ...campusForm, collegePrograms: [...campusForm.collegePrograms, prog], newProgram: '' }) } }}
+                        onKeyDown={e => { if (e.key !== 'Enter') return; e.preventDefault(); if (campusForm.newProgram.trim()) { const prog = campusForm.newProgram.trim(); if (!campusForm.collegePrograms.includes(prog)) setCampusForm({ ...campusForm, collegePrograms: [...campusForm.collegePrograms, prog], newProgram: '' }) } }}
                         placeholder="e.g. BS Criminology" className="flex-1 px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
                       <button onClick={() => { const prog = campusForm.newProgram.trim(); if (prog && !campusForm.collegePrograms.includes(prog)) setCampusForm({ ...campusForm, collegePrograms: [...campusForm.collegePrograms, prog], newProgram: '' }) }} disabled={!campusForm.newProgram.trim()} className="btn-action" style={{ flex: 'none', padding: '0.625rem 1rem' }}><Plus className="w-4 h-4" /></button>
                     </div>

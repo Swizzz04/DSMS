@@ -54,6 +54,15 @@ function FormatEditorModal({ draft, docLabel, onSave, onClose, saving, error }) 
 
   const selected = page.fields.find(f => f.id === selectedId) || null
 
+  // What each field shows in the editor (sample data or its name). The page uses these to
+  // shrink long text to the field's width, the same way the printout does.
+  const shownText = useMemo(() => Object.fromEntries(
+    page.fields.map(f => {
+      const label = FIELD_BY_KEY[f.key]?.label ?? f.key
+      return [f.key, showSample ? (samples[f.key] || label) : label]
+    })
+  ), [page.fields, showSample, samples])
+
   const patchField = useCallback((id, patch) => {
     setPage(p => ({ ...p, fields: p.fields.map(f => f.id === id ? { ...f, ...patch } : f) }))
     setDirty(true)
@@ -63,7 +72,7 @@ function FormatEditorModal({ draft, docLabel, onSave, onClose, saving, error }) 
     if (!key || key === 'all') return
     const n = page.fields.length
     const id = `f_${Date.now().toString(36)}_${n}`
-    const field = { id, key, x: 0.25, y: clamp(0.2 + n * 0.05, 0.05, 0.95), w: 0.4, fontPt: 12, bold: false, align: 'left' }
+    const field = { id, key, x: 0.25, y: clamp(0.2 + n * 0.05, 0.05, 0.95), w: 0.4, fontPt: 12, bold: false, align: 'left', fit: true }
     setPage(p => ({ ...p, fields: [...p.fields, field] }))
     setSel(id)
     setDirty(true)
@@ -166,6 +175,7 @@ function FormatEditorModal({ draft, docLabel, onSave, onClose, saving, error }) 
               <div className="min-w-0">
                 <FilledPage
                   template={page}
+                  values={shownText}
                   renderField={renderField}
                   onPageRef={el => { pageElRef.current = el }}
                   onPagePointerDown={() => setSel(null)}
@@ -230,6 +240,20 @@ function FormatEditorModal({ draft, docLabel, onSave, onClose, saving, error }) 
                         value={Math.round(selected.w * 100)}
                         onChange={e => patchField(selected.id, { w: Number(e.target.value) / 100 })}
                         className="w-full" aria-label="Field width" />
+                    </div>
+
+                    <div>
+                      <button type="button"
+                        aria-pressed={selected.fit !== false}
+                        onClick={() => patchField(selected.id, { fit: selected.fit === false })}
+                        className={`w-full flex items-center justify-between gap-3 p-2.5 rounded-xl border text-left transition-colors
+                          ${selected.fit !== false ? 'is-selected' : 'border-[var(--color-border)] text-[var(--color-text-secondary)]'}`}>
+                        <span>
+                          <span className="block text-xs font-semibold">Shrink to fit</span>
+                          <span className="block text-[11px] opacity-80">Long text gets a smaller font so it stays inside the width.</span>
+                        </span>
+                        <span className="text-xs font-semibold shrink-0">{selected.fit !== false ? 'On' : 'Off'}</span>
+                      </button>
                     </div>
 
                     <div className="flex gap-2">

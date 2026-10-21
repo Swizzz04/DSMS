@@ -240,11 +240,20 @@ export default function GroupedSelect({
         updatePos()
       }
     }
+    // Esc closes just this dropdown — capture phase, so the modal behind stays open
+    const handleKey = (e) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault(); e.stopPropagation()
+      setOpen(false)
+      triggerRef.current?.focus?.()
+    }
     document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey, true)
     window.addEventListener('scroll', handleScroll, true)
     window.addEventListener('resize', updatePos)
     return () => {
       document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey, true)
       window.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('resize', updatePos)
     }
