@@ -41,6 +41,8 @@ const ROLE_OPTIONS = [
   { value: 'registrar_college', label: 'Registrar (College)' },
   { value: 'accounting',        label: 'Accounting' },
   { value: 'teacher',           label: 'Teacher' },
+  { value: 'librarian',         label: 'Librarian' },
+  { value: 'guidance',          label: 'Guidance Counselor' },
 ]
 
 const STEP_COLOR_OPTIONS = [

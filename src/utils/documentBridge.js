@@ -22,7 +22,10 @@ import { getWorkflowDefinition } from './workflowConfigBridge'
 import * as workflowEngine       from '../engines/workflowEngine'
 import { isOrNumberUsed }        from './orNumbers'
 import { getTemplate }           from './documentTemplates'
-import { DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES, DOCUMENT_TRASH_RETENTION_DAYS } from '../config/appConfig'
+import {
+  DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES, DOCUMENT_TRASH_RETENTION_DAYS,
+  CLEARANCE_LAST_DEPARTMENT, getClearanceDepartments,
+} from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -407,14 +410,61 @@ function saveClearances(data) {
   window.dispatchEvent(new CustomEvent(CLEAR_EVENT))
 }
 
-/** Get student payment balance from almirene_students (or almirene_submissions fallback) */
-function getStudentBalance(studentId) {
-  try {
-    const students = JSON.parse(localStorage.getItem('almirene_students') || '[]')
-    const student  = students.find(s => s.id === studentId)
-    if (student) return student.balance ?? 0
-  } catch {}
-  return 0
+const roundMoney = (n) => Math.round((Number(n) || 0) * 100) / 100
+
+/** Remaining balance of ONE submission record (same rule the Payments page uses). */
+function submissionBalance(sub) {
+  if (!sub) return null
+  if (sub.totalFee != null) return Math.max(0, roundMoney(Number(sub.totalFee) - Number(sub.amountPaid || 0)))
+  if (sub.balance  != null) return Math.max(0, roundMoney(sub.balance))
+  return null
+}
+
+/**
+ * LIVE payment balance for a student.
+ *
+ * Source of truth is almirene_submissions (what the Payments page writes), so the
+ * number is never stale. almirene_students.balance is only a fallback snapshot.
+ * Balance accumulates across school years: every submission that belongs to the
+ * same student (same record, or same studentId) is added together.
+ *
+ * Returns { found, balance }. found === false means the student could not be
+ * located at all — callers must NOT treat that as "fully paid".
+ */
+function getStudentBalanceInfo(studentId) {
+  let subs = [], students = []
+  try { subs     = JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch { subs = [] }
+  try { students = JSON.parse(localStorage.getItem('almirene_students')    || '[]') } catch { students = [] }
+
+  const student      = students.find(s => s.id === studentId)
+  const enrollmentId = student?.enrollmentId
+  const own          = subs.find(s => s.id === studentId) || (enrollmentId ? subs.find(s => s.id === enrollmentId) : null)
+
+  if (own && submissionBalance(own) !== null) {
+    const idNo = own.studentId || student?.studentId || null
+    const related = subs.filter(s => s.id === own.id || (idNo && s.studentId === idNo))
+    const total = related.reduce((sum, s) => sum + (submissionBalance(s) ?? 0), 0)
+    return { found: true, balance: roundMoney(total) }
+  }
+  if (student && student.balance != null) {
+    return { found: true, balance: Math.max(0, roundMoney(student.balance)) }
+  }
+  return { found: false, balance: 0 }
+}
+
+/** Public: live balance for a clearance record (used by the Clearance page). */
+export function getClearanceBalance(clearance) {
+  return getStudentBalanceInfo(clearance?.studentId)
+}
+
+/**
+ * Graduation clearances need a zero balance. Other clearances (transfer, general,
+ * credentials, next-term enrollment) may be signed by accounting with a balance.
+ */
+export function clearanceRequiresZeroBalance(record) {
+  if (!record) return false
+  if (typeof record.requiresZeroBalance === 'boolean') return record.requiresZeroBalance
+  return /graduat/i.test(record.reason || '')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -768,8 +818,9 @@ export function getClearanceById(id) {
  * @param {string} campusKey
  * @param {string} schoolYear
  * @param {string} [reason] — optional context (e.g. "Transfer out", "Graduation")
+ * @param {object} [options] — { requiresZeroBalance } (defaults to true when the reason mentions graduation)
  */
-export function createClearance(studentId, studentName, campusKey, schoolYear, reason = '') {
+export function createClearance(studentId, studentName, campusKey, schoolYear, reason = '', options = {}) {
   // Check for existing active clearance for this student+SY
   const existing = loadClearances().find(
     r => r.studentId === studentId && r.schoolYear === schoolYear && !r.isFullyCleared
@@ -777,11 +828,17 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
   if (existing) return existing  // Return existing rather than duplicating
 
   const now     = new Date().toISOString()
-  const balance = getStudentBalance(studentId)
+  const info    = getStudentBalanceInfo(studentId)
+  const balance = info.balance
+  const requiresZeroBalance = typeof options.requiresZeroBalance === 'boolean'
+    ? options.requiresZeroBalance
+    : /graduat/i.test(reason || '')
 
   const departments = {}
   CLEARANCE_DEPARTMENTS.forEach(dept => {
-    const autoCleared = dept.autoFromPayment && balance === 0
+    // Only auto-clear when the student was FOUND and truly owes nothing.
+    // A missing student is "unknown", never "fully paid".
+    const autoCleared = dept.autoFromPayment && info.found && balance === 0
     departments[dept.id] = {
       cleared:   autoCleared,
       clearedBy: autoCleared ? 'System (auto — no balance)' : null,
@@ -797,7 +854,10 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
     schoolYear,
     reason,
     departments,
-    hasUnpaidBalance: balance > 0,
+    hasUnpaidBalance:    info.found && balance > 0,
+    balanceUnknown:      !info.found,
+    outstandingBalance:  balance,
+    requiresZeroBalance,
     isFullyCleared:   false,
     requestedAt:      now,
     completedAt:      null,
@@ -819,8 +879,9 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
  * @param {string} clearanceId
  * @param {string} deptId — e.g. 'library', 'accounting'
  * @param {string} clearedByName
+ * @param {string} [note] — required when accounting signs with a balance owing or an unknown balance
  */
-export function updateDepartmentClearance(clearanceId, deptId, clearedByName) {
+export function updateDepartmentClearance(clearanceId, deptId, clearedByName, note = '') {
   const all = loadClearances()
   const idx = all.findIndex(r => r.id === clearanceId)
   if (idx < 0) throw new Error(`Clearance "${clearanceId}" not found.`)
@@ -831,11 +892,40 @@ export function updateDepartmentClearance(clearanceId, deptId, clearedByName) {
   }
 
   const now = new Date().toISOString()
-  record.departments[deptId] = {
+  const entry = {
     cleared:   true,
     clearedBy: clearedByName,
     clearedAt: now,
   }
+
+  if (deptId === 'accounting') {
+    // Read the LIVE balance at the moment of sign-off.
+    const info    = getStudentBalanceInfo(record.studentId)
+    const owing   = info.found && info.balance > 0
+    const cleanNote = String(note || '').trim()
+
+    if (owing && clearanceRequiresZeroBalance(record)) {
+      throw new Error('Graduation clearance needs a zero balance. The student must settle the remaining balance first.')
+    }
+    if ((owing || !info.found) && !cleanNote) {
+      throw new Error(owing
+        ? 'A note is required to clear accounting while the student still has a balance.'
+        : 'A note is required — the student\'s balance could not be found, so accounting must verify it manually.')
+    }
+    if (owing) {
+      entry.withBalance        = true
+      entry.balanceAtSignoff   = info.balance
+    } else if (!info.found) {
+      entry.balanceUnverified  = true
+    }
+    if (cleanNote) entry.note = cleanNote
+
+    record.hasUnpaidBalance   = owing
+    record.balanceUnknown     = !info.found
+    record.outstandingBalance = info.balance
+  }
+
+  record.departments[deptId] = entry
 
   // Re-evaluate isFullyCleared
   record.isFullyCleared = evaluateFullyClear(record)
@@ -859,18 +949,21 @@ export function checkAccountingStatus(clearanceId) {
   if (idx < 0) return null
 
   const record  = all[idx]
-  const balance = getStudentBalance(record.studentId)
+  const info    = getStudentBalanceInfo(record.studentId)
+  const balance = info.balance
   const now     = new Date().toISOString()
 
-  record.hasUnpaidBalance = balance > 0
+  record.hasUnpaidBalance   = info.found && balance > 0
+  record.balanceUnknown     = !info.found
+  record.outstandingBalance = balance
 
-  if (balance === 0 && !record.departments.accounting?.cleared) {
+  if (info.found && balance === 0 && !record.departments.accounting?.cleared) {
     record.departments.accounting = {
       cleared:   true,
       clearedBy: 'System (auto — balance settled)',
       clearedAt: now,
     }
-  } else if (balance > 0 && record.departments.accounting?.clearedBy?.startsWith('System')) {
+  } else if (info.found && balance > 0 && record.departments.accounting?.clearedBy?.startsWith('System')) {
     // If auto-cleared by system but balance came back (edge case), reset it
     record.departments.accounting = {
       cleared:   false,
@@ -901,7 +994,9 @@ export function isFullyCleared(clearanceId) {
 
 /** Internal helper — evaluates all department cleared statuses */
 function evaluateFullyClear(record) {
-  if (record.hasUnpaidBalance) return false
+  // Only graduation clearances are held back by a balance. For everything else,
+  // accounting may sign with a balance (recorded on the sign-off).
+  if (clearanceRequiresZeroBalance(record) && record.hasUnpaidBalance) return false
   return CLEARANCE_DEPARTMENTS.every(dept => record.departments[dept.id]?.cleared === true)
 }
 
@@ -1104,91 +1199,136 @@ export function getDocumentStepDef(request) {
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLEARANCE WORKFLOW ENGINE INTEGRATION
+// CLEARANCE SIGN-OFF
+//
+// Who may sign which department comes from config/appConfig.js
+// (CLEARANCE_DEPARTMENT_SIGNERS + the per-account `clearanceDuties`), so a small
+// school can let one person sign several departments.
+//
+// Order: departments sign in ANY order. The last department (Admin Office) opens
+// only after every other department has signed.
+//
+// Blocking rules (e.g. a graduation clearance with an unpaid balance) still come
+// from the `student_clearance` workflow's block_if conditions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Map clearance department state to workflow step ID
-// The workflow is sequential: initiated → library → accounting → registrar → guidance → admin_office → fully_cleared
-const DEPT_STEP_ORDER = ['library', 'accounting', 'registrar', 'guidance', 'admin_office']
+/** Department id -> the step id used by the student_clearance workflow. */
 const DEPT_TO_STEP_ID = {
-  library:     'library',
-  accounting:  'accounting',
-  registrar:   'registrar',
-  guidance:    'guidance',
-  admin:       'admin_office',  // bridge uses 'admin', workflow uses 'admin_office'
-}
-const STEP_TO_DEPT_ID = {
-  library:     'library',
-  accounting:  'accounting',
-  registrar:   'registrar',
-  guidance:    'guidance',
-  admin_office:'admin',
+  library:    'library',
+  accounting: 'accounting',
+  registrar:  'registrar',
+  guidance:   'guidance',
+  admin:      'admin_office',
 }
 
-/**
- * Derive the current workflow step from the clearance's department sign-off state.
- * The step = the first department not yet cleared (in order).
- * If all cleared → 'fully_cleared'. If none started → 'initiated'.
- */
-function getClearanceCurrentStep(clearance) {
-  if (clearance.isFullyCleared) return 'fully_cleared'
-  for (const deptId of DEPT_STEP_ORDER) {
-    const bridgeDept = deptId === 'admin_office' ? 'admin' : deptId
-    if (!clearance.departments?.[bridgeDept]?.cleared) {
-      return deptId  // this is the next dept to clear
+/** Which workflow action signs which department. */
+export const CLEARANCE_ACTION_BY_DEPT = {
+  library:    'library_cleared',
+  accounting: 'accounting_cleared',
+  registrar:  'registrar_cleared',
+  guidance:   'guidance_cleared',
+  admin:      'admin_cleared',
+}
+
+const DEPT_BY_ACTION = Object.fromEntries(
+  Object.entries(CLEARANCE_ACTION_BY_DEPT).map(([dept, action]) => [action, dept])
+)
+
+function deptLabel(deptId) {
+  return CLEARANCE_DEPARTMENTS.find(d => d.id === deptId)?.label ?? deptId
+}
+
+function isDeptCleared(clearance, deptId) {
+  return clearance?.departments?.[deptId]?.cleared === true
+}
+
+/** Why this department cannot be signed right now (a readable reason), or null if it can. */
+function signBlockReason(clearance, deptId) {
+  if (isDeptCleared(clearance, deptId)) return `${deptLabel(deptId)} is already signed.`
+
+  // The last department signs last
+  if (deptId === CLEARANCE_LAST_DEPARTMENT) {
+    const waiting = CLEARANCE_DEPARTMENTS.filter(d => d.id !== deptId && !isDeptCleared(clearance, d.id))
+    if (waiting.length) {
+      return `${deptLabel(deptId)} signs last. Still waiting on: ${waiting.map(d => d.label).join(', ')}.`
     }
   }
-  return 'fully_cleared'
-}
 
-/**
- * Get available actions for a user on a clearance.
- * Reads from the 'student_clearance' workflow definition.
- */
-export function getClearanceActions(user, clearance) {
+  // Blocking rules from the workflow (e.g. graduation + unpaid balance)
   const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
-  if (!workflowDef) return []
-  if (clearance.isFullyCleared) return []
-  const step = getClearanceCurrentStep(clearance)
-  // Build a surrogate record the engine can evaluate conditions against
-  const surrogate = {
+  const stepDef     = workflowDef ? workflowEngine.getStep(DEPT_TO_STEP_ID[deptId], workflowDef) : null
+  const surrogate   = {
     ...clearance,
-    currentStep:    step,
-    paymentBalance: clearance.hasUnpaidBalance ? 1 : 0,
+    paymentBalance: clearanceRequiresZeroBalance(clearance) && clearance.hasUnpaidBalance ? 1 : 0,
   }
-  return workflowEngine.getAvailableActions(user, step, surrogate, workflowDef)
+  const blocked = (stepDef?.conditions || []).find(c =>
+    c.type === 'block_if' && evaluateClearanceCondition(c, surrogate)
+  )
+  return blocked ? (blocked.reason || 'This action is currently blocked.') : null
 }
 
 /**
- * Advance a clearance through the workflow by signing the current department.
- * Routes to updateDepartmentClearance internally.
+ * Departments this user may sign RIGHT NOW: theirs (role or extra duties), not yet
+ * signed, not held back by the last-department rule or a blocking rule.
+ */
+export function getSignableDepartments(user, clearance) {
+  if (!clearance || clearance.isFullyCleared) return []
+  const mine = getClearanceDepartments(user)
+  return CLEARANCE_DEPARTMENTS
+    .map(d => d.id)
+    .filter(id => mine.includes(id) && !signBlockReason(clearance, id))
+}
+
+/** Same list shaped as workflow actions (kept for callers that think in actions). */
+export function getClearanceActions(user, clearance) {
+  return getSignableDepartments(user, clearance).map(deptId => ({
+    id: CLEARANCE_ACTION_BY_DEPT[deptId],
+    deptId,
+    label: `${deptLabel(deptId)} Cleared`,
+  }))
+}
+
+/**
+ * Departments the clearance is waiting on right now. The last department is left
+ * out while others are still open, because it cannot be signed yet.
+ * @returns {{id:string,label:string}[]}  empty when fully cleared
+ */
+export function getClearanceWaitingOn(clearance) {
+  if (!clearance || clearance.isFullyCleared) return []
+  const pending = CLEARANCE_DEPARTMENTS.filter(d => !isDeptCleared(clearance, d.id))
+  const open = pending.filter(d => d.id !== CLEARANCE_LAST_DEPARTMENT)
+  return open.length ? open : pending
+}
+
+/**
+ * Sign a department through the workflow rules. Throws a readable message if the
+ * user's role/duties don't cover it, or it is not open yet.
  */
 export function advanceClearanceStep(clearanceId, actionId, note = '', user) {
   const clearance = getClearanceById(clearanceId)
   if (!clearance) throw new Error(`Clearance "${clearanceId}" not found.`)
   if (clearance.isFullyCleared) throw new Error('Clearance is already fully cleared.')
 
-  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
-  if (!workflowDef) throw new Error('Student clearance workflow not configured.')
+  const deptId = DEPT_BY_ACTION[actionId]
+  if (!deptId) throw new Error(`Unknown clearance action "${actionId}".`)
 
-  const currentStep = getClearanceCurrentStep(clearance)
-  const stepDef     = workflowEngine.getStep(currentStep, workflowDef)
-  if (!stepDef) throw new Error(`Unknown clearance step: ${currentStep}`)
+  // Role / duty check, enforced here and not only in the UI
+  if (!getClearanceDepartments(user).includes(deptId)) {
+    throw new Error(`Your account is not set up to sign the ${deptLabel(deptId)} department.`)
+  }
 
-  const action = stepDef.actions.find(a => a.id === actionId)
-  if (!action) throw new Error(`Action "${actionId}" not available at step "${currentStep}".`)
+  const reason = signBlockReason(clearance, deptId)
+  if (reason) throw new Error(reason)
 
-  // Check blocking conditions (e.g. unpaid balance blocks accounting)
-  const surrogate = { ...clearance, paymentBalance: clearance.hasUnpaidBalance ? 1 : 0 }
-  const blocked = (stepDef.conditions || []).find(c =>
-    c.type === 'block_if' && evaluateClearanceCondition(c, surrogate)
-  )
-  if (blocked) throw new Error(blocked.reason || 'This action is currently blocked.')
-
-  // Map step ID → dept ID and sign it
-  const deptId = STEP_TO_DEPT_ID[currentStep] || currentStep
   updateDepartmentClearance(clearanceId, deptId, user?.name || 'System', note)
   return getClearanceById(clearanceId)
+}
+
+/** Sign one department. Throws a readable message if not allowed. */
+export function signClearanceDepartment(clearanceId, deptId, note = '', user) {
+  const actionId = CLEARANCE_ACTION_BY_DEPT[deptId]
+  if (!actionId) throw new Error(`Unknown clearance department "${deptId}".`)
+  return advanceClearanceStep(clearanceId, actionId, note, user)
 }
 
 function evaluateClearanceCondition(condition, record) {
@@ -1199,21 +1339,4 @@ function evaluateClearanceCondition(condition, record) {
     case 'not_equals':   return val !== condition.value
     default:             return false
   }
-}
-
-/**
- * Get the current workflow step definition for display (label, color).
- */
-export function getClearanceStepDef(clearance) {
-  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
-  if (!workflowDef) return null
-  const step = getClearanceCurrentStep(clearance)
-  return workflowEngine.getStep(step, workflowDef)
-}
-
-/**
- * Get the derived current step ID for a clearance (for display/filtering).
- */
-export function getClearanceStep(clearance) {
-  return getClearanceCurrentStep(clearance)
 }

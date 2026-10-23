@@ -32,6 +32,8 @@ const CONFIGURABLE_ROLES = [
   { id: 'principal_basic',   label: 'Principal — Basic Ed',       description: 'Oversees Basic Ed curriculum and grades.' },
   { id: 'program_head',      label: 'Program Head — College',     description: 'Oversees College programs and grades.' },
   { id: 'teacher',           label: 'Teacher',                    description: 'Manages e-Class Record and attendance.' },
+  { id: 'librarian',         label: 'Librarian',                  description: 'Signs the Library department of student clearances.' },
+  { id: 'guidance',          label: 'Guidance Counselor',         description: 'Signs the Guidance department of student clearances.' },
 ]
 
 const PAGE_GROUPS = [
