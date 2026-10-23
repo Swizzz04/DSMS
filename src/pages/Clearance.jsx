@@ -2,23 +2,32 @@
  * Clearance.jsx — ALMIRENE DX
  * Student Clearance Management — Standalone Page
  *
- * Role-scoped views:
- *   accounting        → sees only Accounting department queue (auto-blocked by balance)
- *   registrar_basic   → sees all clearances, can sign Registrar dept
- *   registrar_college → sees all clearances, can sign Registrar dept
- *   principal_basic   → sees all, can sign Admin Office dept
- *   program_head      → sees all, can sign Admin Office dept
- *   technical_admin   → sees everything, can sign any dept, override, export
+ * Who signs what (config/appConfig.js → CLEARANCE_DEPARTMENT_SIGNERS + user.clearanceDuties):
+ *   librarian         → Library
+ *   accounting        → Accounting (auto-clears at zero balance; may sign manually, with a
+ *                       note, while a balance is owing)
+ *   registrar_*       → Registrar
+ *   guidance          → Guidance
+ *   principal / program_head → Admin Office
+ *   technical_admin   → any department
+ *   any account       → plus the extra departments set in Settings → Users
+ *                       (e.g. a teacher who is also the guidance in-charge)
+ *   Departments sign in any order; Admin Office signs last.
  *
  * Rules:
- *   - Accounting clearance is auto-driven by payment balance — cannot be manually overridden
+ *   - Accounting auto-clears when the LIVE balance (almirene_submissions) is zero
+ *   - Accounting may sign manually with a note while a balance is owing, so the student can
+ *     still enroll next term. The balance at sign-off is recorded on the clearance.
+ *   - GRADUATION clearance needs a zero balance — accounting cannot sign it while one is owing
+ *   - A student that cannot be found is never auto-cleared; accounting verifies manually
  *   - Sign-off is permanent once given — no unsigning
- *   - isFullyCleared only when ALL 5 departments are cleared AND no unpaid balance
+ *   - isFullyCleared when ALL 5 departments are cleared (and, for graduation, no balance)
  *
  * Bridge: src/utils/documentBridge.js (getClearances, updateDepartmentClearance, etc.)
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   ShieldCheck, Shield, Clock, CheckCircle, AlertCircle,
   Search, ChevronRight, X, Info, User, Building2,
@@ -26,29 +35,22 @@ import {
 } from 'lucide-react'
 import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
+import { getClearanceDepartments, CLEARANCE_LAST_DEPARTMENT } from '../config/appConfig'
+import { getStudents } from '../utils/enrollmentBridge'
 import {
-  PageSkeleton, useToast, ToastContainer, ConfirmDialog, ModalPortal
+  PageSkeleton, useToast, ToastContainer, ModalPortal
 } from '../components/UIComponents'
+import ClearanceSignDialog from '../components/documents/ClearanceSignDialog'
 import {
-  getClearances, getClearanceById, createClearance, updateDepartmentClearance,
+  getClearances, getClearanceById, createClearance,
   checkAccountingStatus, CLEARANCE_DEPARTMENTS,
-  getClearanceActions, advanceClearanceStep, getClearanceStepDef, getClearanceStep,
+  getClearanceBalance, clearanceRequiresZeroBalance,
+  getSignableDepartments, getClearanceWaitingOn,
 } from '../utils/documentBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Maps a user role to the department ID they are responsible for signing.
- * technical_admin and registrar roles can sign any department.
- */
-const ROLE_DEPT_MAP = {
-  accounting:        'accounting',
-  principal_basic:   'admin',
-  program_head:      'admin',
-  // registrar + technical_admin can sign any — handled separately
-}
 
 const DEPT_ICONS = {
   library:   BookOpen,
@@ -79,6 +81,17 @@ function fmtDateTime(iso) {
 
 function getClearedCount(clearance) {
   return CLEARANCE_DEPARTMENTS.filter(d => clearance.departments[d.id]?.cleared).length
+}
+
+/** "Library, Guidance" / "Library, Guidance +1" — what a clearance is waiting on. */
+function waitingLabel(clearance) {
+  const names = getClearanceWaitingOn(clearance).map(d => d.label)
+  if (!names.length) return ''
+  return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ')
+}
+
+function fmtPeso(n) {
+  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function getProgressPct(clearance) {
@@ -141,68 +154,19 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
   const [confirmDept, setConfirmDept] = useState(null)
   const { toasts, addToast, removeToast } = useToast()
 
-  const role       = currentUser?.role
-  const isSuperAdmin = role === 'technical_admin'
-  const isRegistrar  = ['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)
-  const myDept     = ROLE_DEPT_MAP[role] ?? null
+  // Live balance, read fresh from the payment records every render
+  const balInfo      = getClearanceBalance(clearance)
+  const owing        = balInfo.found && balInfo.balance > 0
+  const zeroRequired = clearanceRequiresZeroBalance(clearance)
 
   const pct       = getProgressPct(clearance)
   const clearedN  = getClearedCount(clearance)
-  const stepDef   = getClearanceStepDef(clearance)  // workflow step for badge
 
-  /**
-   * Can the current user sign a specific department?
-   * - Super admin: any dept
-   * - Registrar: registrar dept only
-   * - Accounting: accounting dept only (but it's auto — they can confirm if auto missed)
-   * - Principal/program head: admin dept only
-   */
-  // Workflow engine determines which department can be signed by this user
-  const availableActions = getClearanceActions(currentUser, clearance)
+  // The workflow engine decides who can sign what, in which order (role + step + blocking rules)
+  const signable = getSignableDepartments(currentUser, clearance)
 
-  function canSign(deptId) {
-    if (clearance.isFullyCleared) return false
-    const deptInfo = clearance.departments[deptId]
-    if (deptInfo?.cleared) return false
-    // Map deptId to action ID expected by the engine
-    const actionMap = {
-      library:     'library_cleared',
-      accounting:  'accounting_cleared',
-      registrar:   'registrar_cleared',
-      guidance:    'guidance_cleared',
-      admin:       'admin_cleared',
-    }
-    const expectedAction = actionMap[deptId]
-    if (!expectedAction) return false
-    return availableActions.some(a => a.id === expectedAction)
-  }
-
-  const handleSign = () => {
-    if (!confirmDept) return
-    try {
-      // Map dept ID to action ID for the engine
-      const actionMap = {
-        library:    'library_cleared',
-        accounting: 'accounting_cleared',
-        registrar:  'registrar_cleared',
-        guidance:   'guidance_cleared',
-        admin:      'admin_cleared',
-      }
-      const actionId = actionMap[confirmDept]
-      if (actionId && availableActions.some(a => a.id === actionId)) {
-        advanceClearanceStep(clearance.id, actionId, '', currentUser)
-      } else {
-        // Fallback for super admin overrides
-        updateDepartmentClearance(clearance.id, confirmDept, currentUser?.name ?? 'Unknown')
-      }
-      addToast(`${CLEARANCE_DEPARTMENTS.find(d => d.id === confirmDept)?.label} clearance signed.`, 'success')
-      setConfirmDept(null)
-      onUpdate()
-    } catch (err) {
-      addToast(err.message, 'error')
-      setConfirmDept(null)
-    }
-  }
+  // Accounting cannot sign a graduation clearance while a balance is owing
+  const accountingBlocked = zeroRequired && owing
 
   return (
     <ModalPortal>
@@ -254,10 +218,21 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
                   }}
                 />
               </div>
-              {clearance.hasUnpaidBalance && (
-                <div className="flex items-center gap-1.5 mt-2 text-xs text-[var(--color-error)]">
-                  <AlertCircle size={12} />
-                  Student has an unpaid balance — accounting clearance blocked until settled.
+              {owing && (
+                <div className="flex items-start gap-1.5 mt-2 text-xs text-[var(--color-error)]">
+                  <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                  <span>
+                    Outstanding balance: <strong>{fmtPeso(balInfo.balance)}</strong>.{' '}
+                    {zeroRequired
+                      ? 'Graduation clearance cannot be signed by accounting until this is fully paid.'
+                      : 'Accounting may still sign with a note so the student can continue; the balance stays on record.'}
+                  </span>
+                </div>
+              )}
+              {!balInfo.found && (
+                <div className="flex items-start gap-1.5 mt-2 text-xs text-[var(--color-warning)]">
+                  <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                  <span>Balance not found for this student — accounting must verify it manually and add a note.</span>
                 </div>
               )}
               <button
@@ -297,7 +272,7 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
                   const info    = clearance.departments[dept.id] ?? {}
                   const cleared = info.cleared === true
                   const isAuto  = dept.autoFromPayment
-                  const signable = canSign(dept.id)
+                  const canSignDept = signable.includes(dept.id)
                   const Icon    = DEPT_ICONS[dept.id] ?? Shield
 
                   return (
@@ -327,23 +302,46 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
                           )}
                         </div>
                         {cleared
-                          ? <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                              {info.clearedBy} · {fmtDateTime(info.clearedAt)}
+                          ? <>
+                              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                                {info.clearedBy} · {fmtDateTime(info.clearedAt)}
+                              </p>
+                              {info.withBalance && (
+                                <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">
+                                  Cleared with balance of {fmtPeso(info.balanceAtSignoff)}
+                                </p>
+                              )}
+                              {info.balanceUnverified && (
+                                <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">
+                                  Balance verified manually
+                                </p>
+                              )}
+                              {info.note && (
+                                <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5 break-words">
+                                  Note: {info.note}
+                                </p>
+                              )}
+                            </>
+                          : <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                              {dept.id === 'accounting' && accountingBlocked
+                                ? 'Blocked — balance owing'
+                                : dept.id === CLEARANCE_LAST_DEPARTMENT && getClearanceWaitingOn(clearance).some(d => d.id !== CLEARANCE_LAST_DEPARTMENT)
+                                  ? 'Opens after the other departments sign'
+                                  : 'Pending'}
                             </p>
-                          : <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Pending</p>
                         }
                       </div>
 
                       {/* Action */}
                       {cleared
                         ? <CheckCircle size={16} className="text-[var(--color-success)] shrink-0" />
-                        : signable
+                        : canSignDept
                           ? (
                             <button
                               onClick={() => setConfirmDept(dept.id)}
                               className="btn btn-primary text-xs py-1.5 px-3 shrink-0"
                             >
-                              Sign
+                              {dept.id === 'accounting' && (owing || !balInfo.found) ? 'Sign with note' : 'Sign'}
                             </button>
                           )
                           : <Clock size={16} className="text-[var(--color-text-muted)] shrink-0" />
@@ -373,15 +371,16 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
         </div>
       </div>
 
-      <ConfirmDialog
-        open={!!confirmDept}
-        title={`Sign ${CLEARANCE_DEPARTMENTS.find(d => d.id === confirmDept)?.label} Clearance`}
-        message="This action is permanent and cannot be reversed. Once signed, it cannot be undone without Super Admin intervention. Are you sure?"
-        confirmLabel="Sign Clearance"
-        danger={false}
-        onConfirm={handleSign}
-        onCancel={() => setConfirmDept(null)}
-      />
+      {confirmDept && (
+        <ClearanceSignDialog
+          clearance={clearance}
+          deptId={confirmDept}
+          user={currentUser}
+          onClose={() => setConfirmDept(null)}
+          onSigned={(_fresh, label) => { addToast(`${label} clearance signed.`, 'success'); onUpdate() }}
+          onError={(msg) => addToast(msg, 'error')}
+        />
+      )}
     </ModalPortal>
   )
 }
@@ -390,13 +389,12 @@ function ClearanceDrawer({ clearance, currentUser, onUpdate, onClose }) {
 // CLEARANCE CARD — list item
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ClearanceCard({ clearance, myDept, onSelect }) {
+function ClearanceCard({ clearance, user, onSelect }) {
   const pct      = getProgressPct(clearance)
   const clearedN = getClearedCount(clearance)
 
   // Highlight if this card has something this user can act on
-  const myDeptInfo  = myDept ? clearance.departments[myDept] : null
-  const needsMySign = myDept && !myDeptInfo?.cleared && !clearance.isFullyCleared
+  const needsMySign = getSignableDepartments(user, clearance).length > 0
 
   return (
     <div
@@ -427,14 +425,12 @@ function ClearanceCard({ clearance, myDept, onSelect }) {
             {clearance.isFullyCleared
               ? <span className="badge badge-approved shrink-0">Cleared</span>
               : needsMySign
-                ? <span className="badge badge-pending shrink-0">
-                    {getClearanceStepDef(clearance)?.label ?? 'Needs Sign'}
-                  </span>
+                ? <span className="badge badge-pending shrink-0">Needs your sign</span>
                 : <span className="badge" style={{
                     background: 'var(--color-bg-subtle)',
                     color: 'var(--color-text-muted)',
                     border: '1px solid var(--color-border)'
-                  }}>{getClearanceStepDef(clearance)?.label ?? 'In Progress'}</span>
+                  }}>Waiting on {waitingLabel(clearance)}</span>
             }
           </div>
 
@@ -484,19 +480,19 @@ function ClearanceCard({ clearance, myDept, onSelect }) {
 // STATS BAR
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StatsBar({ clearances, myDept }) {
+function StatsBar({ clearances, user, showMine }) {
   const total    = clearances.length
   const cleared  = clearances.filter(c => c.isFullyCleared).length
   const pending  = total - cleared
-  const needsMe  = myDept
-    ? clearances.filter(c => !c.isFullyCleared && !c.departments[myDept]?.cleared).length
+  const needsMe  = showMine
+    ? clearances.filter(c => getSignableDepartments(user, c).length > 0).length
     : 0
 
   const stats = [
     { label: 'Total',    value: total,   color: 'text-[var(--color-text-primary)]' },
     { label: 'Cleared',  value: cleared, color: 'text-[var(--color-success)]' },
     { label: 'Pending',  value: pending, color: 'text-[var(--color-warning)]' },
-    ...(myDept ? [{ label: 'Needs My Sign', value: needsMe, color: 'text-[var(--color-primary-readable)]' }] : []),
+    ...(showMine ? [{ label: 'Needs My Sign', value: needsMe, color: 'text-[var(--color-primary-readable)]' }] : []),
   ]
 
   return (
@@ -530,43 +526,48 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
   const [reason, setReason] = useState('general')
   const [saving, setSaving] = useState(false)
   const { toasts, addToast, removeToast } = useToast()
+  const { isBasicGrade } = useAppConfig()
 
-  // Load enrolled students from localStorage
-  const allStudents = (() => {
-    try {
-      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
-      return subs
-        .filter(s => s.status === 'approved')
-        .map(s => ({
-          id:         s.id,
-          name:       `${s.student?.lastName || ''}, ${s.student?.firstName || ''}`.trim(),
-          gradeLevel: s.enrollment?.gradeLevel || '',
-          studentId:  s.studentId || s.id,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name))
-    } catch { return [] }
-  })()
+  // Students come from the student records (they carry the school ID), scoped to the
+  // campus and school year. A department registrar only sees their own students;
+  // the technical admin sees both.
+  const studentDept = (st) => st?.department || (isBasicGrade?.(st?.gradeLevel) ? 'basicEd' : 'college')
+  const lockedDept  = currentUser?.role === 'registrar_basic' ? 'basicEd'
+                    : currentUser?.role === 'registrar_college' ? 'college' : null
+  const allStudents = (getStudents({ campusKey, schoolYear }) || [])
+    .filter(st => !lockedDept || studentDept(st) === lockedDept)
 
-  const filtered = studentSearch.length >= 2
-    ? allStudents.filter(s =>
-        s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-        s.studentId?.includes(studentSearch)
-      ).slice(0, 8)
+  // Results appear from the first letter typed
+  const q = studentSearch.trim().toLowerCase()
+  const filtered = q
+    ? allStudents.filter(st =>
+        st.firstName?.toLowerCase().includes(q) ||
+        st.lastName?.toLowerCase().includes(q) ||
+        `${st.lastName || ''}, ${st.firstName || ''}`.toLowerCase().includes(q) ||
+        String(st.studentId || '').toLowerCase().includes(q)
+      ).slice(0, 30)
     : []
+
+  const selectedBalance = selectedStudent ? getClearanceBalance({ studentId: selectedStudent.id }) : null
 
   const handleSave = () => {
     if (!selectedStudent) { addToast('Please select a student.', 'error'); return }
     setSaving(true)
     try {
+      // One open clearance per student per school year — open the existing one instead
+      const existing = getClearances({ schoolYear, studentId: selectedStudent.id }).find(c => !c.isFullyCleared)
+      if (existing) { onSave(existing, true); return }
+
       const reasonLabel = CLEARANCE_REASONS.find(r => r.value === reason)?.label ?? reason
       const record = createClearance(
         selectedStudent.id,
-        selectedStudent.name,
+        `${selectedStudent.lastName}, ${selectedStudent.firstName}`,
         campusKey,
         schoolYear,
-        reasonLabel
+        reasonLabel,
+        { requiresZeroBalance: reason === 'graduation' }
       )
-      onSave(record)
+      onSave(record, false)
     } catch (err) {
       addToast(err.message, 'error')
       setSaving(false)
@@ -576,8 +577,8 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
   return (
     <ModalPortal>
       <div className="modal-backdrop">
-        <div className="modal-panel" style={{ maxWidth: '32rem' }}>
-          <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+        <div className="modal-panel" style={{ maxWidth: '32rem', maxHeight: '92dvh' }}>
+          <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] shrink-0">
             <div>
               <h2 className="text-base font-bold text-[var(--color-text-primary)]">
                 New Student Clearance
@@ -591,55 +592,87 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
             </button>
           </div>
 
-          <div className="p-5 space-y-4">
+          {/* Scrolls on small screens, so the footer buttons always stay on screen */}
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
             {/* Student search */}
             <div>
               <label className="text-label text-[var(--color-text-muted)] block mb-1.5">
                 Student *
               </label>
               {selectedStudent ? (
-                <div className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-success-border)] bg-[var(--color-success-light)]">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                      {selectedStudent.name}
+                <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-success-border)] bg-[var(--color-success-light)]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
+                      {selectedStudent.lastName}, {selectedStudent.firstName}
                     </p>
                     <p className="text-xs text-[var(--color-text-muted)]">
-                      {selectedStudent.gradeLevel}
+                      School ID {selectedStudent.studentId || '—'} · {selectedStudent.gradeLevel || '—'}
                     </p>
+                    {selectedBalance && (
+                      <p className={`text-xs font-semibold mt-0.5 ${selectedBalance.found && selectedBalance.balance > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-muted)]'}`}>
+                        {!selectedBalance.found
+                          ? 'Balance not found'
+                          : selectedBalance.balance > 0
+                            ? `Balance owing: ${fmtPeso(selectedBalance.balance)}`
+                            : 'No balance'}
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => setSelectedStudent(null)}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors"
+                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors shrink-0"
                   >
                     Change
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 border border-[var(--color-border)] rounded-[var(--radius-md)] bg-[var(--color-bg-card)] px-3 focus-within:ring-2 focus-within:ring-[var(--color-border-focus)] transition-shadow">
-                  <Search size={14} className="text-[var(--color-text-muted)] shrink-0" />
-                  <input
-                    className="flex-1 py-[0.5625rem] text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
-                    placeholder="Search by name or student ID..."
-                    value={studentSearch}
-                    onChange={e => setStudentSearch(e.target.value)}
-                    autoFocus
-                  />
+                <div>
+                  <div className="flex items-center gap-2 border border-[var(--color-border)] rounded-[var(--radius-md)] bg-[var(--color-bg-card)] px-3 focus-within:ring-2 focus-within:ring-[var(--color-border-focus)] transition-shadow">
+                    <Search size={14} className="text-[var(--color-text-muted)] shrink-0" />
+                    <input
+                      className="flex-1 py-[0.5625rem] text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                      placeholder="Search by name or school ID..."
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Results — in the page flow, so they always show under the field */}
                   {filtered.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-[var(--shadow-lg)] overflow-hidden">
-                      {filtered.map(s => (
+                    <div
+                      className="mt-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-y-auto max-h-56"
+                      role="listbox"
+                      aria-label="Matching students"
+                    >
+                      {filtered.map(st => (
                         <button
-                          key={s.id}
-                          onClick={() => { setSelectedStudent(s); setStudentSearch('') }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors text-sm"
+                          key={st.id}
+                          type="button"
+                          role="option"
+                          onClick={() => { setSelectedStudent(st); setStudentSearch('') }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors border-b border-[var(--color-border)] last:border-b-0"
                         >
-                          <span className="font-medium text-[var(--color-text-primary)]">{s.name}</span>
-                          <span className="text-[var(--color-text-muted)] ml-2 text-xs">{s.gradeLevel}</span>
+                          <span className="block text-sm font-medium text-[var(--color-text-primary)]">
+                            {st.lastName}, {st.firstName}
+                          </span>
+                          <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">
+                            School ID {st.studentId || '—'} · {st.gradeLevel || '—'}
+                          </span>
                         </button>
                       ))}
                     </div>
                   )}
-                  {studentSearch.length >= 2 && filtered.length === 0 && (
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">No students found.</p>
+                  {q && filtered.length === 0 && (
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">
+                      No students found{campusKey ? ` in ${campusKey}` : ''}
+                      {lockedDept ? ` (${lockedDept === 'college' ? 'College' : 'Basic Ed'} only)` : ''}.
+                    </p>
+                  )}
+                  {!q && (
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">
+                      Type a name or school ID, then pick the student from the list.
+                    </p>
                   )}
                 </div>
               )}
@@ -670,11 +703,15 @@ function NewClearanceModal({ campusKey, schoolYear, currentUser, onSave, onClose
             {/* Accounting note */}
             <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info)]">
               <Info size={12} className="shrink-0 mt-0.5" />
-              Accounting clearance will be auto-set based on the student's current payment balance.
+              Accounting clears automatically when the student has no balance. Otherwise accounting can sign with a note.
+              {reason === 'graduation' && ' Graduation clearance needs a zero balance — it cannot be signed while one is owing.'}
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 p-5 border-t border-[var(--color-border)]">
+          <div className="flex items-center justify-end gap-2 p-5 border-t border-[var(--color-border)] shrink-0">
+            {!selectedStudent && (
+              <span className="text-xs text-[var(--color-text-muted)] mr-auto">Pick a student to continue.</span>
+            )}
             <button onClick={onClose} className="btn btn-ghost text-sm">Cancel</button>
             <button
               onClick={handleSave}
@@ -705,9 +742,12 @@ export default function Clearance() {
   const schoolYear = currentSchoolYear || '2026-2027'
   const role       = user?.role
 
-  // What department does this user sign off?
-  const myDept      = ROLE_DEPT_MAP[role] ?? null
+  // Which departments can this account sign? (their role + any extra duties; Super Admin: all)
   const isSuperAdmin = role === 'technical_admin'
+  const myDepts      = getClearanceDepartments(user)
+  const showMine     = myDepts.length > 0
+  const myDeptLabels = myDepts.map(id => CLEARANCE_DEPARTMENTS.find(d => d.id === id)?.label).filter(Boolean)
+  const pureAccounting = !isSuperAdmin && myDepts.length === 1 && myDepts[0] === 'accounting'
   const isRegistrar  = ['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)
 
   const [clearances,   setClearances]   = useState([])
@@ -723,7 +763,7 @@ export default function Clearance() {
       let all = getClearances({ campusKey, schoolYear })
 
       // Accounting role: only show clearances where accounting dept hasn't cleared yet
-      if (role === 'accounting' && !isSuperAdmin) {
+      if (pureAccounting) {
         all = all.filter(c => !c.departments.accounting?.cleared)
       }
 
@@ -733,9 +773,20 @@ export default function Clearance() {
     } finally {
       setLoading(false)
     }
-  }, [campusKey, schoolYear, role, isSuperAdmin])
+  }, [campusKey, schoolYear, pureAccounting])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Opened from a document request ("Open in Clearance page"): /clearance?id=<clearanceId>
+  const [searchParams, setSearchParams] = useSearchParams()
+  const openId = searchParams.get('id')
+  useEffect(() => {
+    if (!openId || loading) return
+    const rec = getClearanceById(openId)
+    if (rec) setSelected(rec)
+    else addToast('That clearance record was not found.', 'error')
+    setSearchParams({}, { replace: true })
+  }, [openId, loading])
 
   useEffect(() => {
     const handler = () => loadData()
@@ -751,8 +802,8 @@ export default function Clearance() {
     else if (filter === 'cleared') list = list.filter(c => c.isFullyCleared)
 
     // For non-admin roles with a specific dept: "needs-me" filter
-    if (filter === 'needs-me' && myDept) {
-      list = list.filter(c => !c.isFullyCleared && !c.departments[myDept]?.cleared)
+    if (filter === 'needs-me' && showMine) {
+      list = list.filter(c => getSignableDepartments(user, c).length > 0)
     }
 
     if (search.trim()) {
@@ -764,19 +815,18 @@ export default function Clearance() {
     }
 
     return list
-  }, [clearances, filter, search, myDept])
+  }, [clearances, filter, search, showMine, user])
 
   const filterOptions = [
     { id: 'all',     label: `All (${clearances.length})` },
     { id: 'pending', label: `Pending (${clearances.filter(c => !c.isFullyCleared).length})` },
     { id: 'cleared', label: `Cleared (${clearances.filter(c => c.isFullyCleared).length})` },
-    ...(myDept ? [{
+    ...(showMine ? [{
       id: 'needs-me',
-      label: `Needs My Sign (${clearances.filter(c => !c.isFullyCleared && !c.departments[myDept]?.cleared).length})`
+      label: `Needs My Sign (${clearances.filter(c => getSignableDepartments(user, c).length > 0).length})`
     }] : []),
   ]
 
-  const myDeptLabel = CLEARANCE_DEPARTMENTS.find(d => d.id === myDept)?.label
 
   if (loading) return <PageSkeleton />
 
@@ -788,14 +838,14 @@ export default function Clearance() {
           <h1 className="text-display text-[var(--color-text-primary)]">Student Clearance</h1>
           <p className="text-body text-[var(--color-text-muted)] mt-1">
             {schoolYear}
-            {myDeptLabel && (
+            {!isSuperAdmin && myDeptLabels.length > 0 && (
               <span className="ml-2 badge" style={{
                 background: 'var(--color-secondary-muted)',
                 color: 'var(--color-secondary)',
                 border: '1px solid var(--color-secondary)',
                 display: 'inline-flex'
               }}>
-                {myDeptLabel} — My Department
+                {myDeptLabels.join(' + ')} — My {myDeptLabels.length > 1 ? 'Departments' : 'Department'}
               </span>
             )}
           </p>
@@ -811,33 +861,34 @@ export default function Clearance() {
       </div>
 
       {/* ── Role notice ───────────────────────────────────────────────────── */}
-      {myDept && !isSuperAdmin && (
+      {!isSuperAdmin && myDeptLabels.length > 0 && (
         <div className="flex items-start gap-2.5 p-4 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)]">
           <Info size={15} className="text-[var(--color-info)] shrink-0 mt-0.5" />
           <div className="text-sm">
             <span className="font-semibold text-[var(--color-info)]">Your role: </span>
             <span className="text-[var(--color-text-secondary)]">
-              You can sign off the <strong>{myDeptLabel}</strong> clearance for each student.
-              Once signed, it cannot be reversed. All other departments are managed by their
-              respective officers.
+              You can sign off the <strong>{myDeptLabels.join(', ')}</strong> clearance for each student.
+              Departments can sign in any order, except Admin Office, which signs last once the others are done.
+              Once signed, it cannot be reversed. All other departments are managed by their respective officers.
             </span>
           </div>
         </div>
       )}
 
-      {role === 'accounting' && (
+      {myDepts.includes('accounting') && !isSuperAdmin && (
         <div className="flex items-start gap-2.5 p-4 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)]">
           <AlertCircle size={15} className="text-[var(--color-warning)] shrink-0 mt-0.5" />
           <p className="text-sm text-[var(--color-text-secondary)]">
             <span className="font-semibold text-[var(--color-warning)]">Accounting note: </span>
-            Clearance is auto-granted when payment balance is zero. Students with unpaid balances
-            are blocked automatically. You can manually confirm if auto-detection missed a payment.
+            Clearance is auto-granted when the live payment balance is zero. If a student still owes,
+            you may sign with a note so they can continue to the next term; the balance stays on record.
+            Graduation clearances cannot be signed until the balance is fully paid.
           </p>
         </div>
       )}
 
       {/* ── Stats ─────────────────────────────────────────────────────────── */}
-      <StatsBar clearances={clearances} myDept={myDept} />
+      <StatsBar clearances={clearances} user={user} showMine={showMine} />
 
       {/* ── Filters + Search ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -892,7 +943,7 @@ export default function Clearance() {
             <ClearanceCard
               key={clr.id}
               clearance={clr}
-              myDept={myDept}
+              user={user}
               onSelect={c => setSelected(c)}
             />
           ))}
@@ -905,10 +956,12 @@ export default function Clearance() {
           campusKey={campusKey}
           schoolYear={schoolYear}
           currentUser={user}
-          onSave={(record) => {
+          onSave={(record, existed) => {
             setShowNew(false)
             loadData()
-            addToast('Clearance record created.', 'success')
+            addToast(existed
+              ? 'This student already has an open clearance — opened it.'
+              : 'Clearance record created.', existed ? 'info' : 'success')
             setSelected(record)
           }}
           onClose={() => setShowNew(false)}

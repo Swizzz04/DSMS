@@ -10,7 +10,7 @@ import { PageSkeleton, useToast, ToastContainer, ModalPortal, ConfirmDialog, Typ
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DUTY_OPTIONS, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -3473,7 +3473,7 @@ export default function Settings() {
             users={editUsers}
             setUsers={setEditUsers}
             campuses={editCampuses}
-            onSave={() => saveSection('systemUsers', editUsers)}
+            onSave={(list) => saveSection('systemUsers', list ?? editUsers)}
             saved={savedSection === 'systemUsers'}
             currentUser={user}
           />
@@ -3504,6 +3504,7 @@ export default function Settings() {
 const CAMPUS_SCOPED_ROLES = [
   'registrar_basic', 'registrar_college', 'accounting',
   'principal_basic', 'program_head', 'teacher',
+  'librarian', 'guidance',
 ]
 
 const ASSIGNABLE_ROLES = [
@@ -3515,6 +3516,8 @@ const ASSIGNABLE_ROLES = [
   { value: 'accounting',        label: 'Accounting Officer'       },
   { value: 'principal_basic',   label: 'Basic Ed Principal'       },
   { value: 'program_head',      label: 'Program Head (College)'   },
+  { value: 'librarian',         label: 'Librarian'                },
+  { value: 'guidance',          label: 'Guidance Counselor'       },
 ]
 
 // Hash password using Web Crypto API (same as AuthContext)
@@ -3531,6 +3534,7 @@ const EMPTY_FORM = {
   campus: '', campusKey: '', password: '', confirmPassword: '',
   customPermissions: false, // whether to use custom permissions
   permissions: { pages: [], tabs: [] },
+  clearanceDuties: [],      // extra clearance departments this account also signs
 }
 
 function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
@@ -3554,6 +3558,10 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
     : ASSIGNABLE_ROLES
 
   const needsCampus = CAMPUS_SCOPED_ROLES.includes(form.role)
+
+  // Clearance departments this role already signs on its own (extra duties add to these)
+  const ownClearanceDepts = getClearanceDepartments({ role: form.role })
+  const canHaveClearanceDuties = !['technical_admin', 'system_admin', 'admin'].includes(form.role)
 
   const activeCampusOptions = (campuses || [])
     .filter(c => c.isActive !== false)
@@ -3600,6 +3608,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
       password: '', confirmPassword: '',
       customPermissions: hasCustom,
       permissions: hasCustom ? { ...u.permissions } : { ...(DEFAULT_PERMISSIONS[u.role] || { pages: ['dashboard'], tabs: [] }) },
+      clearanceDuties: Array.isArray(u.clearanceDuties) ? [...u.clearanceDuties] : [],
     })
     setErrors({})
     setShowModal(true)
@@ -3649,6 +3658,11 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
       // Build permissions — only store if customized, otherwise use defaults
       const permissionsObj = form.customPermissions ? form.permissions : undefined
 
+      // Extra clearance duties — never store what the role already signs
+      const dutiesToSave = (form.clearanceDuties || []).filter(id => !ownClearanceDepts.includes(id))
+
+      let nextUsers = users
+
       if (editingUser) {
         // Edit existing
         const updates = {
@@ -3667,12 +3681,14 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
         } else {
           updates.permissions = undefined
         }
-        setUsers(prev => prev.map(u => {
+        updates.clearanceDuties = dutiesToSave
+        nextUsers = users.map(u => {
           if (u.id !== editingUser.id) return u
           const updated = { ...u, ...updates }
           if (!form.customPermissions) delete updated.permissions
+          if (!dutiesToSave.length) delete updated.clearanceDuties
           return updated
-        }))
+        })
       } else {
         // Add new
         const passwordHash = await hashPassword(form.password)
@@ -3689,10 +3705,13 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
           lastLogin: null,
         }
         if (form.customPermissions) newUser.permissions = form.permissions
-        setUsers(prev => [...prev, newUser])
+        if (dutiesToSave.length) newUser.clearanceDuties = dutiesToSave
+        nextUsers = [...users, newUser]
       }
 
-      onSave()
+      // Save the NEW list. (Reading `users` after setUsers would still be the old list.)
+      setUsers(nextUsers)
+      onSave(nextUsers)
       setShowModal(false)
     } catch (err) {
       console.error('Save user error:', err)
@@ -3703,23 +3722,36 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
 
   // ── Toggle active/inactive ─────────────────────────────────────
   const handleToggleStatus = (userId) => {
-    setUsers(prev => prev.map(u =>
+    const nextUsers = users.map(u =>
       u.id === userId
         ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' }
         : u
-    ))
-    onSave()
+    )
+    setUsers(nextUsers)
+    onSave(nextUsers)
     setShowDeactivateId(null)
   }
 
   // ── Role badge ─────────────────────────────────────────────────
-  const RoleBadge = ({ role }) => {
+  const RoleBadge = ({ role, duties }) => {
     const def = ROLE_DEFINITIONS?.[role]
+    const extra = (Array.isArray(duties) ? duties : [])
+      .map(id => CLEARANCE_DUTY_OPTIONS.find(d => d.id === id)?.label)
+      .filter(Boolean)
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-        def?.color || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
-      }`}>
-        {def?.label || role}
+      <span className="inline-flex flex-wrap items-center gap-1">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+          def?.color || 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
+        }`}>
+          {def?.label || role}
+        </span>
+        {extra.map(label => (
+          <span key={label}
+            title={`Also signs the ${label} department of student clearances`}
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+            + {label}
+          </span>
+        ))}
       </span>
     )
   }
@@ -3935,7 +3967,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)] truncate mb-1.5">{u.email}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <RoleBadge role={u.role} />
+                    <RoleBadge role={u.role} duties={u.clearanceDuties} />
                     {u.campus && u.campus !== 'all' && (
                       <span className="text-xs text-[var(--color-text-muted)]">{u.campus.replace(' Campus','').replace(' City','')}</span>
                     )}
@@ -3970,7 +4002,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   <tr key={u.id} className={`hover:bg-[var(--color-bg-subtle)]/30 transition-colors ${u.status !== 'active' ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{u.name}</td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{u.email}</td>
-                    <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} /></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} duties={u.clearanceDuties} /></td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">
                       {u.campus && u.campus !== 'all' ? u.campus : <span className="text-[var(--color-text-muted)] opacity-50">All campuses</span>}
                     </td>
@@ -4101,6 +4133,47 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                     options={activeCampusOptions}
                   />
                   {errors.campus && <p className="text-xs text-red-500 mt-1">{errors.campus}</p>}
+                </div>
+              )}
+
+              {/* Clearance sign-off duties — lets a small school give one person several hats */}
+              {canHaveClearanceDuties && (
+                <div>
+                  <label className="form-label">
+                    Clearance sign-off duties <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                    One person, one account. Tick a department if this person also signs it on top of their role, for example a teacher who is also the guidance in-charge.
+                    Library and Guidance also give them that role's pages; the other departments add the Clearance page only.
+                    A school with enough staff can give each department its own account instead.
+                    {ownClearanceDepts.length > 0 && ' Departments their role already signs are marked.'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {CLEARANCE_DUTY_OPTIONS.map(d => {
+                      const own = ownClearanceDepts.includes(d.id)
+                      const checked = own || (form.clearanceDuties || []).includes(d.id)
+                      return (
+                        <label key={d.id}
+                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
+                            ${own ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
+                            ${checked ? 'border-[var(--color-primary-readable)] bg-[var(--color-bg-subtle)]' : 'border-[var(--color-border)]'}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={own}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              clearanceDuties: e.target.checked
+                                ? [...new Set([...(f.clearanceDuties || []), d.id])]
+                                : (f.clearanceDuties || []).filter(x => x !== d.id),
+                            }))}
+                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                          <span className="text-[var(--color-text-primary)]">{d.label}</span>
+                          {own && <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">from role</span>}
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -1,6 +1,8 @@
 /**
  * DocumentRequests.jsx — ALMIRENE DX
- * Document Requests & Student Clearance
+ * Document Requests
+ * (Student Clearance is worked on the Clearance page; a request's drawer shows its status
+ *  and links there.)
  *
  * Roles:
  *   registrar_basic   — sees Basic Ed requests, manages workflow, releases docs
@@ -12,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   FileText, Plus, Search, Filter, ChevronDown,
   Check, X, Clock, AlertCircle, Package, Send,
@@ -27,8 +30,9 @@ import { ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton } fr
 import {
   getRequests, getRequestById, createRequest, createGraduateRequest,
   updateStatus, confirmDocumentPayment, releaseDocument, cancelRequest,
-  getClearances, getClearanceById, createClearance, updateDepartmentClearance,
+  getClearanceById, createClearance,
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
+  getClearanceWaitingOn,
   getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, saveDocumentFees, resetDocumentTypes,
   removeDocumentType,
   REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
@@ -469,10 +473,9 @@ function ReleaseModal({ request, onRelease, onClose }) {
 // CLEARANCE PANEL
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ClearancePanel({ clearanceId, currentUser }) {
+function ClearancePanel({ clearanceId }) {
+  const navigate = useNavigate()
   const [clearance, setClearance] = useState(null)
-  const [confirming, setConfirming] = useState(null) // dept id being confirmed
-  const { toasts, addToast, removeToast } = useToast()
 
   const load = useCallback(() => {
     if (clearanceId) {
@@ -482,19 +485,22 @@ function ClearancePanel({ clearanceId, currentUser }) {
 
   useEffect(() => { load() }, [load])
 
-  const handleSign = (deptId) => {
-    try {
-      updateDepartmentClearance(clearanceId, deptId, currentUser?.name ?? 'Unknown')
-      addToast(`${deptId} clearance signed.`, 'success')
-      load()
-    } catch (err) {
-      addToast(err.message, 'error')
+  // Stay in sync when the clearance is signed on the Clearance page (this or another window)
+  useEffect(() => {
+    const h = () => load()
+    const onStorage = (e) => { if (e.key === 'almirene_clearance' || e.key === null) load() }
+    window.addEventListener('almirene_clearance_updated', h)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('almirene_clearance_updated', h)
+      window.removeEventListener('storage', onStorage)
     }
-    setConfirming(null)
-  }
+  }, [load])
 
   if (!clearanceId) return null
   if (!clearance)   return <p className="text-xs text-[var(--color-text-muted)] italic">Loading clearance...</p>
+
+  const waitingOn = getClearanceWaitingOn(clearance).map(d => d.label).join(', ')
 
   return (
     <div className="space-y-2">
@@ -503,6 +509,9 @@ function ClearancePanel({ clearanceId, currentUser }) {
         <span className={`text-xs font-semibold ${clearance.isFullyCleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-warning-text)]'}`}>
           {clearance.isFullyCleared ? 'Fully Cleared ✓' : 'Clearance In Progress'}
         </span>
+        {waitingOn && (
+          <span className="text-[10px] text-[var(--color-text-muted)]">· Waiting on {waitingOn}</span>
+        )}
       </div>
 
       {CLEARANCE_DEPARTMENTS.map(dept => {
@@ -514,12 +523,12 @@ function ClearancePanel({ clearanceId, currentUser }) {
             ${cleared
               ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
               : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {cleared
                 ? <Check size={13} className="text-[var(--color-success-text)] shrink-0" />
                 : <Clock size={13} className="text-[var(--color-text-muted)] shrink-0" />
               }
-              <div>
+              <div className="min-w-0">
                 <p className={`text-xs font-medium ${cleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-text-primary)]'}`}>
                   {dept.label}
                 </p>
@@ -528,29 +537,29 @@ function ClearancePanel({ clearanceId, currentUser }) {
                     {info.clearedBy} · {fmtDate(info.clearedAt)}
                   </p>
                 )}
+                {cleared && info.withBalance && (
+                  <p className="text-[10px] text-[var(--color-warning-text)] font-semibold">
+                    Cleared with balance of ₱{Number(info.balanceAtSignoff || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                  </p>
+                )}
+                {cleared && info.balanceUnverified && (
+                  <p className="text-[10px] text-[var(--color-warning-text)] font-semibold">Balance verified manually</p>
+                )}
+                {cleared && info.note && (
+                  <p className="text-[10px] text-[var(--color-text-secondary)] break-words">Note: {info.note}</p>
+                )}
               </div>
             </div>
-            {!cleared && (
-              <button
-                onClick={() => setConfirming(dept.id)}
-                className="text-xs px-2.5 py-1 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-[var(--color-action)] hover:border-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition-colors font-medium">
-                Sign
-              </button>
-            )}
           </div>
         )
       })}
 
-      <ConfirmDialog
-        open={!!confirming}
-        title={`Sign ${CLEARANCE_DEPARTMENTS.find(d => d.id === confirming)?.label} Clearance`}
-        message="This action is permanent and cannot be reversed. Are you sure you want to sign this clearance?"
-        confirmLabel="Sign Clearance"
-        danger={false}
-        onConfirm={() => handleSign(confirming)}
-        onCancel={() => setConfirming(null)}
-      />
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <button
+        type="button"
+        onClick={() => navigate(`/clearance?id=${encodeURIComponent(clearanceId)}`)}
+        className="btn btn-ghost text-xs gap-1.5 w-full justify-center mt-1">
+        <ShieldCheck size={12} /> Open in Clearance page
+      </button>
     </div>
   )
 }
@@ -1176,7 +1185,7 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
                 <p className="text-xs font-semibold text-[var(--color-text-secondary)] mb-3 flex items-center gap-1.5">
                   <ShieldCheck size={13} /> Student Clearance
                 </p>
-                <ClearancePanel clearanceId={request.clearanceId} currentUser={currentUser} />
+                <ClearancePanel clearanceId={request.clearanceId} />
               </div>
             )}
 
@@ -1352,7 +1361,7 @@ export default function DocumentRequests() {
 
   const [requests,    setRequests]    = useState([])
   const [loading,     setLoading]     = useState(true)
-  const [activeTab,   setActiveTab]   = useState('requests') // 'requests' | 'clearance' | 'fees' | 'print' | 'formats'
+  const [activeTab,   setActiveTab]   = useState('requests') // 'requests' | 'fees' | 'print' | 'formats'
   const [statusFilter,setStatusFilter]= useState('all')
   const [deptFilter,  setDeptFilter]  = useState('all')
   const [docFilter,   setDocFilter]   = useState('all')   // document type (its label)
@@ -1523,7 +1532,6 @@ export default function DocumentRequests() {
       <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl w-fit">
         {[
           { id: 'requests',  label: 'Requests',  icon: FileText },
-          { id: 'clearance', label: 'Clearance', icon: ShieldCheck },
           ...(isRegistrar ? [{ id: 'print', label: 'Print', icon: Printer }] : []),
           ...(canSetupDocuments ? [{ id: 'formats', label: 'Formats', icon: Upload }] : []),
           ...(canManageFees ? [{ id: 'fees', label: 'Fees', icon: Tag }] : []),
@@ -1702,11 +1710,6 @@ export default function DocumentRequests() {
             </div>
           )}
         </>
-      )}
-
-      {/* ── CLEARANCE TAB ── */}
-      {activeTab === 'clearance' && (
-        <ClearanceTab campusKey={campusKey} schoolYear={schoolYear} currentUser={user} />
       )}
 
       {/* ── PRINT TAB (registrar) ── */}
@@ -2093,135 +2096,6 @@ function DocumentFeesTab({ campusKey, campusName, currentUser, onDirtyChange }) 
         onConfirm={handleRemoveConfirmed}
         onCancel={() => setToRemove(null)}
       />
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CLEARANCE TAB COMPONENT
-// ─────────────────────────────────────────────────────────────────────────────
-
-function ClearanceTab({ campusKey, schoolYear, currentUser }) {
-  const [clearances, setClearances] = useState([])
-  const [filter, setFilter] = useState('pending') // 'pending' | 'cleared' | 'all'
-  const [selected, setSelected] = useState(null)
-  const { toasts, addToast, removeToast } = useToast()
-
-  const loadData = useCallback(() => {
-    const all = getClearances({ campusKey, schoolYear })
-    setClearances(filter === 'pending' ? all.filter(c => !c.isFullyCleared)
-                : filter === 'cleared' ? all.filter(c => c.isFullyCleared)
-                : all)
-  }, [campusKey, schoolYear, filter])
-
-  useEffect(() => { loadData() }, [loadData])
-  useEffect(() => {
-    const h = () => loadData()
-    window.addEventListener('almirene_clearance_updated', h)
-    return () => window.removeEventListener('almirene_clearance_updated', h)
-  }, [loadData])
-
-  const handleSign = (clearanceId, deptId) => {
-    try {
-      updateDepartmentClearance(clearanceId, deptId, currentUser?.name ?? 'Unknown')
-      addToast(`${deptId} clearance signed.`, 'success')
-      loadData()
-      if (selected?.id === clearanceId) {
-        const fresh = getClearances({ campusKey, schoolYear }).find(c => c.id === clearanceId)
-        if (fresh) setSelected(fresh)
-      }
-    } catch (err) {
-      addToast(err.message, 'error')
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Filter */}
-      <div className="flex gap-2">
-        {[{ id: 'pending', label: 'Pending' }, { id: 'cleared', label: 'Cleared' }, { id: 'all', label: 'All' }].map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors
-              ${filter === f.id
-                ? 'is-selected'
-                : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {clearances.length === 0 ? (
-        <div className="card p-10 text-center">
-          <ShieldCheck size={40} className="text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
-          <p className="text-sm font-semibold text-[var(--color-text-primary)]">No clearance records</p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">Clearance records are created automatically when a clearance-required document is requested.</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {clearances.map(clr => {
-            const clearedCount = CLEARANCE_DEPARTMENTS.filter(d => clr.departments[d.id]?.cleared).length
-            const totalCount   = CLEARANCE_DEPARTMENTS.length
-
-            return (
-              <div key={clr.id} className="card p-4 space-y-3">
-                {/* Student info */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--color-text-primary)]">{clr.studentName}</p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{clr.reason || 'General Clearance'} · {fmtDate(clr.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--color-text-muted)]">{clearedCount}/{totalCount}</span>
-                    {clr.isFullyCleared
-                      ? <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-success-light)] text-[var(--color-success-text)]">Cleared ✓</span>
-                      : <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">In Progress</span>
-                    }
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--color-success)] rounded-full transition-all"
-                    style={{ width: `${(clearedCount / totalCount) * 100}%` }}
-                  />
-                </div>
-
-                {/* Department sign-off grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  {CLEARANCE_DEPARTMENTS.map(dept => {
-                    const info    = clr.departments[dept.id] ?? {}
-                    const cleared = info.cleared === true
-                    return (
-                      <div key={dept.id}
-                        className={`flex flex-col items-center p-2 rounded-xl border text-center transition-colors
-                          ${cleared
-                            ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
-                            : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
-                        {cleared
-                          ? <Check size={14} className="text-[var(--color-success-text)] mb-1" />
-                          : <Clock size={14} className="text-[var(--color-text-muted)] mb-1" />
-                        }
-                        <p className={`text-[10px] font-medium ${cleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-text-secondary)]'}`}>
-                          {dept.label}
-                        </p>
-                        {!cleared && !clr.isFullyCleared && (
-                          <button onClick={() => handleSign(clr.id, dept.id)}
-                            className="mt-1.5 text-[10px] px-2 py-0.5 rounded-lg border border-[var(--color-primary-readable)] text-[var(--color-primary-readable)] hover:bg-[var(--color-action)] hover:border-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition-colors">
-                            Sign
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )

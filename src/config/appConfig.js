@@ -255,6 +255,20 @@ export const ROLE_DEFINITIONS = {
     permissions: ['dashboard', 'e-class-record', 'teacher-forms', 'students', 'subject_load'],
     campusScoped: true,
   },
+  librarian: {
+    label:       'Librarian',
+    description: 'Signs the Library department of student clearances',
+    color:       'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    permissions: ['dashboard', 'clearance'],
+    campusScoped: true,
+  },
+  guidance: {
+    label:       'Guidance Counselor',
+    description: 'Signs the Guidance department of student clearances',
+    color:       'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+    permissions: ['dashboard', 'clearance'],
+    campusScoped: true,
+  },
   student: {
     label:       'Student',
     description: 'Views own grades and requests forms from their campus registrar',
@@ -308,14 +322,61 @@ export const ALL_TABS = [
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
   admin:             { pages: ['dashboard', 'enrollments', 'reports', 'inc-completion'],                      tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'reports', 'settings', 'subject-load', 'e-class-record', 'teacher-forms'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
+  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'clearance', 'reports', 'settings', 'subject-load', 'e-class-record', 'teacher-forms'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
   registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'grade-change-requests'], tabs: [] },
   registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'subject-load', 'grade-change-requests', 'inc-completion'], tabs: [] },
   accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'document-requests', 'clearance', 'reports', 'settings'], tabs: ['fees', 'discounts', 'receipt'] },
-  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'settings', 'subject-load', 'grade-change-requests', 'attendance'], tabs: ['schoolYear', 'grades'] },
-  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'settings', 'subject-load', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'settings', 'subject-load', 'grade-change-requests', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'settings', 'subject-load', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: ['schoolYear', 'grades'] },
   teacher:           { pages: ['dashboard', 'students', 'subject-load', 'e-class-record', 'teacher-forms', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: [] },
+  librarian:         { pages: ['dashboard', 'clearance'], tabs: [] },
+  guidance:          { pages: ['dashboard', 'clearance'], tabs: [] },
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// STUDENT CLEARANCE — who signs which department
+// Single source of truth (the clearance page, the bridge and Settings all read it).
+//   • A role signs the departments listed for it here.
+//   • A small school can give ANY account extra duties on top of its own role
+//     (user.clearanceDuties, set in Settings → Users). Example: a teacher who is
+//     also the guidance in-charge signs Guidance while still working as a teacher.
+//   • Super Admin can sign any department.
+//   • Departments sign in any order, except the LAST department, which opens only
+//     once every other department has signed.
+// ─────────────────────────────────────────────────────────────────────
+export const CLEARANCE_DEPARTMENT_SIGNERS = {
+  library:    ['librarian'],
+  accounting: ['accounting'],
+  registrar:  ['registrar_basic', 'registrar_college'],
+  guidance:   ['guidance'],
+  admin:      ['principal_basic', 'program_head'],
+}
+
+/** Departments an account can be given as an extra duty (Settings → Users). */
+export const CLEARANCE_DUTY_OPTIONS = [
+  { id: 'library',    label: 'Library'      },
+  { id: 'accounting', label: 'Accounting'   },
+  { id: 'registrar',  label: 'Registrar'    },
+  { id: 'guidance',   label: 'Guidance'     },
+  { id: 'admin',      label: 'Admin Office' },
+]
+
+/** The department that signs last — it opens only after all the others have signed. */
+export const CLEARANCE_LAST_DEPARTMENT = 'admin'
+
+/**
+ * Departments this user may sign: from their role, plus any extra duties on the
+ * account. Super Admin may sign all of them.
+ * @returns {string[]} department ids
+ */
+export function getClearanceDepartments(user) {
+  if (!user) return []
+  const all = CLEARANCE_DUTY_OPTIONS.map(d => d.id)
+  if (user.role === 'technical_admin') return all
+  const fromRole = all.filter(id => (CLEARANCE_DEPARTMENT_SIGNERS[id] || []).includes(user.role))
+  const extra = Array.isArray(user.clearanceDuties) ? user.clearanceDuties.filter(id => all.includes(id)) : []
+  return all.filter(id => fromRole.includes(id) || extra.includes(id))
 }
 
 /**
@@ -327,7 +388,41 @@ export const DEFAULT_PERMISSIONS = {
  * technical_admin (Super Admin) always bypasses all three tiers and gets every
  * page + tab — per Section 7.1, "Cannot be restricted."
  */
+/**
+ * Duties that bring a whole role's pages and tabs with them. One person keeps ONE
+ * account (their own role) and the duty adds the other role's modules on top, so a
+ * teacher who is also the guidance in-charge can use the Guidance pages.
+ *
+ * Only roles that are clearly a single job are listed. Accounting, Registrar and
+ * Admin Office duties add the Clearance page only: handing someone the whole
+ * accounting or registrar module (payments, records) is a bigger decision, so it
+ * is done on purpose with a custom permission set in Settings → Users.
+ */
+export const CLEARANCE_DUTY_ROLE_ACCESS = {
+  library:  'librarian',
+  guidance: 'guidance',
+}
+
 export function getUserPermissions(user) {
+  const base = resolveUserPermissions(user)
+  const duties = Array.isArray(user?.clearanceDuties) ? user.clearanceDuties : []
+  if (!user || user.role === 'technical_admin' || !duties.length) return base
+
+  // Whatever the account's own tier gave it stays; duties only ADD.
+  const pages = [...(base.pages || []), 'clearance']
+  const tabs  = [...(base.tabs  || [])]
+  duties.forEach(duty => {
+    const dutyRole = CLEARANCE_DUTY_ROLE_ACCESS[duty]
+    if (!dutyRole) return
+    // Uses the role's saved permissions (Settings → Role Permissions) when there are any
+    const rp = resolveUserPermissions({ role: dutyRole })
+    pages.push(...(rp.pages || []))
+    tabs.push(...(rp.tabs || []))
+  })
+  return { ...base, pages: [...new Set(pages)], tabs: [...new Set(tabs)] }
+}
+
+function resolveUserPermissions(user) {
   if (!user) return { pages: [], tabs: [] }
 
   // Super Admin: full, non-restrictable access — checked before any tier
@@ -881,6 +976,8 @@ export function campusHasRole(campusKey, roleKey, override) {
     registrar_basic:     campus.roles?.hasRegistrarBasic,
     registrar_college:   campus.roles?.hasRegistrarCollege,
     accounting:          campus.roles?.hasAccounting,
+    librarian:           true,
+    guidance:            true,
     teacher_basic:       campus.hasBasicEd,
     instructor_college:  campus.hasCollege,
     teacher:             true,  // teachers can teach both Basic Ed and College

@@ -1117,8 +1117,8 @@ export const DEFAULT_WORKFLOWS = [
       {
         id: 'library', label: 'Library Clearance', order: 2, color: 'blue',
         isInitial: false, isFinal: false,
-        description: 'Library verifies no unreturned books or fines.',
-        allowedRoles: ['registrar_basic', 'registrar_college', 'technical_admin'],
+        description: 'Library verifies no unreturned books or fines. Signed by the Librarian (or any account given the Library duty).',
+        allowedRoles: ['librarian', 'technical_admin'],
         actions: [
           { id: 'library_cleared', label: 'Library Cleared', icon: 'Check',
             style: 'primary', nextStep: 'accounting', requiresNote: false, notifyTrigger: null },
@@ -1129,7 +1129,7 @@ export const DEFAULT_WORKFLOWS = [
       {
         id: 'accounting', label: 'Accounting Clearance', order: 3, color: 'orange',
         isInitial: false, isFinal: false,
-        description: 'Auto-blocked if student has unpaid balance. Clears automatically when balance is zero.',
+        description: 'Clears automatically when the live balance is zero. Accounting may sign with a note while a balance is owing; graduation clearances need a zero balance.',
         allowedRoles: ['accounting', 'technical_admin'],
         actions: [
           { id: 'accounting_cleared', label: 'Accounting Cleared', icon: 'Check',
@@ -1157,8 +1157,8 @@ export const DEFAULT_WORKFLOWS = [
       {
         id: 'guidance', label: 'Guidance Clearance', order: 5, color: 'teal',
         isInitial: false, isFinal: false,
-        description: 'Guidance counselor signs off.',
-        allowedRoles: ['registrar_basic', 'registrar_college', 'technical_admin'],
+        description: 'Guidance counselor signs off. Signed by the Guidance Counselor (or any account given the Guidance duty).',
+        allowedRoles: ['guidance', 'technical_admin'],
         actions: [
           { id: 'guidance_cleared', label: 'Guidance Cleared', icon: 'Check',
             style: 'primary', nextStep: 'admin_office', requiresNote: false, notifyTrigger: null },
@@ -1169,7 +1169,7 @@ export const DEFAULT_WORKFLOWS = [
       {
         id: 'admin_office', label: 'Admin Office Clearance', order: 6, color: 'purple',
         isInitial: false, isFinal: false,
-        description: 'School admin or principal signs final clearance.',
+        description: 'School admin or principal signs final clearance. Opens only after every other department has signed.',
         allowedRoles: ['principal_basic', 'program_head', 'technical_admin'],
         actions: [
           { id: 'admin_cleared', label: 'Admin Cleared — Finalize', icon: 'CheckCircle',

@@ -232,6 +232,7 @@ export function AuthProvider({ children }) {
       role:       found.role,
       campus:     found.campus,
       campusKey:  found.campusKey ?? null,
+      clearanceDuties: Array.isArray(found.clearanceDuties) ? found.clearanceDuties : [],
       lastLogin:  new Date().toISOString(),
     }
 

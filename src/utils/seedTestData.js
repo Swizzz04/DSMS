@@ -5,6 +5,8 @@
  * production bundle. Plain .js (no JSX). No UI, console commands only:
  *
  *   almireneSeed.packA()    people + enrollments + payments (Step 1)
+ *   almireneSeed.packClearance()  clearances in every stage, per campus (needs packA first)
+ *   almireneSeed.packSigners()    Librarian, Guidance and a teacher-with-Guidance-duty login per campus
  *   almireneSeed.status()   what is seeded right now (console table)
  *   almireneSeed.clear()    removes ONLY seeded records (seed_* / mock_stu_* ids)
  *   almireneSeed.help()     list the commands
@@ -47,6 +49,7 @@ import {
 const SUBMISSIONS_KEY = 'almirene_submissions'
 const STUDENTS_KEY    = 'almirene_students'
 const STUDENT_CTR_KEY = 'almirene_student_id_counter'
+const CLEARANCE_KEY   = 'almirene_clearance'
 const APP_CONFIG_KEY  = 'almirene_app_config'
 const WEBSITE_KEY     = 'almirene_website_content'
 
@@ -446,6 +449,192 @@ export function packA() {
   return { created, mirrored, skipped }
 }
 
+// ── PACK: clearances in every stage ────────────────────────────────────────────
+// Built with the REAL bridge (createClearance / updateDepartmentClearance), so the
+// records follow the app's own rules: live balance, accounting auto-clear, the
+// "signed with a balance" note, graduation needing a zero balance.
+//
+// Needs packA first (it uses the seeded, approved students and their balances).
+// Re-running replaces the previously seeded clearances.
+//
+// Per campus (one set each), "next up" = whose turn it is:
+//   1  paid     For: Form 137              nothing signed          -> Library (registrar)
+//   2  owing    For: Transfer Credentials  nothing signed          -> Library
+//   3  owing    General Clearance          Library                 -> ACCOUNTING with a note
+//   4  paid     For: Transcript of Records Library (+ auto acct)   -> Registrar
+//   5  owing    For: Form 137              Lib, Acct(note), Reg    -> Guidance
+//   6  paid     For: Honorable Dismissal   Lib, Reg, Guidance      -> ADMIN OFFICE (principal / program head)
+//   7  owing    General Clearance          all five                -> fully cleared WITH balance
+//   8  owing    Graduation Clearance       Library                 -> accounting BLOCKED (balance owing)
+//   9  paid     Graduation Clearance       Lib, Reg, Guidance      -> Admin Office
+//   10 unknown  For: Form 137              Library                 -> accounting must verify (student not found)
+
+const CLEARANCE_SCENARIOS = [
+  { pool: 'paid',    reason: 'For: Form 137',              sign: [] },
+  { pool: 'owing',   reason: 'For: Transfer Credentials',  sign: [] },
+  { pool: 'owing',   reason: 'General Clearance',          sign: ['library'] },
+  { pool: 'paid',    reason: 'For: Transcript of Records', sign: ['library'] },
+  { pool: 'owing',   reason: 'For: Form 137',              sign: ['library', 'accounting', 'registrar'] },
+  { pool: 'paid',    reason: 'For: Honorable Dismissal',   sign: ['library', 'registrar', 'guidance'] },
+  { pool: 'owing',   reason: 'General Clearance',          sign: ['library', 'accounting', 'registrar', 'guidance', 'admin'] },
+  { pool: 'owing',   reason: 'Graduation Clearance',       sign: ['library'], graduation: true },
+  { pool: 'paid',    reason: 'Graduation Clearance',       sign: ['library', 'registrar', 'guidance'], graduation: true },
+  { pool: 'unknown', reason: 'For: Form 137',              sign: ['library'] },
+]
+
+const SEED_SIGNERS = {
+  library:    'Seed Librarian',
+  accounting: 'Seed Accounting Officer',
+  registrar:  'Seed Registrar',
+  guidance:   'Seed Guidance Counselor',
+  admin:      'Seed Principal',
+}
+
+function dropSeedClearances() {
+  const all  = read(CLEARANCE_KEY, [])
+  const keep = all.filter(r => r?._seed !== true)
+  if (keep.length !== all.length) {
+    write(CLEARANCE_KEY, keep)
+    try { window.dispatchEvent(new CustomEvent('almirene_clearance_updated')) } catch { /* not in a browser */ }
+  }
+  return all.length - keep.length
+}
+
+export async function packClearance() {
+  const bridge = await import('./documentBridge')
+  const schoolYear = getCurrentSchoolYear()
+
+  const students = read(STUDENTS_KEY, []).filter(isSeedRecord)
+  if (!students.length) {
+    console.warn('[almireneSeed] packClearance — no seeded students found. Run almireneSeed.packA() first.')
+    return { created: 0 }
+  }
+
+  const removed = dropSeedClearances()
+  const campusKeys = [...new Set(students.map(st => st.campusKey).filter(Boolean))].sort()
+
+  const summary = {}
+  let created = 0
+  const skipped = []
+
+  campusKeys.forEach(campusKey => {
+    // Split this campus's students by their LIVE balance (same read the app uses)
+    const paid = [], owing = []
+    students
+      .filter(st => st.campusKey === campusKey)
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .forEach(st => {
+        const info = bridge.getClearanceBalance({ studentId: st.id })
+        if (!info.found) return
+        ;(info.balance > 0 ? owing : paid).push(st)
+      })
+    const pools = { paid, owing }
+
+    summary[campusKey] = 0
+    CLEARANCE_SCENARIOS.forEach((sc, idx) => {
+      let studentId, studentName
+      if (sc.pool === 'unknown') {
+        // A student the payment records do not know about
+        studentId   = `${SEED_PREFIX}ghost_${campusKey}`
+        studentName = `Unlisted, Student ${campusKey}`
+      } else {
+        const st = pools[sc.pool].shift()
+        if (!st) { skipped.push(`${campusKey} #${idx + 1} (${sc.pool}) — not enough ${sc.pool} students`); return }
+        studentId   = st.id
+        studentName = `${st.lastName}, ${st.firstName}`
+      }
+
+      try {
+        const rec = bridge.createClearance(
+          studentId, studentName, campusKey, schoolYear, sc.reason,
+          sc.graduation ? { requiresZeroBalance: true } : {},
+        )
+        sc.sign.forEach(dept => {
+          // Accounting signs with a note whenever a balance is owing (the app's rule)
+          const note = dept === 'accounting' ? 'Seed: approved by the principal — payment plan' : ''
+          bridge.updateDepartmentClearance(rec.id, dept, SEED_SIGNERS[dept], note)
+        })
+
+        // Tag it so clear() removes only seeded clearances
+        const all = read(CLEARANCE_KEY, [])
+        const i = all.findIndex(r => r.id === rec.id)
+        if (i >= 0) { all[i]._seed = true; write(CLEARANCE_KEY, all) }
+
+        created++
+        summary[campusKey]++
+      } catch (err) {
+        skipped.push(`${campusKey} #${idx + 1}: ${err.message}`)
+      }
+    })
+  })
+
+  try { window.dispatchEvent(new CustomEvent('almirene_clearance_updated')) } catch { /* not in a browser */ }
+
+  console.log(`[almireneSeed] packClearance — ${created} clearances created for ${schoolYear}` +
+    (removed ? ` (replaced ${removed} earlier seeded one${removed !== 1 ? 's' : ''})` : '') + '.')
+  console.table(summary)
+  if (skipped.length) console.warn('[almireneSeed] skipped:', skipped)
+  console.log('[almireneSeed] Refresh the page. Each campus has the 10 stages listed at the top of packClearance.')
+  return { created, skipped }
+}
+
+// ── PACK: clearance signer accounts ────────────────────────────────────────────
+// One Librarian, one Guidance Counselor and one Teacher who ALSO signs Guidance
+// (a small-school "two hats" account) per campus, added to the saved user list.
+// Password for every seeded account: signer123
+// Login emails:  librarian.<campus>@school.edu.ph
+//                guidance.<campus>@school.edu.ph
+//                teacher.guidance.<campus>@school.edu.ph   (campus key in lower case)
+// Log out and back in after seeding so the session picks up the account.
+
+const SIGNER_PASSWORD_HASH = '491efa0cce8491f8bd3d49c70283359643214e62a9e87e79a7cba13cac6d2c9f' // sha256("signer123")
+
+function dropSeedUsers() {
+  const cfg = read(APP_CONFIG_KEY, {}) || {}
+  if (!Array.isArray(cfg.systemUsers)) return 0
+  const keep = cfg.systemUsers.filter(u => u?._seed !== true)
+  const removed = cfg.systemUsers.length - keep.length
+  if (removed) {
+    cfg.systemUsers = keep
+    write(APP_CONFIG_KEY, cfg)
+    try { window.dispatchEvent(new CustomEvent('almirene_app_config_updated')) } catch { /* not in a browser */ }
+  }
+  return removed
+}
+
+export async function packSigners() {
+  const { SYSTEM_USERS } = await import('../config/users')
+  const removed = dropSeedUsers()
+  const cfg  = read(APP_CONFIG_KEY, {}) || {}
+  const base = Array.isArray(cfg.systemUsers) && cfg.systemUsers.length
+    ? cfg.systemUsers
+    : SYSTEM_USERS.map(u => ({ ...u }))
+
+  let nextId = Math.max(0, ...base.map(u => Number(u.id) || 0)) + 1
+  const added = []
+  getConfig().campuses.forEach(c => {
+    const k = String(c.key).toLowerCase()
+    const mk = (name, email, role, extra = {}) => ({
+      id: nextId++, name, email, passwordHash: SIGNER_PASSWORD_HASH,
+      role, campus: c.name, campusKey: c.key, status: 'active', lastLogin: null, _seed: true, ...extra,
+    })
+    added.push(
+      mk(`${c.key} Librarian`,         `librarian.${k}@school.edu.ph`,        'librarian'),
+      mk(`${c.key} Guidance Counselor`, `guidance.${k}@school.edu.ph`,         'guidance'),
+      mk(`${c.key} Teacher (Guidance in-charge)`, `teacher.guidance.${k}@school.edu.ph`, 'teacher', { clearanceDuties: ['guidance'] }),
+    )
+  })
+
+  cfg.systemUsers = [...base, ...added]
+  write(APP_CONFIG_KEY, cfg)
+  try { window.dispatchEvent(new CustomEvent('almirene_app_config_updated')) } catch { /* not in a browser */ }
+
+  console.log(`[almireneSeed] packSigners — ${added.length} accounts added` + (removed ? ` (replaced ${removed} earlier seeded)` : '') + '. Password for all: signer123')
+  console.table(added.map(u => ({ email: u.email, role: u.role, campus: u.campusKey, extraDuties: (u.clearanceDuties || []).join(', ') })))
+  console.log('[almireneSeed] Log out and back in, then open Clearance.')
+  return { added: added.length }
+}
+
 // ── status / clear / help ──────────────────────────────────────────────────────
 export function status() {
   const subs = read(SUBMISSIONS_KEY, []).filter(isSeedRecord)
@@ -462,7 +651,9 @@ export function status() {
   console.log('[almireneSeed] seeded enrollments (almirene_submissions) by campus:')
   console.table(rows)
   console.log(`[almireneSeed] seeded students mirrored in almirene_students: ${stus.length}`)
-  return { enrollments: subs.length, students: stus.length }
+  const clrs = read(CLEARANCE_KEY, []).filter(r => r?._seed === true)
+  console.log(`[almireneSeed] seeded clearances in almirene_clearance: ${clrs.length}`)
+  return { enrollments: subs.length, students: stus.length, clearances: clrs.length }
 }
 
 export function clear() {
@@ -472,13 +663,17 @@ export function clear() {
   const keepStus = stus.filter(r => !isSeedRecord(r))
   write(SUBMISSIONS_KEY, keepSubs)
   write(STUDENTS_KEY, keepStus)
-  console.log(`[almireneSeed] removed ${subs.length - keepSubs.length} enrollment(s) and ${stus.length - keepStus.length} student(s). Refresh the page.`)
-  return { enrollments: subs.length - keepSubs.length, students: stus.length - keepStus.length }
+  const clrs  = dropSeedClearances()
+  const users = dropSeedUsers()
+  console.log(`[almireneSeed] removed ${subs.length - keepSubs.length} enrollment(s), ${stus.length - keepStus.length} student(s), ${clrs} clearance(s) and ${users} seeded account(s). Refresh the page.`)
+  return { enrollments: subs.length - keepSubs.length, students: stus.length - keepStus.length, clearances: clrs, accounts: users }
 }
 
 export function help() {
   console.log([
     'almireneSeed.packA()   people + enrollments + payments (about 54 students, 3 campuses)',
+    'almireneSeed.packClearance()  clearances in every stage, per campus (run packA first)',
+    'almireneSeed.packSigners()  Librarian, Guidance and teacher-with-Guidance-duty logins (password signer123)',
     'almireneSeed.status()  what is seeded now',
     'almireneSeed.clear()   remove only seeded records',
     'window.almireneReset() (devTools) wipes ALL almirene_* data back to source defaults',
@@ -487,6 +682,6 @@ export function help() {
 
 /** Called from main.jsx under import.meta.env.DEV. */
 export function exposeSeedTools() {
-  window.almireneSeed = { packA, status, clear, help }
+  window.almireneSeed = { packA, packClearance, packSigners, status, clear, help }
   console.log('[ALMIRENE DX dev tools] window.almireneSeed ready — type almireneSeed.help()')
 }
