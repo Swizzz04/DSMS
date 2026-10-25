@@ -25,6 +25,7 @@ import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect    from '../components/GroupedSelect'
+import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import DatePicker       from '../components/DatePicker'
 import { ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton } from '../components/UIComponents'
 import {
@@ -1339,6 +1340,127 @@ function RequestDrawer({ request, currentUser, onUpdate, onClose }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// REQUEST LIST — table on desktop, compact rows on phones
+// ─────────────────────────────────────────────────────────────────────────────
+
+const REQUEST_SORTERS = {
+  student:  (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
+  document: (a, b) => (a.documentLabel || '').localeCompare(b.documentLabel || ''),
+  fee:      (a, b) => (Number(a.fee) || 0) - (Number(b.fee) || 0),
+  status:   (a, b) => getStatusLabel(a).localeCompare(getStatusLabel(b)),
+  filed:    (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
+}
+
+const DEPT_LABEL = { basicEd: 'Basic Ed', college: 'College' }
+
+/** Small flat tag used under the student / document names. */
+function RequestTag({ tone = 'neutral', children }) {
+  const tones = {
+    neutral: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
+    warning: 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)]',
+    success: 'bg-[var(--color-success-light)] text-[var(--color-success-text)]',
+    info:    'bg-[var(--color-info-light)] text-[var(--color-info-text)]',
+  }
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${tones[tone]}`}>
+      {children}
+    </span>
+  )
+}
+
+function fmtFee(fee) {
+  return Number(fee) > 0 ? `₱${Number(fee).toLocaleString('en-PH')}` : '—'
+}
+
+function RequestsTable({ rows, sort, onSort, onSelect, showDept, isPaidAwaiting }) {
+  return (
+    <div className="hidden md:block overflow-x-auto">
+      <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
+        <thead className="bg-[var(--color-bg-subtle)]">
+          <tr>
+            <SortTh label="Student"  sortKey="student"  sort={sort} onSort={onSort} />
+            <SortTh label="Document" sortKey="document" sort={sort} onSort={onSort} />
+            <th scope="col" className="th">Purpose</th>
+            <SortTh label="Fee"      sortKey="fee"      sort={sort} onSort={onSort} />
+            <SortTh label="Status"   sortKey="status"   sort={sort} onSort={onSort} />
+            <SortTh label="Filed"    sortKey="filed"    sort={sort} onSort={onSort} />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--color-border)]">
+          {rows.map(req => (
+            <tr key={req.id} onClick={() => onSelect(req)} className="table-row cursor-pointer">
+              <td className="td">
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); onSelect(req) }}
+                  className="text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)]"
+                  aria-label={`View request of ${req.studentName}`}
+                >
+                  <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{req.studentName}</span>
+                </button>
+                {(showDept || req.isGraduate) && (
+                  <span className="flex flex-wrap items-center gap-1 mt-0.5">
+                    {showDept && <RequestTag>{DEPT_LABEL[req.department ?? 'basicEd'] ?? req.department}</RequestTag>}
+                    {req.isGraduate && <RequestTag>Graduate{req.yearGraduated ? ` ${req.yearGraduated}` : ''}</RequestTag>}
+                  </span>
+                )}
+              </td>
+              <td className="td">
+                <span className="block text-sm text-[var(--color-text-primary)]">{req.documentLabel}</span>
+                {req.requiresClearance && <span className="inline-flex mt-0.5"><RequestTag tone="warning">Needs clearance</RequestTag></span>}
+              </td>
+              <td className="td text-[var(--color-text-secondary)] max-w-[14rem] truncate" title={req.purpose}>{req.purpose || '—'}</td>
+              <td className="td">
+                <span className="block text-sm text-[var(--color-text-primary)] tabular-nums">{fmtFee(req.fee)}</span>
+                {isPaidAwaiting(req) && <span className="inline-flex mt-0.5"><RequestTag tone="success">Paid · OR# {req.payment.orNumber}</RequestTag></span>}
+              </td>
+              <td className="td"><StatusBadge request={req} /></td>
+              <td className="td text-[var(--color-text-muted)]">{fmtDate(req.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Phone / small-tablet list: one tappable row per request. */
+function RequestsMobileList({ rows, onSelect, showDept, isPaidAwaiting }) {
+  return (
+    <ul className="md:hidden divide-y divide-[var(--color-border)]">
+      {rows.map(req => (
+        <li key={req.id}>
+          <button
+            type="button"
+            onClick={() => onSelect(req)}
+            className="w-full text-left p-4 hover:bg-[var(--color-bg-subtle)] transition-colors"
+            aria-label={`View request of ${req.studentName}`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{req.studentName}</p>
+                <p className="text-xs text-[var(--color-text-muted)] truncate">
+                  {req.documentLabel}{req.purpose ? ` · ${req.purpose}` : ''}
+                </p>
+              </div>
+              <StatusBadge request={req} />
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {req.fee > 0 && <RequestTag tone="info">{fmtFee(req.fee)}</RequestTag>}
+              {req.requiresClearance && <RequestTag tone="warning">Needs clearance</RequestTag>}
+              {showDept && <RequestTag>{DEPT_LABEL[req.department ?? 'basicEd'] ?? req.department}</RequestTag>}
+              {req.isGraduate && <RequestTag>Graduate{req.yearGraduated ? ` ${req.yearGraduated}` : ''}</RequestTag>}
+              {isPaidAwaiting(req) && <RequestTag tone="success">Paid · OR# {req.payment.orNumber}</RequestTag>}
+              <span className="ml-auto text-xs text-[var(--color-text-muted)]">{fmtDate(req.createdAt)}</span>
+            </div>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1448,6 +1570,14 @@ export default function DocumentRequests() {
           || r.payment?.orNumber?.toLowerCase().includes(q)
     }
     return true
+  })
+
+  // Sort + page the filtered list (back to page 1 when a filter or the search changes)
+  const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(visibleRequests, {
+    sorters:     REQUEST_SORTERS,
+    defaultSort: { key: 'filed', dir: 'desc' },
+    descFirst:   ['filed', 'fee'],
+    resetOn:     [activeFilter, paidMine, docFilter, deptFilter, dateFrom, dateTo, search, campusKey],
   })
 
   // Document choices come from the campus Fees list plus anything already on a request,
@@ -1650,63 +1780,22 @@ export default function DocumentRequests() {
               </p>
             </div>
           ) : (
-            <div className="card overflow-hidden">
-              {/* Table header */}
-              <div className="hidden sm:grid grid-cols-[1fr_180px_120px_100px_80px] gap-3 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
-                <span>Student / Document</span>
-                <span>Purpose</span>
-                <span>Status</span>
-                <span>Filed</span>
-                <span></span>
-              </div>
-
-              <div className="divide-y divide-[var(--color-border)]">
-                {visibleRequests.map(req => (
-                  <div key={req.id}
-                    className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_180px_120px_100px_80px] gap-2 sm:gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)] transition-colors items-center">
-                    <div>
-                      <p className="text-sm font-medium text-[var(--color-text-primary)]">{req.studentName}</p>
-                      <p className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mt-0.5">
-                        <FileText size={10} />
-                        {req.documentLabel}
-                        {req.requiresClearance && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">
-                            Clearance
-                          </span>
-                        )}
-                        {req.fee > 0 && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-info-light)] text-[var(--color-info-text)]">
-                            ₱{Number(req.fee).toLocaleString()}
-                          </span>
-                        )}
-                        {req.isGraduate && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">
-                            Graduate{req.yearGraduated ? ` ${req.yearGraduated}` : ''}
-                          </span>
-                        )}
-                        {isPaidAwaiting(req) && (
-                          <span className="ml-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)]">
-                            Paid · OR# {req.payment.orNumber}
-                          </span>
-                        )}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2 sm:hidden">
-                        <StatusBadge request={req} />
-                        <span className="text-xs text-[var(--color-text-muted)]">{fmtDate(req.createdAt)}</span>
-                      </div>
-                    </div>
-                    <p className="text-xs text-[var(--color-text-muted)] truncate hidden sm:block">{req.purpose}</p>
-                    <div className="hidden sm:block"><StatusBadge request={req} /></div>
-                    <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">{fmtDate(req.createdAt)}</p>
-                    <div className="flex justify-end">
-                      <button onClick={() => setSelected(req)} aria-label="View request"
-                        className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg hover:bg-[var(--color-bg-subtle)] transition text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)]">
-                        <Eye size={14} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="card-section border border-[var(--color-border)]">
+              <RequestsTable
+                rows={rows}
+                sort={sort}
+                onSort={onSort}
+                onSelect={setSelected}
+                showDept={!registrarDept}
+                isPaidAwaiting={isPaidAwaiting}
+              />
+              <RequestsMobileList
+                rows={rows}
+                onSelect={setSelected}
+                showDept={!registrarDept}
+                isPaidAwaiting={isPaidAwaiting}
+              />
+              <Pager page={page} pageCount={pageCount} total={total} onPage={setPage} pageSize={pageSize} onPageSize={setPageSize} noun="request" />
             </div>
           )}
         </>
