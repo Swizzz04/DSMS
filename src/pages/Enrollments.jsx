@@ -16,6 +16,7 @@ import { printReceiptHtml } from '../utils/printReceipt'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
+import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import {
   DeptEnrollmentCard as DeptCard,
@@ -29,13 +30,13 @@ const php = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}
 
 function StatusBadge({ status }) {
   const map = {
-    pending:          { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', icon: <Clock className="w-3 h-3"/>,        label: 'Awaiting Payment'  },
-    payment_received: { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',         icon: <DollarSign className="w-3 h-3"/>,    label: 'Payment Received'  },
-    approved:         { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',     icon: <CheckCircle className="w-3 h-3"/>,   label: 'Approved'          },
-    rejected:         { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             icon: <XCircle className="w-3 h-3"/>,       label: 'Rejected'          }
+    pending:          { cls: 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)]', icon: <Clock className="w-3 h-3"/>,        label: 'Awaiting Payment'  },
+    payment_received: { cls: 'bg-[var(--color-info-light)] text-[var(--color-info-text)]',       icon: <DollarSign className="w-3 h-3"/>,    label: 'Payment Received'  },
+    approved:         { cls: 'bg-[var(--color-success-light)] text-[var(--color-success-text)]', icon: <CheckCircle className="w-3 h-3"/>,   label: 'Approved'          },
+    rejected:         { cls: 'bg-[var(--color-error-light)] text-[var(--color-error-text)]',     icon: <XCircle className="w-3 h-3"/>,       label: 'Rejected'          }
   }
   const cfg = map[status] || map.pending
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
+  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${cfg.cls}`}>{cfg.icon}{cfg.label}</span>
 }
 
 // ── Admin Overview ─────────────────────────────────────────────────
@@ -1101,6 +1102,218 @@ function toTitleCase(str) {
 }
 
 // ════════════════════════════════════════════════════════════════════
+// ENROLLMENT LIST — sortable, paged table on desktop; compact rows on phones
+// (a child component, so its hooks never sit behind the page's `if (loading)` return)
+// ════════════════════════════════════════════════════════════════════
+const ENROLLMENT_STATUS_ORDER = { pending: 0, payment_received: 1, approved: 2, rejected: 3 }
+
+const ENROLLMENT_SORTERS = {
+  // work queue first (awaiting payment → payment received → approved → rejected), oldest first
+  status:    (a, b) => ((ENROLLMENT_STATUS_ORDER[a.status] ?? 9) - (ENROLLMENT_STATUS_ORDER[b.status] ?? 9))
+                       || (new Date(a.submittedDate) - new Date(b.submittedDate)),
+  reference: (a, b) => String(a.referenceNumber || '').localeCompare(String(b.referenceNumber || ''), undefined, { numeric: true }),
+  student:   (a, b) => formatStudentName(a.student, { short: true }).localeCompare(formatStudentName(b.student, { short: true })),
+  campus:    (a, b) => String(a.enrollment?.campus || '').localeCompare(String(b.enrollment?.campus || '')),
+  grade:     (a, b) => String(a.enrollment?.gradeLevel || '').localeCompare(String(b.enrollment?.gradeLevel || ''), undefined, { numeric: true }),
+  submitted: (a, b) => new Date(a.submittedDate) - new Date(b.submittedDate),
+  fee:       (a, b) => (a.amountPaid || 0) - (b.amountPaid || 0),
+}
+
+function OnlineTag({ label = 'Online' }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-info-light)] text-[var(--color-info-text)]">
+      <Globe className="w-2.5 h-2.5" /> {label}
+    </span>
+  )
+}
+
+const fmtSubmittedDate = (d) => new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+const fmtSubmittedTime = (d) => new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+
+function EnrollmentList({
+  items, role, showCampus, resetKey,
+  canMarkPayment, canApproveReject,
+  onOpen, onRecordPayment, onAccountingDetail, onApprove,
+}) {
+  const isAccounting = role === 'accounting'
+  const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(items, {
+    sorters:     ENROLLMENT_SORTERS,
+    defaultSort: { key: 'status', dir: 'asc' },
+    descFirst:   ['submitted', 'fee'],
+    resetOn:     [resetKey],
+  })
+
+  // What a click on the row does: accounting only opens rows that already have a payment recorded
+  const openRow = (e) => {
+    if (isAccounting) { if (e.status === 'payment_received') onAccountingDetail(e) }
+    else onOpen(e)
+  }
+  const rowIsOpenable = (e) => !isAccounting || e.status === 'payment_received'
+
+  return (
+    <>
+      {/* Phone / small-tablet list */}
+      <ul className="md:hidden divide-y divide-[var(--color-border)]">
+        {rows.map(e => (
+          <li key={e.id}>
+            {isAccounting ? (
+              <div className="px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0 mt-2"
+                    style={{ backgroundColor: e.status === 'pending' ? 'var(--color-warning)' : e.status === 'payment_received' ? 'var(--color-info)' : 'var(--color-border-strong)' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)] leading-tight">{formatStudentName(e.student, { short: true })}</span>
+                      <StatusBadge status={e.status} />
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
+                      {e.source === 'website' && <OnlineTag label="Web" />}
+                    </div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                      {e.enrollment.gradeLevel} · {e.enrollment.campus.replace(' City Campus', '').replace(' Campus', '')}
+                    </p>
+                    {e.status === 'payment_received' && e.amountPaid > 0 && (
+                      <div className="flex items-center gap-3 mb-2 text-xs">
+                        <span className="text-[var(--color-success-text)] font-semibold">{php(e.amountPaid)} paid</span>
+                        {(e.balance || 0) > 0 && <span className="text-[var(--color-warning-text)]">· {php(e.balance)} balance</span>}
+                      </div>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      {canMarkPayment(e) && (
+                        <button onClick={() => onRecordPayment(e.id)} className="btn btn-primary text-xs py-2 px-3 gap-1.5 touch-manipulation">
+                          <DollarSign className="w-3 h-3" /> Record Payment
+                        </button>
+                      )}
+                      {e.status === 'payment_received' && (
+                        <button onClick={() => onAccountingDetail(e)} className="btn btn-ghost text-xs py-2 px-3 gap-1.5 touch-manipulation">
+                          <Eye className="w-3 h-3" /> Details
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => onOpen(e)}
+                className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)] transition-colors flex items-start gap-3">
+                <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><User className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-0.5">
+                    <span className="text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, { short: true })}</span>
+                    <StatusBadge status={e.status} />
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
+                    {e.source === 'website' && <OnlineTag label="Web" />}
+                  </div>
+                  <div className="flex flex-wrap gap-x-2 text-xs text-[var(--color-text-muted)]">
+                    <span>{e.enrollment.gradeLevel}</span><span>•</span><span>{e.enrollment.campus.replace(' Campus', '')}</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {/* Desktop table */}
+      <div className="hidden md:block min-w-0 overflow-x-auto">
+        <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
+          <thead className="bg-[var(--color-bg-subtle)]">
+            <tr>
+              <SortTh label="Reference" sortKey="reference" sort={sort} onSort={onSort} />
+              <SortTh label="Student Name" sortKey="student" sort={sort} onSort={onSort} />
+              {showCampus && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
+              <SortTh label="Grade / Program" sortKey="grade" sort={sort} onSort={onSort} />
+              <SortTh label="Date Submitted" sortKey="submitted" sort={sort} onSort={onSort} />
+              <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />
+              {isAccounting && <SortTh label="Fee / Paid" sortKey="fee" sort={sort} onSort={onSort} />}
+              <th scope="col" className="th"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--color-border)]">
+            {rows.map(e => (
+              <tr key={e.id}
+                onClick={() => openRow(e)}
+                className={`table-row ${rowIsOpenable(e) ? 'cursor-pointer' : ''} ${e.status === 'approved' || e.status === 'rejected' ? 'opacity-70' : ''}`}>
+                <td className="td">
+                  <span className="block text-sm font-mono font-medium text-[var(--color-primary-readable)]">{e.referenceNumber}</span>
+                  {e.source === 'website' && <span className="inline-flex mt-0.5"><OnlineTag /></span>}
+                </td>
+                <td className="td">
+                  {rowIsOpenable(e) ? (
+                    <button type="button"
+                      onClick={ev => { ev.stopPropagation(); openRow(e) }}
+                      className="text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)]"
+                      aria-label={`View enrollment of ${formatStudentName(e.student, { short: true })}`}>
+                      <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, { short: true })}</span>
+                    </button>
+                  ) : (
+                    <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, { short: true })}</span>
+                  )}
+                  <span className="block text-xs text-[var(--color-text-muted)] truncate max-w-[10.5rem]" title={e.student.email}>{e.student.email}</span>
+                </td>
+                {showCampus && <td className="td text-[var(--color-text-secondary)]" title={e.enrollment.campus}>{e.enrollment.campus.replace(/ Campus$/, '')}</td>}
+                <td className="td text-[var(--color-text-secondary)] !whitespace-normal min-w-[6rem]">{e.enrollment.gradeLevel}</td>
+                <td className="td">
+                  <span className="block text-xs text-[var(--color-text-secondary)]">{fmtSubmittedDate(e.submittedDate)}</span>
+                  <span className="block text-[11px] text-[var(--color-text-muted)]">{fmtSubmittedTime(e.submittedDate)}</span>
+                </td>
+                <td className="td"><StatusBadge status={e.status} /></td>
+                {isAccounting && (
+                  <td className="td">
+                    {e.totalFee > 0 ? (
+                      <div className="text-xs">
+                        <p className="font-mono text-[var(--color-text-secondary)]">{php(e.amountPaid || 0)} <span className="text-[var(--color-text-muted)]">of {php(e.totalFee)}</span></p>
+                        {(e.balance || 0) > 0
+                          ? <p className="text-[var(--color-warning-text)] font-medium">{php(e.balance)} balance</p>
+                          : <p className="text-[var(--color-success-text)] font-medium">Fully paid ✓</p>}
+                      </div>
+                    ) : <span className="text-xs text-[var(--color-text-muted)]">—</span>}
+                  </td>
+                )}
+                <td className="td text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    {canMarkPayment(e) && (
+                      <button type="button"
+                        onClick={ev => { ev.stopPropagation(); onRecordPayment(e.id) }}
+                        title="Record Payment" aria-label="Record Payment"
+                        className="btn btn-primary text-xs py-1.5 px-2.5 gap-1.5 whitespace-nowrap">
+                        <DollarSign className="w-3.5 h-3.5" /> <span className="hidden 2xl:inline">Record Payment</span><span className="2xl:hidden">Record</span>
+                      </button>
+                    )}
+                    {isAccounting && e.status === 'payment_received' && (
+                      <button type="button"
+                        onClick={ev => { ev.stopPropagation(); onAccountingDetail(e) }}
+                        className="inline-flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] font-medium transition">
+                        <Eye className="w-4 h-4" /> View
+                      </button>
+                    )}
+                    {canApproveReject(e) && (
+                      <button type="button"
+                        onClick={ev => { ev.stopPropagation(); onApprove(e.id) }}
+                        className="text-xs px-2.5 py-1 bg-[var(--color-success-light)] text-[var(--color-success-text)] rounded-lg hover:opacity-80 transition font-medium">
+                        Approve
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pager page={page} pageCount={pageCount} total={total} onPage={setPage}
+             pageSize={pageSize} onPageSize={setPageSize} noun="enrollment" />
+    </>
+  )
+}
+
+// ════════════════════════════════════════════════════════════════════
 // MAIN EXPORT
 // ════════════════════════════════════════════════════════════════════
 export default function Enrollments() {
@@ -1666,201 +1879,21 @@ export default function Enrollments() {
         )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          Showing <span className="font-semibold text-[var(--color-text-secondary)]">{sorted.length}</span> of <span className="font-semibold">{roleFiltered.length}</span> enrollment{roleFiltered.length !== 1 ? 's' : ''}
-        </p>
-      </div>
-
       {/* ── Enrollment List ── */}
-      <div className="card-section">
+      <div className="card-section border border-[var(--color-border)]">
         {sorted.length === 0 ? <EmptyState type={hasFilters ? 'search' : 'enrollments'} onClear={hasFilters ? clearFilters : undefined} /> : (
-          <>
-            {/* ── Mobile card list ── */}
-            <ul className="md:hidden divide-y divide-[var(--color-border)]">
-              {sorted.map(e => (
-                <li key={e.id}>
-                  {user?.role === 'accounting' ? (
-                    // Accounting mobile card — now tappable to open detail drawer
-                    <div
-                      className={`px-4 py-4 transition ${e.status === 'payment_received' ? 'bg-[var(--color-bg-subtle)]/50' : 'active:bg-[var(--color-bg-subtle)]'}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* Status indicator dot */}
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${
-                          e.status === 'pending' ? 'bg-yellow-500' :
-                          e.status === 'payment_received' ? 'bg-blue-500' : 'bg-[var(--color-border-strong)]'
-                        }`}/>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <span className="text-sm font-semibold text-[var(--color-text-primary)] leading-tight">{formatStudentName(e.student, {short: true})}</span>
-                            <StatusBadge status={e.status} />
-                          </div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
-                            {e.source === 'website' && (
-                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                <Globe className="w-2.5 h-2.5" /> Web
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-[var(--color-text-muted)] mb-2">
-                            {e.enrollment.gradeLevel} · {e.enrollment.campus.replace(' City Campus','').replace(' Campus','')}
-                          </p>
-                          {/* Show payment summary if already recorded */}
-                          {e.status === 'payment_received' && e.amountPaid > 0 && (
-                            <div className="flex items-center gap-3 mb-2 text-xs">
-                              <span className="text-green-600 dark:text-green-400 font-semibold">{php(e.amountPaid)} paid</span>
-                              {(e.balance || 0) > 0 && <span className="text-amber-500">· {php(e.balance)} balance</span>}
-                            </div>
-                          )}
-                          {/* Action buttons */}
-                          <div className="flex gap-2 flex-wrap">
-                            {canMarkPayment(e) && (
-                              <button onClick={() => handleMarkPayment(e.id)}
-                                className="text-xs px-3 py-2 bg-blue-600 text-white rounded-lg font-semibold flex items-center gap-1.5 hover:bg-blue-700 active:bg-blue-800 transition touch-manipulation">
-                                <DollarSign className="w-3 h-3"/> Record Payment
-                              </button>
-                            )}
-                            {e.status === 'payment_received' && (
-                              <button onClick={() => handleViewAccountingDetail(e)}
-                                className="text-xs px-3 py-2 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg font-medium flex items-center gap-1.5 hover:bg-[var(--color-bg-muted)] transition touch-manipulation">
-                                <Eye className="w-3 h-3"/> Details
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => { setSelectedEnrollment(e); setShowModal(true) }}
-                      className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
-                      <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"><User className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-0.5">
-                          <span className="text-sm font-semibold text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</span>
-                          <StatusBadge status={e.status} />
-                        </div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-xs font-mono text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
-                          {e.source === 'website' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                              <Globe className="w-2.5 h-2.5" /> Web
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-x-2 text-xs text-[var(--color-text-muted)]">
-                          <span>{e.enrollment.gradeLevel}</span><span>•</span><span>{e.enrollment.campus.replace(' Campus','')}</span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-
-            {/* ── Desktop table ── */}
-            <div className="hidden md:block min-w-0">
-              <div className="overflow-x-auto">
-                <table className={`w-full min-w-[${user?.role === 'accounting' ? '760' : '700'}px]`}>
-                  <thead className="bg-[var(--color-bg-subtle)]">
-                    <tr>
-                      {user?.role === 'accounting'
-                        ? ['Reference','Student Name','Grade / Program','Date Submitted','Status','Fee / Paid','Actions'].map(h => (
-                            <th key={h} className="th">{h}</th>
-                          ))
-                        : ['Reference','Student Name',!isCampusLocked?'Campus':null,'Grade / Program','Date Submitted','Status','Actions'].filter(Boolean).map(h => (
-                            <th key={h} className="th">{h}</th>
-                          ))
-                      }
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--color-border)]">
-                    {sorted.map(e => (
-                      <tr key={e.id} className={`hover:bg-[var(--color-bg-subtle)]/50 transition-colors ${e.status === 'payment_received' || e.status === 'approved' || e.status === 'rejected' ? 'opacity-70' : ''}`}>
-                        {/* Reference */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-sm font-mono font-medium text-[var(--color-primary-readable)]">{e.referenceNumber}</p>
-                          {e.source === 'website' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 mt-0.5">
-                              <Globe className="w-2.5 h-2.5" /> Online
-                            </span>
-                          )}
-                        </td>
-                        {/* Student Name */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <p className="text-sm font-medium text-[var(--color-text-primary)]">{formatStudentName(e.student, {short: true})}</p>
-                          <p className="text-xs text-[var(--color-text-muted)]">{e.student.email}</p>
-                        </td>
-                        {/* Campus — only for non-accounting, non-campus-locked */}
-                        {user?.role !== 'accounting' && !isCampusLocked && (
-                          <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.campus}</td>
-                        )}
-                        {/* Grade / Program */}
-                        <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
-                        {/* Date */}
-                        <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">{fmtDate(e.submittedDate)}</td>
-                        {/* Status */}
-                        <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={e.status} /></td>
-                        {/* Fee/Paid — accounting only */}
-                        {user?.role === 'accounting' && (
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {e.totalFee > 0 ? (
-                              <div className="text-xs">
-                                <p className="font-mono text-[var(--color-text-secondary)]">{php(e.amountPaid || 0)} <span className="text-[var(--color-text-muted)]">of {php(e.totalFee)}</span></p>
-                                {(e.balance || 0) > 0 && (
-                                  <p className="text-amber-600 dark:text-amber-400 font-medium">{php(e.balance)} balance</p>
-                                )}
-                                {(e.balance || 0) <= 0 && e.totalFee > 0 && (
-                                  <p className="text-green-600 dark:text-green-400 font-medium">Fully paid ✓</p>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-[var(--color-text-muted)]">—</span>
-                            )}
-                          </td>
-                        )}
-                        {/* Actions */}
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {/* Non-accounting: View button */}
-                            {user?.role !== 'accounting' && (
-                              <button onClick={() => { setSelectedEnrollment(e); setShowModal(true) }}
-                                className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
-                                <Eye className="w-4 h-4" /> View
-                              </button>
-                            )}
-                            {/* Accounting: Record Payment */}
-                            {canMarkPayment(e) && (
-                              <button onClick={() => handleMarkPayment(e.id)}
-                                className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 font-semibold transition rounded-lg shadow-sm">
-                                <DollarSign className="w-3.5 h-3.5" /> Record Payment
-                              </button>
-                            )}
-                            {/* Accounting: View details for paid entries */}
-                            {user?.role === 'accounting' && e.status === 'payment_received' && (
-                              <button onClick={() => handleViewAccountingDetail(e)}
-                                className="inline-flex items-center gap-1 text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] font-medium transition">
-                                <Eye className="w-4 h-4" /> View
-                              </button>
-                            )}
-                            {/* Registrar/Admin: Approve */}
-                            {canApproveReject(e) && (
-                              <button onClick={() => handleApprove(e.id)}
-                                className="text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-200 transition font-medium">
-                                Approve
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
+          <EnrollmentList
+            items={filtered}
+            role={user?.role}
+            showCampus={user?.role !== 'accounting' && !isCampusLocked}
+            resetKey={[searchQuery, statusFilter, timeFilter, gradeLevelFilter, campusFilterName].join('|')}
+            canMarkPayment={canMarkPayment}
+            canApproveReject={canApproveReject}
+            onOpen={e => { setSelectedEnrollment(e); setShowModal(true) }}
+            onRecordPayment={handleMarkPayment}
+            onAccountingDetail={handleViewAccountingDetail}
+            onApprove={handleApprove}
+          />
         )}
       </div>
 

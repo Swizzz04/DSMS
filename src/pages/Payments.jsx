@@ -12,6 +12,7 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, ExportButton } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS, getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD } from '../config/appConfig'
@@ -1051,12 +1052,21 @@ function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
 // ─────────────────────────────────────────────────────────────────────
 // TAB 2 — STUDENT BALANCE
 // ─────────────────────────────────────────────────────────────────────
+const BALANCE_SORTERS = {
+  student:  (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
+  grade:    (a, b) => String(a.gradeLevel || '').localeCompare(String(b.gradeLevel || ''), undefined, { numeric: true }),
+  totalFee: (a, b) => (a.totalFee || 0) - (b.totalFee || 0),
+  paid:     (a, b) => (a.amountPaid || 0) - (b.amountPaid || 0),
+  balance:  (a, b) => (a.balance || 0) - (b.balance || 0),
+  due:      (a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')),
+  status:   (a, b) => String(a.status || '').localeCompare(String(b.status || '')),
+}
+
 function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast }) {
   const { isBasicGrade, isCollegeGrade } = useAppConfig()
   const [search,     setSearch]     = useState('')
   const [deptFilter, setDeptFilter] = useState('all')
   const [yearFilter, setYearFilter] = useState('all')
-  const [sortBy,     setSortBy]     = useState('balance_desc')
 
   const phpFmt  = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}`
   const fmtDate = d => fmtShortDate(d)
@@ -1086,13 +1096,14 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
       (deptFilter === 'college' && isCollegeGrade(p.gradeLevel))
     const matchYear   = yearFilter === 'all' || p.gradeLevel === yearFilter
     return matchSearch && matchDept && matchYear
-  }).sort((a,b) => {
-    if (sortBy === 'balance_desc') return b.balance - a.balance
-    if (sortBy === 'balance_asc')  return a.balance - b.balance
-    if (sortBy === 'name')         return a.studentName.localeCompare(b.studentName)
-    if (sortBy === 'oldest')       return new Date(a.submittedDate||0) - new Date(b.submittedDate||0)
-    if (sortBy === 'due')          return (a.dueDate || '9999-12-31').localeCompare(b.dueDate || '9999-12-31')
-    return 0
+  })
+
+  // Sort + page (highest balance first until a column is clicked)
+  const bal = useTablePaging(filtered, {
+    sorters:     BALANCE_SORTERS,
+    defaultSort: { key: 'balance', dir: 'desc' },
+    descFirst:   ['totalFee', 'paid', 'balance'],
+    resetOn:     [search, deptFilter, yearFilter],
   })
 
   const totalOutstanding = filtered.reduce((s,p) => s+p.balance, 0)
@@ -1164,20 +1175,6 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               />
             </div>
           )}
-          <div className="flex-shrink-0 min-w-[160px]">
-            <GroupedSelect
-              value={sortBy}
-              onChange={setSortBy}
-              allLabel="Sort: Highest Balance"
-              options={[
-                { value: 'balance_desc', label: 'Highest Balance' },
-                { value: 'balance_asc',  label: 'Lowest Balance'  },
-                { value: 'name',         label: 'Name A–Z'        },
-                { value: 'due',          label: 'Earliest Due Date' },
-                { value: 'oldest',       label: 'Oldest First'    },
-              ]}
-            />
-          </div>
           <div className="relative flex-1 min-w-[160px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
@@ -1226,13 +1223,18 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
             <table className="w-full min-w-[580px]">
               <thead className="bg-[var(--color-bg-subtle)]">
                 <tr>
-                  {['Student','Dept','Grade/Program','Total Fee','Paid','Balance','Due Date','Status'].map(h=>(
-                    <th key={h} className={`px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide ${['Total Fee','Paid','Balance'].includes(h)?'text-right':'text-left'}`}>{h}</th>
-                  ))}
+                  <SortTh label="Student" sortKey="student" sort={bal.sort} onSort={bal.onSort} />
+                  <th scope="col" className="th">Dept</th>
+                  <SortTh label="Grade/Program" sortKey="grade" sort={bal.sort} onSort={bal.onSort} />
+                  <SortTh label="Total Fee" sortKey="totalFee" sort={bal.sort} onSort={bal.onSort} className="!text-right" />
+                  <SortTh label="Paid" sortKey="paid" sort={bal.sort} onSort={bal.onSort} className="!text-right" />
+                  <SortTh label="Balance" sortKey="balance" sort={bal.sort} onSort={bal.onSort} className="!text-right" />
+                  <SortTh label="Due Date" sortKey="due" sort={bal.sort} onSort={bal.onSort} className="!text-center" />
+                  <SortTh label="Status" sortKey="status" sort={bal.sort} onSort={bal.onSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
-                {filtered.map((p,i) => {
+                {bal.rows.map((p,i) => {
                   const paidPct = p.totalFee > 0 ? Math.round((p.amountPaid/p.totalFee)*100) : 0
                   const isOld   = p.status === 'overdue'
                   const isBasic = isBasicGrade(p.gradeLevel)
@@ -1277,7 +1279,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               </tbody>
               <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
                 <tr>
-                  <td colSpan={5} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">Total Outstanding</td>
+                  <td colSpan={5} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">Total Outstanding — all {filtered.length} student{filtered.length !== 1 ? 's' : ''}</td>
                   <td className="px-4 py-3 text-sm font-bold text-[var(--color-warning-text)] text-right font-mono">{phpFmt(totalOutstanding)}</td>
                   <td colSpan={2}/>
                 </tr>
@@ -1286,6 +1288,8 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
           </div>
           </div>
         )}
+        <Pager page={bal.page} pageCount={bal.pageCount} total={bal.total} onPage={bal.setPage}
+               pageSize={bal.pageSize} onPageSize={bal.setPageSize} noun="student" />
       </div>
     </div>
   )
@@ -1745,6 +1749,157 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
       </div>
     </div>
   </ModalPortal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// PAYMENT LIST — sortable, paged table on desktop; compact rows on phones
+// (a child component, so its hooks never sit behind the page's `if (loading)` return)
+// ─────────────────────────────────────────────────────────────────────
+
+const PAYMENT_SORTERS = {
+  student:  (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
+  campus:   (a, b) => String(a.campus || '').localeCompare(String(b.campus || '')),
+  grade:    (a, b) => String(a.gradeLevel || '').localeCompare(String(b.gradeLevel || ''), undefined, { numeric: true }),
+  totalFee: (a, b) => (a.totalFee || 0) - (b.totalFee || 0),
+  paid:     (a, b) => (a.amountPaid || 0) - (b.amountPaid || 0),
+  balance:  (a, b) => (a.balance || 0) - (b.balance || 0),
+  status:   (a, b) => String(a.status || '').localeCompare(String(b.status || '')),
+  due:      (a, b) => String(a.dueDate || '9999-12-31').localeCompare(String(b.dueDate || '9999-12-31')),
+  last:     (a, b) => new Date(a.lastPaymentDate || 0) - new Date(b.lastPaymentDate || 0),
+}
+
+function DeptTag({ isBasic }) {
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
+      ${isBasic
+        ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
+        : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'}`}>
+      {isBasic ? 'Basic Ed' : 'College'}
+    </span>
+  )
+}
+
+function PaymentsListTable({ items, showCampus, resetKey, onView, onPay }) {
+  const { isBasicGrade } = useAppConfig()
+  const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(items, {
+    sorters:     PAYMENT_SORTERS,
+    defaultSort: { key: 'none', dir: 'asc' },          // keep the data order until a column is clicked
+    descFirst:   ['totalFee', 'paid', 'balance', 'last'],
+    resetOn:     [resetKey],
+  })
+
+  return (
+    <>
+      {/* Phone / small-tablet list */}
+      <ul className="md:hidden divide-y divide-[var(--color-border)]">
+        {rows.map(p => (
+          <li key={p.studentId}>
+            <button onClick={() => onView(p)}
+              className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)] transition-colors flex items-start gap-3">
+              <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Receipt className="w-4 h-4 text-[var(--color-primary-readable)]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-0.5">
+                  <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{p.studentName}</span>
+                  <StatusBadge status={p.status} />
+                </div>
+                <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
+                {p.balance > 0 && p.dueDate && (
+                  <p className={`text-[11px] mt-0.5 ${p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
+                    Due {fmtShortDate(p.dueDate)}{p.status === 'overdue' ? ` · ${daysPast(p.dueDate)}d overdue` : ''}
+                  </p>
+                )}
+                <div className="flex items-center justify-between mt-1">
+                  <div className="flex items-center gap-1.5">
+                    <DeptTag isBasic={isBasicGrade(p.gradeLevel)} />
+                    <span className="text-xs text-[var(--color-text-muted)]">{p.gradeLevel}</span>
+                  </div>
+                  <span className="text-sm font-bold text-[var(--color-success-text)]">{php(p.amountPaid)}</span>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
+            </button>
+            {p.status !== 'paid' && (
+              <div className="px-4 pb-3 -mt-1 flex justify-end">
+                <button onClick={() => onPay(p)}
+                  className="inline-flex items-center gap-1 text-xs text-[var(--color-text-inverse)] bg-[var(--color-success)] hover:opacity-90 px-3 py-1.5 rounded-lg font-medium transition">
+                  <Plus className="w-3.5 h-3.5" /> Pay
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {/* Desktop table */}
+      <div className="hidden md:block min-w-0 overflow-x-auto">
+        <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
+          <thead className="bg-[var(--color-bg-subtle)]">
+            <tr>
+              <SortTh label="Student" sortKey="student" sort={sort} onSort={onSort} />
+              <th scope="col" className="th">Dept</th>
+              {showCampus && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
+              <SortTh label="Grade / Program" sortKey="grade" sort={sort} onSort={onSort} />
+              <SortTh label="Total Fee" sortKey="totalFee" sort={sort} onSort={onSort} />
+              <SortTh label="Paid" sortKey="paid" sort={sort} onSort={onSort} />
+              <SortTh label="Balance" sortKey="balance" sort={sort} onSort={onSort} />
+              <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />
+              <SortTh label="Due Date" sortKey="due" sort={sort} onSort={onSort} />
+              <SortTh label="Last Payment" sortKey="last" sort={sort} onSort={onSort} />
+              <th scope="col" className="th"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--color-border)]">
+            {rows.map(p => (
+              <tr key={p.studentId} onClick={() => onView(p)} className="table-row cursor-pointer">
+                <td className="td">
+                  <button type="button"
+                    onClick={e => { e.stopPropagation(); onView(p) }}
+                    className="text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)]"
+                    aria-label={`View payments of ${p.studentName}`}>
+                    <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{p.studentName}</span>
+                    <span className="block text-xs font-mono text-[var(--color-text-muted)]">{p.studentId}</span>
+                  </button>
+                </td>
+                <td className="td"><DeptTag isBasic={isBasicGrade(p.gradeLevel)} /></td>
+                {showCampus && <td className="td text-[var(--color-text-secondary)]" title={p.campus}>{String(p.campus || '').replace(/ Campus$/, '')}</td>}
+                <td className="td text-[var(--color-text-secondary)]">{p.gradeLevel}</td>
+                <td className="td font-medium text-[var(--color-text-primary)] tabular-nums">{php(p.totalFee)}</td>
+                <td className="td font-semibold text-[var(--color-success-text)] tabular-nums">{php(p.amountPaid)}</td>
+                <td className="td font-semibold tabular-nums">
+                  <span className={p.balance > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
+                </td>
+                <td className="td"><StatusBadge status={p.status} /></td>
+                <td className="td text-xs">
+                  {p.balance > 0 && p.dueDate ? (
+                    <span className={p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-secondary)]'}>
+                      {fmtShortDate(p.dueDate)}
+                      {p.status === 'overdue' && <span className="block text-[10px] font-normal">{daysPast(p.dueDate)}d overdue</span>}
+                    </span>
+                  ) : <span className="text-[var(--color-text-muted)]">—</span>}
+                </td>
+                <td className="td text-xs text-[var(--color-text-muted)]">
+                  {p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                </td>
+                <td className="td text-right">
+                  {p.status !== 'paid' && (
+                    <button type="button"
+                      onClick={e => { e.stopPropagation(); onPay(p) }}
+                      className="inline-flex items-center gap-1 text-xs text-[var(--color-text-inverse)] bg-[var(--color-success)] hover:opacity-90 px-2.5 py-1 rounded-lg font-medium transition">
+                      <Plus className="w-3.5 h-3.5" /> Pay
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pager page={page} pageCount={pageCount} total={total} onPage={setPage}
+             pageSize={pageSize} onPageSize={setPageSize} noun="record" />
+    </>
   )
 }
 
@@ -2231,128 +2386,15 @@ export default function Payments() {
           </div>
 
           {/* Payment list */}
-          <div className="card-section">
+          <div className="card-section border border-[var(--color-border)]">
             {filtered.length === 0 ? <EmptyState type="search" /> : (
-              <>
-                {/* Mobile cards */}
-                <ul className="md:hidden divide-y divide-[var(--color-border)]">
-                  {filtered.map(p => (
-                    <li key={p.studentId}>
-                      <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
-                        className="w-full text-left px-4 py-4 hover:bg-[var(--color-bg-subtle)]/50 transition flex items-start gap-3">
-                        <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Receipt className="w-4 h-4 text-[var(--color-primary-readable)]" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-0.5">
-                            <span className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{p.studentName}</span>
-                            <StatusBadge status={p.status} />
-                          </div>
-                          <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
-                          {p.balance > 0 && p.dueDate && (
-                            <p className={`text-[11px] mt-0.5 ${p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
-                              Due {fmtShortDate(p.dueDate)}{p.status === 'overdue' ? ` · ${daysPast(p.dueDate)}d overdue` : ''}
-                            </p>
-                          )}
-                          <div className="flex items-center justify-between mt-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold
-                                ${isBasicGrade(p.gradeLevel)
-                                  ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
-                                  : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
-                                }`}>
-                                {isBasicGrade(p.gradeLevel) ? 'Basic Ed' : 'College'}
-                              </span>
-                              <span className="text-xs text-[var(--color-text-muted)]">{p.gradeLevel}</span>
-                            </div>
-                            <span className="text-sm font-bold text-[var(--color-success-text)]">{php(p.amountPaid)}</span>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0 mt-1" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Desktop table */}
-                <div className="hidden md:block min-w-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[960px]">
-                      <thead className="bg-[var(--color-bg-subtle)]">
-                        <tr>
-                          {['Student','Dept',!isAccountingLocked?'Campus':null,'Grade / Program','Total Fee','Paid','Balance','Status','Due Date','Last Payment','Actions'].filter(Boolean).map(h => (
-                            <th key={h} className="th">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--color-border)]">
-                        {filtered.map(p => {
-                          const isBasic = isBasicGrade(p.gradeLevel)
-                          return (
-                          <tr key={p.studentId} className="hover:bg-[var(--color-bg-subtle)]/50 transition-colors">
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <p className="text-sm font-medium text-[var(--color-text-primary)]">{p.studentName}</p>
-                              <p className="text-xs font-mono text-[var(--color-primary-readable)]">{p.studentId}</p>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold
-                                ${isBasic
-                                  ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
-                                  : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
-                                }`}>
-                                {isBasic ? 'Basic Ed' : 'College'}
-                              </span>
-                            </td>
-                            {!isAccountingLocked && <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{p.campus}</td>}
-                            <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{p.gradeLevel}</td>
-                            <td className="px-4 py-3 text-sm text-[var(--color-text-primary)] whitespace-nowrap font-medium">{php(p.totalFee)}</td>
-                            <td className="px-4 py-3 text-sm text-[var(--color-success-text)] whitespace-nowrap font-semibold">{php(p.amountPaid)}</td>
-                            <td className="px-4 py-3 text-sm whitespace-nowrap font-semibold">
-                              <span className={p.balance > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}>{p.balance > 0 ? php(p.balance) : '—'}</span>
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={p.status} /></td>
-                            <td className="px-4 py-3 text-xs whitespace-nowrap">
-                              {p.balance > 0 && p.dueDate ? (
-                                <span className={p.status === 'overdue' ? 'text-[var(--color-error-text)] font-semibold' : 'text-[var(--color-text-secondary)]'}>
-                                  {fmtShortDate(p.dueDate)}
-                                  {p.status === 'overdue' && <span className="block text-[10px] font-normal">{daysPast(p.dueDate)}d overdue</span>}
-                                </span>
-                              ) : <span className="text-[var(--color-text-muted)]">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-[var(--color-text-muted)] whitespace-nowrap">
-                              {p.lastPaymentDate ? new Date(p.lastPaymentDate).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => { setSelectedPayment(p); setShowModal(true) }}
-                                  className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
-                                  <Eye className="w-4 h-4" /> View
-                                </button>
-                                {p.status !== 'paid' && (
-                                  <button onClick={() => handleRecordPayment(p)}
-                                    className="inline-flex items-center gap-1 text-xs text-[var(--color-text-inverse)] bg-[var(--color-success)] hover:opacity-90 px-2.5 py-1 rounded-lg font-medium transition">
-                                    <Plus className="w-3.5 h-3.5" /> Pay
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)] flex items-center gap-2 flex-wrap">
-                  Showing {filtered.length} of {payments.length} records
-                  {yearFilter !== 'all' && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-[var(--color-primary-readable)] rounded-full font-medium">
-                      {yearFilter}
-                      <button onClick={() => setYearFilter('all')} className="hover:text-[var(--color-error-text)] transition">×</button>
-                    </span>
-                  )}
-                </div>
-              </>
+              <PaymentsListTable
+                items={filtered}
+                showCampus={!isAccountingLocked}
+                resetKey={[searchQuery, deptFilter, yearFilter, statusFilter, baseCampusFilter, gradeLevelFilter].join('|')}
+                onView={p => { setSelectedPayment(p); setShowModal(true) }}
+                onPay={handleRecordPayment}
+              />
             )}
           </div>
 

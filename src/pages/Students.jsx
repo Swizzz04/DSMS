@@ -18,6 +18,7 @@ import { useToast, ToastContainer, PageSkeleton, EmptyState, ModalPortal } from 
 import { useAppConfig } from '../context/AppConfigContext'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
+import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
 
 // Lazy-loaded chart wrapper — only loads chart.js when stats section renders
@@ -635,6 +636,17 @@ function normaliseSubmissions() {
   } catch { return [] }
 }
 
+/** Column sorters for the student list (module-level so their identity never changes). */
+const STUDENT_SORTERS = {
+  name:     (a, b) => `${a.personal.lastName}, ${a.personal.firstName}`.localeCompare(`${b.personal.lastName}, ${b.personal.firstName}`),
+  id:       (a, b) => String(a.studentId).localeCompare(String(b.studentId), undefined, { numeric: true }),
+  grade:    (a, b) => String(a.academic.gradeLevel).localeCompare(String(b.academic.gradeLevel), undefined, { numeric: true }),
+  section:  (a, b) => String(a.academic.section || '').localeCompare(String(b.academic.section || ''), undefined, { numeric: true }),
+  campus:   (a, b) => String(a.academic.campus).localeCompare(String(b.academic.campus)),
+  status:   (a, b) => String(a.status).localeCompare(String(b.status)),
+  enrolled: (a, b) => new Date(a.enrollmentDate) - new Date(b.enrollmentDate),
+}
+
 export default function Students() {
   const { user } = useAuth()
   const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS } = useAppConfig()
@@ -710,6 +722,14 @@ export default function Students() {
       (effectiveCampusName === 'all' || s.academic.campus === effectiveCampusName) &&
       (gradeLevelFilter === 'all' || s.academic.gradeLevel === gradeLevelFilter)
     )
+  })
+
+  // Sort + page the filtered list (back to page 1 when a filter, the search or the campus changes)
+  const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(filtered, {
+    sorters:     STUDENT_SORTERS,
+    defaultSort: { key: 'name', dir: 'asc' },
+    descFirst:   ['enrolled'],
+    resetOn:     [searchQuery, statusFilter, gradeLevelFilter, effectiveCampusName],
   })
 
   const stats = {
@@ -1104,11 +1124,11 @@ export default function Students() {
       </div>
 
       {/* Student table */}
-      <div className="card-section">
+      <div className="card-section border border-[var(--color-border)]">
         {filtered.length === 0 ? <EmptyState type={hasFilters ? 'search' : 'students'} onClear={hasFilters ? clearFilters : undefined} /> : (
           <>
             <ul className="md:hidden divide-y divide-[var(--color-border)]">
-              {filtered.map(s => (
+              {rows.map(s => (
                 <li key={s.id}>
                   <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="w-full text-left px-4 py-4 hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] transition flex items-center gap-3">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-5 h-5 text-[var(--color-primary-readable)]" /></div>
@@ -1132,48 +1152,56 @@ export default function Students() {
               ))}
             </ul>
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
                 <thead className="bg-[var(--color-bg-subtle)]">
                   <tr>
-                    {['Student ID','Student Name',user?.role==='registrar_college'?'Program & Year':'Grade Level','Section',!isCampusLocked?'Campus':null,'Status','Enrolled','Actions'].filter(Boolean).map(h => (
-                      <th key={h} className="th">{h}</th>
-                    ))}
+                    <SortTh label="Student" sortKey="name" sort={sort} onSort={onSort} />
+                    <SortTh label="School ID" sortKey="id" sort={sort} onSort={onSort} />
+                    <SortTh label={user?.role === 'registrar_college' ? 'Program & Year' : 'Grade Level'} sortKey="grade" sort={sort} onSort={onSort} />
+                    <SortTh label="Section" sortKey="section" sort={sort} onSort={onSort} />
+                    {!isCampusLocked && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
+                    <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />
+                    <SortTh label="Enrolled" sortKey="enrolled" sort={sort} onSort={onSort} />
+                    <th scope="col" className="th"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)]">
-                  {filtered.map(s => (
-                    <tr key={s.id} className="hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] transition-colors">
-                      <td className="px-4 py-3 text-sm font-mono font-medium text-[var(--color-primary-readable)] whitespace-nowrap">{s.studentId}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0"><Users className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
-                          <div>
-                            <p className="text-sm font-medium text-[var(--color-text-primary)]">{s.personal.firstName} {s.personal.lastName}</p>
-                            <p className="text-xs text-[var(--color-text-muted)]">{s.personal.email}</p>
-                          </div>
-                        </div>
+                  {rows.map(s => (
+                    <tr key={s.id} onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="table-row cursor-pointer">
+                      <td className="td">
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setSelectedStudent(s); setShowModal(true) }}
+                          className="text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)]"
+                          title={s.personal.email || undefined}
+                          aria-label={`View ${s.personal.firstName} ${s.personal.lastName}`}
+                        >
+                          <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{s.personal.lastName}, {s.personal.firstName}</span>
+                        </button>
                       </td>
-                      <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{s.academic.gradeLevel}</td>
-                      <td className="px-4 py-3 text-sm text-[var(--color-text-muted)] whitespace-nowrap">{s.academic.section}</td>
-                      {!isCampusLocked && <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{s.academic.campus}</td>}
-                      <td className="px-4 py-3 whitespace-nowrap"><StatusBadge status={s.status} /></td>
-                      <td className="px-4 py-3 text-sm text-[var(--color-text-muted)] whitespace-nowrap">{fmtDate(s.enrollmentDate)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <button onClick={() => { setSelectedStudent(s); setShowModal(true) }} className="inline-flex items-center gap-1 text-sm text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] font-medium transition">
-                            <Eye className="w-4 h-4" /> View
-                          </button>
-                          <button onClick={() => handlePrintClick(s)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"><Printer className="w-4 h-4" /></button>
-                        </div>
+                      <td className="td font-mono text-xs text-[var(--color-text-secondary)]">{s.studentId}</td>
+                      <td className="td text-[var(--color-text-secondary)]">{s.academic.gradeLevel}</td>
+                      <td className="td text-[var(--color-text-muted)]">{s.academic.section || '—'}</td>
+                      {!isCampusLocked && <td className="td text-[var(--color-text-secondary)]" title={s.academic.campus}>{s.academic.campus.replace(/ Campus$/, '')}</td>}
+                      <td className="td"><StatusBadge status={s.status} /></td>
+                      <td className="td text-[var(--color-text-muted)]">{fmtDate(s.enrollmentDate)}</td>
+                      <td className="td text-right">
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); handlePrintClick(s) }}
+                          className="icon-btn-ghost"
+                          aria-label={`Print profile of ${s.personal.firstName} ${s.personal.lastName}`}
+                          title="Print profile"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3 border-t border-[var(--color-border)] text-xs text-[var(--color-text-muted)]">
-              Showing {filtered.length} of {roleFiltered.length} student{roleFiltered.length !== 1 ? 's' : ''}
-            </div>
+            <Pager page={page} pageCount={pageCount} total={total} onPage={setPage} pageSize={pageSize} onPageSize={setPageSize} noun="student" />
           </>
         )}
       </div>
