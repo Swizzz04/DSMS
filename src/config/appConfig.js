@@ -365,6 +365,80 @@ export const CLEARANCE_DUTY_OPTIONS = [
 /** The department that signs last — it opens only after all the others have signed. */
 export const CLEARANCE_LAST_DEPARTMENT = 'admin'
 
+// ─────────────────────────────────────────────────────────────────────
+// CLEARANCE REQUIREMENTS — what a student must clear, and who signs each one
+//
+// The Technical Admin edits these lists (Settings → Workflow → Clearance); the
+// Clearance page, its columns and its progress all read them. These are only the
+// STARTING lists, used until the school saves its own. They reproduce the five
+// fixed departments the system used before, so nothing changes until someone edits.
+//
+// One list per department of the school: 'basicEd' and 'college'.
+//
+// A requirement:
+//   id               stable key, also stored on each clearance (e.g. 'library')
+//   label            column / row title
+//   icon             icon name the page maps to a lucide icon
+//   signer.type      one of CLEARANCE_SIGNER_TYPES below
+//   signer.roles     (role)            any account holding one of these roles signs
+//   signer.userIds   (user)            any of these accounts signs
+//   signer.subject   (subject_teacher) text matched inside the subject name,
+//                                      e.g. "Math" matches "Mathematics" and "Core Mathematics"
+//   order            'any' = can be signed at any time
+//                    'after_others' = opens only when every 'any' requirement is signed
+//   required         false = shown and signable, but does not hold the clearance back
+//   autoFromPayment  Accounting-style check: clears on its own when the live balance is zero
+// ─────────────────────────────────────────────────────────────────────
+
+/** Where a requirement's signer comes from. */
+export const CLEARANCE_SIGNER_TYPES = [
+  { id: 'role',                label: 'Anyone with a role',                 hint: 'e.g. the Librarian or the Registrar' },
+  { id: 'user',                label: 'Specific accounts',                  hint: 'e.g. the one person who handles Guidance' },
+  { id: 'student_instructors', label: "The student's subject instructors",  hint: 'One signature per subject the student takes, from Subject Load' },
+  { id: 'subject_teacher',     label: 'Teacher of a named subject',         hint: "e.g. the student's Math teacher, from Subject Load" },
+  { id: 'section_adviser',     label: "The student's section adviser",      hint: 'From the adviser set in Subject Load' },
+]
+
+/**
+ * Roles that may sign a teacher-based requirement (subject instructor, subject teacher,
+ * section adviser) when nobody has been assigned in Subject Load yet. They sign on behalf
+ * and must leave a note; the sign-off is marked "signed on behalf" so the gap stays visible.
+ * Super Admin can always do this.
+ */
+export const CLEARANCE_UNASSIGNED_FALLBACK_ROLES = ['principal_basic', 'program_head']
+
+export const CLEARANCE_ORDER_OPTIONS = [
+  { id: 'any',          label: 'Any time' },
+  { id: 'after_others', label: 'Only after every other requirement is signed' },
+]
+
+/** The school departments that each have their own requirements list. */
+export const CLEARANCE_DEPARTMENT_SCOPES = [
+  { id: 'basicEd', label: 'Basic Education' },
+  { id: 'college', label: 'College'         },
+]
+
+function defaultClearanceRequirements() {
+  const byRoles = (id, label, icon, extra = {}) => ({
+    id, label, icon,
+    signer: { type: 'role', roles: [...(CLEARANCE_DEPARTMENT_SIGNERS[id] || [])] },
+    order: 'any', required: true, autoFromPayment: false,
+    ...extra,
+  })
+  return [
+    byRoles('library',    'Library',      'library'),
+    byRoles('accounting', 'Accounting',   'accounting', { autoFromPayment: true }),
+    byRoles('registrar',  'Registrar',    'registrar'),
+    byRoles('guidance',   'Guidance',     'guidance'),
+    byRoles('admin',      'Admin Office', 'admin',      { order: 'after_others' }),
+  ]
+}
+
+/** Starting requirements per school department. Fresh copies, safe to edit. */
+export function getDefaultClearanceRequirements(scope) {
+  return CLEARANCE_DEPARTMENT_SCOPES.some(s => s.id === scope) ? defaultClearanceRequirements() : []
+}
+
 /**
  * Departments this user may sign: from their role, plus any extra duties on the
  * account. Super Admin may sign all of them.
@@ -403,10 +477,26 @@ export const CLEARANCE_DUTY_ROLE_ACCESS = {
   guidance: 'guidance',
 }
 
+/**
+ * True when the saved clearance requirements include a teacher-based signer (the student's
+ * instructors, the teacher of a subject, a section adviser). Read straight from storage because
+ * clearanceConfigBridge imports this file, so this file cannot import it back.
+ */
+function clearanceUsesTeacherSigners() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('almirene_clearance_requirements') || '{}')
+    const teacherTypes = ['student_instructors', 'subject_teacher', 'section_adviser']
+    return Object.values(cfg || {}).some(sc => (sc?.requirements || []).some(r => teacherTypes.includes(r?.signer?.type)))
+  } catch { return false }
+}
+
 export function getUserPermissions(user) {
   const base = resolveUserPermissions(user)
   const duties = Array.isArray(user?.clearanceDuties) ? user.clearanceDuties : []
-  if (!user || user.role === 'technical_admin' || !duties.length) return base
+  // A teacher needs the Clearance page as soon as a requirement is signed by teachers
+  // (the page then shows them only the clearances they are part of).
+  const teacherSigns = user?.role === 'teacher' && clearanceUsesTeacherSigners()
+  if (!user || user.role === 'technical_admin' || (!duties.length && !teacherSigns)) return base
 
   // Whatever the account's own tier gave it stays; duties only ADD.
   const pages = [...(base.pages || []), 'clearance']

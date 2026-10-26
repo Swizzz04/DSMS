@@ -33,10 +33,10 @@ import {
   updateStatus, confirmDocumentPayment, releaseDocument, cancelRequest,
   getClearanceById, createClearance,
   checkAccountingStatus, isFullyCleared, linkClearanceToRequest,
-  getClearanceWaitingOn,
+  getClearanceWaitingOn, getClearanceRequirementSummary,
   getDocumentTypes, hasCustomDocumentTypes, saveDocumentTypes, saveDocumentFees, resetDocumentTypes,
   removeDocumentType,
-  REQUEST_STATUSES, CLEARANCE_DEPARTMENTS,
+  REQUEST_STATUSES,
   getDocumentActions, advanceDocumentStep, getDocumentStepDef, statusMatches, clearanceBlocksRelease,
 } from '../utils/documentBridge'
 import { getStudents } from '../utils/enrollmentBridge'
@@ -515,12 +515,14 @@ function ClearancePanel({ clearanceId }) {
         )}
       </div>
 
-      {CLEARANCE_DEPARTMENTS.map(dept => {
-        const info    = clearance.departments[dept.id] ?? {}
-        const cleared = info.cleared === true
+      {/* One row per requirement on THIS clearance (set up by the Technical Admin) */}
+      {getClearanceRequirementSummary(clearance).map(req => {
+        const info    = clearance.departments?.[req.id] ?? {}
+        const cleared = req.pending === 0
+        const several = req.total > 1
 
         return (
-          <div key={dept.id} className={`flex items-center justify-between p-3 rounded-xl border transition-colors
+          <div key={req.id} className={`flex items-center justify-between p-3 rounded-xl border transition-colors
             ${cleared
               ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
               : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
@@ -531,9 +533,12 @@ function ClearancePanel({ clearanceId }) {
               }
               <div className="min-w-0">
                 <p className={`text-xs font-medium ${cleared ? 'text-[var(--color-success-text)]' : 'text-[var(--color-text-primary)]'}`}>
-                  {dept.label}
+                  {req.label}
+                  {several && (
+                    <span className="ml-1.5 font-normal text-[var(--color-text-muted)]">{req.cleared} / {req.total} signed</span>
+                  )}
                 </p>
-                {cleared && (
+                {cleared && !several && (
                   <p className="text-[10px] text-[var(--color-text-muted)]">
                     {info.clearedBy} · {fmtDate(info.clearedAt)}
                   </p>
@@ -546,7 +551,7 @@ function ClearancePanel({ clearanceId }) {
                 {cleared && info.balanceUnverified && (
                   <p className="text-[10px] text-[var(--color-warning-text)] font-semibold">Balance verified manually</p>
                 )}
-                {cleared && info.note && (
+                {cleared && !several && info.note && (
                   <p className="text-[10px] text-[var(--color-text-secondary)] break-words">Note: {info.note}</p>
                 )}
               </div>
