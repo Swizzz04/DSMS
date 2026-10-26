@@ -27,6 +27,7 @@ import { useAppConfig } from '../context/AppConfigContext'
 import { PageSkeleton, useToast, ToastContainer } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker   from '../components/DatePicker'
+import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import {
   getAttendance, getAttendanceByDate, saveBulkAttendance,
   isAttendanceRecorded, getRecordedDates, getTodayString,
@@ -87,6 +88,17 @@ const COUNT_COLS = [
   { key: 'late',    label: 'Late',    cls: 'text-[var(--color-warning-text)]' },
   { key: 'excused', label: 'Excused', cls: 'text-[var(--color-info-text)]'    },
 ]
+
+// Summary table sorters (module level = stable identity for useTablePaging)
+const SUMMARY_SORTERS = {
+  student: (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
+  present: (a, b) => (a.stats.present || 0) - (b.stats.present || 0),
+  absent:  (a, b) => (a.stats.absent  || 0) - (b.stats.absent  || 0),
+  late:    (a, b) => (a.stats.late    || 0) - (b.stats.late    || 0),
+  excused: (a, b) => (a.stats.excused || 0) - (b.stats.excused || 0),
+  percent: (a, b) => (a.stats.attendancePercent || 0) - (b.stats.attendancePercent || 0),
+  status:  (a, b) => Number(!!b.stats.isAtRisk) - Number(!!a.stats.isAtRisk),   // asc = At Risk first
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SF2 REPORT VIEW
@@ -196,6 +208,97 @@ function SF2Report({ subject, campusKey, schoolYear, user }) {
 // SUMMARY VIEW
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Attendance % bar + figure. Module level so rows never remount on re-render. */
+function PercentCell({ stats }) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="w-full max-w-20 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${stats.isAtRisk ? 'bg-[var(--color-error)]' : 'bg-[var(--color-success)]'}`}
+          style={{ width: `${Math.min(stats.attendancePercent, 100)}%` }}
+        />
+      </div>
+      <span className={`text-xs font-bold ${stats.isAtRisk ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success-text)]'}`}>
+        {stats.attendancePercent.toFixed(1)}%
+      </span>
+    </div>
+  )
+}
+
+function StatusPill({ stats }) {
+  return stats.isAtRisk ? (
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-error-light)] text-[var(--color-error-text)]">At Risk</span>
+  ) : (
+    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)]">Good</span>
+  )
+}
+
+/** Per-student attendance table. A child component so its hooks never sit behind SummaryView's empty-state return. */
+function SummaryTable({ summary }) {
+  const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(summary, {
+    sorters:     SUMMARY_SORTERS,
+    defaultSort: { key: 'percent', dir: 'asc' },            // lowest attendance first, so at-risk students lead
+    descFirst:   ['present', 'absent', 'late', 'excused'],
+    resetOn:     [summary.length],
+  })
+
+  return (
+    <div className="card overflow-hidden">
+      {/* Phones: stacked cards */}
+      <ul className="sm:hidden divide-y divide-[var(--color-border)]">
+        {rows.map(({ studentId, studentName, stats }) => (
+          <li key={studentId} className="px-4 py-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">{studentName}</p>
+              <StatusPill stats={stats} />
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {COUNT_COLS.map(c => (
+                <div key={c.key} className="text-center">
+                  <p className={`text-sm font-semibold ${c.cls}`}>{stats[c.key]}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">{c.label}</p>
+                </div>
+              ))}
+            </div>
+            <PercentCell stats={stats} />
+          </li>
+        ))}
+      </ul>
+
+      {/* Tablet / desktop: sortable table */}
+      <div className="hidden sm:block min-w-0 overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-[var(--color-bg-subtle)]">
+            <tr>
+              <SortTh label="Student" sortKey="student" sort={sort} onSort={onSort} />
+              {COUNT_COLS.map(c => (
+                <SortTh key={c.key} label={c.label} sortKey={c.key} sort={sort} onSort={onSort} className={`!text-center ${c.cls}`} />
+              ))}
+              <SortTh label="Attendance %" sortKey="percent" sort={sort} onSort={onSort} className="!text-center" />
+              <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} className="!text-center" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[var(--color-border)]">
+            {rows.map(({ studentId, studentName, stats }) => (
+              <tr key={studentId} className="table-row">
+                <td className="td"><span className="text-sm font-medium text-[var(--color-text-primary)]">{studentName}</span></td>
+                {COUNT_COLS.map(c => (
+                  <td key={c.key} className="td text-center"><span className={`text-sm font-semibold ${c.cls}`}>{stats[c.key]}</span></td>
+                ))}
+                <td className="td"><div className="mx-auto w-24"><PercentCell stats={stats} /></div></td>
+                <td className="td text-center"><StatusPill stats={stats} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <Pager page={page} pageCount={pageCount} total={total} onPage={setPage}
+             pageSize={pageSize} onPageSize={setPageSize} noun="student" />
+    </div>
+  )
+}
+
 function SummaryView({ subject, campusKey, schoolYear, attendanceConfig }) {
   const allRecords = getAttendance({
     campusKey, schoolYear,
@@ -249,55 +352,8 @@ function SummaryView({ subject, campusKey, schoolYear, attendanceConfig }) {
         </div>
       )}
 
-      {/* Student summary table */}
-      <div className="card overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[1fr_80px_80px_80px_80px_100px_100px] gap-2 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
-          <span>Student</span>
-          <span className="text-center text-[var(--color-success-text)]">Present</span>
-          <span className="text-center text-[var(--color-error-text)]">Absent</span>
-          <span className="text-center text-[var(--color-warning-text)]">Late</span>
-          <span className="text-center text-[var(--color-info-text)]">Excused</span>
-          <span className="text-center">Attendance %</span>
-          <span className="text-center">Status</span>
-        </div>
-        <div className="divide-y divide-[var(--color-border)]">
-          {summary.map(({ studentId, studentName, stats }) => (
-            <div key={studentId} className="grid grid-cols-1 sm:grid-cols-[1fr_80px_80px_80px_80px_100px_100px] gap-2 px-4 py-3 items-center hover:bg-[color-mix(in_srgb,var(--color-bg-subtle)_40%,transparent)] transition">
-              <p className="text-sm font-medium text-[var(--color-text-primary)]">{studentName}</p>
-              <div className="grid grid-cols-4 gap-2 sm:contents">
-                {COUNT_COLS.map(c => (
-                  <div key={c.key} className="text-center">
-                    <p className={`text-sm font-semibold ${c.cls}`}>{stats[c.key]}</p>
-                    <p className="sm:hidden text-[10px] text-[var(--color-text-muted)]">{c.label}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-full max-w-20 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${stats.isAtRisk ? 'bg-[var(--color-error)]' : 'bg-[var(--color-success)]'}`}
-                    style={{ width: `${Math.min(stats.attendancePercent, 100)}%` }}
-                  />
-                </div>
-                <span className={`text-xs font-bold ${stats.isAtRisk ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success-text)]'}`}>
-                  {stats.attendancePercent.toFixed(1)}%
-                </span>
-              </div>
-              <div className="flex justify-center">
-                {stats.isAtRisk ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-error-light)] text-[var(--color-error-text)]">
-                    At Risk
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)]">
-                    Good
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Student summary table (sortable + paged) */}
+      <SummaryTable summary={summary} />
     </div>
   )
 }

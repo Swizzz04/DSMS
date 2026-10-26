@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import {
   Search, DollarSign, Eye, Download, Receipt, Clock,
   CheckCircle, AlertCircle, XCircle, ChevronRight,
@@ -791,267 +791,12 @@ function DeptToggle({ value, onChange }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// TAB 1 — PAYMENT RECORDS
-// ─────────────────────────────────────────────────────────────────────
-function PaymentRecordsTab({ payments, campusName, exportToExcel, addToast }) {
-  const { isBasicGrade, isCollegeGrade } = useAppConfig()
-  const [search,      setSearch]      = useState('')
-  const [deptFilter,  setDeptFilter]  = useState('all')
-  const [yearFilter,  setYearFilter]  = useState('all')
-  const [methodFilter,setMethodFilter]= useState('all')
-  const [feeFilter,   setFeeFilter]   = useState('all')
-  const [dateFrom,    setDateFrom]    = useState('')
-  const [dateTo,      setDateTo]      = useState('')
-
-  const FEE_LABELS = { tuition:'Tuition Fee', misc:'Misc Fee', lab:'Lab Fee', books:'Books', other:'Other Fees' }
-
-  // Reset yearFilter when dept changes
-  const handleDeptChange = (dept) => { setDeptFilter(dept); setYearFilter('all') }
-
-  // Basic Ed — all groups from static config (all grades always shown)
-  const basicEdGroups = BASIC_ED_GROUPS.map(group => ({
-    label: group.label,
-    options: group.options.map(g => ({ value: g, label: g }))
-  }))
-
-  // College — all programs × all year levels (prop, falls back to empty)
-  const collegeGroups = (collegePrograms || []).map(prog => ({
-    label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
-  }))
-
-  // Flatten all payment history entries
-  const allTx = payments.flatMap(p =>
-    (p.paymentHistory || []).map(h => ({
-      ...h,
-      studentName:  p.studentName,
-      gradeLevel:   p.gradeLevel,
-      campus:       p.campus,
-      refNum:       p.studentId,
-      totalFee:     p.totalFee,
-      balance:      p.balance
-    }))
-  ).sort((a,b) => new Date(b.date||0) - new Date(a.date||0))
-
-  const filtered = allTx.filter(tx => {
-    const name = (tx.studentName||'').toLowerCase()
-    const or   = (tx.orNumber||'').toLowerCase()
-    const q    = search.toLowerCase()
-    if (q && !name.includes(q) && !or.includes(q)) return false
-    if (deptFilter === 'basic'   && !isBasicGrade(tx.gradeLevel)) return false
-    if (deptFilter === 'college' && !isCollegeGrade(tx.gradeLevel)) return false
-    if (yearFilter !== 'all' && tx.gradeLevel !== yearFilter) return false
-    if (methodFilter !== 'all' && tx.method !== methodFilter) return false
-    if (feeFilter !== 'all') {
-      const pf = tx.paymentFor || []
-      if (!pf.includes(feeFilter)) return false
-    }
-    if (dateFrom && new Date(tx.date) < new Date(dateFrom)) return false
-    if (dateTo   && new Date(tx.date) > new Date(dateTo + 'T23:59:59')) return false
-    return true
-  })
-
-  const totalFiltered = filtered.reduce((s,t) => s + (t.amount||0), 0)
-  const basicTotal    = allTx.filter(tx => isBasicGrade(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
-  const collegeTotal  = allTx.filter(tx => isCollegeGrade(tx.gradeLevel)).reduce((s,t) => s + (t.amount||0), 0)
-
-  const hasFilters = search || deptFilter !== 'all' || yearFilter !== 'all' || methodFilter !== 'all' || feeFilter !== 'all' || dateFrom || dateTo
-  const clearAll   = () => { setSearch(''); setDeptFilter('all'); setYearFilter('all'); setMethodFilter('all'); setFeeFilter('all'); setDateFrom(''); setDateTo('') }
-
-  const handleExport = () => {
-    const data = filtered.map(tx => ({
-      'OR Number':     tx.orNumber || '—',
-      'Reference #':   tx.refNum,
-      'Student Name':  tx.studentName,
-      'Department':    isCollegeGrade(tx.gradeLevel) ? 'College' : 'Basic Ed',
-      'Grade/Program': tx.gradeLevel,
-      'Payment For':   (tx.paymentFor||[]).map(k=>FEE_LABELS[k]||k).join(', ') || '—',
-      'Method':        tx.method || '—',
-      'Date':          tx.date ? new Date(tx.date).toLocaleDateString('en-PH') : '—',
-      'Amount':        tx.amount || 0,
-      'Notes':         tx.notes || ''
-    }))
-    exportToExcel(data, `Payment_Records_${new Date().toISOString().split('T')[0]}`, 'Payment Records')
-    addToast('Payment records exported!', 'success')
-  }
-
-  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—'
-  const phpFmt  = n => `₱${(n||0).toLocaleString('en-PH',{minimumFractionDigits:2})}`
-
-  return (
-    <div className="space-y-4">
-      {/* Filters */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] p-4 shadow-sm space-y-3">
-
-        {/* Row 1: Dept toggle + year sub-filter + Method + Fee + Search + Export */}
-        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center flex-wrap">
-          <DeptToggle value={deptFilter} onChange={handleDeptChange} />
-          {deptFilter === 'college' && collegeGroups.length > 0 && (
-            <div className="flex-shrink-0 min-w-[180px]">
-              <GroupedSelect
-                value={yearFilter}
-                onChange={setYearFilter}
-                allLabel="All Programs & Years"
-                groups={collegeGroups}
-              />
-            </div>
-          )}
-          {deptFilter === 'basic' && basicEdGroups.length > 0 && (
-            <div className="flex-shrink-0 min-w-[160px]">
-              <GroupedSelect
-                value={yearFilter}
-                onChange={setYearFilter}
-                allLabel="All Grades"
-                groups={basicEdGroups}
-              />
-            </div>
-          )}
-          <div className="flex-shrink-0 min-w-[130px]">
-            <GroupedSelect
-              value={methodFilter}
-              onChange={setMethodFilter}
-              allLabel="All Methods"
-              options={[
-                { value: 'Cash',          label: '💵 Cash'          },
-                { value: 'Bank Transfer', label: '🏦 Bank Transfer' },
-              ]}
-            />
-          </div>
-          <div className="flex-shrink-0 min-w-[130px]">
-            <GroupedSelect
-              value={feeFilter}
-              onChange={setFeeFilter}
-              allLabel="All Fee Types"
-              options={[
-                { value: 'tuition', label: 'Tuition Fee' },
-                { value: 'misc',    label: 'Misc Fee'    },
-                { value: 'lab',     label: 'Lab Fee'     },
-                { value: 'books',   label: 'Books'       },
-              ]}
-            />
-          </div>
-          <div className="relative flex-1 min-w-[160px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Search student or OR #..."
-              className="w-full pl-8 pr-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"/>
-          </div>
-          <ExportButton onClick={handleExport} size="sm" />
-        </div>
-
-        {/* Date range row */}
-        <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-[var(--color-border)]">
-          <div className="flex-1">
-            <DatePicker label="From" value={dateFrom} onChange={setDateFrom} placeholder="Start date" />
-          </div>
-          <div className="flex-1">
-            <DatePicker label="To" value={dateTo} onChange={setDateTo} placeholder="End date" />
-          </div>
-          {hasFilters && (
-            <button onClick={clearAll}
-              className="text-xs px-3 py-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-error-text)] border border-[var(--color-border)] rounded-lg transition whitespace-nowrap">
-              ✕ Clear all
-            </button>
-          )}
-        </div>
-
-        {/* Dept mini-summary (only when All is selected) */}
-        {deptFilter === 'all' && (basicTotal > 0 || collegeTotal > 0) && (
-          <div className="flex gap-3 pt-1">
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="w-2 h-2 rounded-full bg-[var(--color-success)] inline-block"/>
-              Basic Ed: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(basicTotal)}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="w-2 h-2 rounded-full bg-secondary inline-block"/>
-              College: <span className="font-semibold text-[var(--color-text-primary)] font-mono">{phpFmt(collegeTotal)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Table */}
-      <div className="bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-[var(--color-border)] flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-[var(--color-primary-readable)]"/>
-            <span className="text-sm font-semibold text-[var(--color-text-primary)]">
-              {deptFilter === 'basic' ? 'Basic Ed Transactions' : deptFilter === 'college' ? 'College Transactions' : 'All Transactions'}
-            </span>
-            <span className="text-xs bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] px-2 py-0.5 rounded-full">{filtered.length}</span>
-            {yearFilter !== 'all' && (
-              <span className="text-xs bg-primary/10 text-[var(--color-primary-readable)] px-2 py-0.5 rounded-full font-medium">{yearFilter}</span>
-            )}
-          </div>
-          <span className="text-sm font-bold text-[var(--color-success-text)] font-mono">{phpFmt(totalFiltered)}</span>
-        </div>
-        {filtered.length === 0 ? (
-          <div className="py-12 text-center text-[var(--color-text-muted)]">
-            <FileText className="w-8 h-8 mx-auto mb-2 opacity-30"/>
-            <p className="text-sm">No transactions match your filters</p>
-          </div>
-        ) : (
-          <div className="min-w-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px]">
-              <thead className="bg-[var(--color-bg-subtle)]">
-                <tr>
-                  {['OR Number','Student Name','Dept','Grade/Program','Payment For','Method','Date','Amount'].map(h => (
-                    <th key={h} className={`px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide ${h==='Amount'?'text-right':'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {filtered.map((tx,i) => {
-                  const isBasic = isBasicGrade(tx.gradeLevel)
-                  return (
-                  <tr key={i} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
-                    <td className="px-4 py-3 text-xs font-mono text-[var(--color-primary-readable)]">{tx.orNumber||'—'}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-[var(--color-text-primary)]">{tx.studentName}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap
-                        ${isBasic
-                          ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
-                          : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'
-                        }`}>
-                        {isBasic ? 'Basic Ed' : 'College'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{tx.gradeLevel}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(tx.paymentFor||['tuition']).map(k => (
-                          <span key={k} className="text-[10px] px-1.5 py-0.5 bg-secondary/10 dark:bg-secondary/30 text-[var(--color-secondary-readable)] rounded font-medium">
-                            {FEE_LABELS[k]||k}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{tx.method||'—'}</td>
-                    <td className="px-4 py-3 text-xs text-[var(--color-text-muted)]">{fmtDate(tx.date)}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">{phpFmt(tx.amount)}</td>
-                  </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
-                <tr>
-                  <td colSpan={7} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">Total</td>
-                  <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">{phpFmt(totalFiltered)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────
 // TAB 2 — STUDENT BALANCE
 // ─────────────────────────────────────────────────────────────────────
+/** Sorts Basic Ed before College (A→Z on the visible label), using the live grade groups. */
+const deptSorter = (isBasicGrade) => (a, b) =>
+  Number(!isBasicGrade(a.gradeLevel)) - Number(!isBasicGrade(b.gradeLevel))
+
 const BALANCE_SORTERS = {
   student:  (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
   grade:    (a, b) => String(a.gradeLevel || '').localeCompare(String(b.gradeLevel || ''), undefined, { numeric: true }),
@@ -1099,8 +844,10 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
   })
 
   // Sort + page (highest balance first until a column is clicked)
+  // Dept sort needs the live (admin-editable) grade groups, so it is added here and memoized
+  const balanceSorters = useMemo(() => ({ ...BALANCE_SORTERS, dept: deptSorter(isBasicGrade) }), [isBasicGrade])
   const bal = useTablePaging(filtered, {
-    sorters:     BALANCE_SORTERS,
+    sorters:     balanceSorters,
     defaultSort: { key: 'balance', dir: 'desc' },
     descFirst:   ['totalFee', 'paid', 'balance'],
     resetOn:     [search, deptFilter, yearFilter],
@@ -1224,7 +971,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
               <thead className="bg-[var(--color-bg-subtle)]">
                 <tr>
                   <SortTh label="Student" sortKey="student" sort={bal.sort} onSort={bal.onSort} />
-                  <th scope="col" className="th">Dept</th>
+                  <SortTh label="Dept" sortKey="dept" sort={bal.sort} onSort={bal.onSort} />
                   <SortTh label="Grade/Program" sortKey="grade" sort={bal.sort} onSort={bal.onSort} />
                   <SortTh label="Total Fee" sortKey="totalFee" sort={bal.sort} onSort={bal.onSort} className="!text-right" />
                   <SortTh label="Paid" sortKey="paid" sort={bal.sort} onSort={bal.onSort} className="!text-right" />
@@ -1782,8 +1529,10 @@ function DeptTag({ isBasic }) {
 
 function PaymentsListTable({ items, showCampus, resetKey, onView, onPay }) {
   const { isBasicGrade } = useAppConfig()
+  // Dept sort needs the live (admin-editable) grade groups, so it is added here and memoized
+  const paymentSorters = useMemo(() => ({ ...PAYMENT_SORTERS, dept: deptSorter(isBasicGrade) }), [isBasicGrade])
   const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(items, {
-    sorters:     PAYMENT_SORTERS,
+    sorters:     paymentSorters,
     defaultSort: { key: 'none', dir: 'asc' },          // keep the data order until a column is clicked
     descFirst:   ['totalFee', 'paid', 'balance', 'last'],
     resetOn:     [resetKey],
@@ -1839,7 +1588,7 @@ function PaymentsListTable({ items, showCampus, resetKey, onView, onPay }) {
           <thead className="bg-[var(--color-bg-subtle)]">
             <tr>
               <SortTh label="Student" sortKey="student" sort={sort} onSort={onSort} />
-              <th scope="col" className="th">Dept</th>
+              <SortTh label="Dept" sortKey="dept" sort={sort} onSort={onSort} />
               {showCampus && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
               <SortTh label="Grade / Program" sortKey="grade" sort={sort} onSort={onSort} />
               <SortTh label="Total Fee" sortKey="totalFee" sort={sort} onSort={onSort} />

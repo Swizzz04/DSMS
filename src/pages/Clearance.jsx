@@ -2,26 +2,30 @@
  * Clearance.jsx — ALMIRENE DX
  * Student Clearance Management — Standalone Page
  *
- * Who signs what (config/appConfig.js → CLEARANCE_DEPARTMENT_SIGNERS + user.clearanceDuties):
- *   librarian         → Library
- *   accounting        → Accounting (auto-clears at zero balance; may sign manually, with a
- *                       note, while a balance is owing)
- *   registrar_*       → Registrar
- *   guidance          → Guidance
- *   principal / program_head → Admin Office
- *   technical_admin   → any department
- *   any account       → plus the extra departments set in Settings → Users
- *                       (e.g. a teacher who is also the guidance in-charge)
- *   Departments sign in any order; Admin Office signs last.
+ * What a student must clear, and who signs each part, is NOT fixed in this file. The
+ * Technical Admin sets it up per school department (Basic Ed / College) in Settings →
+ * Workflow → Clearance (utils/clearanceConfigBridge.js). A requirement can be signed by:
+ *   - anyone with a role (e.g. the librarian), or specific accounts
+ *   - the student's subject instructors (one sign-off per subject, from Subject Load)
+ *   - the teacher of a named subject (e.g. the Math teacher), or the section adviser
+ *   - technical_admin signs anything; any account can be given extra requirements
+ *     (user.clearanceDuties, Settings → Users)
+ *   - a teacher-based sign-off with nobody assigned can be signed on behalf by the
+ *     Principal / Program Head, with a note
+ * The table's columns, the progress, the drawer and "Needs My Sign" are all built from the
+ * requirements stored on each clearance, so changing the setup changes this page.
  *
  * Rules:
- *   - Accounting auto-clears when the LIVE balance (almirene_submissions) is zero
- *   - Accounting may sign manually with a note while a balance is owing, so the student can
- *     still enroll next term. The balance at sign-off is recorded on the clearance.
+ *   - A requirement marked "signs last" opens only once every other requirement is signed
+ *   - Accounting-style requirements auto-clear when the LIVE balance (almirene_submissions) is
+ *     zero; they may be signed manually, with a note, while a balance is owing, so the student
+ *     can still enroll next term. The balance at sign-off is recorded on the clearance.
  *   - GRADUATION clearance needs a zero balance — accounting cannot sign it while one is owing
  *   - A student that cannot be found is never auto-cleared; accounting verifies manually
  *   - Sign-off is permanent once given — no unsigning
- *   - isFullyCleared when ALL 5 departments are cleared (and, for graduation, no balance)
+ *   - Open clearances follow the setup (a removed requirement drops away unless already signed,
+ *     a new one shows as pending); fully cleared ones never change
+ *   - A teacher who is not part of any department only sees the clearances they have to sign
  *
  * Campus:
  *   - A campus user (user.campusKey) works in their own campus — always.
@@ -30,10 +34,12 @@
  *   - campusKey ('Carcar') is what records store and filter on; the display name
  *     ('Carcar City Campus') comes from activeCampuses and is only for the screen.
  *
- * Refresh: same-window changes arrive as 'almirene_clearance_updated'; changes made in
- * ANOTHER window/tab arrive as the browser 'storage' event (clearance, payments, students).
+ * Refresh: same-window changes arrive as 'almirene_clearance_updated' (and the setup /
+ * Subject Load events); changes made in ANOTHER window/tab arrive as the browser 'storage'
+ * event (clearance, payments, students, setup, Subject Load).
  *
- * Bridge: src/utils/documentBridge.js (getClearances, updateDepartmentClearance, etc.)
+ * Bridge: src/utils/documentBridge.js (getClearances, signClearanceSlot, etc.) and
+ *         src/utils/clearanceConfigBridge.js (requirements, who may sign)
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -41,36 +47,54 @@ import { useSearchParams } from 'react-router-dom'
 import {
   ShieldCheck, Shield, Clock, CheckCircle, AlertCircle,
   Search, ChevronRight, X, Info, User, Building2,
-  Filter, Eye, CreditCard, BookOpen, Users, Plus, RefreshCw,
+  Filter, Eye, CreditCard, BookOpen, Users, Plus, RefreshCw, GraduationCap, UserCheck, Presentation,
 } from 'lucide-react'
 import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
-import { getClearanceDepartments, CLEARANCE_LAST_DEPARTMENT } from '../config/appConfig'
+import { CLEARANCE_DEPARTMENT_SCOPES } from '../config/appConfig'
+import { getClearanceRequirements, getClearanceProgress, canUserSignSlot, slotBlockReason } from '../utils/clearanceConfigBridge'
 import { getStudents } from '../utils/enrollmentBridge'
 import {
   PageSkeleton, useToast, ToastContainer, ModalPortal
 } from '../components/UIComponents'
 import ClearanceSignDialog from '../components/documents/ClearanceSignDialog'
 import {
-  getClearances, getClearanceById, createClearance,
-  checkAccountingStatus, CLEARANCE_DEPARTMENTS,
+  getClearances, getClearanceById, createClearance, syncAllClearances,
+  checkAccountingStatus,
   getClearanceBalance, clearanceRequiresZeroBalance,
-  getSignableDepartments, getClearanceWaitingOn,
+  getSignableDepartments, getSignableClearanceSlots, getClearanceWaitingOn,
+  getClearanceRequirementSummary, getRetiredClearanceSlots,
 } from '../utils/documentBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DEPT_ICONS = {
-  library:   BookOpen,
-  accounting: CreditCard,
-  registrar:  ShieldCheck,
-  guidance:   Users,
-  admin:      Building2,
+const ICONS = {
+  library:     BookOpen,
+  accounting:  CreditCard,
+  registrar:   ShieldCheck,
+  guidance:    Users,
+  admin:       Building2,
+  instructors: GraduationCap,
+  adviser:     UserCheck,
+}
+
+/** Icon when a requirement has none of its own: by what kind of signer it has. */
+const SIGNER_ICONS = {
+  student_instructors: GraduationCap,
+  subject_teacher:     Presentation,
+  section_adviser:     UserCheck,
+}
+
+const TEACHER_SIGNER_TYPES = ['student_instructors', 'subject_teacher', 'section_adviser']
+
+/** A requirement's icon: its own, else by id, else by signer type. Works for config rows, summaries and slots. */
+function iconFor(req) {
+  return ICONS[req?.icon] || ICONS[req?.id] || ICONS[req?.requirementId] || SIGNER_ICONS[req?.signerType] || Shield
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -92,9 +116,11 @@ function fmtDateTime(iso) {
   })
 }
 
-function getClearedCount(clearance) {
-  return CLEARANCE_DEPARTMENTS.filter(d => clearance.departments[d.id]?.cleared).length
-}
+/** Slots that still count (a signed sign-off whose requirement was later removed is "retired"). */
+const activeSlots = (clearance) => (clearance?.slots || []).filter(s => !s.retired)
+
+/** Signed / total over the required sign-offs, and the percent. */
+const getProgress = (clearance) => getClearanceProgress(clearance?.slots)
 
 /** "Library, Guidance" / "Library, Guidance +1" — what a clearance is waiting on. */
 function waitingLabel(clearance) {
@@ -103,70 +129,83 @@ function waitingLabel(clearance) {
   return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2}` : names.join(', ')
 }
 
-/** Storage keys that change what this page shows (clearances, live balances, student records). */
-const WATCHED_STORAGE_KEYS = ['almirene_clearance', 'almirene_submissions', 'almirene_students']
+/** Storage keys that change what this page shows (clearances, live balances, student records, the setup). */
+const WATCHED_STORAGE_KEYS = [
+  'almirene_clearance', 'almirene_submissions', 'almirene_students',
+  'almirene_clearance_requirements', 'almirene_subject_loads',
+]
 
 function fmtPeso(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function getProgressPct(clearance) {
-  return Math.round((getClearedCount(clearance) / CLEARANCE_DEPARTMENTS.length) * 100)
+/** True once every Accounting-style (balance-checking) sign-off of a clearance is signed. */
+function balanceCheckDone(clearance) {
+  const checks = activeSlots(clearance).filter(s => s.autoFromPayment)
+  return checks.length > 0 && checks.every(s => s.cleared)
+}
+
+/**
+ * The table's columns: the requirements of whichever school department(s) are on screen
+ * (Basic Ed, College, or both when the filter is "All"), in the order the Technical Admin set.
+ * A requirement that is still on a record but no longer configured (a frozen clearance, or a
+ * signed sign-off that was retired) is added at the end so nothing on screen goes missing.
+ * @returns {{id,label,icon,signerType,order,legacy?}[]}
+ */
+function buildColumns(list, scopeFilter) {
+  const present = scopeFilter !== 'all'
+    ? [scopeFilter]
+    : CLEARANCE_DEPARTMENT_SCOPES.map(s => s.id).filter(id => list.some(c => c.scope === id))
+  const cols = [], seen = new Set()
+  const add = (col) => { if (!seen.has(col.id)) { seen.add(col.id); cols.push(col) } }
+  present.forEach(sc => getClearanceRequirements(sc).forEach(r =>
+    add({ id: r.id, label: r.label, icon: r.icon, signerType: r.signer.type, order: r.order })))
+  list.forEach(c => getClearanceRequirementSummary(c).forEach(r =>
+    add({ id: r.id, label: r.label, icon: r.icon, signerType: r.signerType, order: r.order, legacy: true })))
+  // With both departments on screen, "signs last" requirements still end the row, and leftovers come after
+  const rank = (col) => col.legacy ? 2 : col.order === 'after_others' ? 1 : 0
+  return cols.map((col, i) => ({ col, i })).sort((a, b) => rank(a.col) - rank(b.col) || a.i - b.i).map(x => x.col)
+}
+
+/** Requirement id -> how far one clearance has got with it (undefined = not part of this clearance). */
+function summaryById(clearance) {
+  const out = {}
+  getClearanceRequirementSummary(clearance).forEach(e => { out[e.id] = e })
+  return out
 }
 
 /** Column sorters for the list (module-level so their identity never changes). */
 const CLEARANCE_SORTERS = {
   student:   (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
   reason:    (a, b) => (a.reason || '').localeCompare(b.reason || ''),
-  progress:  (a, b) => getClearedCount(a) - getClearedCount(b),
+  progress:  (a, b) => getProgress(a).percent - getProgress(b).percent,
   requested: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DEPARTMENT CHIP — compact inline dept status
+// REQUIREMENT CHIP — compact status for the phone list
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DeptChip({ deptId, info, compact = false }) {
-  const dept    = CLEARANCE_DEPARTMENTS.find(d => d.id === deptId)
-  const Icon    = DEPT_ICONS[deptId] ?? Shield
-  const cleared = info?.cleared === true
-
-  if (compact) {
-    return (
-      <span
-        title={`${dept?.label}: ${cleared ? `Cleared by ${info.clearedBy}` : 'Pending'}`}
-        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-bold
-          ${cleared
-            ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border border-[var(--color-success-border)]'
-            : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border border-[var(--color-border)]'}`}
-      >
-        {dept?.label[0]}
-      </span>
-    )
-  }
+function DeptChip({ label, entry }) {
+  const cleared = !!entry && entry.pending === 0
+  const partial = !!entry && !cleared && entry.cleared > 0
+  const state   = !entry ? 'not required' : cleared ? 'cleared' : partial ? `${entry.cleared}/${entry.total} signed` : 'pending'
 
   return (
-    <div className={`flex items-center gap-2 p-2.5 rounded-xl border transition-colors
-      ${cleared
-        ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
-        : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
-      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0
-        ${cleared ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
-        <Icon size={13} />
-      </div>
-      <div className="min-w-0">
-        <p className={`text-xs font-semibold truncate
-          ${cleared ? 'text-[var(--color-success)]' : 'text-[var(--color-text-secondary)]'}`}>
-          {dept?.label}
-        </p>
-        {cleared && (
-          <p className="text-[10px] text-[var(--color-text-muted)] truncate">{info.clearedBy}</p>
-        )}
-      </div>
-      {cleared
-        ? <CheckCircle size={13} className="text-[var(--color-success)] ml-auto shrink-0" />
-        : <Clock size={13} className="text-[var(--color-text-muted)] ml-auto shrink-0" />}
-    </div>
+    <span
+      title={`${label}: ${state}`}
+      aria-label={`${label}: ${state}`}
+      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-bold border
+        ${!entry
+          ? 'border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] opacity-50'
+          : cleared
+            ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
+            : partial
+              ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)]'
+              : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
+    >
+      {label?.[0]}
+    </span>
   )
 }
 
@@ -174,8 +213,88 @@ function DeptChip({ deptId, info, compact = false }) {
 // CLEARANCE DETAIL DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** One sign-off line in the drawer — a whole requirement, or one subject inside a group. */
+function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign }) {
+  const cleared = slot.cleared === true
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-xl border transition-colors ${nested ? 'p-2.5' : 'p-3'}
+        ${cleared
+          ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
+          : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}
+    >
+      {!nested && (
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
+          ${cleared ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+          <Icon size={15} />
+        </div>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className={`${nested ? 'text-xs' : 'text-sm'} font-semibold ${cleared ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
+            {nested ? slot.itemLabel : slot.label}
+          </p>
+          {slot.autoFromPayment && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-info-light)] text-[var(--color-info)] border border-[var(--color-info-border)] font-semibold">
+              AUTO
+            </span>
+          )}
+          {!nested && slot.itemLabel && (
+            <span className="text-[11px] text-[var(--color-text-muted)]">{slot.itemLabel}</span>
+          )}
+          {!cleared && slot.unassigned && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border border-[var(--color-warning-border)] font-semibold">
+              NO TEACHER ASSIGNED
+            </span>
+          )}
+        </div>
+
+        {cleared ? (
+          <>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+              {slot.clearedBy} · {fmtDateTime(slot.clearedAt)}
+            </p>
+            {slot.signedOnBehalf && (
+              <p className="text-[11px] text-[var(--color-warning-text)] mt-0.5 font-semibold">
+                Signed on behalf — no teacher was assigned
+              </p>
+            )}
+            {slot.withBalance && (
+              <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">
+                Cleared with balance of {fmtPeso(slot.balanceAtSignoff)}
+              </p>
+            )}
+            {slot.balanceUnverified && (
+              <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">Balance verified manually</p>
+            )}
+            {slot.note && (
+              <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5 break-words">Note: {slot.note}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+            {waitText || (slot.teacherName ? `Waiting for ${slot.teacherName}` : 'Pending')}
+          </p>
+        )}
+      </div>
+
+      {cleared
+        ? <CheckCircle size={nested ? 14 : 16} className="text-[var(--color-success)] shrink-0" />
+        : canSign
+          ? (
+            <button onClick={onSign} className="btn btn-primary text-xs py-1.5 px-3 shrink-0">
+              {signLabel}
+            </button>
+          )
+          : <Clock size={nested ? 14 : 16} className="text-[var(--color-text-muted)] shrink-0" />
+      }
+    </div>
+  )
+}
+
 function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose }) {
-  const [confirmDept, setConfirmDept] = useState(null)
+  const [confirmSlot, setConfirmSlot] = useState(null)   // the slot being signed
   const { toasts, addToast, removeToast } = useToast()
 
   // Live balance, read fresh from the payment records every render
@@ -183,14 +302,32 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
   const owing        = balInfo.found && balInfo.balance > 0
   const zeroRequired = clearanceRequiresZeroBalance(clearance)
 
-  const pct       = getProgressPct(clearance)
-  const clearedN  = getClearedCount(clearance)
+  const progress  = getProgress(clearance)
+  const pct       = progress.percent
 
-  // The workflow engine decides who can sign what, in which order (role + step + blocking rules)
-  const signable = getSignableDepartments(currentUser, clearance)
+  // Who can sign what, in which order, is decided per sign-off (role / account / assigned teacher,
+  // order rule, blocking rules) — the bridge answers it, this page only shows it
+  const signableIds = new Set(getSignableClearanceSlots(currentUser, clearance).map(s => s.id))
 
   // Accounting cannot sign a graduation clearance while a balance is owing
   const accountingBlocked = zeroRequired && owing
+
+  const groups  = getClearanceRequirementSummary(clearance)
+  const slots   = activeSlots(clearance)
+  const retired = getRetiredClearanceSlots(clearance)
+  // Setup notes (e.g. "no section yet") — missing teachers already show on their own row
+  const notes   = (clearance.slotWarnings || []).filter(w => w.code !== 'unassigned')
+
+  const waitTextFor = (slot) => {
+    if (slot.autoFromPayment && accountingBlocked) return 'Blocked — balance owing'
+    if (slot.order === 'after_others' && slotBlockReason(clearance.slots, slot.id)) return 'Opens after the other requirements sign'
+    return null
+  }
+  const signLabelFor = (slot) => {
+    if (slot.autoFromPayment && (owing || !balInfo.found)) return 'Sign with note'
+    if (slot.unassigned) return 'Sign on behalf'
+    return 'Sign'
+  }
 
   return (
     <ModalPortal>
@@ -228,7 +365,7 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
                   Clearance Progress
                 </span>
                 <span className="text-xs font-bold text-[var(--color-text-primary)]">
-                  {clearedN} / {CLEARANCE_DEPARTMENTS.length} departments
+                  {progress.cleared} / {progress.total} sign-offs
                 </span>
               </div>
               <div className="h-2 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
@@ -288,93 +425,92 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
               ))}
             </div>
 
-            {/* Department sign-off grid */}
+            {notes.length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-text-secondary)]">
+                <AlertCircle size={13} className="text-[var(--color-warning)] shrink-0 mt-0.5" />
+                <ul className="space-y-0.5">
+                  {notes.map((w, i) => <li key={`${w.code}-${i}`}>{w.message}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {/* Sign-offs, one block per requirement — as set up by the Technical Admin */}
             <div>
-              <p className="text-label text-[var(--color-text-muted)] mb-3">Department Sign-offs</p>
+              <p className="text-label text-[var(--color-text-muted)] mb-3">Sign-offs</p>
               <div className="space-y-2">
-                {CLEARANCE_DEPARTMENTS.map(dept => {
-                  const info    = clearance.departments[dept.id] ?? {}
-                  const cleared = info.cleared === true
-                  const isAuto  = dept.autoFromPayment
-                  const canSignDept = signable.includes(dept.id)
-                  const Icon    = DEPT_ICONS[dept.id] ?? Shield
+                {groups.map(g => {
+                  const Icon  = iconFor(g)
+                  const items = slots.filter(s => s.requirementId === g.id)
 
+                  // One sign-off: a plain row
+                  if (items.length === 1) {
+                    const s = items[0]
+                    return (
+                      <SignoffRow
+                        key={s.id} slot={s} Icon={Icon}
+                        canSign={signableIds.has(s.id)}
+                        waitText={waitTextFor(s)}
+                        signLabel={signLabelFor(s)}
+                        onSign={() => setConfirmSlot(s)}
+                      />
+                    )
+                  }
+
+                  // Several sign-offs (e.g. one per subject): a block with a row each
+                  const done = g.pending === 0
                   return (
-                    <div
-                      key={dept.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl border transition-colors
-                        ${cleared
-                          ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
-                          : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}
-                    >
-                      {/* Icon */}
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
-                        ${cleared ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
-                        <Icon size={15} />
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className={`text-sm font-semibold ${cleared ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
-                            {dept.label}
-                          </p>
-                          {isAuto && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-info-light)] text-[var(--color-info)] border border-[var(--color-info-border)] font-semibold">
-                              AUTO
-                            </span>
-                          )}
+                    <div key={g.id} className={`rounded-xl border p-3 space-y-2
+                      ${done
+                        ? 'bg-[var(--color-success-light)] border-[var(--color-success-border)]'
+                        : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
+                          ${done ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+                          <Icon size={15} />
                         </div>
-                        {cleared
-                          ? <>
-                              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                                {info.clearedBy} · {fmtDateTime(info.clearedAt)}
-                              </p>
-                              {info.withBalance && (
-                                <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">
-                                  Cleared with balance of {fmtPeso(info.balanceAtSignoff)}
-                                </p>
-                              )}
-                              {info.balanceUnverified && (
-                                <p className="text-[11px] text-[var(--color-warning)] mt-0.5 font-semibold">
-                                  Balance verified manually
-                                </p>
-                              )}
-                              {info.note && (
-                                <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5 break-words">
-                                  Note: {info.note}
-                                </p>
-                              )}
-                            </>
-                          : <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                              {dept.id === 'accounting' && accountingBlocked
-                                ? 'Blocked — balance owing'
-                                : dept.id === CLEARANCE_LAST_DEPARTMENT && getClearanceWaitingOn(clearance).some(d => d.id !== CLEARANCE_LAST_DEPARTMENT)
-                                  ? 'Opens after the other departments sign'
-                                  : 'Pending'}
-                            </p>
-                        }
+                        <p className={`flex-1 text-sm font-semibold ${done ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
+                          {g.label}
+                        </p>
+                        <span className="text-xs font-bold tabular-nums text-[var(--color-text-secondary)]">
+                          {g.cleared} / {g.total} signed
+                        </span>
                       </div>
-
-                      {/* Action */}
-                      {cleared
-                        ? <CheckCircle size={16} className="text-[var(--color-success)] shrink-0" />
-                        : canSignDept
-                          ? (
-                            <button
-                              onClick={() => setConfirmDept(dept.id)}
-                              className="btn btn-primary text-xs py-1.5 px-3 shrink-0"
-                            >
-                              {dept.id === 'accounting' && (owing || !balInfo.found) ? 'Sign with note' : 'Sign'}
-                            </button>
-                          )
-                          : <Clock size={16} className="text-[var(--color-text-muted)] shrink-0" />
-                      }
+                      <div className="space-y-1.5">
+                        {items.map(s => (
+                          <SignoffRow
+                            key={s.id} slot={s} Icon={Icon} nested
+                            canSign={signableIds.has(s.id)}
+                            waitText={waitTextFor(s)}
+                            signLabel={signLabelFor(s)}
+                            onSign={() => setConfirmSlot(s)}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )
                 })}
               </div>
             </div>
+
+            {/* Signed, then taken off the requirements list */}
+            {retired.length > 0 && (
+              <div>
+                <p className="text-label text-[var(--color-text-muted)] mb-2">No longer required</p>
+                <ul className="space-y-1.5">
+                  {retired.map(s => (
+                    <li key={s.id} className="flex items-center gap-2 p-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-xs">
+                      <CheckCircle size={13} className="text-[var(--color-text-muted)] shrink-0" />
+                      <span className="font-medium text-[var(--color-text-secondary)]">
+                        {s.label}{s.itemLabel ? ` — ${s.itemLabel}` : ''}
+                      </span>
+                      <span className="text-[var(--color-text-muted)] ml-auto text-right">
+                        signed by {s.clearedBy} · {fmtDate(s.clearedAt)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Fully cleared banner */}
             {clearance.isFullyCleared && (
@@ -383,7 +519,7 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
                 <div>
                   <p className="text-sm font-bold text-[var(--color-success)]">Fully Cleared</p>
                   <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                    All departments cleared on {fmtDate(clearance.completedAt)}.
+                    All sign-offs complete on {fmtDate(clearance.completedAt)}.
                     Registrar may now release requested credentials.
                   </p>
                 </div>
@@ -395,12 +531,13 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
         </div>
       </div>
 
-      {confirmDept && (
+      {confirmSlot && (
         <ClearanceSignDialog
           clearance={clearance}
-          deptId={confirmDept}
+          deptId={confirmSlot.requirementId}
+          slotId={confirmSlot.id}
           user={currentUser}
-          onClose={() => setConfirmDept(null)}
+          onClose={() => setConfirmSlot(null)}
           onSigned={(_fresh, label) => { addToast(`${label} clearance signed.`, 'success'); onUpdate() }}
           onError={(msg) => addToast(msg, 'error')}
         />
@@ -433,49 +570,77 @@ function StatusPill({ clearance, needsMySign, compact = false }) {
   )
 }
 
-/** One department's sign-off as a round check / clock — a column cell in the table. */
-function DeptCell({ deptId, info }) {
-  const dept    = CLEARANCE_DEPARTMENTS.find(d => d.id === deptId)
-  const cleared = info?.cleared === true
+/** One requirement's sign-off as a round check / clock — a column cell in the table. */
+function DeptCell({ label, entry, info }) {
+  // Not part of this clearance (e.g. a College-only requirement on a Basic Ed student)
+  if (!entry) {
+    return (
+      <span className="text-[var(--color-text-muted)] opacity-50" title={`${label}: not required`}>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">{label}: not required</span>
+      </span>
+    )
+  }
+
+  const cleared = entry.pending === 0
+  const partial = !cleared && entry.cleared > 0
+
+  // Several sign-offs (one per subject): show the count
+  if (entry.total > 1) {
+    return (
+      <span
+        title={`${label}: ${entry.cleared} of ${entry.total} signed`}
+        className={`inline-flex items-center justify-center min-w-[2.25rem] px-1.5 h-6 rounded-full border text-[10px] font-bold tabular-nums
+          ${cleared
+            ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
+            : partial
+              ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)]'
+              : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
+      >
+        {entry.cleared}/{entry.total}
+        <span className="sr-only"> {label}: {entry.cleared} of {entry.total} signed</span>
+      </span>
+    )
+  }
+
   return (
     <span
-      title={`${dept?.label}: ${cleared ? `Cleared by ${info.clearedBy}` : 'Pending'}`}
+      title={`${label}: ${cleared ? `Cleared by ${info?.clearedBy ?? '—'}` : 'Pending'}`}
       className={`inline-flex items-center justify-center w-6 h-6 rounded-full border
         ${cleared
           ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
           : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
     >
       {cleared ? <CheckCircle size={13} /> : <Clock size={12} />}
-      <span className="sr-only">{dept?.label}: {cleared ? 'cleared' : 'pending'}</span>
+      <span className="sr-only">{label}: {cleared ? 'cleared' : 'pending'}</span>
     </span>
   )
 }
 
 /** Progress as "3/5" with a thin bar. */
 function ProgressCell({ clearance }) {
-  const pct      = getProgressPct(clearance)
-  const clearedN = getClearedCount(clearance)
+  const { cleared, total, percent } = getProgress(clearance)
   return (
     <div className="flex items-center gap-2">
       <div className="hidden 2xl:block h-1.5 w-12 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full"
           style={{
-            width: `${pct}%`,
+            width: `${percent}%`,
             backgroundColor: clearance.isFullyCleared
               ? 'var(--color-success)'
-              : pct >= 60 ? 'var(--color-warning)' : 'var(--color-primary)',
+              : percent >= 60 ? 'var(--color-warning)' : 'var(--color-primary)',
           }}
         />
       </div>
       <span className="text-xs font-semibold text-[var(--color-text-muted)] tabular-nums">
-        {clearedN}/{CLEARANCE_DEPARTMENTS.length}
+        {cleared}/{total}
       </span>
     </div>
   )
 }
 
-function ClearanceTable({ rows, studentMap, signMap, showCampus, campusNameOf, sort, onSort, onSelect }) {
+function ClearanceTable({ rows, columns, summaries, studentMap, signMap, showCampus, campusNameOf, sort, onSort, onSelect }) {
   return (
     <div className="hidden md:block overflow-x-auto">
       <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
@@ -484,14 +649,15 @@ function ClearanceTable({ rows, studentMap, signMap, showCampus, campusNameOf, s
             <SortTh label="Student" sortKey="student" sort={sort} onSort={onSort} />
             <SortTh label="Reason" sortKey="reason" sort={sort} onSort={onSort} />
             {showCampus && <th scope="col" className="th">Campus</th>}
-            {CLEARANCE_DEPARTMENTS.map(d => {
-              const Icon = DEPT_ICONS[d.id] ?? Shield
+            {columns.map(col => {
+              const Icon = iconFor(col)
               return (
-                <th key={d.id} scope="col" className="th text-center !px-2" title={d.label}>
-                  <span className="inline-flex items-center gap-1">
+                <th key={col.id} scope="col" className="th text-center !px-2"
+                    title={col.legacy ? `${col.label} (no longer required for new clearances)` : col.label}>
+                  <span className={`inline-flex items-center gap-1 ${col.legacy ? 'opacity-70' : ''}`}>
                     <Icon size={14} />
-                    <span className="hidden 2xl:inline">{d.label}</span>
-                    <span className="2xl:hidden sr-only">{d.label}</span>
+                    <span className="hidden 2xl:inline">{col.label}</span>
+                    <span className="2xl:hidden sr-only">{col.label}</span>
                   </span>
                 </th>
               )
@@ -505,6 +671,7 @@ function ClearanceTable({ rows, studentMap, signMap, showCampus, campusNameOf, s
           {rows.map(c => {
             const st          = studentMap.get(c.studentId)
             const needsMySign = signMap.get(c.id) === true
+            const mine        = summaries.get(c.id) || {}
             return (
               <tr
                 key={c.id}
@@ -527,9 +694,9 @@ function ClearanceTable({ rows, studentMap, signMap, showCampus, campusNameOf, s
                 </td>
                 <td className="td text-[var(--color-text-secondary)]">{c.reason || 'General Clearance'}</td>
                 {showCampus && <td className="td text-[var(--color-text-secondary)]" title={campusNameOf(c.campusKey)}>{campusNameOf(c.campusKey).replace(/ Campus$/, '')}</td>}
-                {CLEARANCE_DEPARTMENTS.map(d => (
-                  <td key={d.id} className="td text-center !px-2">
-                    <DeptCell deptId={d.id} info={c.departments[d.id]} />
+                {columns.map(col => (
+                  <td key={col.id} className="td text-center !px-2">
+                    <DeptCell label={col.label} entry={mine[col.id]} info={c.departments?.[col.id]} />
                   </td>
                 ))}
                 <td className="td"><ProgressCell clearance={c} /></td>
@@ -545,12 +712,14 @@ function ClearanceTable({ rows, studentMap, signMap, showCampus, campusNameOf, s
 }
 
 /** Phone / small-tablet list: one tappable row per clearance. */
-function ClearanceMobileList({ rows, studentMap, signMap, showCampus, campusNameOf, onSelect }) {
+function ClearanceMobileList({ rows, columns, summaries, studentMap, signMap, showCampus, campusNameOf, onSelect }) {
   return (
     <ul className="md:hidden divide-y divide-[var(--color-border)]">
       {rows.map(c => {
         const st          = studentMap.get(c.studentId)
         const needsMySign = signMap.get(c.id) === true
+        const mine        = summaries.get(c.id) || {}
+        const progress    = getProgress(c)
         return (
           <li key={c.id}>
             <button
@@ -574,13 +743,13 @@ function ClearanceMobileList({ rows, studentMap, signMap, showCampus, campusName
                 {showCampus ? ` · ${campusNameOf(c.campusKey)}` : ''}
               </p>
               <div className="mt-2.5 flex items-center justify-between gap-3">
-                <div className="flex gap-1">
-                  {CLEARANCE_DEPARTMENTS.map(d => (
-                    <DeptChip key={d.id} deptId={d.id} info={c.departments[d.id]} compact />
+                <div className="flex flex-wrap gap-1">
+                  {columns.filter(col => mine[col.id]).map(col => (
+                    <DeptChip key={col.id} label={col.label} entry={mine[col.id]} />
                   ))}
                 </div>
                 <span className="text-[10px] text-[var(--color-text-muted)] font-semibold tabular-nums">
-                  {getClearedCount(c)}/{CLEARANCE_DEPARTMENTS.length}
+                  {progress.cleared}/{progress.total}
                 </span>
               </div>
             </button>
@@ -898,12 +1067,31 @@ export default function Clearance() {
   const schoolYear = currentSchoolYear || '2026-2027'
   const role       = user?.role
 
-  // Which departments can this account sign? (their role + any extra duties; Super Admin: all)
+  // Which requirements can this account sign? Read from the Technical Admin's setup: the roles /
+  // accounts a requirement lists, requirements given to this account as extra duties, and — for a
+  // teacher — the teacher-based ones (their own subjects / section). Super Admin signs all.
   const isSuperAdmin = role === 'technical_admin'
-  const myDepts      = getClearanceDepartments(user)
-  const showMine     = myDepts.length > 0
-  const myDeptLabels = myDepts.map(id => CLEARANCE_DEPARTMENTS.find(d => d.id === id)?.label).filter(Boolean)
-  const pureAccounting = !isSuperAdmin && myDepts.length === 1 && myDepts[0] === 'accounting'
+  const [configTick, setConfigTick] = useState(0)     // bumped when the setup changes
+  const myReqs = useMemo(() => {
+    if (!user) return []
+    const found = new Map()
+    CLEARANCE_DEPARTMENT_SCOPES.forEach(sc => getClearanceRequirements(sc.id).forEach(r => {
+      const t = r.signer.type
+      const mine =
+        (t === 'role' && r.signer.roles.includes(role)) ||
+        (t === 'user' && r.signer.userIds.some(id => String(id) === String(user.id))) ||
+        (Array.isArray(user.clearanceDuties) && user.clearanceDuties.includes(r.id)) ||
+        (TEACHER_SIGNER_TYPES.includes(t) && role === 'teacher')
+      if (mine && !found.has(r.id)) found.set(r.id, r)
+    }))
+    return [...found.values()]
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, role, configTick])
+  const myLabels       = myReqs.map(r => r.label)
+  const showMine       = isSuperAdmin || myReqs.length > 0
+  const pureAccounting = !isSuperAdmin && myReqs.length > 0 && myReqs.every(r => r.autoFromPayment)
+  // A teacher with no department of their own only sees the clearances they have to sign
+  const restrictToMine = !isSuperAdmin && myReqs.length > 0 && myReqs.every(r => TEACHER_SIGNER_TYPES.includes(r.signer.type))
   const isRegistrar  = ['registrar_basic', 'registrar_college', 'technical_admin'].includes(role)
 
   const [clearances,   setClearances]   = useState([])
@@ -912,17 +1100,25 @@ export default function Clearance() {
   const [search,       setSearch]       = useState('')
   const [selected,     setSelected]     = useState(null)
   const [showNew,      setShowNew]      = useState(false)
-  const [waitFilter,   setWaitFilter]   = useState('all')      // a department id, or 'all'
+  const [waitFilter,   setWaitFilter]   = useState('all')      // a requirement id, or 'all'
+  const [scopeFilter,  setScopeFilter]  = useState('all')      // 'basicEd' | 'college' | 'all'
   const { toasts, addToast, removeToast } = useToast()
 
   const loadData = useCallback(() => {
     try {
+      // Save whatever the setup / Subject Load changed on open clearances (no-op when nothing did)
+      syncAllClearances()
+
       // An empty campusKey means "All Campuses" — getClearances skips the campus filter
       let all = getClearances({ campusKey, schoolYear })
 
-      // Accounting role: only show clearances where accounting dept hasn't cleared yet
+      // Accounting role: only show clearances where the balance check hasn't been signed yet
       if (pureAccounting) {
-        all = all.filter(c => !c.departments.accounting?.cleared)
+        all = all.filter(c => !balanceCheckDone(c))
+      }
+      // A teacher: only the clearances they have a sign-off in
+      if (restrictToMine) {
+        all = all.filter(c => activeSlots(c).some(sl => canUserSignSlot(user, sl)))
       }
 
       setClearances(all)
@@ -931,7 +1127,7 @@ export default function Clearance() {
     } finally {
       setLoading(false)
     }
-  }, [campusKey, schoolYear, pureAccounting])
+  }, [campusKey, schoolYear, pureAccounting, restrictToMine, user])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -965,13 +1161,18 @@ export default function Clearance() {
       loadData()
       setSelected(prev => (prev ? (getClearanceById(prev.id) ?? prev) : prev))
     }
+    // The setup or Subject Load changed: the columns and the teachers on each sign-off may differ
+    const refreshSetup = () => { setConfigTick(t => t + 1); refresh() }
     const onStorage = (e) => {
-      if (e.key === null || WATCHED_STORAGE_KEYS.includes(e.key)) refresh()
+      if (e.key === null || WATCHED_STORAGE_KEYS.includes(e.key)) refreshSetup()
     }
+    const SETUP_EVENTS = ['almirene_clearance_config_updated', 'almirene_subject_load_updated']
     window.addEventListener('almirene_clearance_updated', refresh)
+    SETUP_EVENTS.forEach(ev => window.addEventListener(ev, refreshSetup))
     window.addEventListener('storage', onStorage)
     return () => {
       window.removeEventListener('almirene_clearance_updated', refresh)
+      SETUP_EVENTS.forEach(ev => window.removeEventListener(ev, refreshSetup))
       window.removeEventListener('storage', onStorage)
     }
   }, [loadData])
@@ -995,17 +1196,19 @@ export default function Clearance() {
     return m
   }, [campusKey, clearances])
 
-  const waitOptions = CLEARANCE_DEPARTMENTS.map(d => ({ value: d.id, label: d.label }))
+  // Which school departments are in the data (the department filter only shows when there are two)
+  const scopesPresent = CLEARANCE_DEPARTMENT_SCOPES.filter(sc => clearances.some(c => c.scope === sc.id))
+  const scopeOptions  = scopesPresent.map(sc => ({ value: sc.id, label: sc.label }))
 
-  // Apply filters + search
-  const filtered = useMemo(() => {
+  // Status + department + search first; the columns come from what is left, then "waiting on"
+  const baseList = useMemo(() => {
     let list = clearances
 
     if (filter === 'pending')       list = list.filter(c => !c.isFullyCleared)
     else if (filter === 'cleared')  list = list.filter(c => c.isFullyCleared)
     else if (filter === 'needs-me' && showMine) list = list.filter(c => signMap.get(c.id))
 
-    if (waitFilter !== 'all')   list = list.filter(c => getClearanceWaitingOn(c).some(d => d.id === waitFilter))
+    if (scopeFilter !== 'all') list = list.filter(c => c.scope === scopeFilter)
 
     const q = search.trim().toLowerCase()
     if (q) {
@@ -1015,16 +1218,35 @@ export default function Clearance() {
         String(studentMap.get(c.studentId)?.studentId || '').toLowerCase().includes(q)
       )
     }
-
     return list
-  }, [clearances, filter, waitFilter, search, showMine, signMap, studentMap])
+  }, [clearances, filter, scopeFilter, search, showMine, signMap, studentMap])
+
+  // The table's columns follow the requirements of the clearances on screen
+  const columns   = useMemo(() => buildColumns(baseList, scopeFilter), [baseList, scopeFilter])
+  const summaries = useMemo(() => new Map(clearances.map(c => [c.id, summaryById(c)])), [clearances])
+  const waitOptions = columns.filter(col => !col.legacy).map(col => ({ value: col.id, label: col.label }))
+
+  const filtered = useMemo(
+    () => waitFilter === 'all'
+      ? baseList
+      : baseList.filter(c => getClearanceWaitingOn(c).some(d => d.id === waitFilter)),
+    [baseList, waitFilter]
+  )
+
+  // A filter that points at something no longer on screen (the setup changed) goes back to "any"
+  useEffect(() => {
+    if (waitFilter !== 'all' && !columns.some(col => col.id === waitFilter)) setWaitFilter('all')
+  }, [columns, waitFilter])
+  useEffect(() => {
+    if (scopeFilter !== 'all' && !scopesPresent.some(sc => sc.id === scopeFilter)) setScopeFilter('all')
+  }, [scopesPresent, scopeFilter])
 
   // Sort + page the filtered list (back to page 1 when the filters, search or campus change)
   const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(filtered, {
     sorters:     CLEARANCE_SORTERS,
     defaultSort: { key: 'requested', dir: 'desc' },
     descFirst:   ['requested', 'progress'],
-    resetOn:     [filter, waitFilter, search, campusKey],
+    resetOn:     [filter, waitFilter, scopeFilter, search, campusKey],
   })
 
   const filterOptions = [
@@ -1033,8 +1255,8 @@ export default function Clearance() {
     { id: 'cleared', label: `Cleared (${clearances.filter(c => c.isFullyCleared).length})` },
     ...(showMine ? [{ id: 'needs-me', label: `Needs My Sign (${needsMeCount})` }] : []),
   ]
-  const hasExtraFilters = waitFilter !== 'all' || search.trim() !== ''
-  const clearExtraFilters = () => { setWaitFilter('all'); setSearch('') }
+  const hasExtraFilters = waitFilter !== 'all' || scopeFilter !== 'all' || search.trim() !== ''
+  const clearExtraFilters = () => { setWaitFilter('all'); setScopeFilter('all'); setSearch('') }
 
   if (loading) return <PageSkeleton />
 
@@ -1046,14 +1268,14 @@ export default function Clearance() {
           <h1 className="text-display text-[var(--color-text-primary)]">Student Clearance</h1>
           <p className="text-body text-[var(--color-text-muted)] mt-1">
             {schoolYear} · {campusName}
-            {!isSuperAdmin && myDeptLabels.length > 0 && (
+            {!isSuperAdmin && myLabels.length > 0 && (
               <span className="ml-2 badge" style={{
                 background: 'var(--color-secondary-muted)',
                 color: 'var(--color-secondary)',
                 border: '1px solid var(--color-secondary)',
                 display: 'inline-flex'
               }}>
-                {myDeptLabels.join(' + ')} — My {myDeptLabels.length > 1 ? 'Departments' : 'Department'}
+                {myLabels.join(' + ')} — My {myLabels.length > 1 ? 'Requirements' : 'Requirement'}
               </span>
             )}
           </p>
@@ -1069,21 +1291,22 @@ export default function Clearance() {
       </div>
 
       {/* ── Role notice ───────────────────────────────────────────────────── */}
-      {!isSuperAdmin && myDeptLabels.length > 0 && (
+      {!isSuperAdmin && myLabels.length > 0 && (
         <div className="flex items-start gap-2.5 p-4 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)]">
           <Info size={15} className="text-[var(--color-info)] shrink-0 mt-0.5" />
           <div className="text-sm">
             <span className="font-semibold text-[var(--color-info)]">Your role: </span>
             <span className="text-[var(--color-text-secondary)]">
-              You can sign off the <strong>{myDeptLabels.join(', ')}</strong> clearance for each student.
-              Departments can sign in any order, except Admin Office, which signs last once the others are done.
-              Once signed, it cannot be reversed. All other departments are managed by their respective officers.
+              You can sign off the <strong>{myLabels.join(', ')}</strong> clearance for each student.
+              {restrictToMine && ' You only see the students whose clearance needs your signature, for your own subjects or section.'}
+              {' '}Sign-offs can happen in any order, except those marked as signing last, which open once the others are done.
+              Once signed, it cannot be reversed. Everything else is handled by its own officer.
             </span>
           </div>
         </div>
       )}
 
-      {myDepts.includes('accounting') && !isSuperAdmin && (
+      {myReqs.some(r => r.autoFromPayment) && !isSuperAdmin && (
         <div className="flex items-start gap-2.5 p-4 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)]">
           <AlertCircle size={15} className="text-[var(--color-warning)] shrink-0 mt-0.5" />
           <p className="text-sm text-[var(--color-text-secondary)]">
@@ -1127,10 +1350,20 @@ export default function Clearance() {
               aria-label="Search clearances"
             />
           </div>
+          {scopeOptions.length > 1 && (
+            <GroupedSelect
+              value={scopeFilter}
+              onChange={setScopeFilter}
+              allLabel="All departments"
+              placeholder="Department"
+              options={scopeOptions}
+              className="md:w-52"
+            />
+          )}
           <GroupedSelect
             value={waitFilter}
             onChange={setWaitFilter}
-            allLabel="Any department"
+            allLabel="Any requirement"
             placeholder="Waiting on…"
             options={waitOptions}
             className="md:w-52"
@@ -1153,7 +1386,7 @@ export default function Clearance() {
               : filter === 'pending'
                 ? 'All students are fully cleared for this school year.'
                 : filter === 'needs-me'
-                  ? 'All clearances in your department are signed.'
+                  ? 'Every clearance you can sign is already signed.'
                   : 'Clearance records are created when students request credentials.'}
           </p>
           {hasExtraFilters && (
@@ -1164,6 +1397,8 @@ export default function Clearance() {
         <div className="card-section border border-[var(--color-border)]">
           <ClearanceTable
             rows={rows}
+            columns={columns}
+            summaries={summaries}
             studentMap={studentMap}
             signMap={signMap}
             showCampus={!campusKey}
@@ -1174,6 +1409,8 @@ export default function Clearance() {
           />
           <ClearanceMobileList
             rows={rows}
+            columns={columns}
+            summaries={summaries}
             studentMap={studentMap}
             signMap={signMap}
             showCampus={!campusKey}

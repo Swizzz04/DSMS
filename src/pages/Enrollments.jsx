@@ -1277,7 +1277,8 @@ function EnrollmentList({
                   </td>
                 )}
                 <td className="td text-right">
-                  <div className="flex items-center justify-end gap-2">
+                  {/* Below 2xl the actions stack (Record on top, Approve under it) so the row never overflows */}
+                  <div className="flex flex-col items-end gap-1.5 2xl:flex-row 2xl:items-center 2xl:justify-end 2xl:gap-2">
                     {canMarkPayment(e) && (
                       <button type="button"
                         onClick={ev => { ev.stopPropagation(); onRecordPayment(e.id) }}

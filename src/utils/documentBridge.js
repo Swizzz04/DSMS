@@ -24,8 +24,12 @@ import { isOrNumberUsed }        from './orNumbers'
 import { getTemplate }           from './documentTemplates'
 import {
   DOCUMENT_PAYMENT_METHODS, DEFAULT_DOCUMENT_TYPES, DOCUMENT_TRASH_RETENTION_DAYS,
-  CLEARANCE_LAST_DEPARTMENT, getClearanceDepartments,
+  getDefaultClearanceRequirements,
 } from '../config/appConfig'
+import {
+  getClearanceRequirements, getClearanceScope, resolveClearanceSlots, syncClearanceSlots,
+  areSlotsFullyCleared, slotBlockReason, canUserSignSlot,
+} from './clearanceConfigBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -793,8 +797,201 @@ export function cancelRequest(id, byName, reason = '') {
 /**
  * Get clearances with optional filters.
  */
+// ─────────────────────────────────────────────────────────────────────────────
+// CLEARANCE RECORDS — requirements, slots and keeping them in step with the config
+//
+// A clearance record carries SLOTS: one entry per signature the student needs
+// (see clearanceConfigBridge.js). Which requirements exist, and who signs them, is
+// decided by the Technical Admin's list, not by this file.
+//
+//   record.slots        the real data (signed or pending, one per signature)
+//   record.departments  a SUMMARY derived from the slots, keyed by requirement id
+//                       ({ cleared, clearedBy, clearedAt, total, signed, ... }) — kept so pages
+//                       that still read the old shape keep working
+//   record.scope        'basicEd' | 'college' — which requirements list applies
+//
+// Records saved before slots existed are read as the five original departments.
+// Open (not fully cleared) records follow the configuration every time they are read:
+// removed requirements drop away (a signed one is kept, marked retired), new ones appear as
+// pending, and reassigned teachers carry through. Fully cleared records are frozen.
+// Reads never write; syncAllClearances() persists the result when the page asks it to.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function readStore(key, fallback) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback }
+  catch { return fallback }
+}
+
+/** Everything hydration needs, read from storage ONCE per call instead of once per record. */
+function makeClearanceContext() {
+  const students = readStore('almirene_students', [])
+  const loads    = readStore('almirene_subject_loads', {})
+  const cache    = {}
+  return {
+    student:      (id) => (Array.isArray(students) ? students.find(s => String(s.id) === String(id)) : null) || null,
+    subjectLoad:  (campusKey, schoolYear) => loads?.[campusKey]?.[schoolYear] || null,
+    requirements: (scope) => cache[scope] || (cache[scope] = getClearanceRequirements(scope)),
+  }
+}
+
+const activeSlots = (record) => (record?.slots || []).filter(s => !s.retired)
+
+/** Requirements that do not depend on knowing the student (a role or fixed accounts sign them). */
+const isStaticRequirement = (q) => q.signer.type === 'role' || q.signer.type === 'user'
+const NO_STUDENT_WARNING = { requirementId: '', code: 'no_student', message: 'The student record could not be found, so teacher-based sign-offs cannot be matched.' }
+
+/** The sign-off details worth carrying from an old department entry onto its slot. */
+const SIGNOFF_FIELDS = ['cleared', 'clearedBy', 'clearedAt', 'note', 'withBalance', 'balanceAtSignoff', 'balanceUnverified', 'signedOnBehalf']
+
+function pickSignoff(entry) {
+  const out = {}
+  if (!entry) return out
+  SIGNOFF_FIELDS.forEach(k => { if (entry[k] !== undefined) out[k] = entry[k] })
+  return out
+}
+
+/** A record saved before slots existed: the five original departments, with their sign-offs. */
+function legacySlots(record, scope) {
+  const reqs = getDefaultClearanceRequirements(scope)
+  const { slots } = resolveClearanceSlots({ department: scope }, reqs, { subjectLoad: null })
+  return slots.map(s => ({ ...s, ...pickSignoff(record.departments?.[s.requirementId]) }))
+}
+
+/** Per-requirement summary in the shape pages used to read as `record.departments`. */
+function deriveDepartments(slots) {
+  const out = {}
+  ;(slots || []).filter(s => !s.retired).forEach(s => {
+    const d = out[s.requirementId] || (out[s.requirementId] = { cleared: true, total: 0, signed: 0, clearedBy: null, clearedAt: null })
+    d.total += 1
+    if (s.cleared) {
+      d.signed += 1
+      d.clearedBy = s.clearedBy
+      d.clearedAt = s.clearedAt
+      SIGNOFF_FIELDS.slice(3).forEach(k => { if (s[k] !== undefined) d[k] = s[k] })
+    } else {
+      d.cleared = false
+    }
+  })
+  Object.values(out).forEach(d => { if (!d.cleared) { d.clearedBy = null; d.clearedAt = null } })
+  return out
+}
+
+/** Recompute the derived fields of a record, in place. */
+function finalizeRecord(record, now = new Date().toISOString()) {
+  record.departments = deriveDepartments(record.slots)
+  if (!record.isFullyCleared) {
+    record.isFullyCleared = evaluateFullyClear(record)
+    if (record.isFullyCleared && !record.completedAt) record.completedAt = now
+  }
+  return record
+}
+
+/** Auto-clear newly added "clears when the balance is zero" slots, same rule as createClearance. */
+function autoClearSlots(record, slotIds) {
+  const info = getStudentBalanceInfo(record.studentId)
+  if (!(info.found && info.balance === 0)) return
+  const now = new Date().toISOString()
+  record.slots.forEach(s => {
+    if (slotIds.includes(s.id) && s.autoFromPayment && !s.cleared) {
+      s.cleared = true; s.clearedBy = 'System (auto — no balance)'; s.clearedAt = now
+    }
+  })
+}
+
+/**
+ * Bring one stored record up to date: migrate old records to slots, and (when it is still
+ * open) follow the current requirements and Subject Load.
+ * Never writes to storage.
+ */
+function hydrateRecord(record, ctx) {
+  const r = { ...record }
+  const student = ctx.student(r.studentId)
+  const scope   = r.scope || getClearanceScope(student || {})
+  r.scope = scope
+  if (!Array.isArray(r.slots)) r.slots = legacySlots(r, scope)
+
+  if (!r.isFullyCleared) {
+    const allReqs = ctx.requirements(scope)
+    const reqs    = student ? allReqs : allReqs.filter(isStaticRequirement)
+    const stu     = student
+      ? { ...student, campusKey: r.campusKey || student.campusKey, schoolYear: r.schoolYear || student.schoolYear }
+      : { department: scope, campusKey: r.campusKey, schoolYear: r.schoolYear }
+    const out = resolveClearanceSlots(stu, reqs, { subjectLoad: ctx.subjectLoad(stu.campusKey, stu.schoolYear) })
+    let resolved = out.slots
+    if (!student) {
+      // The student record is missing: role / account requirements still follow the config, but
+      // teacher-based ones cannot be matched, so their existing slots are kept as they are
+      // (as long as the requirement still exists).
+      const reqIds = new Set(allReqs.map(q => q.id))
+      const keep = r.slots.filter(s => !s.retired && !isStaticRequirement({ signer: { type: s.signerType } }) && reqIds.has(s.requirementId))
+      const order = new Map(allReqs.map((q, i) => [q.id, i]))
+      resolved = [...resolved, ...keep].sort((a, b) => order.get(a.requirementId) - order.get(b.requirementId))
+      out.warnings = [NO_STUDENT_WARNING, ...out.warnings]
+    }
+    const sync = syncClearanceSlots(r.slots, resolved)
+    r.slots = sync.slots.map(s => ({ ...s }))
+    r.slotWarnings = out.warnings
+    if (sync.added.length) autoClearSlots(r, sync.added)
+  }
+  return finalizeRecord(r)
+}
+
+function loadHydrated() {
+  const ctx = makeClearanceContext()
+  return loadClearances().map(r => hydrateRecord(r, ctx))
+}
+
+/**
+ * Write every open clearance back to storage when the configuration (or Subject Load) has
+ * changed what it needs. Call it when the Clearance page opens and after Settings saves the
+ * requirements. Returns how many records were updated.
+ */
+export function syncAllClearances() {
+  const raw  = loadClearances()
+  const ctx  = makeClearanceContext()
+  let updated = 0
+  const next = raw.map(r => {
+    const h = hydrateRecord(r, ctx)
+    if (JSON.stringify(h) !== JSON.stringify(r)) { updated += 1; return { ...h, updatedAt: new Date().toISOString() } }
+    return r
+  })
+  if (updated) saveClearances(next)
+  return updated
+}
+
+/**
+ * The requirements a record is made of, in order, with how far each one has got.
+ * This is what the Clearance table builds its columns from.
+ * @returns {{id,label,icon,order,required,autoFromPayment,total,cleared,pending,signerType}[]}   (icon falls back to the requirement id for records saved before icons)
+ */
+export function getClearanceRequirementSummary(record) {
+  const out = [], index = {}
+  activeSlots(record).forEach(s => {
+    let e = index[s.requirementId]
+    if (!e) {
+      e = index[s.requirementId] = {
+        id: s.requirementId, label: s.label, icon: s.icon || s.requirementId, order: s.order, required: s.required,
+        autoFromPayment: !!s.autoFromPayment, signerType: s.signerType, total: 0, cleared: 0, pending: 0,
+      }
+      out.push(e)
+    }
+    e.total += 1
+    if (s.cleared) e.cleared += 1; else e.pending += 1
+  })
+  return out
+}
+
+/** Slots that were signed and then dropped from the requirements ("no longer required"). */
+export function getRetiredClearanceSlots(record) {
+  return (record?.slots || []).filter(s => s.retired)
+}
+
+/**
+ * Get clearance records with optional filters.
+ * @param {object} filters — { campusKey, schoolYear, studentId, isFullyCleared }
+ */
 export function getClearances(filters = {}) {
-  let records = loadClearances()
+  let records = loadHydrated()
   if (filters.campusKey)  records = records.filter(r => r.campusKey  === filters.campusKey)
   if (filters.schoolYear) records = records.filter(r => r.schoolYear === filters.schoolYear)
   if (filters.studentId)  records = records.filter(r => r.studentId  === filters.studentId)
@@ -807,7 +1004,8 @@ export function getClearances(filters = {}) {
  * Get a single clearance record by ID.
  */
 export function getClearanceById(id) {
-  return loadClearances().find(r => r.id === id) ?? null
+  const raw = loadClearances().find(r => r.id === id)
+  return raw ? hydrateRecord(raw, makeClearanceContext()) : null
 }
 
 /**
@@ -825,7 +1023,7 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
   const existing = loadClearances().find(
     r => r.studentId === studentId && r.schoolYear === schoolYear && !r.isFullyCleared
   )
-  if (existing) return existing  // Return existing rather than duplicating
+  if (existing) return hydrateRecord(existing, makeClearanceContext())  // Return existing rather than duplicating
 
   const now     = new Date().toISOString()
   const info    = getStudentBalanceInfo(studentId)
@@ -834,15 +1032,23 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
     ? options.requiresZeroBalance
     : /graduat/i.test(reason || '')
 
-  const departments = {}
-  CLEARANCE_DEPARTMENTS.forEach(dept => {
+  // What this student must clear comes from the configured requirements for their department
+  const ctx     = makeClearanceContext()
+  const student = ctx.student(studentId)
+  const scope   = options.scope || getClearanceScope(student || {})
+  const allReqs = ctx.requirements(scope)
+  const stu     = student ? { ...student, campusKey, schoolYear } : { department: scope, campusKey, schoolYear }
+  const out     = resolveClearanceSlots(stu, student ? allReqs : allReqs.filter(isStaticRequirement), {
+    subjectLoad: ctx.subjectLoad(campusKey, schoolYear),
+  })
+  const slots    = out.slots
+  const warnings = student ? out.warnings : [NO_STUDENT_WARNING, ...out.warnings]
+
+  slots.forEach(slot => {
     // Only auto-clear when the student was FOUND and truly owes nothing.
     // A missing student is "unknown", never "fully paid".
-    const autoCleared = dept.autoFromPayment && info.found && balance === 0
-    departments[dept.id] = {
-      cleared:   autoCleared,
-      clearedBy: autoCleared ? 'System (auto — no balance)' : null,
-      clearedAt: autoCleared ? now : null,
+    if (slot.autoFromPayment && info.found && balance === 0) {
+      slot.cleared = true; slot.clearedBy = 'System (auto — no balance)'; slot.clearedAt = now
     }
   })
 
@@ -853,7 +1059,10 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
     campusKey,
     schoolYear,
     reason,
-    departments,
+    scope,
+    slots,
+    slotWarnings:    warnings,
+    departments:     {},
     hasUnpaidBalance:    info.found && balance > 0,
     balanceUnknown:      !info.found,
     outstandingBalance:  balance,
@@ -864,6 +1073,7 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
     createdAt:        now,
     updatedAt:        now,
   }
+  finalizeRecord(record, now)
 
   const all = loadClearances()
   all.push(record)
@@ -872,37 +1082,38 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
 }
 
 /**
- * Sign off a single department clearance.
+ * Sign off a single sign-off (slot) of a clearance.
  * Immutable once signed — cannot be reversed (use Super Admin override only).
  * Auto-evaluates isFullyCleared after each sign-off.
  *
  * @param {string} clearanceId
- * @param {string} deptId — e.g. 'library', 'accounting'
+ * @param {string} slotRef — a slot id (e.g. 'library', 'instructors:ethics'), or a requirement id,
+ *                           which means that requirement's first unsigned sign-off
  * @param {string} clearedByName
- * @param {string} [note] — required when accounting signs with a balance owing or an unknown balance
+ * @param {string} [note] — required when a balance-checking requirement (Accounting) is signed with a
+ *                          balance owing or an unknown balance, and when nobody is assigned to the sign-off
  */
-export function updateDepartmentClearance(clearanceId, deptId, clearedByName, note = '') {
+export function updateDepartmentClearance(clearanceId, slotRef, clearedByName, note = '') {
   const all = loadClearances()
   const idx = all.findIndex(r => r.id === clearanceId)
   if (idx < 0) throw new Error(`Clearance "${clearanceId}" not found.`)
 
-  const record = all[idx]
-  if (record.departments[deptId]?.cleared) {
-    throw new Error(`${deptId} clearance is already signed. Cannot unsign.`)
+  const record = hydrateRecord(all[idx], makeClearanceContext())
+  const slots  = activeSlots(record)
+  const slot   = slots.find(s => s.id === slotRef) || slots.find(s => s.requirementId === slotRef && !s.cleared)
+  if (!slot) throw new Error(`Sign-off "${slotRef}" is not part of this clearance.`)
+  if (slot.cleared) {
+    throw new Error(`${slot.label}${slot.itemLabel ? ` (${slot.itemLabel})` : ''} clearance is already signed. Cannot unsign.`)
   }
 
-  const now = new Date().toISOString()
-  const entry = {
-    cleared:   true,
-    clearedBy: clearedByName,
-    clearedAt: now,
-  }
+  const now       = new Date().toISOString()
+  const cleanNote = String(note || '').trim()
+  const entry = { cleared: true, clearedBy: clearedByName, clearedAt: now }
 
-  if (deptId === 'accounting') {
+  if (slot.autoFromPayment) {
     // Read the LIVE balance at the moment of sign-off.
-    const info    = getStudentBalanceInfo(record.studentId)
-    const owing   = info.found && info.balance > 0
-    const cleanNote = String(note || '').trim()
+    const info  = getStudentBalanceInfo(record.studentId)
+    const owing = info.found && info.balance > 0
 
     if (owing && clearanceRequiresZeroBalance(record)) {
       throw new Error('Graduation clearance needs a zero balance. The student must settle the remaining balance first.')
@@ -913,23 +1124,26 @@ export function updateDepartmentClearance(clearanceId, deptId, clearedByName, no
         : 'A note is required — the student\'s balance could not be found, so accounting must verify it manually.')
     }
     if (owing) {
-      entry.withBalance        = true
-      entry.balanceAtSignoff   = info.balance
+      entry.withBalance      = true
+      entry.balanceAtSignoff = info.balance
     } else if (!info.found) {
-      entry.balanceUnverified  = true
+      entry.balanceUnverified = true
     }
-    if (cleanNote) entry.note = cleanNote
 
     record.hasUnpaidBalance   = owing
     record.balanceUnknown     = !info.found
     record.outstandingBalance = info.balance
   }
 
-  record.departments[deptId] = entry
+  if (slot.unassigned) {
+    // Nobody was assigned in Subject Load, so whoever signs is signing on behalf
+    if (!cleanNote) throw new Error('A note is required — no teacher is assigned to this sign-off, so it is being signed on behalf.')
+    entry.signedOnBehalf = true
+  }
+  if (cleanNote) entry.note = cleanNote
 
-  // Re-evaluate isFullyCleared
-  record.isFullyCleared = evaluateFullyClear(record)
-  if (record.isFullyCleared) record.completedAt = now
+  Object.assign(slot, entry)
+  finalizeRecord(record, now)
   record.updatedAt = now
 
   all[idx] = record
@@ -938,7 +1152,7 @@ export function updateDepartmentClearance(clearanceId, deptId, clearedByName, no
 }
 
 /**
- * Re-check accounting clearance status based on current payment balance.
+ * Re-check balance-based clearance (Accounting) against the current payment balance.
  * Called whenever a payment is recorded or updated.
  *
  * @param {string} clearanceId
@@ -948,7 +1162,7 @@ export function checkAccountingStatus(clearanceId) {
   const idx = all.findIndex(r => r.id === clearanceId)
   if (idx < 0) return null
 
-  const record  = all[idx]
+  const record  = hydrateRecord(all[idx], makeClearanceContext())
   const info    = getStudentBalanceInfo(record.studentId)
   const balance = info.balance
   const now     = new Date().toISOString()
@@ -957,23 +1171,19 @@ export function checkAccountingStatus(clearanceId) {
   record.balanceUnknown     = !info.found
   record.outstandingBalance = balance
 
-  if (info.found && balance === 0 && !record.departments.accounting?.cleared) {
-    record.departments.accounting = {
-      cleared:   true,
-      clearedBy: 'System (auto — balance settled)',
-      clearedAt: now,
+  activeSlots(record).filter(s => s.autoFromPayment).forEach(slot => {
+    if (info.found && balance === 0 && !slot.cleared) {
+      slot.cleared   = true
+      slot.clearedBy = 'System (auto — balance settled)'
+      slot.clearedAt = now
+    } else if (info.found && balance > 0 && slot.clearedBy?.startsWith('System')) {
+      // If auto-cleared by system but balance came back (edge case), reset it
+      slot.cleared = false; slot.clearedBy = null; slot.clearedAt = null
     }
-  } else if (info.found && balance > 0 && record.departments.accounting?.clearedBy?.startsWith('System')) {
-    // If auto-cleared by system but balance came back (edge case), reset it
-    record.departments.accounting = {
-      cleared:   false,
-      clearedBy: null,
-      clearedAt: null,
-    }
-  }
+  })
 
-  record.isFullyCleared = evaluateFullyClear(record)
-  if (record.isFullyCleared && !record.completedAt) record.completedAt = now
+  record.isFullyCleared = false          // re-evaluated below from the slots
+  finalizeRecord(record, now)
   record.updatedAt = now
 
   all[idx] = record
@@ -988,16 +1198,15 @@ export function checkAccountingStatus(clearanceId) {
  */
 export function isFullyCleared(clearanceId) {
   const record = getClearanceById(clearanceId)
-  if (!record) return false
-  return evaluateFullyClear(record)
+  return !!record?.isFullyCleared
 }
 
-/** Internal helper — evaluates all department cleared statuses */
+/** Internal helper — a record is fully cleared when every required sign-off is signed. */
 function evaluateFullyClear(record) {
   // Only graduation clearances are held back by a balance. For everything else,
   // accounting may sign with a balance (recorded on the sign-off).
   if (clearanceRequiresZeroBalance(record) && record.hasUnpaidBalance) return false
-  return CLEARANCE_DEPARTMENTS.every(dept => record.departments[dept.id]?.cleared === true)
+  return areSlotsFullyCleared(record.slots)
 }
 
 /**
@@ -1018,10 +1227,10 @@ export function linkClearanceToRequest(requestId, clearanceId) {
  * Used by Sidebar badge or dashboard count.
  */
 export function getPendingClearanceCount(deptId, campusKey) {
-  return loadClearances().filter(
+  return loadHydrated().filter(
     r => r.campusKey === campusKey &&
          !r.isFullyCleared &&
-         !r.departments[deptId]?.cleared
+         activeSlots(r).some(s => s.requirementId === deptId && !s.cleared)
   ).length
 }
 
@@ -1201,18 +1410,19 @@ export function getDocumentStepDef(request) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CLEARANCE SIGN-OFF
 //
-// Who may sign which department comes from config/appConfig.js
-// (CLEARANCE_DEPARTMENT_SIGNERS + the per-account `clearanceDuties`), so a small
-// school can let one person sign several departments.
+// Who may sign a sign-off is decided per slot (clearanceConfigBridge.canUserSignSlot):
+// the roles or accounts the requirement lists, the assigned instructor / adviser, an
+// account given the requirement as an extra duty (user.clearanceDuties), or — when nobody
+// is assigned in Subject Load — Principal / Program Head signing on behalf with a note.
 //
-// Order: departments sign in ANY order. The last department (Admin Office) opens
-// only after every other department has signed.
+// Order: sign-offs happen in ANY order, except requirements marked 'after_others', which
+// open only once every 'any' requirement is signed.
 //
 // Blocking rules (e.g. a graduation clearance with an unpaid balance) still come
 // from the `student_clearance` workflow's block_if conditions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Department id -> the step id used by the student_clearance workflow. */
+/** Requirement id -> the step id used by the student_clearance workflow (blocking rules live there). */
 const DEPT_TO_STEP_ID = {
   library:    'library',
   accounting: 'accounting',
@@ -1221,42 +1431,34 @@ const DEPT_TO_STEP_ID = {
   admin:      'admin_office',
 }
 
-/** Which workflow action signs which department. */
-export const CLEARANCE_ACTION_BY_DEPT = {
-  library:    'library_cleared',
-  accounting: 'accounting_cleared',
-  registrar:  'registrar_cleared',
-  guidance:   'guidance_cleared',
-  admin:      'admin_cleared',
-}
+/** Workflow action id for signing a requirement: '<requirementId>_cleared' (e.g. 'library_cleared'). */
+export const CLEARANCE_ACTION_SUFFIX = '_cleared'
+export const clearanceActionId = (requirementId) => `${requirementId}${CLEARANCE_ACTION_SUFFIX}`
 
-const DEPT_BY_ACTION = Object.fromEntries(
-  Object.entries(CLEARANCE_ACTION_BY_DEPT).map(([dept, action]) => [action, dept])
+/** Kept for callers that still look an action up by the five original departments. */
+export const CLEARANCE_ACTION_BY_DEPT = Object.fromEntries(
+  Object.keys(DEPT_TO_STEP_ID).map(id => [id, clearanceActionId(id)])
 )
 
-function deptLabel(deptId) {
-  return CLEARANCE_DEPARTMENTS.find(d => d.id === deptId)?.label ?? deptId
+const slotName = (slot) => slot.itemLabel ? `${slot.label} (${slot.itemLabel})` : slot.label
+
+/** A clearance record with its slots, whether the caller passed a record or just an id. */
+function withSlots(clearance) {
+  if (Array.isArray(clearance?.slots)) return clearance
+  return clearance?.id ? getClearanceById(clearance.id) : null
 }
 
-function isDeptCleared(clearance, deptId) {
-  return clearance?.departments?.[deptId]?.cleared === true
-}
-
-/** Why this department cannot be signed right now (a readable reason), or null if it can. */
-function signBlockReason(clearance, deptId) {
-  if (isDeptCleared(clearance, deptId)) return `${deptLabel(deptId)} is already signed.`
-
-  // The last department signs last
-  if (deptId === CLEARANCE_LAST_DEPARTMENT) {
-    const waiting = CLEARANCE_DEPARTMENTS.filter(d => d.id !== deptId && !isDeptCleared(clearance, d.id))
-    if (waiting.length) {
-      return `${deptLabel(deptId)} signs last. Still waiting on: ${waiting.map(d => d.label).join(', ')}.`
-    }
-  }
+/** Why this sign-off cannot be signed right now (a readable reason), or null if it can. */
+function signBlockReason(clearance, slotId) {
+  // Already signed / retired / waiting for the others (order rule)
+  const reason = slotBlockReason(clearance.slots, slotId)
+  if (reason) return reason
 
   // Blocking rules from the workflow (e.g. graduation + unpaid balance)
-  const workflowDef = getWorkflowDefinition('student_clearance', clearance.campusKey || 'all')
-  const stepDef     = workflowDef ? workflowEngine.getStep(DEPT_TO_STEP_ID[deptId], workflowDef) : null
+  const slot        = clearance.slots.find(s => s.id === slotId)
+  const stepId      = slot?.autoFromPayment ? 'accounting' : DEPT_TO_STEP_ID[slot?.requirementId]
+  const workflowDef = stepId ? getWorkflowDefinition('student_clearance', clearance.campusKey || 'all') : null
+  const stepDef     = workflowDef ? workflowEngine.getStep(stepId, workflowDef) : null
   const surrogate   = {
     ...clearance,
     paymentBalance: clearanceRequiresZeroBalance(clearance) && clearance.hasUnpaidBalance ? 1 : 0,
@@ -1268,67 +1470,94 @@ function signBlockReason(clearance, deptId) {
 }
 
 /**
- * Departments this user may sign RIGHT NOW: theirs (role or extra duties), not yet
- * signed, not held back by the last-department rule or a blocking rule.
+ * Sign-offs this user may sign RIGHT NOW: theirs (role, account, assigned instructor,
+ * or an extra duty), not yet signed, not held back by the order rule or a blocking rule.
+ */
+export function getSignableClearanceSlots(user, clearance) {
+  const c = withSlots(clearance)
+  if (!c || c.isFullyCleared) return []
+  return activeSlots(c).filter(s => canUserSignSlot(user, s) && !signBlockReason(c, s.id))
+}
+
+/**
+ * Same, as requirement ids (one per requirement, even when several of its sign-offs are open).
+ * Kept for callers that think in "departments".
  */
 export function getSignableDepartments(user, clearance) {
-  if (!clearance || clearance.isFullyCleared) return []
-  const mine = getClearanceDepartments(user)
-  return CLEARANCE_DEPARTMENTS
-    .map(d => d.id)
-    .filter(id => mine.includes(id) && !signBlockReason(clearance, id))
+  return [...new Set(getSignableClearanceSlots(user, clearance).map(s => s.requirementId))]
 }
 
 /** Same list shaped as workflow actions (kept for callers that think in actions). */
 export function getClearanceActions(user, clearance) {
-  return getSignableDepartments(user, clearance).map(deptId => ({
-    id: CLEARANCE_ACTION_BY_DEPT[deptId],
+  const c = withSlots(clearance)
+  return getSignableDepartments(user, c).map(deptId => ({
+    id: clearanceActionId(deptId),
     deptId,
-    label: `${deptLabel(deptId)} Cleared`,
+    label: `${c.slots.find(s => s.requirementId === deptId)?.label ?? deptId} Cleared`,
   }))
 }
 
 /**
- * Departments the clearance is waiting on right now. The last department is left
- * out while others are still open, because it cannot be signed yet.
+ * Requirements the clearance is waiting on right now. Requirements that only open after the
+ * others are left out while others are still open, because they cannot be signed yet.
  * @returns {{id:string,label:string}[]}  empty when fully cleared
  */
 export function getClearanceWaitingOn(clearance) {
-  if (!clearance || clearance.isFullyCleared) return []
-  const pending = CLEARANCE_DEPARTMENTS.filter(d => !isDeptCleared(clearance, d.id))
-  const open = pending.filter(d => d.id !== CLEARANCE_LAST_DEPARTMENT)
-  return open.length ? open : pending
+  const c = withSlots(clearance)
+  if (!c || c.isFullyCleared) return []
+  const pending = getClearanceRequirementSummary(c).filter(r => r.required && r.pending > 0)
+  const open = pending.filter(r => r.order !== 'after_others')
+  return (open.length ? open : pending).map(r => ({ id: r.id, label: r.label }))
 }
 
 /**
- * Sign a department through the workflow rules. Throws a readable message if the
- * user's role/duties don't cover it, or it is not open yet.
+ * Sign one sign-off. Throws a readable message if the account may not sign it,
+ * or it is not open yet. The role/account check is enforced here, not only in the UI.
  */
-export function advanceClearanceStep(clearanceId, actionId, note = '', user) {
+export function signClearanceSlot(clearanceId, slotId, note = '', user) {
   const clearance = getClearanceById(clearanceId)
   if (!clearance) throw new Error(`Clearance "${clearanceId}" not found.`)
   if (clearance.isFullyCleared) throw new Error('Clearance is already fully cleared.')
 
-  const deptId = DEPT_BY_ACTION[actionId]
-  if (!deptId) throw new Error(`Unknown clearance action "${actionId}".`)
+  const slot = activeSlots(clearance).find(s => s.id === slotId)
+  if (!slot) throw new Error(`Sign-off "${slotId}" is not part of this clearance.`)
 
-  // Role / duty check, enforced here and not only in the UI
-  if (!getClearanceDepartments(user).includes(deptId)) {
-    throw new Error(`Your account is not set up to sign the ${deptLabel(deptId)} department.`)
+  if (!canUserSignSlot(user, slot)) {
+    throw new Error(`Your account is not set up to sign ${slotName(slot)}.`)
   }
-
-  const reason = signBlockReason(clearance, deptId)
+  const reason = signBlockReason(clearance, slot.id)
   if (reason) throw new Error(reason)
 
-  updateDepartmentClearance(clearanceId, deptId, user?.name || 'System', note)
+  updateDepartmentClearance(clearanceId, slot.id, user?.name || 'System', note)
   return getClearanceById(clearanceId)
 }
 
-/** Sign one department. Throws a readable message if not allowed. */
+/**
+ * Sign a requirement. When it has several sign-offs (e.g. one per subject), this signs the
+ * first one the account may sign right now; use signClearanceSlot to pick a specific one.
+ */
 export function signClearanceDepartment(clearanceId, deptId, note = '', user) {
-  const actionId = CLEARANCE_ACTION_BY_DEPT[deptId]
-  if (!actionId) throw new Error(`Unknown clearance department "${deptId}".`)
-  return advanceClearanceStep(clearanceId, actionId, note, user)
+  const clearance = getClearanceById(clearanceId)
+  if (!clearance) throw new Error(`Clearance "${clearanceId}" not found.`)
+  if (clearance.isFullyCleared) throw new Error('Clearance is already fully cleared.')
+
+  const ofRequirement = activeSlots(clearance).filter(s => s.requirementId === deptId)
+  if (!ofRequirement.length) throw new Error(`Unknown clearance requirement "${deptId}".`)
+
+  const mine = ofRequirement.filter(s => !s.cleared && canUserSignSlot(user, s))
+  if (!mine.length) {
+    if (ofRequirement.every(s => s.cleared)) throw new Error(`${ofRequirement[0].label} is already signed.`)
+    throw new Error(`Your account is not set up to sign ${ofRequirement[0].label}.`)
+  }
+  const open = mine.find(s => !signBlockReason(clearance, s.id))
+  if (!open) throw new Error(signBlockReason(clearance, mine[0].id))
+  return signClearanceSlot(clearanceId, open.id, note, user)
+}
+
+/** Sign through a workflow action id ('<requirementId>_cleared'). */
+export function advanceClearanceStep(clearanceId, actionId, note = '', user) {
+  if (!String(actionId).endsWith(CLEARANCE_ACTION_SUFFIX)) throw new Error(`Unknown clearance action "${actionId}".`)
+  return signClearanceDepartment(clearanceId, String(actionId).slice(0, -CLEARANCE_ACTION_SUFFIX.length), note, user)
 }
 
 function evaluateClearanceCondition(condition, record) {
