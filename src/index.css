@@ -194,6 +194,12 @@ button, a, [role="button"] {
   --color-cat-pink-text:      #9d174d;
   --color-cat-pink-border:    #fbcfe8;
 
+  /* Progress bars (clearance): none -> red, under 70% -> orange, 70-99% -> yellow, done -> green */
+  --color-progress-none:      var(--color-error);
+  --color-progress-low:       #ea580c;
+  --color-progress-high:      #eab308;
+  --color-progress-done:      var(--color-success);
+
   /* Loading skeleton shimmer */
   --color-skeleton-base:      #e8e8e4;
   --color-skeleton-highlight: #f4f4f0;
@@ -333,6 +339,10 @@ button, a, [role="button"] {
   --color-cat-purple-bg:      rgba(168, 85, 247, 0.15);
   --color-cat-purple-text:    #d8b4fe;
   --color-cat-purple-border:  rgba(168, 85, 247, 0.30);
+  --color-progress-none:      var(--color-error);
+  --color-progress-low:       #fb923c;
+  --color-progress-high:      #facc15;
+  --color-progress-done:      var(--color-success);
   --color-cat-teal-bg:        rgba(20, 184, 166, 0.15);
   --color-cat-teal-text:      #5eead4;
   --color-cat-teal-border:    rgba(20, 184, 166, 0.30);

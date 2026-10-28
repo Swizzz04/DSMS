@@ -55,7 +55,7 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { CLEARANCE_DEPARTMENT_SCOPES } from '../config/appConfig'
-import { getClearanceRequirements, getClearanceProgress, canUserSignSlot, slotBlockReason } from '../utils/clearanceConfigBridge'
+import { getClearanceRequirements, getAllClearanceRequirements, getClearanceReasons, getClearanceScope, getClearanceProgress, canUserSignSlot, slotBlockReason } from '../utils/clearanceConfigBridge'
 import { getStudents } from '../utils/enrollmentBridge'
 import {
   PageSkeleton, useToast, ToastContainer, ModalPortal
@@ -122,6 +122,29 @@ const activeSlots = (clearance) => (clearance?.slots || []).filter(s => !s.retir
 /** Signed / total over the required sign-offs, and the percent. */
 const getProgress = (clearance) => getClearanceProgress(clearance?.slots)
 
+/** Bar colour by how far a clearance has got: none red, under 70% orange, 70-99% yellow, done green. */
+function progressColor(percent, done = false) {
+  if (done || percent >= 100) return 'var(--color-progress-done)'
+  if (percent <= 0)           return 'var(--color-progress-none)'
+  if (percent < 70)           return 'var(--color-progress-low)'
+  return 'var(--color-progress-high)'
+}
+
+/** A progress bar that stays visible at 0%: the empty track turns red instead of vanishing. */
+function ProgressBar({ percent, done = false, className = 'h-1.5 w-16' }) {
+  const color = progressColor(percent, done)
+  const empty = percent <= 0 && !done
+  return (
+    <div
+      className={`${className} rounded-full overflow-hidden shrink-0`}
+      style={{ backgroundColor: empty ? 'color-mix(in srgb, var(--color-progress-none) 60%, transparent)' : 'var(--color-border)' }}
+      role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}
+    >
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(percent, empty ? 0 : 4)}%`, backgroundColor: color }} />
+    </div>
+  )
+}
+
 /** "Library, Guidance" / "Library, Guidance +1" — what a clearance is waiting on. */
 function waitingLabel(clearance) {
   const names = getClearanceWaitingOn(clearance).map(d => d.label)
@@ -152,14 +175,16 @@ function balanceCheckDone(clearance) {
  * signed sign-off that was retired) is added at the end so nothing on screen goes missing.
  * @returns {{id,label,icon,signerType,order,legacy?}[]}
  */
-function buildColumns(list, scopeFilter) {
+function buildColumns(list, scopeFilter, campusKey) {
   const present = scopeFilter !== 'all'
     ? [scopeFilter]
     : CLEARANCE_DEPARTMENT_SCOPES.map(s => s.id).filter(id => list.some(c => c.scope === id))
   const cols = [], seen = new Set()
   const add = (col) => { if (!seen.has(col.id)) { seen.add(col.id); cols.push(col) } }
-  present.forEach(sc => getClearanceRequirements(sc).forEach(r =>
-    add({ id: r.id, label: r.label, icon: r.icon, signerType: r.signer.type, order: r.order })))
+  // Each campus has its own setup: one campus on screen, or every campus that has a clearance in the list
+  const campusKeys = campusKey ? [campusKey] : [...new Set(list.map(c => c.campusKey).filter(Boolean))]
+  present.forEach(sc => (campusKeys.length ? campusKeys : [undefined]).forEach(ck => getAllClearanceRequirements(sc, ck).forEach(r =>
+    add({ id: r.id, label: r.label, icon: r.icon, signerType: r.signer.type, order: r.order }))))
   list.forEach(c => getClearanceRequirementSummary(c).forEach(r =>
     add({ id: r.id, label: r.label, icon: r.icon, signerType: r.signerType, order: r.order, legacy: true })))
   // With both departments on screen, "signs last" requirements still end the row, and leftovers come after
@@ -368,17 +393,7 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
                   {progress.cleared} / {progress.total} sign-offs
                 </span>
               </div>
-              <div className="h-2 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${pct}%`,
-                    backgroundColor: clearance.isFullyCleared
-                      ? 'var(--color-success)'
-                      : pct >= 60 ? 'var(--color-warning)' : 'var(--color-primary)'
-                  }}
-                />
-              </div>
+              <ProgressBar percent={pct} done={clearance.isFullyCleared} className="h-2 w-full" />
               {owing && (
                 <div className="flex items-start gap-1.5 mt-2 text-xs text-[var(--color-error)]">
                   <AlertCircle size={12} className="shrink-0 mt-0.5" />
@@ -622,17 +637,7 @@ function ProgressCell({ clearance }) {
   const { cleared, total, percent } = getProgress(clearance)
   return (
     <div className="flex items-center gap-2">
-      <div className="hidden 2xl:block h-1.5 w-12 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full"
-          style={{
-            width: `${percent}%`,
-            backgroundColor: clearance.isFullyCleared
-              ? 'var(--color-success)'
-              : percent >= 60 ? 'var(--color-warning)' : 'var(--color-primary)',
-          }}
-        />
-      </div>
+      <ProgressBar percent={percent} done={clearance.isFullyCleared} className="h-1.5 w-14" />
       <span className="text-xs font-semibold text-[var(--color-text-muted)] tabular-nums">
         {cleared}/{total}
       </span>
@@ -748,8 +753,11 @@ function ClearanceMobileList({ rows, columns, summaries, studentMap, signMap, sh
                     <DeptChip key={col.id} label={col.label} entry={mine[col.id]} />
                   ))}
                 </div>
-                <span className="text-[10px] text-[var(--color-text-muted)] font-semibold tabular-nums">
-                  {progress.cleared}/{progress.total}
+                <span className="flex items-center gap-1.5 shrink-0">
+                  <ProgressBar percent={progress.percent} done={c.isFullyCleared} className="h-1.5 w-10" />
+                  <span className="text-[10px] text-[var(--color-text-muted)] font-semibold tabular-nums">
+                    {progress.cleared}/{progress.total}
+                  </span>
                 </span>
               </div>
             </button>
@@ -792,18 +800,12 @@ function StatsBar({ clearances, needsMe, showMine }) {
 // NEW CLEARANCE MODAL — registrar / tech admin initiates manually
 // ─────────────────────────────────────────────────────────────────────────────
 
-const CLEARANCE_REASONS = [
-  { value: 'graduation',      label: 'Graduation Clearance' },
-  { value: 'transfer',        label: 'Transfer / Honorable Dismissal' },
-  { value: 'transcript',      label: 'Transcript of Records' },
-  { value: 'credential',      label: 'Release of Credentials' },
-  { value: 'general',         label: 'General Clearance' },
-]
+// Reasons for clearance come from the school's setup (Settings → Workflow Config → Student Clearance → Reasons).
 
 function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser, onSave, onClose }) {
   const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState(null)
-  const [reason, setReason] = useState('general')
+  const [reasonId, setReasonId] = useState('')
   const [saving, setSaving] = useState(false)
   const [pickedKey, setPickedKey] = useState('')
   const { toasts, addToast, removeToast } = useToast()
@@ -841,6 +843,16 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser
 
   const selectedBalance = selectedStudent ? getClearanceBalance({ studentId: selectedStudent.id }) : null
 
+  // Reasons belong to the student's department. Before a student is picked, a department registrar
+  // already knows theirs; the Technical Admin picks the student first.
+  const reasonScope = selectedStudent ? getClearanceScope({ ...selectedStudent, department: studentDept(selectedStudent) }) : lockedDept
+  const reasons     = reasonScope ? getClearanceReasons(reasonScope, campusKey) : []
+  const reasonCfg   = reasons.find(r => r.id === reasonId) || reasons.find(r => r.id === 'general') || reasons[0] || null
+  // What this reason will ask the student to clear, in order
+  const reasonNeeds = reasonCfg && reasonScope
+    ? getClearanceRequirements(reasonScope, reasonCfg.id, campusKey).filter(q => q.required).map(q => q.label)
+    : []
+
   const handleSave = () => {
     if (!campusKey) { addToast('Please choose a campus first.', 'error'); return }
     if (!selectedStudent) { addToast('Please select a student.', 'error'); return }
@@ -850,14 +862,14 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser
       const existing = getClearances({ schoolYear, studentId: selectedStudent.id }).find(c => !c.isFullyCleared)
       if (existing) { onSave(existing, true); return }
 
-      const reasonLabel = CLEARANCE_REASONS.find(r => r.value === reason)?.label ?? reason
+      if (!reasonCfg) { addToast('Please choose a reason for the clearance.', 'error'); setSaving(false); return }
       const record = createClearance(
         selectedStudent.id,
         `${selectedStudent.lastName}, ${selectedStudent.firstName}`,
         campusKey,
         schoolYear,
-        reasonLabel,
-        { requiresZeroBalance: reason === 'graduation' }
+        reasonCfg.label,
+        { reasonId: reasonCfg.id, scope: reasonScope, requiresZeroBalance: reasonCfg.requiresZeroBalance }
       )
       onSave(record, false)
     } catch (err) {
@@ -996,28 +1008,37 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser
               <label className="text-label text-[var(--color-text-muted)] block mb-1.5">
                 Reason for Clearance *
               </label>
-              <div className="grid grid-cols-1 gap-1.5">
-                {CLEARANCE_REASONS.map(r => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => setReason(r.value)}
-                    className={`text-left px-3 py-2.5 rounded-xl border text-sm transition-colors
-                      ${reason === r.value
-                        ? 'bg-[var(--color-secondary)] border-[var(--color-secondary)] text-[var(--color-secondary-contrast)] font-semibold'
-                        : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
+              {reasons.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-muted)] pl-1">Pick a student to see the reasons for their department.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-1.5">
+                  {reasons.map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setReasonId(r.id)}
+                      className={`text-left px-3 py-2.5 rounded-xl border text-sm transition-colors
+                        ${reasonCfg?.id === r.id
+                          ? 'bg-[var(--color-secondary)] border-[var(--color-secondary)] text-[var(--color-secondary-contrast)] font-semibold'
+                          : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)]'}`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {reasonNeeds.length > 0 && (
+                <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">
+                  Needs sign-off from: {reasonNeeds.join(', ')}.
+                </p>
+              )}
             </div>
 
             {/* Accounting note */}
             <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info)]">
               <Info size={12} className="shrink-0 mt-0.5" />
               Accounting clears automatically when the student has no balance. Otherwise accounting can sign with a note.
-              {reason === 'graduation' && ' Graduation clearance needs a zero balance — it cannot be signed while one is owing.'}
+              {reasonCfg?.requiresZeroBalance && ` ${reasonCfg.label} needs a zero balance — it cannot be signed while one is owing.`}
             </div>
           </div>
 
@@ -1075,7 +1096,7 @@ export default function Clearance() {
   const myReqs = useMemo(() => {
     if (!user) return []
     const found = new Map()
-    CLEARANCE_DEPARTMENT_SCOPES.forEach(sc => getClearanceRequirements(sc.id).forEach(r => {
+    CLEARANCE_DEPARTMENT_SCOPES.forEach(sc => getAllClearanceRequirements(sc.id, user.campusKey || undefined).forEach(r => {
       const t = r.signer.type
       const mine =
         (t === 'role' && r.signer.roles.includes(role)) ||
@@ -1222,7 +1243,7 @@ export default function Clearance() {
   }, [clearances, filter, scopeFilter, search, showMine, signMap, studentMap])
 
   // The table's columns follow the requirements of the clearances on screen
-  const columns   = useMemo(() => buildColumns(baseList, scopeFilter), [baseList, scopeFilter])
+  const columns   = useMemo(() => buildColumns(baseList, scopeFilter, campusKey), [baseList, scopeFilter, campusKey, configTick])
   const summaries = useMemo(() => new Map(clearances.map(c => [c.id, summaryById(c)])), [clearances])
   const waitOptions = columns.filter(col => !col.legacy).map(col => ({ value: col.id, label: col.label }))
 

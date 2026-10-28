@@ -5,9 +5,13 @@
  * import it, and it is the one place that knows what a clearance is made of.
  *
  * What it does
- *   1. Stores the clearance REQUIREMENTS list per school department ('basicEd' | 'college').
+ *   1. Stores the clearance REQUIREMENTS list per school department ('basicEd' | 'college'),
+ *      and the REASONS a clearance can be opened for. A reason uses the department's standard
+ *      requirements unless it carries its own list.
  *      Key: almirene_clearance_requirements   Event: almirene_clearance_config_updated
- *      Until the school saves its own list, the defaults from appConfig.js are used.
+ *      Shape: { campuses: { [campusKey]: { basicEd: {...}, college: {...} } } }: every campus has its own setup.
+ *      The old school-wide shape ({ basicEd, college } at the top) is only the default for a campus with none saved.
+ *      Until the school saves its own, the defaults from appConfig.js are used.
  *   2. Turns "requirements + one student" into SIGN-OFF SLOTS. A requirement is a rule;
  *      a slot is one actual signature needed from one person. "Subject instructors"
  *      becomes one slot per subject the student takes; "Admin Office" becomes one slot.
@@ -38,6 +42,7 @@ import {
   CLEARANCE_UNASSIGNED_FALLBACK_ROLES,
   ROLE_DEFINITIONS,
   getDefaultClearanceRequirements,
+  getDefaultClearanceReasons,
 } from '../config/appConfig'
 
 const CONFIG_KEY   = 'almirene_clearance_requirements'
@@ -142,57 +147,207 @@ export function validateRequirements(list) {
   return errors
 }
 
+// Storage shape (almirene_clearance_requirements):
+//   {
+//     campuses: { [campusKey]: { basicEd: { requirements, reasons, updatedAt, updatedBy }, college: { ... } } },
+//     basicEd?, college?        <- the old school-wide setup, kept only as the DEFAULT for a campus
+//                                  that has not saved its own
+//   }
+// Every campus configures its own clearance, so a change at one campus never reaches another.
+// A campus with nothing saved uses the school-wide setup if there is one, else the standard lists.
+// Reading without a campus gives that default; saving always needs a campus.
+
 function loadConfig() {
   const cfg = readJSON(CONFIG_KEY, {})
   return cfg && typeof cfg === 'object' ? cfg : {}
 }
 
-/**
- * The requirements for one school department, saved list if there is one, else defaults.
- * @param {'basicEd'|'college'} scope
- */
-export function getClearanceRequirements(scope) {
-  if (!SCOPE_IDS.includes(scope)) return []
-  const saved = loadConfig()[scope]
-  if (Array.isArray(saved?.requirements) && saved.requirements.length) {
-    return saved.requirements.map(normalizeRequirement)
+const hasItems = (v) => Array.isArray(v) && v.length > 0
+
+/** One saved part ('requirements' | 'reasons') of a department: this campus's own, else the school-wide default. */
+function getSavedPart(scope, part, campusKey) {
+  const cfg = loadConfig()
+  const own = campusKey ? cfg.campuses?.[campusKey]?.[scope]?.[part] : null
+  if (hasItems(own)) return own
+  const shared = cfg[scope]?.[part]
+  return hasItems(shared) ? shared : null
+}
+
+/** True when THIS campus has saved its own version of the part (not just inheriting the default). */
+function campusHasOwnPart(scope, part, campusKey) {
+  return !!campusKey && hasItems(loadConfig().campuses?.[campusKey]?.[scope]?.[part])
+}
+
+function needCampus(campusKey) {
+  if (!campusKey) throw new Error('Choose a campus first. Each campus has its own clearance setup.')
+}
+
+/** Write part(s) of one campus's department config and announce it. */
+function writeCampusPart(scope, campusKey, patch, user) {
+  needCampus(campusKey)
+  const cfg = loadConfig()
+  const campuses = { ...(cfg.campuses || {}) }
+  const own = { ...(campuses[campusKey] || {}) }
+  own[scope] = { ...(own[scope] || {}), ...patch, updatedAt: new Date().toISOString(), updatedBy: user?.name || 'Technical Administrator' }
+  campuses[campusKey] = own
+  localStorage.setItem(CONFIG_KEY, JSON.stringify({ ...cfg, campuses }))
+  window.dispatchEvent(new CustomEvent(CONFIG_EVENT))
+}
+
+/** Drop one part of a campus's department config so it falls back to the default. */
+function dropCampusPart(scope, part, campusKey) {
+  needCampus(campusKey)
+  const cfg = loadConfig()
+  const own = cfg.campuses?.[campusKey]
+  if (own?.[scope]) {
+    delete own[scope][part]
+    if (!own[scope].requirements && !own[scope].reasons) delete own[scope]
+    if (!Object.keys(own).length) delete cfg.campuses[campusKey]
   }
-  return getDefaultClearanceRequirements(scope).map(normalizeRequirement)
-}
-
-/** True when the school has saved its own list for this department (false = still on defaults). */
-export function hasCustomClearanceRequirements(scope) {
-  const saved = loadConfig()[scope]
-  return Array.isArray(saved?.requirements) && saved.requirements.length > 0
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
+  window.dispatchEvent(new CustomEvent(CONFIG_EVENT))
 }
 
 /**
- * Save the requirements for one department. Technical Admin only.
- * Throws a readable Error when the list is invalid or the user may not change it.
+ * The requirements for one school department at one campus: the campus's saved list, else the
+ * school-wide default, else the standard list. Pass a reason id to get that reason's own list
+ * when it has one (else the department's list).
+ * @param {'basicEd'|'college'} scope
+ * @param {string} [reasonId]
+ * @param {string} [campusKey]
  */
-export function saveClearanceRequirements(scope, list, user) {
+export function getClearanceRequirements(scope, reasonId, campusKey) {
+  if (!SCOPE_IDS.includes(scope)) return []
+  if (reasonId) {
+    const own = getClearanceReasons(scope, campusKey).find(r => r.id === reasonId)?.requirements
+    if (Array.isArray(own) && own.length) return own.map(normalizeRequirement)
+  }
+  return getStandardRequirements(scope, campusKey)
+}
+
+/** The department's standard list at a campus: saved, else school-wide default, else the standard five. */
+function getStandardRequirements(scope, campusKey) {
+  const saved = getSavedPart(scope, 'requirements', campusKey)
+  return (saved || getDefaultClearanceRequirements(scope)).map(normalizeRequirement)
+}
+
+/**
+ * Every requirement a department can ask for at a campus: the standard list plus any list a reason
+ * brings, each requirement once (first one wins). The Clearance table builds its columns from this.
+ */
+export function getAllClearanceRequirements(scope, campusKey) {
+  if (!SCOPE_IDS.includes(scope)) return []
+  const out = [], seen = new Set()
+  const add = (r) => { if (!seen.has(r.id)) { seen.add(r.id); out.push(r) } }
+  getStandardRequirements(scope, campusKey).forEach(add)
+  getClearanceReasons(scope, campusKey).forEach(reason => (reason.requirements || []).map(normalizeRequirement).forEach(add))
+  return out
+}
+
+/** True when this campus has saved its own requirements for the department (false = still on the default). */
+export function hasCustomClearanceRequirements(scope, campusKey) {
+  return campusHasOwnPart(scope, 'requirements', campusKey)
+}
+
+/**
+ * Save the requirements for one department at one campus. Technical Admin only.
+ * Throws a readable Error when the list is invalid, no campus is chosen, or the user may not change it.
+ */
+export function saveClearanceRequirements(scope, list, user, campusKey) {
   if (!SCOPE_IDS.includes(scope)) throw new Error(`Unknown department "${scope}".`)
   if (user?.role !== 'technical_admin') throw new Error('Only the Technical Administrator can change the clearance requirements.')
+  needCampus(campusKey)
 
   const clean  = (list || []).map(normalizeRequirement)
   const errors = validateRequirements(clean)
   if (errors.length) throw new Error(errors[0])
 
-  const cfg = loadConfig()
-  cfg[scope] = { requirements: clean, updatedAt: new Date().toISOString(), updatedBy: user?.name || 'Technical Administrator' }
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
-  window.dispatchEvent(new CustomEvent(CONFIG_EVENT))
+  writeCampusPart(scope, campusKey, { requirements: clean }, user)
   return clean
 }
 
-/** Go back to the built-in list for one department. Technical Admin only. */
-export function resetClearanceRequirements(scope, user) {
+/** Go back to the default requirements for one department at one campus (its reasons are kept). Technical Admin only. */
+export function resetClearanceRequirements(scope, user, campusKey) {
   if (user?.role !== 'technical_admin') throw new Error('Only the Technical Administrator can change the clearance requirements.')
-  const cfg = loadConfig()
-  delete cfg[scope]
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg))
-  window.dispatchEvent(new CustomEvent(CONFIG_EVENT))
-  return getClearanceRequirements(scope)
+  dropCampusPart(scope, 'requirements', campusKey)
+  return getClearanceRequirements(scope, undefined, campusKey)
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 1b. REASONS — why a clearance is opened, and what each one needs
+// ═════════════════════════════════════════════════════════════════
+
+/** Clean one reason. `requirements` is kept only when the reason has its own (non-empty) list. */
+export function normalizeReason(r = {}) {
+  const own = Array.isArray(r.requirements) && r.requirements.length ? r.requirements.map(normalizeRequirement) : null
+  return {
+    id:                  String(r.id || '').trim(),
+    label:               String(r.label || '').trim(),
+    requiresZeroBalance: !!r.requiresZeroBalance,
+    ...(own ? { requirements: own } : {}),
+  }
+}
+
+/** Human-readable problems with a reasons list, including problems inside a reason's own list. */
+export function validateReasons(list) {
+  const errors = []
+  if (!Array.isArray(list) || list.length === 0) return ['Add at least one reason for clearance.']
+  const seen = new Set(), labels = new Set()
+  list.forEach((raw, i) => {
+    const r = normalizeReason(raw)
+    const name = r.label || `Reason ${i + 1}`
+    if (!r.label) errors.push(`Reason ${i + 1} needs a name.`)
+    if (!r.id) errors.push(`${name} has no id.`)
+    else if (seen.has(r.id)) errors.push(`Two reasons share the id "${r.id}". Rename one.`)
+    seen.add(r.id)
+    const key = norm(r.label)
+    if (key && labels.has(key)) errors.push(`Two reasons are both called "${r.label}". Rename one.`)
+    labels.add(key)
+    if (r.requirements) validateRequirements(r.requirements).forEach(e => errors.push(`${name}: ${e}`))
+  })
+  return errors
+}
+
+/** The reasons for one department at a campus: saved, else school-wide default, else the starting reasons. */
+export function getClearanceReasons(scope, campusKey) {
+  if (!SCOPE_IDS.includes(scope)) return []
+  const saved = getSavedPart(scope, 'reasons', campusKey)
+  return (saved || getDefaultClearanceReasons(scope)).map(normalizeReason)
+}
+
+/** True when this campus has saved its own reasons for the department. */
+export function hasCustomClearanceReasons(scope, campusKey) {
+  return campusHasOwnPart(scope, 'reasons', campusKey)
+}
+
+/** Save the reasons for one department at one campus (the requirements list is kept). Technical Admin only. */
+export function saveClearanceReasons(scope, list, user, campusKey) {
+  if (!SCOPE_IDS.includes(scope)) throw new Error(`Unknown department "${scope}".`)
+  if (user?.role !== 'technical_admin') throw new Error('Only the Technical Administrator can change the clearance reasons.')
+  needCampus(campusKey)
+  const clean  = (list || []).map(normalizeReason)
+  const errors = validateReasons(clean)
+  if (errors.length) throw new Error(errors[0])
+  writeCampusPart(scope, campusKey, { reasons: clean }, user)
+  return clean
+}
+
+/** Go back to the default reasons for one department at one campus (its requirements are kept). Technical Admin only. */
+export function resetClearanceReasons(scope, user, campusKey) {
+  if (user?.role !== 'technical_admin') throw new Error('Only the Technical Administrator can change the clearance reasons.')
+  dropCampusPart(scope, 'reasons', campusKey)
+  return getClearanceReasons(scope, campusKey)
+}
+
+/**
+ * The configured reason a clearance belongs to: by id, else by its label (records made before
+ * reasons were configurable only stored the label). null when it no longer exists.
+ */
+export function findClearanceReason(scope, { reasonId, label, campusKey } = {}) {
+  const list = getClearanceReasons(scope, campusKey)
+  if (reasonId) { const hit = list.find(r => r.id === reasonId); if (hit) return hit }
+  const want = norm(label)
+  return want ? list.find(r => norm(r.label) === want) || null : null
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -461,4 +616,71 @@ export function canUserSignSlot(user, slot) {
 /** Slots this account may sign RIGHT NOW: theirs, unsigned, and not held back by ordering. */
 export function getSignableSlots(user, slots) {
   return (slots || []).filter(s => canUserSignSlot(user, s) && !slotBlockReason(slots, s.id))
+}
+
+// ═════════════════════════════════════════════════════════════════
+// 5. COVERAGE CHECK — what a requirements list would mean for real students
+// ═════════════════════════════════════════════════════════════════
+
+/** All student records (almirene_students), or []. */
+export function readStudentsForClearance() {
+  const list = readJSON(STUDENTS_KEY, [])
+  return Array.isArray(list) ? list : []
+}
+
+const studentLabel = (s) =>
+  [s.lastName, s.firstName].filter(Boolean).join(', ') || s.name || s.studentName || `Student ${s.id}`
+
+/**
+ * Dry run of a requirements list against the students of one department. Nothing is written.
+ *
+ * Answers the question the Settings editor asks before saving: "would any student end up
+ * with no required sign-offs?" A clearance with zero required slots can never be completed.
+ *
+ *   zero    students who would get no required sign-off, with the reasons
+ *   counts  how many students would get N required sign-offs: { [N]: students }
+ *   issues  Subject Load gaps that leave a teacher-based requirement short
+ *           (no section, no instructor assigned, no matching subject, ...), grouped
+ *
+ * @param {'basicEd'|'college'} scope
+ * @param {object[]} requirements   the draft list
+ * @param {object[]} [students]     injected for tests; read from storage by default
+ * @param {function} [loadSubjectLoad]  (campusKey, schoolYear) => load|null, injected for tests
+ * @returns {{ total:number, zeroCount:number, zero:{id,name,reasons:string[]}[],
+ *             counts:Object<string,number>, issues:{requirementId,code,message,count}[] }}
+ */
+export function analyzeClearanceCoverage(scope, requirements, students, loadSubjectLoad = readSubjectLoad) {
+  const reqs = (requirements || []).map(normalizeRequirement)
+  const list = (students || readStudentsForClearance()).filter(s => getClearanceScope(s) === scope)
+  const loadCache = new Map()
+  const loadFor = (s) => {
+    const key = `${s.campusKey}|${s.schoolYear}`
+    if (!loadCache.has(key)) loadCache.set(key, loadSubjectLoad(s.campusKey, s.schoolYear))
+    return loadCache.get(key)
+  }
+
+  const zero = [], counts = {}, issueMap = new Map()
+  list.forEach(s => {
+    const { slots, warnings } = resolveClearanceSlots(s, reqs, { subjectLoad: loadFor(s) })
+    const required = slots.filter(x => x.required).length
+    counts[required] = (counts[required] || 0) + 1
+
+    warnings.forEach(w => {
+      const key = `${w.requirementId}|${w.code}`
+      const e = issueMap.get(key) || { requirementId: w.requirementId, code: w.code, message: w.message, count: 0 }
+      e.count += 1
+      issueMap.set(key, e)
+    })
+    if (required === 0) {
+      zero.push({ id: s.id, name: studentLabel(s), reasons: [...new Set(warnings.map(w => w.message))] })
+    }
+  })
+
+  return {
+    total: list.length,
+    zeroCount: zero.length,
+    zero,
+    counts,
+    issues: [...issueMap.values()].sort((a, b) => b.count - a.count),
+  }
 }
