@@ -418,6 +418,31 @@ export const CLEARANCE_DEPARTMENT_SCOPES = [
   { id: 'college', label: 'College'         },
 ]
 
+/** Signer types whose people come from Subject Load (not from a fixed role or account). */
+export const CLEARANCE_TEACHER_SIGNER_TYPES = ['student_instructors', 'subject_teacher', 'section_adviser']
+
+/**
+ * Roles the Technical Admin may pick as signers of a requirement.
+ * Everything except the admin-side roles that never sign student clearances, and the student.
+ */
+const CLEARANCE_NON_SIGNER_ROLES = ['technical_admin', 'system_admin', 'admin', 'student']
+export const CLEARANCE_SIGNABLE_ROLES = Object.keys(ROLE_DEFINITIONS).filter(r => !CLEARANCE_NON_SIGNER_ROLES.includes(r))
+
+/**
+ * Icons a requirement can show in the Clearance table. The ids must match the icon map in
+ * pages/Clearance.jsx; 'default' falls back to the generic shield.
+ */
+export const CLEARANCE_ICON_OPTIONS = [
+  { id: 'default',     label: 'Shield (general)'   },
+  { id: 'library',     label: 'Book'               },
+  { id: 'accounting',  label: 'Credit card'        },
+  { id: 'registrar',   label: 'Shield with check'  },
+  { id: 'guidance',    label: 'People'             },
+  { id: 'admin',       label: 'Building'           },
+  { id: 'instructors', label: 'Graduation cap'     },
+  { id: 'adviser',     label: 'Person with check'  },
+]
+
 function defaultClearanceRequirements() {
   const byRoles = (id, label, icon, extra = {}) => ({
     id, label, icon,
@@ -439,16 +464,105 @@ export function getDefaultClearanceRequirements(scope) {
   return CLEARANCE_DEPARTMENT_SCOPES.some(s => s.id === scope) ? defaultClearanceRequirements() : []
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// CLEARANCE REASONS — why a clearance is being opened
+//
+// The Registrar picks one when starting a clearance (Clearance page -> New Clearance).
+// The Technical Admin edits the list per school department in Settings -> Workflow Config ->
+// Student Clearance -> Reasons. These are only the STARTING reasons, used until the school saves
+// its own.
+//
+//   id                  stable key, stored on each clearance
+//   label               what the Registrar sees, and what the clearance shows as its reason
+//   requiresZeroBalance true = Accounting cannot sign while a balance is owing
+//   requirements        optional. Left out, the reason uses the department's standard requirements
+//                       list. When present, it is this reason's OWN list (same shape as a
+//                       requirement list above), e.g. Transfer skipping Guidance.
+// ─────────────────────────────────────────────────────────────────────
+function defaultClearanceReasons() {
+  return [
+    { id: 'graduation', label: 'Graduation Clearance',           requiresZeroBalance: true  },
+    { id: 'transfer',   label: 'Transfer / Honorable Dismissal', requiresZeroBalance: false },
+    { id: 'transcript', label: 'Transcript of Records',          requiresZeroBalance: false },
+    { id: 'credential', label: 'Release of Credentials',         requiresZeroBalance: false },
+    { id: 'general',    label: 'General Clearance',              requiresZeroBalance: false },
+  ]
+}
+
+/** Starting reasons per school department. Fresh copies, safe to edit. */
+export function getDefaultClearanceReasons(scope) {
+  return CLEARANCE_DEPARTMENT_SCOPES.some(s => s.id === scope) ? defaultClearanceReasons() : []
+}
+
 /**
- * Departments this user may sign: from their role, plus any extra duties on the
- * account. Super Admin may sign all of them.
- * @returns {string[]} department ids
+ * The clearance setup in use, per department, read straight from storage (clearanceConfigBridge imports this
+ * file, so this file cannot import it back). Every campus has its own setup, saved under
+ * campuses[campusKey]; a campus with nothing saved uses the old school-wide setup, else the standard lists.
+ * With no campusKey, every campus's setup (and the default) is returned, so "does anyone use X" questions
+ * cover the whole school.
+ * @returns {{ scope:string, requirements:object[], reasons:object[] }[]}
+ */
+function readClearanceViews(campusKey) {
+  let raw = {}
+  try { raw = JSON.parse(localStorage.getItem('almirene_clearance_requirements') || '{}') || {} } catch { raw = {} }
+  const items = (v) => (Array.isArray(v) && v.length ? v : null)
+  const keys = campusKey ? [campusKey] : [null, ...Object.keys(raw.campuses || {})]
+  const out = []
+  keys.forEach(ck => CLEARANCE_DEPARTMENT_SCOPES.forEach(sc => {
+    const own = ck ? raw.campuses?.[ck]?.[sc.id] : null
+    const shared = raw[sc.id]
+    out.push({
+      scope: sc.id,
+      requirements: items(own?.requirements) || items(shared?.requirements) || getDefaultClearanceRequirements(sc.id),
+      reasons:      items(own?.reasons)      || items(shared?.reasons)      || [],
+    })
+  }))
+  return out
+}
+
+/** Every requirement list in a view: the department's own list plus any list a reason brings. */
+function lists(view) {
+  return [view.requirements, ...view.reasons.filter(r => Array.isArray(r?.requirements) && r.requirements.length).map(r => r.requirements)]
+}
+
+/**
+ * What an account can be given as an extra clearance duty (Settings -> Users), built from the
+ * clearance requirements configured for that account's campus. A requirement that exists in both
+ * departments is one option. Only requirements with a fixed signer (a role or specific accounts)
+ * are offered: teacher-based ones follow Subject Load. Without a campus, every campus's
+ * requirements are included.
+ * @param {string} [campusKey]
+ * @returns {{id:string, label:string, scopes:string[], roles:string[], userIds:string[]}[]}
+ */
+export function getClearanceDutyOptions(campusKey) {
+  const byId = new Map()
+  readClearanceViews(campusKey).forEach(view => {
+    lists(view).forEach(list => list.forEach(r => {
+      const type = r?.signer?.type || 'role'
+      if (!r?.id || (type !== 'role' && type !== 'user')) return
+      const e = byId.get(r.id) || { id: r.id, label: r.label || r.id, scopes: [], roles: [], userIds: [] }
+      if (!e.scopes.includes(view.scope)) e.scopes.push(view.scope)
+      if (type === 'role') (r.signer.roles || []).forEach(x => { if (!e.roles.includes(x)) e.roles.push(x) })
+      if (type === 'user') (r.signer.userIds || []).forEach(x => { if (!e.userIds.includes(String(x))) e.userIds.push(String(x)) })
+      byId.set(r.id, e)
+    }))
+  })
+  return [...byId.values()]
+}
+
+/**
+ * Clearance requirements this user may sign: from their role, from being a named signer,
+ * plus any extra duties on the account. Super Admin may sign all of them.
+ * @returns {string[]} requirement ids
  */
 export function getClearanceDepartments(user) {
   if (!user) return []
-  const all = CLEARANCE_DUTY_OPTIONS.map(d => d.id)
+  const options = getClearanceDutyOptions(user.campusKey || undefined)
+  const all = options.map(o => o.id)
   if (user.role === 'technical_admin') return all
-  const fromRole = all.filter(id => (CLEARANCE_DEPARTMENT_SIGNERS[id] || []).includes(user.role))
+  const fromRole = options
+    .filter(o => o.roles.includes(user.role) || (user.id != null && o.userIds.includes(String(user.id))))
+    .map(o => o.id)
   const extra = Array.isArray(user.clearanceDuties) ? user.clearanceDuties.filter(id => all.includes(id)) : []
   return all.filter(id => fromRole.includes(id) || extra.includes(id))
 }
@@ -478,15 +592,13 @@ export const CLEARANCE_DUTY_ROLE_ACCESS = {
 }
 
 /**
- * True when the saved clearance requirements include a teacher-based signer (the student's
- * instructors, the teacher of a subject, a section adviser). Read straight from storage because
- * clearanceConfigBridge imports this file, so this file cannot import it back.
+ * True when the clearance setup at this campus (any campus when none is given) includes a teacher-based
+ * signer: the student's instructors, the teacher of a subject, a section adviser.
  */
-function clearanceUsesTeacherSigners() {
+function clearanceUsesTeacherSigners(campusKey) {
   try {
-    const cfg = JSON.parse(localStorage.getItem('almirene_clearance_requirements') || '{}')
-    const teacherTypes = ['student_instructors', 'subject_teacher', 'section_adviser']
-    return Object.values(cfg || {}).some(sc => (sc?.requirements || []).some(r => teacherTypes.includes(r?.signer?.type)))
+    return readClearanceViews(campusKey).some(view =>
+      lists(view).some(list => list.some(r => CLEARANCE_TEACHER_SIGNER_TYPES.includes(r?.signer?.type))))
   } catch { return false }
 }
 
@@ -495,7 +607,7 @@ export function getUserPermissions(user) {
   const duties = Array.isArray(user?.clearanceDuties) ? user.clearanceDuties : []
   // A teacher needs the Clearance page as soon as a requirement is signed by teachers
   // (the page then shows them only the clearances they are part of).
-  const teacherSigns = user?.role === 'teacher' && clearanceUsesTeacherSigners()
+  const teacherSigns = user?.role === 'teacher' && clearanceUsesTeacherSigners(user.campusKey || undefined)
   if (!user || user.role === 'technical_admin' || (!duties.length && !teacherSigns)) return base
 
   // Whatever the account's own tier gave it stays; duties only ADD.

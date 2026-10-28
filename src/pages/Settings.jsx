@@ -9,8 +9,9 @@ import {
 import { PageSkeleton, useToast, ToastContainer, ModalPortal, ConfirmDialog, TypeToConfirmDialog } from '../components/UIComponents'
 import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
+import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DUTY_OPTIONS, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -1040,6 +1041,18 @@ export default function Settings() {
     updateConfig, resetSection, activeCampuses, currentSchoolYear
   } = useAppConfig()
 
+  // Campus being configured. A Technical Admin works across every campus, so they pick one first
+  // (header Campus menu, or the picker on this page) and what they save here belongs to that campus.
+  // Everyone else configures their own campus.
+  const { campusFilter, setCampusFilter } = useCampusFilter()
+  const isTechAdmin = user?.role === 'technical_admin'
+  const settingsCampusKey  = isTechAdmin
+    ? (activeCampuses?.some(c => c.key === campusFilter) ? campusFilter : '')
+    : (user?.campusKey || '')
+  const settingsCampusName = isTechAdmin
+    ? (activeCampuses?.find(c => c.key === settingsCampusKey)?.name || '')
+    : (user?.campus || '')
+
   const [loading, setLoading] = useState(true)
   const { toasts, addToast, removeToast } = useToast()
   const [showAddSY, setShowAddSY] = useState(false)
@@ -1282,7 +1295,7 @@ export default function Settings() {
   const [cashierName,     setCashierName]     = useState(() => {
     try {
       // Load campus-scoped cashier name
-      return loadCampusCfg(user?.campus).cashierName || ''
+      return loadCampusCfg(settingsCampusName).cashierName || ''
     } catch { return '' }
   })
   const [cashierSaved,    setCashierSaved]    = useState(false)
@@ -1290,23 +1303,35 @@ export default function Settings() {
   // field can be cleared while typing
   const [minPayment,      setMinPayment]      = useState(() => {
     try {
-      const n = Number(loadCampusCfg(user?.campus).minimumPayment)
+      const n = Number(loadCampusCfg(settingsCampusName).minimumPayment)
       return String(Number.isFinite(n) && n > 0 ? n : DEFAULT_MINIMUM_PAYMENT)
     } catch { return String(DEFAULT_MINIMUM_PAYMENT) }
   })
   const [minPaymentError, setMinPaymentError] = useState('')
   // Payment due-date policy (campus-scoped): 'exam' = next exam on the school calendar, 'fixed' = one date
-  const [duePolicy,       setDuePolicy]       = useState(() => getDueDatePolicy(user?.campus))
+  const [duePolicy,       setDuePolicy]       = useState(() => getDueDatePolicy(settingsCampusName))
   const [dueError,        setDueError]        = useState('')
   const patchDuePolicy = (patch) => { setDuePolicy(p => ({ ...p, ...patch })); setCashierSaved(false); setDueError('') }
   const [discounts,       setDiscounts]       = useState(() => {
     try {
       // Load campus-scoped discounts — each campus manages their own
-      const campusCfg = loadCampusCfg(user?.campus)
+      const campusCfg = loadCampusCfg(settingsCampusName)
       return campusCfg.discounts || DEFAULT_DISCOUNTS
     } catch { return DEFAULT_DISCOUNTS }
   })
   const [savedSection,    setSavedSection]    = useState(null)
+
+  // Switching campus reloads the campus-scoped settings (receipt, payment, discounts) for that campus
+  useEffect(() => {
+    if (!settingsCampusName) return
+    const cfg = loadCampusCfg(settingsCampusName)
+    const n = Number(cfg.minimumPayment)
+    setCashierName(cfg.cashierName || '')
+    setMinPayment(String(Number.isFinite(n) && n > 0 ? n : DEFAULT_MINIMUM_PAYMENT))
+    setDuePolicy(getDueDatePolicy(settingsCampusName))
+    setDiscounts(cfg.discounts || DEFAULT_DISCOUNTS)
+    setCashierSaved(false); setMinPaymentError(''); setDueError('')
+  }, [settingsCampusName])
 
   const saveSection = (section, value) => {
     updateConfig(section, value)
@@ -1343,6 +1368,43 @@ export default function Settings() {
 
   if (loading) return <PageSkeleton title="Settings" />
 
+  const campusPickOptions = (activeCampuses || []).map(c => ({ value: c.key, label: c.name }))
+  // Tabs whose settings belong to one campus. The rest are saved once for the whole school.
+  const CAMPUS_SCOPED_TABS = ['discounts', 'receipt', 'workflow']
+
+  // A Technical Admin must choose a campus before touching any setting, so a change never lands
+  // on a campus they did not mean.
+  if (isTechAdmin && !settingsCampusKey) {
+    return (
+      <div className="animate-fade-in">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-[var(--color-text-primary)] mb-1">Settings</h1>
+          <p className="text-[var(--color-text-secondary)]">Manage system configuration and preferences</p>
+        </div>
+        <div className="max-w-xl bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+              <School className="w-5 h-5 text-[var(--color-primary-readable)]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Select a campus first</h2>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                Settings are saved per campus, so choose the campus you are configuring. Nothing you change will reach the other campuses.
+                You can also use the Campus menu at the top of the page.
+              </p>
+            </div>
+          </div>
+          <GroupedSelect
+            value="all"
+            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
+            allLabel="Choose a campus…"
+            options={campusPickOptions}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="animate-fade-in">
       {/* Header */}
@@ -1354,6 +1416,25 @@ export default function Settings() {
           Manage system configuration and preferences
         </p>
       </div>
+
+      {/* Which campus a Technical Admin is configuring, and whether this tab is campus-only */}
+      {isTechAdmin && (
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)]">
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Configuring <strong className="text-[var(--color-text-primary)]">{settingsCampusName}</strong>.{' '}
+            {CAMPUS_SCOPED_TABS.includes(activeTab)
+              ? 'What you change on this tab applies to this campus only.'
+              : 'This tab is school-wide: what you change here applies to every campus.'}
+          </p>
+          <GroupedSelect
+            className="sm:w-64 shrink-0"
+            value={settingsCampusKey}
+            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
+            allLabel="Choose a campus…"
+            options={campusPickOptions}
+          />
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-[var(--color-bg-card)] rounded-lg shadow-lg mb-6">
@@ -3126,7 +3207,7 @@ export default function Settings() {
           <DiscountsTab
             discounts={discounts}
             setDiscounts={setDiscounts}
-            userCampus={user?.campus}
+            userCampus={settingsCampusName}
             userRole={user?.role}
           />
         )}
@@ -3141,7 +3222,7 @@ export default function Settings() {
               <div>
                 <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Receipt &amp; Payment Settings</h2>
                 <p className="text-sm text-[var(--color-text-muted)]">
-                  Configure receipts for <strong>{user?.campus || 'your campus'}</strong> only — other campuses are not affected.
+                  Configure receipts for <strong>{settingsCampusName || 'your campus'}</strong> only — other campuses are not affected.
                 </p>
               </div>
             </div>
@@ -3294,7 +3375,7 @@ export default function Settings() {
                 </p>
                 <div className="text-xs space-y-1.5 text-[var(--color-text-secondary)]">
                   <p className="font-bold text-sm text-[var(--color-text-primary)] text-center">{websiteContent.schoolName || 'School Name'}</p>
-                  <p className="text-center text-gray-400">{user?.campus || 'Campus'}</p>
+                  <p className="text-center text-gray-400">{settingsCampusName || 'Campus'}</p>
                   <div className="border-t border-[var(--color-border)] mt-2 pt-2">
                     <div className="flex justify-between"><span className="text-gray-400">OR No.:</span><span className="font-mono">OR-2526-XXXX</span></div>
                     <div className="flex justify-between mt-1"><span className="text-gray-400">Student:</span><span>Juan Dela Cruz</span></div>
@@ -3333,7 +3414,7 @@ export default function Settings() {
                         return
                       }
                       // Save scoped to this campus — never affects other campuses
-                      saveCampusCfg(user?.campus, {
+                      saveCampusCfg(settingsCampusName, {
                         cashierName,
                         minimumPayment: Math.round(min * 100) / 100,
                         dueDatePolicy: {
@@ -3480,7 +3561,7 @@ export default function Settings() {
         )}
 
       </div>
-      {activeTab === 'workflow' && <WorkflowConfigTab />}
+      {activeTab === 'workflow' && <WorkflowConfigTab campusKey={settingsCampusKey} campusName={settingsCampusName} />}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <ConfirmDialog
         open={!!confirmDialog}
@@ -3548,6 +3629,15 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   const [showDeactivateId, setShowDeactivateId] = useState(null)
   const { toasts, addToast, removeToast } = useToast()
 
+  // Clearance duties come from the clearance requirements the Technical Admin configured
+  // (Settings → Workflow Config → Student Clearance), so they refresh when that list is saved.
+  const [, setDutyTick] = useState(0)
+  useEffect(() => {
+    const refresh = () => setDutyTick(t => t + 1)
+    window.addEventListener('almirene_clearance_config_updated', refresh)
+    return () => window.removeEventListener('almirene_clearance_config_updated', refresh)
+  }, [])
+
   // System admin can only see/manage users from their own campus
   const isSystemAdmin = currentUser?.role === 'system_admin'
   const myCampus = currentUser?.campus
@@ -3560,8 +3650,16 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   const needsCampus = CAMPUS_SCOPED_ROLES.includes(form.role)
 
   // Clearance departments this role already signs on its own (extra duties add to these)
-  const ownClearanceDepts = getClearanceDepartments({ role: form.role })
-  const canHaveClearanceDuties = !['technical_admin', 'system_admin', 'admin'].includes(form.role)
+  // Each campus has its own clearance setup, so the duties on offer are the ones at the account's campus
+  // (every campus's, until a campus is chosen)
+  const dutyOptions    = getClearanceDutyOptions(form.campusKey || undefined)
+  const allDutyOptions = getClearanceDutyOptions()
+  const ownClearanceDepts = getClearanceDepartments({ role: form.role, id: editingUser?.id, campusKey: form.campusKey })
+  const canHaveClearanceDuties = !['technical_admin', 'system_admin', 'admin'].includes(form.role) && dutyOptions.length > 0
+  const dutyIds = dutyOptions.map(d => d.id)
+  // Duties saved earlier for a requirement that has since been removed
+  const staleDuties = (form.clearanceDuties || []).filter(id => !dutyIds.includes(id))
+  const roleAccessLabels = dutyOptions.filter(d => CLEARANCE_DUTY_ROLE_ACCESS[d.id]).map(d => d.label)
 
   const activeCampusOptions = (campuses || [])
     .filter(c => c.isActive !== false)
@@ -3659,7 +3757,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
       const permissionsObj = form.customPermissions ? form.permissions : undefined
 
       // Extra clearance duties — never store what the role already signs
-      const dutiesToSave = (form.clearanceDuties || []).filter(id => !ownClearanceDepts.includes(id))
+      const dutiesToSave = (form.clearanceDuties || []).filter(id => dutyIds.includes(id) && !ownClearanceDepts.includes(id))
 
       let nextUsers = users
 
@@ -3736,7 +3834,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   const RoleBadge = ({ role, duties }) => {
     const def = ROLE_DEFINITIONS?.[role]
     const extra = (Array.isArray(duties) ? duties : [])
-      .map(id => CLEARANCE_DUTY_OPTIONS.find(d => d.id === id)?.label)
+      .map(id => allDutyOptions.find(d => d.id === id)?.label)
       .filter(Boolean)
     return (
       <span className="inline-flex flex-wrap items-center gap-1">
@@ -3747,7 +3845,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
         </span>
         {extra.map(label => (
           <span key={label}
-            title={`Also signs the ${label} department of student clearances`}
+            title={`Also signs ${label} on student clearances`}
             className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]">
             + {label}
           </span>
@@ -4143,15 +4241,18 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                     Clearance sign-off duties <span className="text-gray-400 font-normal">(optional)</span>
                   </label>
                   <p className="text-xs text-[var(--color-text-muted)] mb-2">
-                    One person, one account. Tick a department if this person also signs it on top of their role, for example a teacher who is also the guidance in-charge.
-                    Library and Guidance also give them that role's pages; the other departments add the Clearance page only.
-                    A school with enough staff can give each department its own account instead.
-                    {ownClearanceDepts.length > 0 && ' Departments their role already signs are marked.'}
+                    One person, one account. Tick an item if this person also signs it on top of their role, for example a teacher who is also the guidance in-charge.
+                    {roleAccessLabels.length > 0 && ` ${roleAccessLabels.join(' and ')} also give them that role's pages; the others add the Clearance page only.`}
+                    {' '}The list follows the clearance requirements set in Workflow Config. Teacher-based items follow Subject Load, so they are not listed here.
+                    {ownClearanceDepts.length > 0 && ' Items their role already signs are marked.'}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {CLEARANCE_DUTY_OPTIONS.map(d => {
+                    {dutyOptions.map(d => {
                       const own = ownClearanceDepts.includes(d.id)
                       const checked = own || (form.clearanceDuties || []).includes(d.id)
+                      const onlyScope = d.scopes.length < CLEARANCE_DEPARTMENT_SCOPES.length
+                        ? CLEARANCE_DEPARTMENT_SCOPES.find(sc => sc.id === d.scopes[0])?.label
+                        : null
                       return (
                         <label key={d.id}
                           className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
@@ -4168,11 +4269,28 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                                 : (f.clearanceDuties || []).filter(x => x !== d.id),
                             }))}
                             className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
-                          <span className="text-[var(--color-text-primary)]">{d.label}</span>
+                          <span className="text-[var(--color-text-primary)]">
+                            {d.label}
+                            {onlyScope && <span className="block text-[10px] text-[var(--color-text-muted)]">{onlyScope} only</span>}
+                          </span>
                           {own && <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">from role</span>}
                         </label>
                       )
                     })}
+                    {staleDuties.map(id => (
+                      <label key={id}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-[var(--color-border)] text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked
+                          onChange={() => setForm(f => ({ ...f, clearanceDuties: (f.clearanceDuties || []).filter(x => x !== id) }))}
+                          className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                        <span className="text-[var(--color-text-muted)]">
+                          {id}
+                          <span className="block text-[10px]">No longer a requirement. Untick to remove.</span>
+                        </span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}

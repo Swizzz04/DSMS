@@ -27,7 +27,7 @@ import {
   getDefaultClearanceRequirements,
 } from '../config/appConfig'
 import {
-  getClearanceRequirements, getClearanceScope, resolveClearanceSlots, syncClearanceSlots,
+  getClearanceRequirements, getClearanceScope, findClearanceReason, resolveClearanceSlots, syncClearanceSlots,
   areSlotsFullyCleared, slotBlockReason, canUserSignSlot,
 } from './clearanceConfigBridge'
 
@@ -830,7 +830,12 @@ function makeClearanceContext() {
   return {
     student:      (id) => (Array.isArray(students) ? students.find(s => String(s.id) === String(id)) : null) || null,
     subjectLoad:  (campusKey, schoolYear) => loads?.[campusKey]?.[schoolYear] || null,
-    requirements: (scope) => cache[scope] || (cache[scope] = getClearanceRequirements(scope)),
+    // A reason can bring its own requirements list; without one it uses the department's standard list
+    // Every campus has its own setup, so the campus is part of the question
+    requirements: (scope, reasonId, campusKey) => {
+      const key = `${campusKey || ''}|${scope}|${reasonId || ''}`
+      return cache[key] || (cache[key] = getClearanceRequirements(scope, reasonId, campusKey))
+    },
   }
 }
 
@@ -911,7 +916,15 @@ function hydrateRecord(record, ctx) {
   if (!Array.isArray(r.slots)) r.slots = legacySlots(r, scope)
 
   if (!r.isFullyCleared) {
-    const allReqs = ctx.requirements(scope)
+    // The reason decides which list applies. Records from before reasons were configurable only
+    // stored the label, so match on that; a reason that was removed falls back to the standard list.
+    const campusKey = r.campusKey || student?.campusKey
+    const reasonCfg = findClearanceReason(scope, { reasonId: r.reasonId, label: r.reason, campusKey })
+    if (reasonCfg) {
+      r.reasonId = reasonCfg.id
+      r.requiresZeroBalance = reasonCfg.requiresZeroBalance
+    }
+    const allReqs = ctx.requirements(scope, reasonCfg?.id, campusKey)
     const reqs    = student ? allReqs : allReqs.filter(isStaticRequirement)
     const stu     = student
       ? { ...student, campusKey: r.campusKey || student.campusKey, schoolYear: r.schoolYear || student.schoolYear }
@@ -1016,7 +1029,9 @@ export function getClearanceById(id) {
  * @param {string} campusKey
  * @param {string} schoolYear
  * @param {string} [reason] — optional context (e.g. "Transfer out", "Graduation")
- * @param {object} [options] — { requiresZeroBalance } (defaults to true when the reason mentions graduation)
+ * @param {object} [options] — { reasonId, scope, requiresZeroBalance }. reasonId picks the configured reason, so its
+ *                             own requirements list (if any) and zero-balance rule apply. requiresZeroBalance
+ *                             defaults to the reason's setting, else to true when the text mentions graduation.
  */
 export function createClearance(studentId, studentName, campusKey, schoolYear, reason = '', options = {}) {
   // Check for existing active clearance for this student+SY
@@ -1028,15 +1043,19 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
   const now     = new Date().toISOString()
   const info    = getStudentBalanceInfo(studentId)
   const balance = info.balance
+
+  // What this student must clear comes from the configured requirements for their department,
+  // or from the chosen reason's own list when it has one
+  const ctx       = makeClearanceContext()
+  const student   = ctx.student(studentId)
+  const scope     = options.scope || getClearanceScope(student || {})
+  const reasonCfg = findClearanceReason(scope, { reasonId: options.reasonId, label: reason, campusKey })
   const requiresZeroBalance = typeof options.requiresZeroBalance === 'boolean'
     ? options.requiresZeroBalance
-    : /graduat/i.test(reason || '')
-
-  // What this student must clear comes from the configured requirements for their department
-  const ctx     = makeClearanceContext()
-  const student = ctx.student(studentId)
-  const scope   = options.scope || getClearanceScope(student || {})
-  const allReqs = ctx.requirements(scope)
+    : typeof reasonCfg?.requiresZeroBalance === 'boolean'
+      ? reasonCfg.requiresZeroBalance
+      : /graduat/i.test(reason || '')
+  const allReqs = ctx.requirements(scope, reasonCfg?.id, campusKey)
   const stu     = student ? { ...student, campusKey, schoolYear } : { department: scope, campusKey, schoolYear }
   const out     = resolveClearanceSlots(stu, student ? allReqs : allReqs.filter(isStaticRequirement), {
     subjectLoad: ctx.subjectLoad(campusKey, schoolYear),
@@ -1059,6 +1078,7 @@ export function createClearance(studentId, studentName, campusKey, schoolYear, r
     campusKey,
     schoolYear,
     reason,
+    reasonId:        reasonCfg?.id || null,
     scope,
     slots,
     slotWarnings:    warnings,

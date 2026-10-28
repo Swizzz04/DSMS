@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   GitBranch, ChevronDown, ChevronRight, Plus, Trash2,
   RotateCcw, Save, AlertCircle, GripVertical,
-  Settings, Users, Zap, Clock, Eye, Info,
+  Settings, Users, Zap, Clock, Eye, Info, ShieldCheck,
 } from 'lucide-react'
 import GroupedSelect from '../GroupedSelect'
 import {
@@ -26,6 +26,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { ConfirmDialog, useToast, ToastContainer } from '../UIComponents'
 import AccordionBody from '../AccordionBody'
+import ClearanceRequirementsEditor from './ClearanceRequirementsEditor'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OPTION LISTS (used by GroupedSelect)
@@ -607,12 +608,13 @@ function WorkflowPreview({ steps }) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function WorkflowConfigTab() {
+function WorkflowsEditor({ campusKey: campusKeyProp }) {
   const { user }           = useAuth()
   const { activeCampuses } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
 
-  const campusKey = user?.campusKey ?? activeCampuses?.[0]?.key ?? 'all'
+  // The campus being configured (Settings makes the Technical Admin pick one first)
+  const campusKey = campusKeyProp ?? user?.campusKey ?? activeCampuses?.[0]?.key ?? 'all'
 
   const [workflows,     setWorkflows]     = useState([])
   const [deptTab,       setDeptTab]       = useState('basicEd') // 'basicEd' | 'college' | 'all'
@@ -958,6 +960,52 @@ export default function WorkflowConfigTab() {
       />
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB SHELL — Workflows | Clearance
+// Both panels stay mounted (the inactive one is hidden) so an unsaved draft in one
+// is not lost when the admin looks at the other.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WORKFLOW_SECTIONS = [
+  { id: 'workflows', label: 'Workflows',         icon: GitBranch  },
+  { id: 'clearance', label: 'Student Clearance', icon: ShieldCheck },
+]
+
+/**
+ * @param {string} campusKey   the campus being configured
+ * @param {string} campusName  its display name
+ */
+export default function WorkflowConfigTab({ campusKey, campusName }) {
+  const [section, setSection] = useState('workflows')
+
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-1 p-1 rounded-xl bg-[var(--color-bg-subtle)] w-full sm:w-auto sm:inline-flex">
+        {WORKFLOW_SECTIONS.map(s => {
+          const Icon = s.icon
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSection(s.id)}
+              className={`flex-1 sm:flex-none sm:px-5 py-1.5 text-xs font-semibold rounded-lg transition-colors inline-flex items-center justify-center gap-1.5
+                ${section === s.id
+                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}
+            >
+              <Icon size={13} /> {s.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* key = campus, so switching campus starts both editors fresh on that campus's own setup */}
+      <div className={section === 'workflows' ? '' : 'hidden'}><WorkflowsEditor key={campusKey} campusKey={campusKey} /></div>
+      <div className={section === 'clearance' ? '' : 'hidden'}><ClearanceRequirementsEditor key={campusKey} campusKey={campusKey} campusName={campusName} /></div>
     </div>
   )
 }
