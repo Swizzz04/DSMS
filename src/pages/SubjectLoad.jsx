@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   BookOpen, GraduationCap, User, Plus, X, ChevronDown, ChevronUp,
   Check, Search, AlertCircle, Download, Pencil, Users,
-  Settings2, ChevronRight
+  Settings2, ChevronRight, School
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
+import { useCampusFilter } from '../context/CampusFilterContext'
 import { useToast, ToastContainer, PageSkeleton, ModalPortal } from '../components/UIComponents'
 import { exportToExcel } from '../utils/exportToExcel'
 import {
@@ -17,7 +18,7 @@ import {
   setBasicEdSubjectArea,
 } from '../utils/subjectLoadBridge'
 import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
-import { SUBJECT_AREAS } from '../engines/gradingEngine'
+import { getGradingFramework, getSubjectAreaOptions, DEFAULT_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
 import GroupedSelect from '../components/GroupedSelect'
 
 const SEMESTERS = ['1st', '2nd']
@@ -143,8 +144,8 @@ function RenameSectionModal({ section, onRename, onClose }) {
 // ─────────────────────────────────────────────────────────────────
 // SUBJECT ROW — reusable
 // ─────────────────────────────────────────────────────────────────
-function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
-  const areaLabel = SUBJECT_AREAS.find(a => a.id === subjectArea)?.label ?? null
+function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions, staleArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
+  const areaLabel = areaOptions.find(a => a.id === subjectArea)?.label ?? null
   // Shorten label for display — use the first meaningful word group
   const shortArea = areaLabel
     ? areaLabel.split('/')[0].trim()
@@ -187,13 +188,16 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, on
               <GroupedSelect
                 value={subjectArea || 'all'}
                 onChange={v => onSubjectAreaChange(v === 'all' ? null : v)}
-                options={SUBJECT_AREAS.map(a => ({ value: a.id, label: a.label }))}
+                options={areaOptions.map(a => ({ value: a.id, label: a.label }))}
                 allLabel="— not set —"
                 placeholder="— not set —"
               />
             </div>
             {!subjectArea && (
-              <span className="text-[10px] text-[var(--color-warning-text)] shrink-0">Required</span>
+              <span className="text-[10px] text-[var(--color-warning-text)] shrink-0"
+                title={staleArea ? "The area saved earlier is not in this school year's grading framework" : undefined}>
+                {staleArea ? 'Choose again' : 'Required'}
+              </span>
             )}
           </div>
         )}
@@ -205,7 +209,10 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, onAssign, on
 // ─────────────────────────────────────────────────────────────────
 // BASIC ED TAB
 // ─────────────────────────────────────────────────────────────────
-function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addToast }) {
+function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaInfo, onDataChange, addToast }) {
+  // MAPEH-type sub-subjects are locked to the HELE / MAPEH area, but only when the list has that area
+  // (the DO 8 list does; a school's own framework may not)
+  const lockComposite = areaOptions.some(a => a.id === 'hele_mapeh')
   const [openGrades, setOpenGrades] = useState({})
   const [picker, setPicker] = useState(null)     // { type:'subject'|'adviser', gradeLevel, subject?, sectionId?, load }
   const [addModal, setAddModal] = useState(null) // gradeLevel
@@ -239,10 +246,17 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
 
   return (
     <div className="space-y-4">
+      {/* Where the Subject Area choices come from */}
+      <p className="text-xs text-[var(--color-text-muted)]">
+        {areaInfo.fromFramework
+          ? <>Subject areas follow the grading framework for {schoolYear}: <strong className="text-[var(--color-text-secondary)]">{areaInfo.frameworkLabel}</strong>. Change them in Settings → School Year.</>
+          : <>This school year's grading framework ({areaInfo.frameworkLabel}) splits its exams into several scores, which the e-Class Record cannot enter yet, so the standard DepEd Order 8 areas are used.</>}
+      </p>
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Grade Levels',     value: allGrades.length,                  border: 'border-[var(--color-primary-readable)]' },
+          { label: 'Grade Levels',    value: allGrades.length,                  border: 'border-[var(--color-primary-readable)]' },
           { label: 'Total Subjects',   value: totalSubjects,                      border: 'border-[var(--color-info)]' },
           { label: 'Subjects Assigned', value: `${assignedSubjects}/${totalSubjects}`, border: 'border-[var(--color-success)]' },
           { label: 'Advisers Assigned', value: `${assignedAdvisers}/${totalSections}`, border: 'border-[var(--color-cat-violet-text)]' },
@@ -341,16 +355,19 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, onDataChange, addTo
                     const load = loads.find(l => l.subject === subject)
                     // Composite sub-subjects always use hele_mapeh — auto-set on first render
                     const COMPOSITE_SUBS = { 'Music & Arts': 'hele_mapeh', 'PE & Health': 'hele_mapeh', 'TLE': 'hele_mapeh', 'HELE': 'hele_mapeh', 'Computer': 'hele_mapeh' }
-                    const isComposite = !!COMPOSITE_SUBS[subject]
-                    const effectiveArea = load?.subjectArea || (isComposite ? COMPOSITE_SUBS[subject] : null)
+                    const isComposite = lockComposite && !!COMPOSITE_SUBS[subject]
+                    // An area saved under another grading framework is not in today's list: treat it as not set
+                    const savedArea  = areaOptions.some(a => a.id === load?.subjectArea) ? load.subjectArea : null
+                    const staleArea  = !!load?.subjectArea && !savedArea
+                    const effectiveArea = savedArea || (isComposite ? COMPOSITE_SUBS[subject] : null)
                     // Auto-save composite area if not yet saved
-                    if (isComposite && !load?.subjectArea) {
+                    if (isComposite && !savedArea) {
                       setBasicEdSubjectArea(campusKey, schoolYear, grade, subject, COMPOSITE_SUBS[subject])
                     }
                     return (
                       <SubjectRow key={subject} subject={subject}
                         teacherName={load?.teacherName} teacherId={load?.teacherId}
-                        subjectArea={effectiveArea}
+                        subjectArea={effectiveArea} areaOptions={areaOptions} staleArea={staleArea}
                         onAssign={() => setPicker({ type: 'subject', gradeLevel: grade, subject, load })}
                         onRemove={() => { removeBasicEdSubject(campusKey, schoolYear, grade, subject); onDataChange(); addToast(`"${subject}" removed`, 'success') }}
                         onSubjectAreaChange={area => {
@@ -688,16 +705,33 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
 // ─────────────────────────────────────────────────────────────────
 export default function SubjectLoad() {
   const { user }    = useAuth()
-  const { activeCampuses, currentSchoolYear, systemUsers } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, systemUsers, schoolYears } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
 
   const role     = user?.role
-  const campus   = activeCampuses.find(c => c.name === user?.campus)
-  const campusKey  = campus?.key    || ''
-  const campusName = campus?.name   || user?.campus || ''
-  const collegePrograms = campus?.collegePrograms || []
 
-  const [activeTab,     setActiveTab]     = useState((role === 'program_head' || role === 'registrar_college') ? 'college' : 'basicEd')
+  // Campus being configured. A Technical Admin works across every campus, so they must pick one
+  // first (header Campus menu, or the picker on this page): Subject Load is stored per campus and
+  // what they assign belongs to that campus. Everyone else works on their own campus.
+  const { campusFilter = 'all', setCampusFilter } = useCampusFilter()
+  const isTechAdmin = role === 'technical_admin'
+  const campus = isTechAdmin
+    ? activeCampuses.find(c => c.key === campusFilter)
+    : activeCampuses.find(c => c.name === user?.campus)
+  const campusKey  = campus?.key    || ''
+  const campusName = campus?.name   || (isTechAdmin ? '' : (user?.campus || ''))
+  const collegePrograms = campus?.college?.programs ?? campus?.collegePrograms ?? []
+  const campusPickOptions = (activeCampuses || []).map(c => ({ value: c.key, label: c.name }))
+
+  // Subject Area choices come from this school year's grading framework (school-wide), the same list
+  // the e-Class Record offers. See getSubjectAreaOptions() in gradingEngine.js.
+  const activeSY = (schoolYears || []).find(y => y.year === currentSchoolYear)
+    || (schoolYears || []).find(y => y.isCurrent) || {}
+  const gradingFramework = getGradingFramework(activeSY.gradingFramework || 'do8_2015') || DEFAULT_GRADING_FRAMEWORKS[0]
+  const { options: areaOptions, fromFramework } = getSubjectAreaOptions(gradingFramework)
+  const areaInfo = { fromFramework, frameworkLabel: gradingFramework.label }
+
+  const [activeTab,    setActiveTab]     = useState((role === 'program_head' || role === 'registrar_college') ? 'college' : 'basicEd')
   const [loading,       setLoading]       = useState(true)
   const [data,          setData]          = useState(null)
   const [showSettings,  setShowSettings]  = useState(false)
@@ -706,15 +740,20 @@ export default function SubjectLoad() {
   // Includes principal_basic so they can be assigned to college minor subjects
   const teachers = (systemUsers || []).filter(u =>
     u.status === 'active' &&
-    (u.campus === campusName || u.campus === 'all') &&
-    ['teacher_basic', 'instructor_college', 'registrar_basic',
+    campusKey && (u.campus === campusName || u.campus === 'all') &&
+    ['teacher', 'teacher_basic', 'instructor_college', 'registrar_basic',
      'registrar_college', 'principal_basic', 'program_head'].includes(u.role)
   ).map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role }))
 
   const reload = useCallback(() => {
+    // No campus chosen yet: read nothing and create nothing (an empty key would write junk to storage)
+    if (!campusKey) { setData(null); return }
     const d = getSubjectLoadData(campusKey, currentSchoolYear, campusName, collegePrograms)
     setData(d)
   }, [campusKey, currentSchoolYear, campusName])
+
+  // Switching campus closes anything open for the campus we are leaving
+  useEffect(() => { setShowSettings(false) }, [campusKey])
 
   useEffect(() => {
     reload()
@@ -776,12 +815,66 @@ export default function SubjectLoad() {
     addToast('Subject load exported!', 'success')
   }
 
+  // A Technical Admin must choose a campus before touching Subject Load, so an assignment never
+  // lands on a campus they did not mean.
+  if (isTechAdmin && !campusKey) {
+    return (
+      <div className="animate-fade-in space-y-5">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Subject Load</h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">{currentSchoolYear}</p>
+        </div>
+        <div className="max-w-xl bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+              <School className="w-5 h-5 text-[var(--color-primary-readable)]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Select a campus first</h2>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                Subject Load is set up per campus, so choose the campus you are configuring. Nothing you assign will reach the other campuses.
+                You can also use the Campus menu at the top of the page.
+              </p>
+            </div>
+          </div>
+          <GroupedSelect
+            value="all"
+            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
+            allLabel="Choose a campus…"
+            options={campusPickOptions}
+          />
+        </div>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </div>
+    )
+  }
+
+  // An account that is not linked to an active campus has nothing to configure
+  if (!campusKey) {
+    return (
+      <div className="animate-fade-in space-y-5">
+        <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Subject Load</h1>
+        <div className="flex items-start gap-3 px-4 py-3.5 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl">
+          <AlertCircle className="w-5 h-5 text-[var(--color-warning-text)] flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-[var(--color-warning-text)]">
+            Your account is not linked to an active campus. Ask your Technical Administrator to check your campus in Settings → Users.
+          </p>
+        </div>
+        <ToastContainer toasts={toasts} onRemove={removeToast} />
+      </div>
+    )
+  }
+
   if (loading || !data) return <PageSkeleton title="Subject Load Management" />
 
   const tabs = [
-    ...(role === 'principal_basic' ? [{ id: 'basicEd', label: 'Basic Education', icon: BookOpen }] : []),
-    ...(role === 'program_head' || role === 'registrar_college' ? [{ id: 'college', label: 'College', icon: GraduationCap }] : []),
+    ...(role === 'principal_basic' || (isTechAdmin && campus?.hasBasicEd !== false) ? [{ id: 'basicEd', label: 'Basic Education', icon: BookOpen }] : []),
+    ...(role === 'program_head' || role === 'registrar_college' || (isTechAdmin && collegePrograms.length > 0) ? [{ id: 'college', label: 'College', icon: GraduationCap }] : []),
   ]
+  // A Technical Admin's tabs depend on the campus; fall back to the first one it offers
+  const shownTab = isTechAdmin
+    ? (tabs.some(t => t.id === activeTab) ? activeTab : (tabs[0]?.id || 'basicEd'))
+    : activeTab
 
   return (
     <div className="animate-fade-in space-y-5">
@@ -797,6 +890,15 @@ export default function SubjectLoad() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start">
+          {isTechAdmin && (
+            <GroupedSelect
+              className="w-52"
+              value={campusKey}
+              onChange={v => { if (v !== 'all') setCampusFilter(v) }}
+              allLabel="Choose a campus…"
+              options={campusPickOptions}
+            />
+          )}
           <button onClick={() => setShowSettings(true)}
             className="p-2 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition" title="Section settings">
             <Settings2 className="w-4 h-4" />
@@ -815,7 +917,9 @@ export default function SubjectLoad() {
           <div>
             <p className="text-sm font-semibold text-[var(--color-warning-text)]">No teachers found for this campus</p>
             <p className="text-xs text-[var(--color-warning-text)] mt-0.5">
-              Ask your Technical Administrator to add teacher accounts in Settings → Users, then assign them here.
+              {isTechAdmin
+                ? 'Add teacher accounts for this campus in Settings → Users, then assign them here.'
+                : 'Ask your Technical Administrator to add teacher accounts in Settings → Users, then assign them here.'}
             </p>
           </div>
         </div>
@@ -827,7 +931,7 @@ export default function SubjectLoad() {
           {tabs.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
-                activeTab === tab.id
+                shownTab === tab.id
                   ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
                   : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}>
@@ -838,12 +942,13 @@ export default function SubjectLoad() {
       )}
 
       {/* Content */}
-      {activeTab === 'basicEd' && (
-        <BasicEdTab data={data} teachers={teachers} campusKey={campusKey}
-          schoolYear={currentSchoolYear} onDataChange={reload} addToast={addToast} />
+      {shownTab === 'basicEd' && (
+        <BasicEdTab key={campusKey} data={data} teachers={teachers} campusKey={campusKey}
+          schoolYear={currentSchoolYear} areaOptions={areaOptions} areaInfo={areaInfo}
+          onDataChange={reload} addToast={addToast} />
       )}
-      {activeTab === 'college' && (
-        <CollegeTab data={data} teachers={teachers} campusKey={campusKey}
+      {shownTab === 'college' && (
+        <CollegeTab key={campusKey} data={data} teachers={teachers} campusKey={campusKey}
           schoolYear={currentSchoolYear} collegePrograms={collegePrograms}
           onDataChange={reload} addToast={addToast} />
       )}

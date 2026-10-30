@@ -423,6 +423,33 @@ export function getGradingFramework(id) {
   return getGradingFrameworks().find(f => f.id === id) || null
 }
 
+/**
+ * True when every component of the framework is a plain score (no nested sub-scores).
+ * Only such a framework can use the e-Class Record's score-entry grid and computeGradeUniversal()
+ * for Basic Ed. A framework whose components carry nested parts (an exam split into several scores,
+ * as in DO 015, s.2026) has no entry screen yet and still goes through the DO 8 path.
+ */
+export function frameworkSupportsEntryGrid(framework) {
+  return !!framework && (framework.components || []).every(c => !c.subcomponents || c.subcomponents.length === 0)
+}
+
+/**
+ * The Subject Areas a principal (Subject Load) or teacher (e-Class Record) can choose from.
+ *   - a framework the entry grid supports -> that framework's own subject groups, i.e. whatever the
+ *     school set up in Settings -> School Year -> grading framework (names and weights)
+ *   - any other framework, or none        -> the fixed DepEd Order 8 list used by the DO 8 path
+ * Subject Load and e-Class Record both call this, so they always offer the same list.
+ * @param {object|null} framework  from getGradingFramework()
+ * @returns {{ options: {id:string,label:string}[], fromFramework: boolean }}
+ */
+export function getSubjectAreaOptions(framework) {
+  const groups = framework?.subjectGroups
+  if (frameworkSupportsEntryGrid(framework) && Array.isArray(groups) && groups.length > 0) {
+    return { options: groups.map(g => ({ id: g.id, label: g.label })), fromFramework: true }
+  }
+  return { options: SUBJECT_AREAS.map(a => ({ id: a.id, label: a.label })), fromFramework: false }
+}
+
 /** Replace the full list of frameworks (used by the Settings editor's Save). */
 export function saveGradingFrameworks(frameworks) {
   localStorage.setItem(GRADING_FRAMEWORKS_KEY, JSON.stringify(frameworks))
