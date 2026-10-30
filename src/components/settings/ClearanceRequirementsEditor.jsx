@@ -911,15 +911,15 @@ export default function ClearanceRequirementsEditor({ campusKey, campusName }) {
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setResetOpen(true)} disabled={!isCustom && !isDirty}
-            className="btn btn-ghost gap-1.5 text-xs">
+            className="btn btn-ghost gap-1.5 text-xs disabled:!opacity-100 disabled:text-[var(--color-text-muted)]">
             <RotateCcw size={13} /> Default setup
           </button>
           <button type="button" onClick={() => setDiscardOpen(true)} disabled={!isDirty}
-            className="btn btn-ghost gap-1.5 text-xs">
+            className="btn btn-ghost gap-1.5 text-xs disabled:!opacity-100 disabled:text-[var(--color-text-muted)]">
             <Undo2 size={13} /> Discard
           </button>
           <button type="button" onClick={requestSave} disabled={!isDirty || isSaving}
-            className="btn btn-primary gap-1.5 text-xs">
+            className="btn btn-primary gap-1.5 text-xs disabled:!opacity-100 disabled:!bg-[var(--color-bg-subtle)] disabled:!text-[var(--color-text-muted)] disabled:border disabled:border-[var(--color-border)]">
             {isSaving
               ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
               : <Save size={13} />}

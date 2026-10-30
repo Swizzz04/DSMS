@@ -25,10 +25,11 @@ import { PageSkeleton, useToast, ToastContainer, ModalPortal } from '../componen
 import GroupedSelect from '../components/GroupedSelect'
 import {
   // Basic Ed
-  SUBJECT_AREAS, GRADING_PERIODS, WEIGHT_TABLES,
+  GRADING_PERIODS, WEIGHT_TABLES,
   computeGrade, getAllGrades, saveGradeRecord, submitGrades,
   getParentComposite, getCompositeConfig, computeCompositeGrade, COMPOSITE_SUBJECTS,
   getGradingFramework, computeGradeUniversal, DEFAULT_GRADING_FRAMEWORKS,
+  getSubjectAreaOptions, frameworkSupportsEntryGrid,
   // College
   COLLEGE_GRADE_SCALE, COLLEGE_SEMESTERS, SPECIAL_GRADES,
   computeCollegeGrade, getCollegeGradingFramework, DEFAULT_COLLEGE_GRADING_FRAMEWORKS,
@@ -123,9 +124,11 @@ export default function EClassRecord() {
   // different entry UI — not yet built — so we fall back to the legacy
   // computeGrade() path for those rather than silently computing from data
   // the teacher never had a chance to enter per sub-part.
-  const frameworkGroupIds = new Set(gradingFramework.subjectGroups.map(g => g.id))
-  const frameworkMatchesEntryUI = gradingFramework.components.every(c => !c.subcomponents || c.subcomponents.length === 0)
-    && SUBJECT_AREAS.every(a => frameworkGroupIds.has(a.id))
+  // Subject areas follow the framework (Settings -> School Year -> grading framework) whenever the
+  // entry grid supports it, so the grid and the picker below always agree. Other frameworks keep
+  // the DO 8 list and the DO 8 computation path.
+  const { options: subjectAreaOptions } = getSubjectAreaOptions(gradingFramework)
+  const frameworkMatchesEntryUI = frameworkSupportsEntryGrid(gradingFramework)
 
   // Same idea for college — resolve this school year's configured college
   // grading framework (Prelim/Midterm/Finals weights + point scale), falling
@@ -290,7 +293,9 @@ export default function EClassRecord() {
         const matchedLoad = campusLoads.find(l =>
           l.gradeLevel === subj.gradeLevel && l.subject === subj.subjectName
         )
-        setSubjectArea(matchedLoad?.subjectArea || '')
+        // An area saved under another grading framework no longer exists: treat it as not set
+        const saved = matchedLoad?.subjectArea || ''
+        setSubjectArea(subjectAreaOptions.some(o => o.id === saved) ? saved : '')
       } catch {
         setSubjectArea('')
       }
@@ -763,14 +768,14 @@ export default function EClassRecord() {
                   {subjectArea ? (
                     // Locked — set by principal in Subject Load. Cannot be changed by teacher.
                     <div className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[color-mix(in_srgb,var(--color-bg-subtle)_50%,transparent)] text-[var(--color-text-primary)] flex items-center justify-between">
-                      <span>{SUBJECT_AREAS.find(sa => sa.id === subjectArea)?.label ?? subjectArea}</span>
+                      <span>{subjectAreaOptions.find(sa => sa.id === subjectArea)?.label ?? subjectArea}</span>
                       <span className="text-[10px] text-[var(--color-text-muted)] ml-2 shrink-0">Locked</span>
                     </div>
                   ) : (
                     // Not set by principal — teacher can select manually
                     <GroupedSelect value={subjectArea} onChange={setSubjectArea}
                       allLabel="Select subject area..."
-                      options={SUBJECT_AREAS.map(sa => ({ value: sa.id, label: sa.label }))} />
+                      options={subjectAreaOptions.map(sa => ({ value: sa.id, label: sa.label }))} />
                   )}
                   <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
                     {subjectArea ? 'Contact principal to change.' : 'Principal can pre-set this in Subject Load.'}
