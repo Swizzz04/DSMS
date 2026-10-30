@@ -6,7 +6,10 @@
  *
  *   almireneSeed.packA()    people + enrollments + payments (Step 1)
  *   almireneSeed.packClearance()  clearances in every stage, per campus (needs packA first)
- *   almireneSeed.packSigners()    Librarian, Guidance and a teacher-with-Guidance-duty login per campus
+ *   almireneSeed.packSigners()    Librarian and Guidance Counselor logins per campus
+ *   almireneSeed.packTeachers()   subject teachers per campus (Math, English, Science, ...) + college instructors
+ *   almireneSeed.packLoads()      sections, students placed in sections, Subject Load (needs packA + packTeachers)
+ *   almireneSeed.packReasons()    "Transfer without Guidance" clearance reason (Carcar + Talisay; run before packClearance)
  *   almireneSeed.status()   what is seeded right now (console table)
  *   almireneSeed.clear()    removes ONLY seeded records (seed_* / mock_stu_* ids)
  *   almireneSeed.help()     list the commands
@@ -39,11 +42,22 @@ import {
   CAMPUSES,
   FEE_STRUCTURE,
   DEFAULT_DISCOUNTS,
+  BASIC_ED_GROUPS,
+  SCHOOL_YEARS,
   getCurrentSchoolYear,
+  getDefaultClearanceReasons,
   computeStudentBill,
   computeCollegeFee,
   getLoadStatus,
 } from '../config/appConfig'
+import { getGradingFramework, getSubjectAreaOptions, DEFAULT_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
+import {
+  getClearanceReasons,
+  getClearanceRequirements,
+  saveClearanceReasons,
+  resetClearanceReasons,
+  normalizeReason,
+} from './clearanceConfigBridge'
 
 // ── Storage keys (all almirene_*) ──────────────────────────────────────────────
 const SUBMISSIONS_KEY = 'almirene_submissions'
@@ -52,6 +66,8 @@ const STUDENT_CTR_KEY = 'almirene_student_id_counter'
 const CLEARANCE_KEY   = 'almirene_clearance'
 const APP_CONFIG_KEY  = 'almirene_app_config'
 const WEBSITE_KEY     = 'almirene_website_content'
+const SUBJECT_LOAD_KEY   = 'almirene_subject_loads'
+const SUBJECT_LOAD_EVENT = 'almirene_subject_load_updated'
 
 const SEED_PREFIX = 'seed_'
 const LEGACY_SEED_PREFIX = 'mock_stu_' // written by the older seedGradeTestData.js
@@ -468,6 +484,14 @@ export function packA() {
 //   8  owing    Graduation Clearance       Library                 -> accounting BLOCKED (balance owing)
 //   9  paid     Graduation Clearance       Lib, Reg, Guidance      -> Admin Office
 //   10 unknown  For: Form 137              Library                 -> accounting must verify (student not found)
+//   11 owing    Transfer without Guidance  Library                 -> Registrar or ACCOUNTING (any order), no Guidance column  *
+//   12 owing    Transfer without Guidance  Library, Registrar      -> ACCOUNTING with a note, no Guidance column               *
+//   * only where packReasons added that reason (Carcar and Talisay, Basic Ed students); Bohol skips them.
+//     Their requirement list is the reason's OWN list, so later edits to the standard list do not reach them.
+
+// The configured reason that packReasons adds (its id starts with seed_, so clear() can find it)
+const SEED_REASON_ID    = 'seed_transfer_no_guidance'
+const SEED_REASON_LABEL = 'Transfer without Guidance'
 
 const CLEARANCE_SCENARIOS = [
   { pool: 'paid',    reason: 'For: Form 137',              sign: [] },
@@ -480,6 +504,9 @@ const CLEARANCE_SCENARIOS = [
   { pool: 'owing',   reason: 'Graduation Clearance',       sign: ['library'], graduation: true },
   { pool: 'paid',    reason: 'Graduation Clearance',       sign: ['library', 'registrar', 'guidance'], graduation: true },
   { pool: 'unknown', reason: 'For: Form 137',              sign: ['library'] },
+  // Basic Ed students only: the reason lives in the Basic Ed list. Skipped where packReasons did not add it.
+  { pool: 'owing',   reason: SEED_REASON_LABEL, reasonId: SEED_REASON_ID, scope: 'basicEd', sign: ['library'] },
+  { pool: 'owing',   reason: SEED_REASON_LABEL, reasonId: SEED_REASON_ID, scope: 'basicEd', sign: ['library', 'registrar'] },
 ]
 
 const SEED_SIGNERS = {
@@ -531,15 +558,23 @@ export async function packClearance() {
     const pools = { paid, owing }
 
     summary[campusKey] = 0
-    CLEARANCE_SCENARIOS.forEach((sc, idx) => {
+    // Scenarios tied to a department pick their students first (they need a specific kind of student);
+    // the rest take what is left. idx keeps the scenario number used in messages.
+    const ordered = CLEARANCE_SCENARIOS.map((sc, idx) => ({ sc, idx })).sort((a, b) => (b.sc.scope ? 1 : 0) - (a.sc.scope ? 1 : 0))
+    ordered.forEach(({ sc, idx }) => {
       let studentId, studentName
       if (sc.pool === 'unknown') {
         // A student the payment records do not know about
         studentId   = `${SEED_PREFIX}ghost_${campusKey}`
         studentName = `Unlisted, Student ${campusKey}`
       } else {
-        const st = pools[sc.pool].shift()
-        if (!st) { skipped.push(`${campusKey} #${idx + 1} (${sc.pool}) — not enough ${sc.pool} students`); return }
+        // A scenario that needs a configured reason only runs where that reason exists (not an error elsewhere)
+        if (sc.reasonId && !getClearanceReasons(sc.scope || 'basicEd', campusKey).some(r => r.id === sc.reasonId)) return
+        // A scenario tied to a department takes the first student of that department
+        const list = pools[sc.pool]
+        const at   = sc.scope ? list.findIndex(s => s.department === sc.scope) : 0
+        const st   = at >= 0 ? list.splice(at, 1)[0] : undefined
+        if (!st) { skipped.push(`${campusKey} #${idx + 1} (${sc.pool}${sc.scope ? `, ${sc.scope}` : ''}) — not enough ${sc.pool} students`); return }
         studentId   = st.id
         studentName = `${st.lastName}, ${st.firstName}`
       }
@@ -547,7 +582,10 @@ export async function packClearance() {
       try {
         const rec = bridge.createClearance(
           studentId, studentName, campusKey, schoolYear, sc.reason,
-          sc.graduation ? { requiresZeroBalance: true } : {},
+          {
+            ...(sc.graduation ? { requiresZeroBalance: true } : {}),
+            ...(sc.reasonId ? { reasonId: sc.reasonId } : {}),
+          },
         )
         sc.sign.forEach(dept => {
           // Accounting signs with a note whenever a balance is owing (the app's rule)
@@ -574,25 +612,32 @@ export async function packClearance() {
     (removed ? ` (replaced ${removed} earlier seeded one${removed !== 1 ? 's' : ''})` : '') + '.')
   console.table(summary)
   if (skipped.length) console.warn('[almireneSeed] skipped:', skipped)
-  console.log('[almireneSeed] Refresh the page. Each campus has the 10 stages listed at the top of packClearance.')
+  console.log('[almireneSeed] Refresh the page. Each campus has the stages listed at the top of packClearance (11 and 12 only where packReasons ran).')
   return { created, skipped }
 }
 
 // ── PACK: clearance signer accounts ────────────────────────────────────────────
-// One Librarian, one Guidance Counselor and one Teacher who ALSO signs Guidance
-// (a small-school "two hats" account) per campus, added to the saved user list.
+// One Librarian and one Guidance Counselor per campus, added to the saved user list.
 // Password for every seeded account: signer123
 // Login emails:  librarian.<campus>@school.edu.ph
-//                guidance.<campus>@school.edu.ph
-//                teacher.guidance.<campus>@school.edu.ph   (campus key in lower case)
+//                guidance.<campus>@school.edu.ph          (campus key in lower case)
+// A teacher who is ALSO Guidance in-charge is NOT a separate account: it is the same
+// teacher login with the extra clearance duty "guidance" (Settings → Users). packTeachers
+// gives that duty to each campus's Math teacher.
 // Log out and back in after seeding so the session picks up the account.
 
 const SIGNER_PASSWORD_HASH = '491efa0cce8491f8bd3d49c70283359643214e62a9e87e79a7cba13cac6d2c9f' // sha256("signer123")
 
-function dropSeedUsers() {
+// Every seeded account carries `_seedPack` ('signers' | 'teachers'), so one pack never deletes the
+// accounts of another. Accounts seeded before this field existed count as 'signers'.
+// pack = undefined removes every seeded account (used by clear()).
+function dropSeedUsers(pack) {
   const cfg = read(APP_CONFIG_KEY, {}) || {}
   if (!Array.isArray(cfg.systemUsers)) return 0
-  const keep = cfg.systemUsers.filter(u => u?._seed !== true)
+  const keep = cfg.systemUsers.filter(u => {
+    if (u?._seed !== true) return true
+    return pack ? (u._seedPack || 'signers') !== pack : false
+  })
   const removed = cfg.systemUsers.length - keep.length
   if (removed) {
     cfg.systemUsers = keep
@@ -604,7 +649,7 @@ function dropSeedUsers() {
 
 export async function packSigners() {
   const { SYSTEM_USERS } = await import('../config/users')
-  const removed = dropSeedUsers()
+  const removed = dropSeedUsers('signers')
   const cfg  = read(APP_CONFIG_KEY, {}) || {}
   const base = Array.isArray(cfg.systemUsers) && cfg.systemUsers.length
     ? cfg.systemUsers
@@ -616,12 +661,11 @@ export async function packSigners() {
     const k = String(c.key).toLowerCase()
     const mk = (name, email, role, extra = {}) => ({
       id: nextId++, name, email, passwordHash: SIGNER_PASSWORD_HASH,
-      role, campus: c.name, campusKey: c.key, status: 'active', lastLogin: null, _seed: true, ...extra,
+      role, campus: c.name, campusKey: c.key, status: 'active', lastLogin: null, _seed: true, _seedPack: 'signers', ...extra,
     })
     added.push(
       mk(`${c.key} Librarian`,         `librarian.${k}@school.edu.ph`,        'librarian'),
       mk(`${c.key} Guidance Counselor`, `guidance.${k}@school.edu.ph`,         'guidance'),
-      mk(`${c.key} Teacher (Guidance in-charge)`, `teacher.guidance.${k}@school.edu.ph`, 'teacher', { clearanceDuties: ['guidance'] }),
     )
   })
 
@@ -633,6 +677,418 @@ export async function packSigners() {
   console.table(added.map(u => ({ email: u.email, role: u.role, campus: u.campusKey, extraDuties: (u.clearanceDuties || []).join(', ') })))
   console.log('[almireneSeed] Log out and back in, then open Clearance.')
   return { added: added.length }
+}
+
+// ── PACK: subject teachers ─────────────────────────────────────────────────────
+// Per campus: five Basic Ed subject teachers and, for a campus that offers college
+// programs, two college instructors. Subject Load (pack "loads", next step) assigns
+// them by `_seedArea`; every account carries it so that pack never guesses from names.
+//
+// Fixed ids (9101 and up, by campus order and slot) so Subject Load assignments keep
+// pointing at the same account when this pack is run again.
+// Password for every seeded teacher: teacher123 (same as the built-in teacher accounts)
+// Accounts are ordinary teachers with a PERSON'S name (e.g. "Ramon Dizon"), never a subject:
+// what each one teaches comes from Subject Load, like a real school. The console table lists who
+// teaches what. Login emails:  teacher.<surname>.<campus>@school.edu.ph   (e.g. teacher.dizon.talisay@school.edu.ph)
+// The Math teacher of each campus is ALSO the Guidance in-charge: the same login with the extra
+// clearance duty "guidance" (Settings → Users), so one account teaches and signs Guidance.
+// Log out and back in after seeding so the session picks up the account.
+
+const TEACHER_PASSWORD_HASH = 'cde383eee8ee7a4400adf7a15f716f179a2eb97646b37e089eb8d6d04e663416' // sha256("teacher123")
+const TEACHER_ID_BASE = 9100
+
+// area -> what the account is called. `covers` is for the console table only.
+// Teacher names, by campus order and slot (campus 1 takes the first 7, campus 2 the next 7, ...).
+// Surnames are distinct from each other and from the built-in accounts, so logins never clash.
+const TEACHER_PEOPLE = [
+  ['Ramon', 'Dizon'], ['Lourdes', 'Macaraeg'], ['Elmer', 'Quizon'], ['Cecilia', 'Almonte'], ['Rodel', 'Tumulak'], ['Marites', 'Gaviola'], ['Arnel', 'Sombilon'],
+  ['Josefina', 'Lumapas'], ['Dante', 'Pacana'], ['Corazon', 'Villaflor'], ['Nestor', 'Cabaluna'], ['Amparo', 'Mangubat'], ['Teodoro', 'Ybanez'], ['Remedios', 'Catubig'],
+  ['Vicente', 'Bacalso'], ['Gloria', 'Rosales'], ['Ernesto', 'Alcoseba'], ['Felisa', 'Tabotabo'], ['Alfredo', 'Lapinig'], ['Natividad', 'Verallo'], ['Gregorio', 'Seno'],
+]
+
+const BASIC_ED_TEACHER_AREAS = [
+  { area: 'math',    label: 'Math Teacher',                     covers: 'Mathematics, Core Mathematics' },
+  { area: 'english', label: 'English Teacher',                  covers: 'English, Core English, communication' },
+  { area: 'science', label: 'Science Teacher',                  covers: 'Science, Earth and Life Science' },
+  { area: 'filipino', label: 'Filipino / AP / EsP Teacher',     covers: 'Filipino, Araling Panlipunan, EsP, social studies' },
+  { area: 'mapeh',   label: 'MAPEH / TLE / Computer Teacher',   covers: 'Music & Arts, PE & Health, TLE, Computer' },
+]
+const COLLEGE_TEACHER_AREAS = [
+  { area: 'college1', label: 'College Instructor 1', covers: 'first half of each college subject list' },
+  { area: 'college2', label: 'College Instructor 2', covers: 'second half of each college subject list' },
+]
+
+function collegeProgramsOf(campus) {
+  const list = campus?.college?.programs ?? campus?.collegePrograms ?? []
+  return Array.isArray(list) ? list : []
+}
+
+function hasCollegePrograms(campus) {
+  return collegeProgramsOf(campus).length > 0
+}
+
+export async function packTeachers() {
+  const { SYSTEM_USERS } = await import('../config/users')
+  const removed = dropSeedUsers('teachers')
+  const cfg  = read(APP_CONFIG_KEY, {}) || {}
+  const base = Array.isArray(cfg.systemUsers) && cfg.systemUsers.length
+    ? cfg.systemUsers
+    : SYSTEM_USERS.map(u => ({ ...u }))
+
+  const takenIds = new Set(base.map(u => String(u.id)))
+  const added = []
+  const skipped = []
+
+  getConfig().campuses.forEach((c, campusIndex) => {
+    if (c.isActive === false) return
+    const k = String(c.key).toLowerCase()
+    const areas = [...BASIC_ED_TEACHER_AREAS, ...(hasCollegePrograms(c) ? COLLEGE_TEACHER_AREAS : [])]
+    areas.forEach((a, slot) => {
+      const id = TEACHER_ID_BASE + (campusIndex + 1) * 10 + slot + 1
+      if (takenIds.has(String(id))) { skipped.push(`${c.key} ${a.label} (id ${id} already used by another account)`); return }
+      takenIds.add(String(id))
+      const person = TEACHER_PEOPLE[(campusIndex * 7 + slot) % TEACHER_PEOPLE.length]
+      added.push({
+        id,
+        name: `${person[0]} ${person[1]}`,
+        email: `teacher.${person[1].toLowerCase()}.${k}@school.edu.ph`,
+        passwordHash: TEACHER_PASSWORD_HASH,
+        role: 'teacher', campus: c.name, campusKey: c.key,
+        status: 'active', lastLogin: null,
+        _seed: true, _seedPack: 'teachers', _seedArea: a.area,
+        // One teacher per campus also signs Guidance, the way a real small school does it (same login, extra duty)
+        ...(a.area === 'math' ? { clearanceDuties: ['guidance'] } : {}),
+      })
+    })
+  })
+
+  cfg.systemUsers = [...base, ...added]
+  write(APP_CONFIG_KEY, cfg)
+  try { window.dispatchEvent(new CustomEvent('almirene_app_config_updated')) } catch { /* not in a browser */ }
+
+  const coversOf = Object.fromEntries([...BASIC_ED_TEACHER_AREAS, ...COLLEGE_TEACHER_AREAS].map(a => [a.area, a.covers]))
+  console.log(`[almireneSeed] packTeachers — ${added.length} teacher account(s) added` + (removed ? ` (replaced ${removed} earlier seeded)` : '') + '. Password for all: teacher123')
+  console.table(added.map(u => ({ id: u.id, email: u.email, campus: u.campusKey, teaches: coversOf[u._seedArea], alsoSigns: (u.clearanceDuties || []).join(', ') })))
+  if (skipped.length) console.warn('[almireneSeed] skipped:', skipped)
+  console.log('[almireneSeed] Next: almireneSeed.packLoads() assigns them to subjects (added in the next step).')
+  return { added: added.length, skipped }
+}
+
+// ── PACK: sections + Subject Load ──────────────────────────────────────────────
+// Uses the REAL Subject Load bridge (sections are generated by the app itself), then:
+//   1. splits sections where SPLIT_SECTIONS says so (so a grade with 10 students gets 2 sections)
+//   2. places every seeded student in a section (almirene_students.sectionId / section)
+//   3. assigns a teacher to every subject of each level that has seeded students, by subject area
+//   4. assigns a class adviser to every Basic Ed section, rotating through the Basic Ed teachers
+//   5. assigns college instructors per section (1st half of the list -> instructor 1, 2nd half -> 2)
+//   6. sets each subject's Subject Area (drives the grade weights in the e-Class Record)
+// ...except the deliberate GAPS below, which stay unassigned so the "nobody assigned, Principal /
+// Program Head signs on behalf" path can be tested.
+//
+// Needs packA and packTeachers first. Re-running replaces what this pack wrote earlier.
+// It never overwrites a teacher you assigned by hand: only empty cells are filled.
+
+// Campus key -> max students per section. Original value is remembered and restored by clear().
+const SPLIT_SECTIONS = { Carcar: 5 }
+
+const LOAD_GAPS = {
+  subjects: [{ campus: 'Bohol',   grade: 'Grade 9', subject: 'Science' }],
+  advisers: [{ campus: 'Talisay', grade: 'Grade 7' }],
+  college:  [{ campus: 'Talisay', program: 'BS HRM', yearLevel: '2nd Year', last: true }],
+}
+
+const SENIOR_HIGH_GRADES = new Set(BASIC_ED_GROUPS.find(g => g.label === 'Senior High School')?.options || [])
+
+// Which seeded teacher covers a subject (null = not mapped, left unassigned and reported)
+function teacherAreaFor(subject) {
+  const s = String(subject).toLowerCase()
+  if (/math/.test(s)) return 'math'
+  if (/science|earth and life|research|inquiries/.test(s)) return 'science'
+  if (/filipino|araling|panlipunan|\besp\b|edukasyon|values|mother tongue|personal development|culture|politics|komunikasyon|pananaliksik/.test(s)) return 'filipino'
+  if (/english|communication|reading and writing/.test(s)) return 'english'
+  if (/music|arts|\bpe\b|physical|health|tle|hele|computer|technology|media and information/.test(s)) return 'mapeh'
+  return null
+}
+
+// The grading engine's Subject Area id for a subject (see SUBJECT_AREAS in gradingEngine.js)
+function engineAreaFor(subject, teacherArea, grade) {
+  if (SENIOR_HIGH_GRADES.has(grade)) {
+    if (/research|inquiries/i.test(subject)) return 'shs_research'
+    if (/empowerment technology/i.test(subject)) return 'shs_applied'
+    return 'shs_core'
+  }
+  if (teacherArea === 'math' || teacherArea === 'science') return 'science_math'
+  if (teacherArea === 'mapeh') return 'hele_mapeh'
+  return 'language'
+}
+
+function readLoads() { return read(SUBJECT_LOAD_KEY, {}) || {} }
+
+function writeLoads(all) {
+  write(SUBJECT_LOAD_KEY, all)
+  try { window.dispatchEvent(new CustomEvent(SUBJECT_LOAD_EVENT)) } catch { /* not in a browser */ }
+}
+
+// Remove every seeded load / adviser / college load, and (unless keepSectionSetup) put maxPerSection back.
+// packLoads keeps the section setup so a re-run reuses the same sections and student placements;
+// clear() restores it. Returns how many rows were removed.
+function dropSeedLoads(keepSectionSetup = false) {
+  const all = readLoads()
+  let removed = 0
+  Object.values(all).forEach(byYear => Object.values(byYear || {}).forEach(cy => {
+    if (!cy || typeof cy !== 'object') return
+    ;['basicEdLoads', 'basicEdAdvisers', 'collegeLoads'].forEach(k => {
+      if (!Array.isArray(cy[k])) return
+      const keep = cy[k].filter(l => l?._seed !== true)
+      removed += cy[k].length - keep.length
+      cy[k] = keep
+    })
+    if (cy._seedMeta && !keepSectionSetup) {
+      if (Number.isFinite(cy._seedMeta.prevMaxPerSection)) cy.maxPerSection = cy._seedMeta.prevMaxPerSection
+      delete cy._seedMeta
+      removed += 1
+    }
+  }))
+  if (removed) writeLoads(all)
+  return removed
+}
+
+export async function packLoads() {
+  const bridge = await import('./subjectLoadBridge')
+  const cfg = getConfig()
+  const schoolYear = getCurrentSchoolYear(cfg.schoolYears || undefined)
+  const users = (read(APP_CONFIG_KEY, {}) || {}).systemUsers || []
+  const students = read(STUDENTS_KEY, [])
+  const seeded = students.filter(isSeedRecord)
+
+  if (!seeded.length) {
+    console.warn('[almireneSeed] packLoads — no seeded students found. Run almireneSeed.packA() first.')
+    return { campuses: 0 }
+  }
+
+  dropSeedLoads(true) // start from a clean slate so re-running never piles up (sections are kept)
+
+  // Subject Areas come from the school year's grading framework (same list Subject Load shows).
+  // An area this seed picks that the framework does not have is left unset, like a real new load.
+  const syConfig  = (cfg.schoolYears || SCHOOL_YEARS).find(y => y.year === schoolYear)
+  const framework = getGradingFramework(syConfig?.gradingFramework || 'do8_2015') || DEFAULT_GRADING_FRAMEWORKS[0]
+  const areaIds   = new Set(getSubjectAreaOptions(framework).options.map(o => o.id))
+  let areasSkipped = 0
+  const summary = {}
+  const warnings = []
+  let placed = 0
+
+  cfg.campuses.filter(c => c.isActive !== false).forEach(campus => {
+    const key = campus.key
+    const mine = seeded.filter(s => s.campusKey === key)
+    if (!mine.length) return
+
+    // Teachers of this campus by area
+    const byArea = {}
+    users.filter(u => u?._seedPack === 'teachers' && u.campusKey === key)
+         .forEach(u => { byArea[u._seedArea] = { id: u.id, name: u.name } })
+    if (!byArea.math) {
+      warnings.push(`${key}: no seeded teachers found. Run almireneSeed.packTeachers() first.`)
+      return
+    }
+    const programs = collegeProgramsOf(campus)
+
+    // 1. sections (the app builds them from approved enrollments)
+    let data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs)
+    // Section ids must be the same on every read, or advisers and college loads lose their link
+    const idsOf = d => JSON.stringify([d.basicEdSections, d.collegeSections])
+    if (idsOf(data) !== idsOf(bridge.getSubjectLoadData(key, schoolYear, campus.name, programs))) {
+      warnings.push(`${key}: Subject Load sections are not saved between reads, so advisers and college loads will not stay linked. Apply the subjectLoadBridge.js fix, then run packLoads again.`)
+    }
+    const prevMax = data._seedMeta?.prevMaxPerSection ?? data.maxPerSection
+    if (SPLIT_SECTIONS[key]) {
+      bridge.setMaxPerSection(key, schoolYear, campus.name, programs, SPLIT_SECTIONS[key])
+      data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs)
+    }
+    const max = data.maxPerSection || 40
+
+    // 2. place students in sections, in id order, filling one section before the next
+    const groups = new Map()
+    mine.forEach(s => {
+      const college = s.department === 'college'
+      const gKey = college ? `C|${s.program}|${s.yearLevel}` : `B|${s.gradeLevel}`
+      if (!groups.has(gKey)) groups.set(gKey, { college, s0: s, list: [] })
+      groups.get(gKey).list.push(s)
+    })
+    groups.forEach(g => {
+      const sections = g.college
+        ? data.collegeSections?.[g.s0.program]?.[g.s0.yearLevel] || []
+        : data.basicEdSections?.[g.s0.gradeLevel] || []
+      if (!sections.length) { warnings.push(`${key}: no sections for ${g.college ? `${g.s0.program} ${g.s0.yearLevel}` : g.s0.gradeLevel}`); return }
+      g.list.sort((a, b) => String(a.id).localeCompare(String(b.id))).forEach((s, i) => {
+        const sec = sections[Math.min(Math.floor(i / max), sections.length - 1)]
+        s.sectionId = sec.id
+        s.section   = sec.displayName
+        placed++
+      })
+    })
+
+    // 3-5. loads, advisers, college instructors (only into empty cells)
+    const madeBasic = new Map()   // 'grade|subject' -> engine area
+    const madeAdv   = new Set()   // sectionId
+    const madeCol   = new Set()   // 'program|year|sem|sectionId|subject'
+    const stat = { sections: 0, subjects: 0, advisers: 0, collegeLoads: 0, gaps: 0, keptYours: 0, unmapped: 0 }
+    const basicTeachers = ['math', 'english', 'science', 'filipino', 'mapeh'].map(a => byArea[a]).filter(Boolean)
+    let advIndex = 0
+
+    const basicGrades = [...new Set(mine.filter(s => s.department !== 'college').map(s => s.gradeLevel))]
+    basicGrades.forEach(grade => {
+      const subjects = data.basicEdSubjects?.[grade] || []
+      subjects.forEach(subject => {
+        const area = teacherAreaFor(subject)
+        if (!area || !byArea[area]) { stat.unmapped++; warnings.push(`${key} ${grade}: no teacher mapped for "${subject}"`); return }
+        if (LOAD_GAPS.subjects.some(g => g.campus === key && g.grade === grade && g.subject === subject)) { stat.gaps++; return }
+        const existing = (data.basicEdLoads || []).find(l => l.gradeLevel === grade && l.subject === subject)
+        if (existing?.teacherId) { stat.keptYours++; return }
+        bridge.assignBasicEdLoad(key, schoolYear, grade, subject, byArea[area])
+        madeBasic.set(`${grade}|${subject}`, engineAreaFor(subject, area, grade))
+        stat.subjects++
+      })
+
+      ;(data.basicEdSections?.[grade] || []).forEach(sec => {
+        stat.sections++
+        const teacher = basicTeachers[advIndex++ % basicTeachers.length]
+        if (LOAD_GAPS.advisers.some(g => g.campus === key && g.grade === grade)) { stat.gaps++; return }
+        const existing = (data.basicEdAdvisers || []).find(a => a.sectionId === sec.id)
+        if (existing?.teacherId) { stat.keptYours++; return }
+        bridge.assignAdviser(key, schoolYear, grade, sec.id, teacher)
+        madeAdv.add(sec.id)
+        stat.advisers++
+      })
+    })
+
+    const collegeGroups = [...groups.values()].filter(g => g.college)
+    collegeGroups.forEach(g => {
+      const { program, yearLevel } = g.s0
+      const semester = g.s0.semester || '1st'
+      const subjects = data.collegeSubjects?.[program]?.[yearLevel]?.[semester] || []
+      const sections = data.collegeSections?.[program]?.[yearLevel] || []
+      const half = Math.ceil(subjects.length / 2)
+      sections.forEach(sec => {
+        stat.sections++
+        subjects.forEach((subject, idx) => {
+          const teacher = byArea[idx < half ? 'college1' : 'college2']
+          if (!teacher) { stat.unmapped++; return }
+          const isGap = LOAD_GAPS.college.some(x => x.campus === key && x.program === program && x.yearLevel === yearLevel && x.last && idx === subjects.length - 1)
+          if (isGap) { stat.gaps++; return }
+          const existing = (data.collegeLoads || []).find(l =>
+            l.program === program && l.yearLevel === yearLevel && l.semester === semester &&
+            l.sectionId === sec.id && l.subject === subject)
+          if (existing?.teacherId) { stat.keptYours++; return }
+          bridge.assignCollegeLoad(key, schoolYear, program, yearLevel, semester, sec.id, subject, teacher)
+          madeCol.add(`${program}|${yearLevel}|${semester}|${sec.id}|${subject}`)
+          stat.collegeLoads++
+        })
+      })
+    })
+
+    // 6. tag what this run wrote (so clear() removes only it) and set the Subject Area
+    const all = readLoads()
+    const cy = all[key]?.[schoolYear]
+    if (cy) {
+      ;(cy.basicEdLoads || []).forEach(l => {
+        const area = madeBasic.get(`${l.gradeLevel}|${l.subject}`)
+        if (area) {
+          l._seed = true
+          if (areaIds.has(area)) l.subjectArea = area; else areasSkipped++
+        }
+      })
+      ;(cy.basicEdAdvisers || []).forEach(a => { if (madeAdv.has(a.sectionId)) a._seed = true })
+      ;(cy.collegeLoads || []).forEach(l => {
+        if (madeCol.has(`${l.program}|${l.yearLevel}|${l.semester}|${l.sectionId}|${l.subject}`)) l._seed = true
+      })
+      if (SPLIT_SECTIONS[key] && !cy._seedMeta) cy._seedMeta = { prevMaxPerSection: prevMax }
+      writeLoads(all)
+    }
+    summary[key] = stat
+  })
+
+  write(STUDENTS_KEY, students)
+  if (areasSkipped) {
+    warnings.push(`${areasSkipped} subject(s) left without a Subject Area: ${schoolYear} uses the grading framework "${framework.label}", which does not offer the area the seed picked. Set them in Subject Load.`)
+  }
+
+  // Open clearances pick up instructor / adviser sign-offs from the new Subject Load
+  let synced = 0
+  try { synced = (await import('./documentBridge')).syncAllClearances() } catch { /* clearance pack not run */ }
+
+  console.log(`[almireneSeed] packLoads — ${placed} student(s) placed in sections, school year ${schoolYear}.`)
+  console.table(summary)
+  if (warnings.length) console.warn('[almireneSeed] notes:', warnings)
+  console.log('[almireneSeed] Gaps left on purpose: Bohol Grade 9 Science (no teacher), Talisay Grade 7 (no adviser), Talisay BS HRM 2nd Year (last subject, no instructor).')
+  if (synced) console.log(`[almireneSeed] ${synced} open clearance(s) updated from Subject Load.`)
+  console.log('[almireneSeed] Open Subject Load as Technical Admin and choose a campus.')
+  return { placed, summary, warnings }
+}
+
+// ── PACK: "Transfer without Guidance" reason ───────────────────────────────────
+// A configured clearance reason with its OWN requirements list: the campus's standard Basic Ed list
+// without Guidance. Saved through the real bridge (saveClearanceReasons), per campus, for Basic Ed.
+//
+// Added at Carcar and Talisay. Bohol is left alone on purpose, as the control: its reasons and
+// clearances must not change when the other campuses are edited.
+//
+// A campus that had never saved its own reasons was using the school-wide default. Saving the
+// reason first writes that default into the campus (plus this one); clear() puts the campus back
+// on the default when nothing else was changed, so a clean campus ends up clean again.
+// Re-running replaces the reason (no duplicates). Run packClearance after it to get clearances for it.
+
+const REASON_CAMPUSES = ['Carcar', 'Talisay']
+const SEED_CONFIG_USER = { role: 'technical_admin', name: 'Seed Technical Administrator' }
+
+export function packReasons() {
+  const campuses = getConfig().campuses
+  const added = []
+  const skipped = []
+
+  REASON_CAMPUSES.forEach(key => {
+    if (!campuses.some(c => c.key === key && c.isActive !== false)) { skipped.push(`${key}: campus not found or inactive`); return }
+    try {
+      const others = getClearanceReasons('basicEd', key).filter(r => r.id !== SEED_REASON_ID)
+      // The campus's own standard list, minus Guidance. Read from config, so a customised list is respected.
+      const requirements = getClearanceRequirements('basicEd', undefined, key).filter(r => r.id !== 'guidance')
+      const reason = { id: SEED_REASON_ID, label: SEED_REASON_LABEL, requiresZeroBalance: false, requirements }
+      saveClearanceReasons('basicEd', [...others, reason], SEED_CONFIG_USER, key)
+      added.push({ campus: key, reasons: others.length + 1, requirements: requirements.map(r => r.label).join(', ') })
+    } catch (err) {
+      skipped.push(`${key}: ${err.message}`)
+    }
+  })
+
+  console.log(`[almireneSeed] packReasons — "${SEED_REASON_LABEL}" saved for Basic Ed at ${added.length} campus(es).`)
+  console.table(added)
+  if (skipped.length) console.warn('[almireneSeed] skipped:', skipped)
+  console.log('[almireneSeed] Next: almireneSeed.packClearance() adds two clearances per campus that use it (Bohol has none, on purpose).')
+  return { added: added.length, skipped }
+}
+
+// Remove the seeded reason. A campus whose remaining reasons are exactly what it inherits goes back to
+// inheriting (resetClearanceReasons); any other campus keeps its list minus the seeded reason.
+function dropSeedReasons() {
+  let raw = {}
+  try { raw = JSON.parse(localStorage.getItem('almirene_clearance_requirements') || '{}') || {} } catch { raw = {} }
+  const inheritedList = Array.isArray(raw.basicEd?.reasons) && raw.basicEd.reasons.length
+    ? raw.basicEd.reasons
+    : getDefaultClearanceReasons('basicEd')
+  const inherited = JSON.stringify(inheritedList.map(normalizeReason))
+
+  let removed = 0
+  Object.keys(raw.campuses || {}).forEach(key => {
+    const saved = raw.campuses[key]?.basicEd?.reasons
+    if (!Array.isArray(saved) || !saved.some(r => r?.id === SEED_REASON_ID)) return
+    const remaining = saved.filter(r => r?.id !== SEED_REASON_ID).map(normalizeReason)
+    try {
+      if (!remaining.length || JSON.stringify(remaining) === inherited) resetClearanceReasons('basicEd', SEED_CONFIG_USER, key)
+      else saveClearanceReasons('basicEd', remaining, SEED_CONFIG_USER, key)
+      removed++
+    } catch { /* leave it: better a stray reason than a broken config */ }
+  })
+  return removed
 }
 
 // ── status / clear / help ──────────────────────────────────────────────────────
@@ -653,7 +1109,21 @@ export function status() {
   console.log(`[almireneSeed] seeded students mirrored in almirene_students: ${stus.length}`)
   const clrs = read(CLEARANCE_KEY, []).filter(r => r?._seed === true)
   console.log(`[almireneSeed] seeded clearances in almirene_clearance: ${clrs.length}`)
-  return { enrollments: subs.length, students: stus.length, clearances: clrs.length }
+  const accounts = (read(APP_CONFIG_KEY, {}) || {}).systemUsers
+  const seededUsers = Array.isArray(accounts) ? accounts.filter(u => u?._seed === true) : []
+  const signers  = seededUsers.filter(u => (u._seedPack || 'signers') === 'signers').length
+  const teachers = seededUsers.filter(u => u._seedPack === 'teachers').length
+  console.log(`[almireneSeed] seeded accounts: ${signers} signer(s), ${teachers} teacher(s)`)
+  let loads = 0
+  Object.values(readLoads()).forEach(byYear => Object.values(byYear || {}).forEach(cy => {
+    ;['basicEdLoads', 'basicEdAdvisers', 'collegeLoads'].forEach(k => { loads += (cy?.[k] || []).filter(l => l?._seed === true).length })
+  }))
+  const placedStudents = stus.filter(s => s.sectionId).length
+  console.log(`[almireneSeed] seeded Subject Load rows: ${loads}; students placed in a section: ${placedStudents}/${stus.length}`)
+  const reasonCampuses = REASON_CAMPUSES.filter(k => getClearanceReasons('basicEd', k).some(r => r.id === SEED_REASON_ID))
+  const reasonClearances = clrs.filter(r => r.reasonId === SEED_REASON_ID).length
+  console.log(`[almireneSeed] "${SEED_REASON_LABEL}" set up at: ${reasonCampuses.join(', ') || '(none)'}; clearances using it: ${reasonClearances}`)
+  return { enrollments: subs.length, students: stus.length, clearances: clrs.length, signers, teachers, loads, placedStudents, reasonCampuses, reasonClearances }
 }
 
 export function clear() {
@@ -665,15 +1135,20 @@ export function clear() {
   write(STUDENTS_KEY, keepStus)
   const clrs  = dropSeedClearances()
   const users = dropSeedUsers()
-  console.log(`[almireneSeed] removed ${subs.length - keepSubs.length} enrollment(s), ${stus.length - keepStus.length} student(s), ${clrs} clearance(s) and ${users} seeded account(s). Refresh the page.`)
-  return { enrollments: subs.length - keepSubs.length, students: stus.length - keepStus.length, clearances: clrs, accounts: users }
+  const loads = dropSeedLoads()
+  const reasons = dropSeedReasons()
+  console.log(`[almireneSeed] removed ${subs.length - keepSubs.length} enrollment(s), ${stus.length - keepStus.length} student(s), ${clrs} clearance(s), ${users} seeded account(s), ${loads} Subject Load row(s) and the seeded reason at ${reasons} campus(es). Refresh the page.`)
+  return { enrollments: subs.length - keepSubs.length, students: stus.length - keepStus.length, clearances: clrs, accounts: users, loads, reasons }
 }
 
 export function help() {
   console.log([
     'almireneSeed.packA()   people + enrollments + payments (about 54 students, 3 campuses)',
     'almireneSeed.packClearance()  clearances in every stage, per campus (run packA first)',
-    'almireneSeed.packSigners()  Librarian, Guidance and teacher-with-Guidance-duty logins (password signer123)',
+    'almireneSeed.packSigners()  Librarian and Guidance Counselor logins (password signer123)',
+    'almireneSeed.packTeachers()  subject teachers per campus + college instructors (password teacher123)',
+    'almireneSeed.packLoads()  sections, students in sections, Subject Load with 3 deliberate gaps (run packA + packTeachers first)',
+    'almireneSeed.packReasons()  "Transfer without Guidance" clearance reason at Carcar + Talisay (run before packClearance)',
     'almireneSeed.status()  what is seeded now',
     'almireneSeed.clear()   remove only seeded records',
     'window.almireneReset() (devTools) wipes ALL almirene_* data back to source defaults',
@@ -682,6 +1157,6 @@ export function help() {
 
 /** Called from main.jsx under import.meta.env.DEV. */
 export function exposeSeedTools() {
-  window.almireneSeed = { packA, packClearance, packSigners, status, clear, help }
+  window.almireneSeed = { packA, packClearance, packSigners, packTeachers, packLoads, packReasons, status, clear, help }
   console.log('[ALMIRENE DX dev tools] window.almireneSeed ready — type almireneSeed.help()')
 }
