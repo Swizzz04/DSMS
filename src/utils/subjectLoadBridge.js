@@ -128,7 +128,18 @@ function initCY(campusKey, schoolYear, campusName, collegePrograms = []) {
 
 export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePrograms = []) {
   let data = initCY(campusKey, schoolYear, campusName, collegePrograms)
+  const sectionsBefore = JSON.stringify([data.basicEdSections, data.collegeSections])
   data = rebuildSections(data, campusName, collegePrograms)
+
+  // Section ids must survive a reload: advisers and college loads point at them by id. Sections are
+  // generated here, so save them whenever they changed (new section, new count). Saved quietly (no
+  // update event) so pages listening for changes do not reload in a loop. An unchanged read writes nothing.
+  if (JSON.stringify([data.basicEdSections, data.collegeSections]) !== sectionsBefore) {
+    const all = loadAll()
+    if (!all[campusKey]) all[campusKey] = {}
+    all[campusKey][schoolYear] = data
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  }
   return data
 }
 
