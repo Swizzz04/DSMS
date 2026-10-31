@@ -233,6 +233,9 @@ export function AuthProvider({ children }) {
       campus:     found.campus,
       campusKey:  found.campusKey ?? null,
       clearanceDuties: Array.isArray(found.clearanceDuties) ? found.clearanceDuties : [],
+      // Extra modules (e.g. the Guidance module) given in Settings → Users. Without this the
+      // duty would be lost the moment the person logs in.
+      moduleDuties: Array.isArray(found.moduleDuties) ? found.moduleDuties : [],
       lastLogin:  new Date().toISOString(),
     }
 

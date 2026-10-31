@@ -27,6 +27,7 @@ const Students             = lazy(() => import('./pages/Students'))
 const Payments             = lazy(() => import('./pages/Payments'))
 const DocumentRequests     = lazy(() => import('./pages/DocumentRequests'))
 const Clearance            = lazy(() => import('./pages/Clearance'))
+const Guidance             = lazy(() => import('./pages/Guidance'))
 const Reports              = lazy(() => import('./pages/Reports'))
 const SubjectLoad          = lazy(() => import('./pages/SubjectLoad'))
 const Eclassrecord         = lazy(() => import('./pages/Eclassrecord'))
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/payments"              element={<Page page="payments">              <Payments             /></Page>} />
         <Route path="/document-requests"     element={<Page page="document-requests">     <DocumentRequests     /></Page>} />
         <Route path="/clearance"             element={<Page page="clearance">             <Clearance            /></Page>} />
+        <Route path="/guidance"              element={<Page page="guidance">              <Guidance             /></Page>} />
         <Route path="/reports"               element={<Page page="reports">               <Reports              /></Page>} />
         <Route path="/subject-load"          element={<Page page="subject-load">          <SubjectLoad          /></Page>} />
         <Route path="/e-class-record"        element={<Page page="e-class-record">        <Eclassrecord         /></Page>} />

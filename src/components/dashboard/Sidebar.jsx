@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   LayoutDashboard, FileText, FileEdit, Calendar, ShieldCheck, Users, DollarSign,
-  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen, Hourglass
+  Settings, X, GraduationCap, BarChart2, Layers, ClipboardList, FolderOpen, Hourglass, HeartHandshake
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -153,6 +153,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       'inc-completion':            { id: 'inc-completion',            label: 'INC Completion',  icon: Hourglass,     path: '/inc-completion' },
       'attendance':              { id: 'attendance',              label: 'Attendance',      icon: Calendar,      path: '/attendance' },
       'clearance':               { id: 'clearance',               label: 'Clearance',       icon: ShieldCheck,   path: '/clearance' },
+      'guidance':                { id: 'guidance',                label: 'Guidance',        icon: HeartHandshake, path: '/guidance' },
     }
 
     const items = [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' }]
@@ -185,6 +186,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     payments:                  'Management',
     'document-requests':       'Management',
     clearance:                 'Management',
+    guidance:                  'Management',
     // Analytics
     reports:                   'Analytics',
     // System

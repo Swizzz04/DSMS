@@ -713,7 +713,7 @@ export default function SubjectLoad() {
   // Campus being configured. A Technical Admin works across every campus, so they must pick one
   // first (header Campus menu, or the picker on this page): Subject Load is stored per campus and
   // what they assign belongs to that campus. Everyone else works on their own campus.
-  const { campusFilter = 'all', setCampusFilter } = useCampusFilter()
+  const { campusFilter = 'all' } = useCampusFilter()
   const isTechAdmin = role === 'technical_admin'
   const campus = isTechAdmin
     ? activeCampuses.find(c => c.key === campusFilter)
@@ -721,7 +721,6 @@ export default function SubjectLoad() {
   const campusKey  = campus?.key    || ''
   const campusName = campus?.name   || (isTechAdmin ? '' : (user?.campus || ''))
   const collegePrograms = campus?.college?.programs ?? campus?.collegePrograms ?? []
-  const campusPickOptions = (activeCampuses || []).map(c => ({ value: c.key, label: c.name }))
 
   // Subject Area choices come from this school year's grading framework (school-wide), the same list
   // the e-Class Record offers. See getSubjectAreaOptions() in gradingEngine.js.
@@ -832,17 +831,10 @@ export default function SubjectLoad() {
             <div>
               <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Select a campus first</h2>
               <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                Subject Load is set up per campus, so choose the campus you are configuring. Nothing you assign will reach the other campuses.
-                You can also use the Campus menu at the top of the page.
+                Subject Load is set up per campus. Choose the campus you are configuring from the Campus menu at the top of the page. Nothing you assign will reach the other campuses.
               </p>
             </div>
           </div>
-          <GroupedSelect
-            value="all"
-            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
-            allLabel="Choose a campus…"
-            options={campusPickOptions}
-          />
         </div>
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </div>
@@ -890,15 +882,6 @@ export default function SubjectLoad() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start">
-          {isTechAdmin && (
-            <GroupedSelect
-              className="w-52"
-              value={campusKey}
-              onChange={v => { if (v !== 'all') setCampusFilter(v) }}
-              allLabel="Choose a campus…"
-              options={campusPickOptions}
-            />
-          )}
           <button onClick={() => setShowSettings(true)}
             className="p-2 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition" title="Section settings">
             <Settings2 className="w-4 h-4" />
