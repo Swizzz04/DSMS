@@ -264,7 +264,7 @@ export const ROLE_DEFINITIONS = {
   },
   guidance: {
     label:       'Guidance Counselor',
-    description: 'Signs the Guidance department of student clearances',
+    description: 'Signs the Guidance department of student clearances and keeps guidance records',
     color:       'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
     permissions: ['dashboard', 'clearance'],
     campusScoped: true,
@@ -293,6 +293,7 @@ export const ALL_PAGES = [
   { id: 'payments',     label: 'Payments',     icon: 'DollarSign' },
   { id: 'document-requests',      label: 'Document Requests',      icon: 'FileText' },
   { id: 'clearance',                label: 'Clearance',               icon: 'ShieldCheck' },
+  { id: 'guidance',                 label: 'Guidance',                icon: 'HeartHandshake' },
   // ── Analytics ──
   { id: 'reports',      label: 'Reports',      icon: 'BarChart2' },
   // ── System ──
@@ -327,11 +328,11 @@ export const DEFAULT_PERMISSIONS = {
   registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'grade-change-requests'], tabs: [] },
   registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'subject-load', 'grade-change-requests', 'inc-completion'], tabs: [] },
   accounting:        { pages: ['dashboard', 'enrollments', 'payments', 'document-requests', 'clearance', 'reports', 'settings'], tabs: ['fees', 'discounts', 'receipt'] },
-  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'settings', 'subject-load', 'grade-change-requests', 'attendance'], tabs: ['schoolYear', 'grades'] },
-  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'settings', 'subject-load', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: ['schoolYear', 'grades'] },
-  teacher:           { pages: ['dashboard', 'students', 'subject-load', 'e-class-record', 'teacher-forms', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: [] },
+  principal_basic:   { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'guidance', 'settings', 'subject-load', 'grade-change-requests', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  program_head:      { pages: ['dashboard', 'enrollments', 'students', 'clearance', 'guidance', 'settings', 'subject-load', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: ['schoolYear', 'grades'] },
+  teacher:           { pages: ['dashboard', 'students', 'guidance', 'subject-load', 'e-class-record', 'teacher-forms', 'grade-change-requests', 'inc-completion', 'attendance'], tabs: [] },
   librarian:         { pages: ['dashboard', 'clearance'], tabs: [] },
-  guidance:          { pages: ['dashboard', 'clearance'], tabs: [] },
+  guidance:          { pages: ['dashboard', 'clearance', 'guidance'], tabs: [] },
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -581,14 +582,150 @@ export function getClearanceDepartments(user) {
  * account (their own role) and the duty adds the other role's modules on top, so a
  * teacher who is also the guidance in-charge can use the Guidance pages.
  *
- * Only roles that are clearly a single job are listed. Accounting, Registrar and
- * Admin Office duties add the Clearance page only: handing someone the whole
- * accounting or registrar module (payments, records) is a bigger decision, so it
+ * Only roles that are clearly a single job are listed. Accounting, Registrar,
+ * Guidance and Admin Office duties add the Clearance page only: handing someone the
+ * whole accounting or registrar module (payments, records) is a bigger decision, so it
  * is done on purpose with a custom permission set in Settings → Users.
+ *
+ * Guidance is deliberately NOT here: signing the Guidance clearance and using the
+ * Guidance module (case records) are two separate duties. A school can drop the
+ * Guidance clearance requirement and still keep the module, so module access is
+ * given by MODULE_DUTY_OPTIONS below (user.moduleDuties), never by the clearance duty.
  */
 export const CLEARANCE_DUTY_ROLE_ACCESS = {
   library:  'librarian',
-  guidance: 'guidance',
+}
+
+/**
+ * Module duties: extra modules (pages) a small school can give to ANY staff account on top
+ * of its own role, with no separate account. Stored on the user as user.moduleDuties (array of
+ * ids below), set in Settings → Users. Independent of clearance requirements.
+ *   id     the value stored in user.moduleDuties
+ *   page   the page id (ALL_PAGES) the duty opens
+ */
+export const MODULE_DUTY_OPTIONS = [
+  {
+    id:          'guidance',
+    page:        'guidance',
+    label:       'Guidance module',
+    description: 'Keeps guidance records: referrals, incidents and testing results',
+  },
+]
+
+// ─────────────────────────────────────────────────────────────────────
+// GUIDANCE MODULE — lists and access
+// Records are structured on purpose: every field is a list choice, a date or a number.
+// There is NO free-text field and counseling notes are never stored. The only typed
+// value is the case number, a short code that points to the school's own paper file.
+// Schools can adjust these starter lists later; pages read them from here.
+// ─────────────────────────────────────────────────────────────────────
+
+/** Who sent the student to Guidance. */
+export const GUIDANCE_REFERRAL_SOURCES = [
+  { id: 'parent',  label: 'Parent / guardian' },
+  { id: 'teacher', label: 'Teacher'           },
+  { id: 'adviser', label: 'Adviser'           },
+  { id: 'self',    label: 'Student (self)'    },
+  { id: 'other',   label: 'Other'             },
+]
+
+/** Why the student was referred (a category only, never a description). */
+export const GUIDANCE_REFERRAL_REASONS = [
+  { id: 'academic',   label: 'Academic'        },
+  { id: 'attendance', label: 'Attendance'      },
+  { id: 'behavior',   label: 'Behavior'        },
+  { id: 'family',     label: 'Family'          },
+  { id: 'peer',       label: 'Peer relations'  },
+  { id: 'career',     label: 'Career'          },
+]
+
+/**
+ * 'requested' is a teacher's referral waiting for Guidance to accept it. It is not a case
+ * yet: it never counts as an open case on clearance, and Guidance moves it to Open (accept)
+ * or Closed (decline). Only the teacher referral flow creates it.
+ */
+export const GUIDANCE_REFERRAL_STATUSES = [
+  { id: 'requested',   label: 'Requested'   },
+  { id: 'open',        label: 'Open'        },
+  { id: 'in_progress', label: 'In progress' },
+  { id: 'closed',      label: 'Closed'      },
+]
+
+export const GUIDANCE_INCIDENT_CATEGORIES = [
+  { id: 'tardiness',  label: 'Tardiness'           },
+  { id: 'absence',    label: 'Absence'             },
+  { id: 'uniform',    label: 'Uniform'             },
+  { id: 'dishonesty', label: 'Academic dishonesty' },
+  { id: 'bullying',   label: 'Bullying'            },
+  { id: 'fighting',   label: 'Fighting'            },
+  { id: 'property',   label: 'Property damage'     },
+  { id: 'disrespect', label: 'Disrespect'          },
+]
+
+export const GUIDANCE_SANCTIONS = [
+  { id: 'verbal_warning',    label: 'Verbal warning'    },
+  { id: 'written_warning',   label: 'Written warning'   },
+  { id: 'parent_conference', label: 'Parent conference' },
+  { id: 'community_service', label: 'Community service' },
+  { id: 'suspension',        label: 'Suspension'        },
+  { id: 'probation',         label: 'Probation'         },
+]
+
+export const GUIDANCE_INCIDENT_STATUSES = [
+  { id: 'open',     label: 'Open'     },
+  { id: 'resolved', label: 'Resolved' },
+]
+
+/**
+ * Tests Guidance can record. resultType decides what is entered:
+ *   'score'  a number between min and max
+ *   'track'  one choice from GUIDANCE_TEST_TRACKS
+ */
+export const GUIDANCE_TESTS = [
+  { id: 'interest_inventory', label: 'Interest inventory', resultType: 'track' },
+  { id: 'aptitude',           label: 'Aptitude test',      resultType: 'score', min: 0, max: 100 },
+  { id: 'admission_exam',     label: 'Admission exam',     resultType: 'score', min: 0, max: 100 },
+]
+
+export const GUIDANCE_TEST_TRACKS = [
+  { id: 'academic',  label: 'Academic'          },
+  { id: 'technical', label: 'Technical-Vocational' },
+  { id: 'arts',      label: 'Arts and Design'   },
+  { id: 'sports',    label: 'Sports'            },
+]
+
+/**
+ * Case number: a short reference code to the school's paper file. Letters, digits and
+ * dashes only, so prose cannot be typed into it. Optional on every record.
+ */
+export const GUIDANCE_CASE_NO_PATTERN = /^[A-Za-z0-9-]{1,20}$/
+
+/**
+ * What a user may do on the Guidance page, from their saved permissions and duties.
+ *   canView   the account has the Guidance page (role default, Role Permissions, or module duty)
+ *   canEdit   may add and change records: the Guidance role, or any account given the
+ *             Guidance module duty. Super Admin and the others below only read.
+ *   canRefer  a teacher who is not an editor: may send a referral to Guidance and sees only
+ *             the referrals they sent, with a simple status. They never see the records.
+ *   levels    which departments' students they see ('basicEd' | 'college'). Editors see both.
+ *             Principal sees Basic Ed, Program Head sees College; any other role that was
+ *             given the page by hand sees none until a level is defined for it here.
+ * @returns {{canView:boolean, canEdit:boolean, canRefer:boolean, levels:string[]}}
+ */
+const GUIDANCE_READONLY_LEVELS = {
+  technical_admin: ['basicEd', 'college'],
+  principal_basic: ['basicEd'],
+  program_head:    ['college'],
+}
+export function getGuidanceAccess(user) {
+  if (!user) return { canView: false, canEdit: false, canRefer: false, levels: [] }
+  const canView = (getUserPermissions(user).pages || []).includes('guidance')
+  if (!canView) return { canView: false, canEdit: false, canRefer: false, levels: [] }
+  const duties = Array.isArray(user.moduleDuties) ? user.moduleDuties : []
+  const canEdit = user.role === 'guidance' || duties.includes('guidance')
+  const canRefer = user.role === 'teacher' && !canEdit
+  const levels = canEdit ? ['basicEd', 'college'] : [...(GUIDANCE_READONLY_LEVELS[user.role] || [])]
+  return { canView: true, canEdit, canRefer, levels }
 }
 
 /**
@@ -608,10 +745,17 @@ export function getUserPermissions(user) {
   // A teacher needs the Clearance page as soon as a requirement is signed by teachers
   // (the page then shows them only the clearances they are part of).
   const teacherSigns = user?.role === 'teacher' && clearanceUsesTeacherSigners(user.campusKey || undefined)
-  if (!user || user.role === 'technical_admin' || (!duties.length && !teacherSigns)) return base
+  // Module duties (user.moduleDuties) open a whole module's page, independent of clearance.
+  const modulePages = (Array.isArray(user?.moduleDuties) ? user.moduleDuties : [])
+    .map(id => MODULE_DUTY_OPTIONS.find(o => o.id === id)?.page)
+    .filter(Boolean)
+  if (!user || user.role === 'technical_admin' || (!duties.length && !teacherSigns && !modulePages.length)) return base
 
-  // Whatever the account's own tier gave it stays; duties only ADD.
-  const pages = [...(base.pages || []), 'clearance']
+  // Whatever the account's own tier gave it stays; duties only ADD. The Clearance page is
+  // added only when there is a clearance reason for it, so a pure module duty (for example
+  // Guidance module only) does not hand out the Clearance page.
+  const pages = [...(base.pages || []), ...modulePages]
+  if (duties.length || teacherSigns) pages.push('clearance')
   const tabs  = [...(base.tabs  || [])]
   duties.forEach(duty => {
     const dutyRole = CLEARANCE_DUTY_ROLE_ACCESS[duty]

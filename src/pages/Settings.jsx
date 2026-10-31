@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -1044,7 +1044,7 @@ export default function Settings() {
   // Campus being configured. A Technical Admin works across every campus, so they pick one first
   // (header Campus menu, or the picker on this page) and what they save here belongs to that campus.
   // Everyone else configures their own campus.
-  const { campusFilter, setCampusFilter } = useCampusFilter()
+  const { campusFilter } = useCampusFilter()
   const isTechAdmin = user?.role === 'technical_admin'
   const settingsCampusKey  = isTechAdmin
     ? (activeCampuses?.some(c => c.key === campusFilter) ? campusFilter : '')
@@ -1368,7 +1368,6 @@ export default function Settings() {
 
   if (loading) return <PageSkeleton title="Settings" />
 
-  const campusPickOptions = (activeCampuses || []).map(c => ({ value: c.key, label: c.name }))
   // Tabs whose settings belong to one campus. The rest are saved once for the whole school.
   const CAMPUS_SCOPED_TABS = ['discounts', 'receipt', 'workflow']
 
@@ -1389,17 +1388,10 @@ export default function Settings() {
             <div>
               <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Select a campus first</h2>
               <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                Settings are saved per campus, so choose the campus you are configuring. Nothing you change will reach the other campuses.
-                You can also use the Campus menu at the top of the page.
+                Settings are saved per campus. Choose the campus you are configuring from the Campus menu at the top of the page. Nothing you change will reach the other campuses.
               </p>
             </div>
           </div>
-          <GroupedSelect
-            value="all"
-            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
-            allLabel="Choose a campus…"
-            options={campusPickOptions}
-          />
         </div>
       </div>
     )
@@ -1426,13 +1418,6 @@ export default function Settings() {
               ? 'What you change on this tab applies to this campus only.'
               : 'This tab is school-wide: what you change here applies to every campus.'}
           </p>
-          <GroupedSelect
-            className="sm:w-64 shrink-0"
-            value={settingsCampusKey}
-            onChange={v => { if (v !== 'all') setCampusFilter(v) }}
-            allLabel="Choose a campus…"
-            options={campusPickOptions}
-          />
         </div>
       )}
 
@@ -3616,6 +3601,7 @@ const EMPTY_FORM = {
   customPermissions: false, // whether to use custom permissions
   permissions: { pages: [], tabs: [] },
   clearanceDuties: [],      // extra clearance departments this account also signs
+  moduleDuties: [],         // extra modules this account also uses (e.g. 'guidance')
 }
 
 function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
@@ -3660,6 +3646,12 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   // Duties saved earlier for a requirement that has since been removed
   const staleDuties = (form.clearanceDuties || []).filter(id => !dutyIds.includes(id))
   const roleAccessLabels = dutyOptions.filter(d => CLEARANCE_DUTY_ROLE_ACCESS[d.id]).map(d => d.label)
+
+  // Module duties (e.g. the Guidance module) are separate from clearance duties and do not
+  // depend on any clearance requirement. A role that already is the module's own role
+  // (the Guidance role for the Guidance module) has it from its role.
+  const canHaveModuleDuties = !['technical_admin', 'system_admin', 'admin'].includes(form.role)
+  const moduleDutyIds = MODULE_DUTY_OPTIONS.map(o => o.id)
 
   const activeCampusOptions = (campuses || [])
     .filter(c => c.isActive !== false)
@@ -3707,6 +3699,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
       customPermissions: hasCustom,
       permissions: hasCustom ? { ...u.permissions } : { ...(DEFAULT_PERMISSIONS[u.role] || { pages: ['dashboard'], tabs: [] }) },
       clearanceDuties: Array.isArray(u.clearanceDuties) ? [...u.clearanceDuties] : [],
+      moduleDuties: Array.isArray(u.moduleDuties) ? [...u.moduleDuties] : [],
     })
     setErrors({})
     setShowModal(true)
@@ -3759,6 +3752,11 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
       // Extra clearance duties — never store what the role already signs
       const dutiesToSave = (form.clearanceDuties || []).filter(id => dutyIds.includes(id) && !ownClearanceDepts.includes(id))
 
+      // Extra modules — never store what the role already has, nor on roles that cannot hold them
+      const modulesToSave = canHaveModuleDuties
+        ? (form.moduleDuties || []).filter(id => moduleDutyIds.includes(id) && form.role !== id)
+        : []
+
       let nextUsers = users
 
       if (editingUser) {
@@ -3780,11 +3778,13 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
           updates.permissions = undefined
         }
         updates.clearanceDuties = dutiesToSave
+        updates.moduleDuties = modulesToSave
         nextUsers = users.map(u => {
           if (u.id !== editingUser.id) return u
           const updated = { ...u, ...updates }
           if (!form.customPermissions) delete updated.permissions
           if (!dutiesToSave.length) delete updated.clearanceDuties
+          if (!modulesToSave.length) delete updated.moduleDuties
           return updated
         })
       } else {
@@ -3804,6 +3804,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
         }
         if (form.customPermissions) newUser.permissions = form.permissions
         if (dutiesToSave.length) newUser.clearanceDuties = dutiesToSave
+        if (modulesToSave.length) newUser.moduleDuties = modulesToSave
         nextUsers = [...users, newUser]
       }
 
@@ -3831,10 +3832,13 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   }
 
   // ── Role badge ─────────────────────────────────────────────────
-  const RoleBadge = ({ role, duties }) => {
+  const RoleBadge = ({ role, duties, modules }) => {
     const def = ROLE_DEFINITIONS?.[role]
     const extra = (Array.isArray(duties) ? duties : [])
       .map(id => allDutyOptions.find(d => d.id === id)?.label)
+      .filter(Boolean)
+    const extraModules = (Array.isArray(modules) ? modules : [])
+      .map(id => MODULE_DUTY_OPTIONS.find(o => o.id === id)?.label)
       .filter(Boolean)
     return (
       <span className="inline-flex flex-wrap items-center gap-1">
@@ -3846,6 +3850,13 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
         {extra.map(label => (
           <span key={label}
             title={`Also signs ${label} on student clearances`}
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+            + {label}
+          </span>
+        ))}
+        {extraModules.map(label => (
+          <span key={`module-${label}`}
+            title={`Also uses the ${label}`}
             className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[var(--color-border)] text-[var(--color-text-secondary)]">
             + {label}
           </span>
@@ -4065,7 +4076,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)] truncate mb-1.5">{u.email}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <RoleBadge role={u.role} duties={u.clearanceDuties} />
+                    <RoleBadge role={u.role} duties={u.clearanceDuties} modules={u.moduleDuties} />
                     {u.campus && u.campus !== 'all' && (
                       <span className="text-xs text-[var(--color-text-muted)]">{u.campus.replace(' Campus','').replace(' City','')}</span>
                     )}
@@ -4100,7 +4111,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   <tr key={u.id} className={`hover:bg-[var(--color-bg-subtle)]/30 transition-colors ${u.status !== 'active' ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{u.name}</td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{u.email}</td>
-                    <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} duties={u.clearanceDuties} /></td>
+                    <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} duties={u.clearanceDuties} modules={u.moduleDuties} /></td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">
                       {u.campus && u.campus !== 'all' ? u.campus : <span className="text-[var(--color-text-muted)] opacity-50">All campuses</span>}
                     </td>
@@ -4242,7 +4253,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                   </label>
                   <p className="text-xs text-[var(--color-text-muted)] mb-2">
                     One person, one account. Tick an item if this person also signs it on top of their role, for example a teacher who is also the guidance in-charge.
-                    {roleAccessLabels.length > 0 && ` ${roleAccessLabels.join(' and ')} also give them that role's pages; the others add the Clearance page only.`}
+                    {roleAccessLabels.length > 0 && ` ${roleAccessLabels.join(' and ')} ${roleAccessLabels.length === 1 ? 'also gives' : 'also give'} them that role's pages; the others add the Clearance page only.`}
                     {' '}The list follows the clearance requirements set in Workflow Config. Teacher-based items follow Subject Load, so they are not listed here.
                     {ownClearanceDepts.length > 0 && ' Items their role already signs are marked.'}
                   </p>
@@ -4291,6 +4302,49 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                         </span>
                       </label>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Extra modules — a small school can give one person a whole module on top of their role */}
+              {canHaveModuleDuties && MODULE_DUTY_OPTIONS.length > 0 && (
+                <div>
+                  <label className="form-label">
+                    Extra modules <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <p className="text-xs text-[var(--color-text-muted)] mb-2">
+                    One person, one account. Tick a module to give this person its page on top of their role, for example a teacher who is also the guidance in-charge.
+                    This is separate from the clearance sign-off above, so a school can use the module without signing Guidance on clearances.
+                    {['principal_basic', 'program_head'].includes(form.role) && ' This role can already read the Guidance records of its level; ticking lets this person add and edit them for both levels.'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {MODULE_DUTY_OPTIONS.map(o => {
+                      const own = form.role === o.id
+                      const checked = own || (form.moduleDuties || []).includes(o.id)
+                      return (
+                        <label key={o.id}
+                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
+                            ${own ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
+                            ${checked ? 'border-[var(--color-primary-readable)] bg-[var(--color-bg-subtle)]' : 'border-[var(--color-border)]'}`}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={own}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              moduleDuties: e.target.checked
+                                ? [...new Set([...(f.moduleDuties || []), o.id])]
+                                : (f.moduleDuties || []).filter(x => x !== o.id),
+                            }))}
+                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                          <span className="text-[var(--color-text-primary)]">
+                            {o.label}
+                            <span className="block text-[10px] text-[var(--color-text-muted)]">{o.description}</span>
+                          </span>
+                          {own && <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">from role</span>}
+                        </label>
+                      )
+                    })}
                   </div>
                 </div>
               )}
