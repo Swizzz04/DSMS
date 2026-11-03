@@ -548,9 +548,28 @@ async function fillTemplate(XLSX, templateBase64, formId, data) {
 // ─────────────────────────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────────────────────────
-function getFormTemplate(formType) {
+// A campus uses the template it uploaded itself; a template saved with no campus is shared by every campus.
+function getFormTemplate(formType, campusKey) {
   const templates = load(TEMPLATES_KEY) || []
-  return templates.find(t => t.type === formType) || null
+  const ofType = templates.filter(t => t.type === formType)
+  // Callers pass the campus key or the campus name, so a template saved with either matches
+  return ofType.find(t => campusKey && (t.campusKey === campusKey || t.campus === campusKey))
+      || ofType.find(t => !t.campusKey && !t.campus)
+      || null
+}
+
+
+// Only these forms have their cells filled into an uploaded template (see fillTemplate). For the
+// others the generated sheet is exported, so an uploaded file is never sent out empty.
+const TEMPLATE_FILLABLE = new Set(['sf2', 'sf5'])
+
+// The campus's template for a form, or null. Settings saves the uploaded file as `fileData`;
+// older uploads used `data`, so both are read.
+function getUsableTemplate(formType, campusKey) {
+  if (!TEMPLATE_FILLABLE.has(formType)) return null
+  const tmpl = getFormTemplate(formType, campusKey)
+  const fileData = tmpl?.fileData || tmpl?.data
+  return fileData && String(fileData).includes('base64,') ? { ...tmpl, fileData } : null
 }
 
 
@@ -619,7 +638,7 @@ function buildSF1Sheet(data) {
 export async function exportSF1(campusKey, gradeLevel, section, schoolYear) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF1Data(campusKey, gradeLevel, section, schoolYear)
-  const tmpl = getFormTemplate('sf1')
+  const tmpl = getUsableTemplate('sf1', campusKey)
   const wb   = tmpl?.fileData
     ? await fillTemplate(XLSX, tmpl.fileData, 'sf1', data)
     : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF1Sheet(data), 'SF1'); return w })()
@@ -630,7 +649,7 @@ export async function exportSF1(campusKey, gradeLevel, section, schoolYear) {
 export async function exportSF2(campusKey, gradeLevel, section, schoolYear, monthName) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF2Data(campusKey, gradeLevel, section, schoolYear, monthName)
-  const tmpl = getFormTemplate('sf2')
+  const tmpl = getUsableTemplate('sf2', campusKey)
   const wb   = tmpl?.fileData ? await fillTemplate(XLSX, tmpl.fileData, 'sf2', data) : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF2Sheet(data), 'SF2'); return w })()
   XLSX.writeFile(wb, `SF2_${(gradeLevel||'').replace(/\W/g,'_')}_${(section||'').replace(/\W/g,'_')}_${monthName}_${schoolYear}.xlsx`)
   return data.students.length
@@ -639,7 +658,7 @@ export async function exportSF2(campusKey, gradeLevel, section, schoolYear, mont
 export async function exportSF5(campusKey, gradeLevel, section, schoolYear) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF5Data(campusKey, gradeLevel, section, schoolYear)
-  const tmpl = getFormTemplate('sf5')
+  const tmpl = getUsableTemplate('sf5', campusKey)
   const wb   = tmpl?.fileData ? await fillTemplate(XLSX, tmpl.fileData, 'sf5', data) : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF5Sheet(data), 'SF5'); return w })()
   XLSX.writeFile(wb, `SF5_${(gradeLevel||'').replace(/\W/g,'_')}_${(section||'').replace(/\W/g,'_')}_${schoolYear}.xlsx`)
   return data.students.length
@@ -648,7 +667,7 @@ export async function exportSF5(campusKey, gradeLevel, section, schoolYear) {
 export async function exportSF8(campusKey, gradeLevel, section, schoolYear) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF8Data(campusKey, gradeLevel, section, schoolYear)
-  const tmpl = getFormTemplate('sf8')
+  const tmpl = getUsableTemplate('sf8', campusKey)
   const wb   = tmpl?.fileData ? await fillTemplate(XLSX, tmpl.fileData, 'sf8', data) : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF8Sheet(data), 'SF8'); return w })()
   XLSX.writeFile(wb, `SF8_${(gradeLevel||'').replace(/\W/g,'_')}_${(section||'').replace(/\W/g,'_')}_${schoolYear}.xlsx`)
   return data.students.length
@@ -657,7 +676,7 @@ export async function exportSF8(campusKey, gradeLevel, section, schoolYear) {
 export async function exportSF9(campusKey, gradeLevel, section, schoolYear) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF9Data(campusKey, gradeLevel, section, schoolYear)
-  const tmpl = getFormTemplate('sf9')
+  const tmpl = getUsableTemplate('sf9', campusKey)
   const wb   = tmpl?.fileData ? await fillTemplate(XLSX, tmpl.fileData, 'sf9', data) : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF9Sheet(data), 'SF9'); return w })()
   XLSX.writeFile(wb, `SF9_${(gradeLevel||'').replace(/\W/g,'_')}_${(section||'').replace(/\W/g,'_')}_${schoolYear}.xlsx`)
   return data.students.length
@@ -666,13 +685,12 @@ export async function exportSF9(campusKey, gradeLevel, section, schoolYear) {
 export async function exportSF10(campusKey, gradeLevel, section, schoolYear) {
   const XLSX = (await import('xlsx')).default || (await import('xlsx'))
   const data = buildSF10Data(campusKey, gradeLevel, section, schoolYear)
-  const tmpl = getFormTemplate('sf10')
+  const tmpl = getUsableTemplate('sf10', campusKey)
   const wb   = tmpl?.fileData ? await fillTemplate(XLSX, tmpl.fileData, 'sf10', data) : (() => { const w = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(w, buildSF10Sheet(data), 'SF10'); return w })()
   XLSX.writeFile(wb, `SF10_${(gradeLevel||'').replace(/\W/g,'_')}_${(section||'').replace(/\W/g,'_')}_${schoolYear}.xlsx`)
   return data.students.length
 }
 
-export function hasTemplate(formId) {
-  const templates = load(TEMPLATES_KEY) || []
-  return templates.some(t => t.type === formId && t.fileData)
+export function hasTemplate(formId, campusKey) {
+  return !!getUsableTemplate(formId, campusKey)
 }

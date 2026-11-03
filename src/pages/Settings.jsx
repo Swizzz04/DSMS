@@ -11,7 +11,8 @@ import { useTheme } from '../context/ThemeContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAuth } from '../context/AuthContext'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
+import GradeLevelsTab from '../components/settings/GradeLevelsTab'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, CUSTOM_FEE_ID_START, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
@@ -443,21 +444,33 @@ function FeeInput({ value, onChange, disabled, noPrefix }) {
   )
 }
 
-function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave, saved, defaultFees, schoolName, addToast }) {
+function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campusName, groups, programYears, onSave, saved, defaultFees, schoolName, addToast }) {
   const isAccounting  = userRole === 'accounting'
   const isAdmin       = userRole === 'admin' || userRole === 'technical_admin'
   const [showResetConfirm, setShowResetConfirm] = useState(false)
 
-  const handleReset = () => {
-    setFees(defaultFees.map(f => ({ ...f })))
-    setShowResetConfirm(false)
-    addToast?.('Fee structure reset to defaults. Click "Save Changes" to apply.', 'info')
-  }
+  // Campus-only: when a campus is being configured (the header Campus menu for a Technical Admin,
+  // their own campus for everyone else) this tab shows and changes that campus's fees only.
+  // Only an account with no campus at all (the school owner) still sees every campus.
+  const lockedCampus = campusName && campusName !== 'all' ? campusName : (isAccounting ? (userCampus || null) : null)
+  const [pickedCampus, setPickedCampus] = useState('all')
+  const campusFilter = lockedCampus || pickedCampus
 
-  // Campus filter — accounting locked to their campus, admin can switch
-  const [campusFilter, setCampusFilter] = useState(
-    isAccounting ? (userCampus || 'all') : 'all'
-  )
+  const handleReset = () => {
+    if (campusFilter === 'all') {
+      setFees(defaultFees.map(f => ({ ...f })))
+      addToast?.('Fee structure reset to defaults. Click "Save Changes" to apply.', 'info')
+    } else {
+      // Only this campus: its own rows go away (Basic Ed goes back to the shared fees) and its
+      // shipped College rows are put back. Other campuses are not touched.
+      setFees(prev => [
+        ...prev.filter(f => f.campus !== campusFilter),
+        ...defaultFees.filter(f => f.campus === campusFilter).map(f => ({ ...f })),
+      ])
+      addToast?.(`${campusFilter} fees reset. Click "Save Changes" to apply.`, 'info')
+    }
+    setShowResetConfirm(false)
+  }
   const [editingId,  setEditingId]  = useState(null)
   const [editBuffer, setEditBuffer] = useState({})
   const [hasChanges, setHasChanges] = useState(false)
@@ -465,11 +478,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
   const [expandedGroup, setExpandedGroup] = useState('auto')
 
   // Fee groups for display
+  // Basic Ed groups come from the campus's own grade levels (Settings → Grade Levels)
   const FEE_GROUPS = [
-    { key: 'pre-elem', label: 'Pre-Elementary',    type: 'basic', grades: ['Nursery','Kindergarten','Preparatory'] },
-    { key: 'elem',     label: 'Elementary',         type: 'basic', grades: ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'] },
-    { key: 'jhs',      label: 'Junior High School', type: 'basic', grades: ['Grade 7','Grade 8','Grade 9','Grade 10'] },
-    { key: 'shs',      label: 'Senior High School', type: 'basic', grades: ['Grade 11','Grade 12'] },
+    ...(groups || []).map((g, i) => ({ key: `basic-${i}-${g.label}`, label: g.label, type: 'basic', grades: g.options })),
     { key: 'college',  label: 'College',             type: 'college', grades: [] },
   ]
 
@@ -514,18 +525,28 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
     return true
   })
   const collegePrograms = [...new Set(collegeCampusFees.map(f => f.program))]
-  const YEAR_LEVELS       = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+  // Year levels are per program (Settings → Grade Levels)
+  const yearsOfProgram = (program) => (programYears ? programYears(program) : null) || ['1st Year', '2nd Year', '3rd Year', '4th Year']
 
-  // Filter fees by campus
+  // Filter fees by campus. For one campus: its own rows, plus the shared ('all') rows of the
+  // grade levels it has not changed yet.
+  const ownGradeLevels = new Set(fees.filter(f => !f.program && f.campus === campusFilter).map(f => f.gradeLevel))
   const visibleFees = fees.filter(f => {
     if (campusFilter === 'all') return true
-    return f.campus === 'all' || f.campus === campusFilter
+    if (f.campus === campusFilter) return true
+    return f.campus === 'all' && !ownGradeLevels.has(f.gradeLevel)
   })
 
   // Group fees — basic ed groups filter by gradeLevel, college groups filter by program
   const getGroupFees = (group) => {
     if (group.type === 'college') return [] // college handled separately
-    return visibleFees.filter(f => !f.program && group.grades.includes(f.gradeLevel))
+    const rows = visibleFees.filter(f => !f.program && group.grades.includes(f.gradeLevel))
+    // In a campus view, a level with no fee row yet (a newly added or renamed level) gets an empty
+    // row to fill in; saving it creates the campus's own row.
+    const placeholders = campusFilter === 'all' ? [] : group.grades
+      .filter(l => !rows.some(r => r.gradeLevel === l))
+      .map(l => ({ id: `new:${l}`, gradeLevel: l, tuition: 0, enrollment: 0, misc: 0, lab: 0, books: 0, other: 0, campus: campusFilter, __new: true }))
+    return [...rows, ...placeholders].sort((a, b) => group.grades.indexOf(a.gradeLevel) - group.grades.indexOf(b.gradeLevel))
   }
 
   // Which card is open: the one the user picked, or — until they pick — the first visible one.
@@ -548,9 +569,21 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
   const cancelEdit = () => { setEditingId(null); setEditBuffer({}) }
 
   const commitEdit = (feeId) => {
-    setFees(prev => prev.map(f =>
-      f.id === feeId ? { ...f, ...editBuffer } : f
-    ))
+    setFees(prev => {
+      // A level with no fee row yet: the first save creates this campus's own row for it
+      if (typeof feeId === 'string' && feeId.startsWith('new:')) {
+        const nextId = Math.max(CUSTOM_FEE_ID_START, ...prev.map(f => Number(f.id) || 0)) + 1
+        return [{ id: nextId, gradeLevel: feeId.slice(4), tuition: 0, enrollment: 0, misc: 0, lab: 0, books: 0, other: 0, ...editBuffer, campus: campusFilter }, ...prev]
+      }
+      const row = prev.find(f => f.id === feeId)
+      // A shared row changed for one campus becomes that campus's own copy; the shared row stays
+      // as it is for every other campus. Campus rows go first in the list.
+      if (row && row.campus === 'all' && campusFilter !== 'all') {
+        const nextId = Math.max(CUSTOM_FEE_ID_START, ...prev.map(f => Number(f.id) || 0)) + 1
+        return [{ ...row, ...editBuffer, id: nextId, campus: campusFilter }, ...prev]
+      }
+      return prev.map(f => f.id === feeId ? { ...f, ...editBuffer } : f)
+    })
     setEditingId(null)
     setEditBuffer({})
     setHasChanges(true)
@@ -566,6 +599,17 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
 
   const handleSave = () => { onSave(); setHasChanges(false) }
 
+  // Small line under a grade level. In campus view: say when a row is still the shared fee.
+  const feeTag = (fee) => {
+    if (fee.__new) return <p className="text-xs text-gray-400">No fee set yet</p>
+    if (lockedCampus) {
+      return fee.campus === 'all'
+        ? <p className="text-xs text-gray-400">Shared fee</p>
+        : null
+    }
+    return fee.campus !== 'all' ? <p className="text-xs text-gray-400">{fee.campus}</p> : null
+  }
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -574,15 +618,15 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Fee Structure</h2>
             <p className="text-xs text-gray-400 mt-0.5">
-              {isAccounting ? 'Manage fees for your campus' : 'Manage fees across all campuses'}
+              {lockedCampus ? `Fees for ${lockedCampus} only` : 'Manage fees across all campuses'}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Campus filter — admin only */}
-            {isAdmin && (
+            {isAdmin && !lockedCampus && (
               <GroupedSelect
                 value={campusFilter}
-                onChange={setCampusFilter}
+                onChange={setPickedCampus}
                 allLabel="All Campuses"
                 options={campuses.map(c => ({ value: c.name, label: c.name }))}
               />
@@ -615,7 +659,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
           <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"/>
           <p className="text-xs text-amber-700 dark:text-amber-300">
             Fee changes apply to <strong>new enrollments only</strong>.
-            Existing student balances are not affected. Click the edit icon on any row to update fees.
+            Existing student balances are not affected. Click Edit on any row to update fees.{lockedCampus && ' Rows marked "Shared fee" are used by every campus until you edit them here; editing makes a copy for this campus only.'}
           </p>
         </div>
       </div>
@@ -658,7 +702,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-semibold text-[var(--color-text-primary)]">{fee.gradeLevel}</p>
-                            {fee.campus !== 'all' && <p className="text-xs text-gray-400">{fee.campus}</p>}
+                            {feeTag(fee)}
                           </div>
                           {!isEditing ? (
                             <button onClick={() => startEdit(fee)}
@@ -722,7 +766,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
                             className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
                             <td className="px-4 py-3">
                               <p className="text-sm font-semibold text-[var(--color-text-primary)]">{fee.gradeLevel}</p>
-                              {fee.campus !== 'all' && <p className="text-xs text-gray-400">{fee.campus}</p>}
+                              {feeTag(fee)}
                             </td>
                             {BASIC_FEE_COLS.map(col => (
                               <td key={col.key} className="px-4 py-3">
@@ -803,7 +847,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
           <AccordionBody open={openKey === program}>
             <div className="border-t border-[var(--color-border)]">
               {/* Year level tabs */}
-              {YEAR_LEVELS.map(yr => {
+              {yearsOfProgram(program).map(yr => {
                 const sem1 = fees.find(f =>
                   f.program === program && f.yearLevel === yr && f.semester === '1st' &&
                   (campusFilter === 'all' || f.campus === campusFilter) &&
@@ -1021,11 +1065,13 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, onSave
 
       <TypeToConfirmDialog
         open={showResetConfirm}
-        title="Reset Fee Structure?"
-        message="This replaces ALL current tuition and fee amounts across every campus with the shipped defaults. Your actual pricing will be gone until you re-enter it. This can't be undone once saved."
+        title={lockedCampus ? `Reset ${lockedCampus} fees?` : 'Reset Fee Structure?'}
+        message={lockedCampus
+          ? "This removes the fees this campus set for itself: Basic Education goes back to the shared fees and College goes back to the shipped rates. Other campuses are not affected. This can't be undone once saved."
+          : "This replaces ALL current tuition and fee amounts across every campus with the shipped defaults. Your actual pricing will be gone until you re-enter it. This can't be undone once saved."}
         matchText={schoolName}
         matchLabel="school name"
-        confirmLabel="Reset Everything"
+        confirmLabel={lockedCampus ? 'Reset this campus' : 'Reset Everything'}
         onConfirm={handleReset}
         onCancel={() => setShowResetConfirm(false)}
       />
@@ -1038,6 +1084,7 @@ export default function Settings() {
   const { theme, toggleTheme } = useTheme()
   const {
     schoolYears, campuses, feeStructure, systemUsers, basicEdGroups,
+    schoolBasicEdGroups, campusGradeLevels, schoolCollegeYearLevels, getProgramYearLevels, getSectionNames,
     updateConfig, resetSection, activeCampuses, currentSchoolYear
   } = useAppConfig()
 
@@ -1164,14 +1211,24 @@ export default function Settings() {
   const [newFormName, setNewFormName] = useState('')
   const [newFormDesc, setNewFormDesc] = useState('')
 
-  const TEMPLATE_TYPES = [...DEFAULT_TEMPLATE_TYPES, ...customFormTypes]
+  // Campus-only: a template or custom form type saved with a campus belongs to that campus.
+  // Ones saved before this (no campus) are shared by every campus until a campus uploads its own.
+  const tplCampus = settingsCampusKey || ''
+  const ownsRow = (r) => (r.campusKey || '') === tplCampus
+  const isSharedRow = (r) => !r.campusKey && !!tplCampus
+  const visibleCustomTypes = customFormTypes.filter(t => !tplCampus || ownsRow(t) || isSharedRow(t))
+  const TEMPLATE_TYPES = [...DEFAULT_TEMPLATE_TYPES, ...visibleCustomTypes]
+  // The template a campus sees for a type: its own, else the shared one
+  const findTemplate = (type) =>
+    formTemplates.find(t => t.type === type && ownsRow(t)) ||
+    (tplCampus ? formTemplates.find(t => t.type === type && !t.campusKey) : null) || null
 
   const addCustomFormType = () => {
     const name = newFormName.trim()
     if (!name) { addToast('Please enter a form name', 'error'); return }
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-')
     if (TEMPLATE_TYPES.find(t => t.id === id)) { addToast('A form with this name already exists', 'error'); return }
-    const updated = [...customFormTypes, { id, label: name, description: newFormDesc.trim() || 'Custom form template', isDefault: false }]
+    const updated = [...customFormTypes, { id, label: name, description: newFormDesc.trim() || 'Custom form template', isDefault: false, ...(tplCampus ? { campusKey: tplCampus, campus: settingsCampusName } : {}) }]
     setCustomFormTypes(updated)
     localStorage.setItem('almirene_custom_form_types', JSON.stringify(updated))
     setNewFormName('')
@@ -1181,11 +1238,12 @@ export default function Settings() {
   }
 
   const removeCustomFormType = (formId) => {
-    const updated = customFormTypes.filter(t => t.id !== formId)
+    // Only this campus's own form type can be removed here (a shared one belongs to every campus)
+    const updated = customFormTypes.filter(t => !(t.id === formId && ownsRow(t)))
     setCustomFormTypes(updated)
     localStorage.setItem('almirene_custom_form_types', JSON.stringify(updated))
-    // Also remove the uploaded template for this type
-    const updatedTemplates = formTemplates.filter(t => t.type !== formId)
+    // Also remove this campus's uploaded template for this type
+    const updatedTemplates = formTemplates.filter(t => !(t.type === formId && ownsRow(t)))
     setFormTemplates(updatedTemplates)
     localStorage.setItem('almirene_form_templates', JSON.stringify(updatedTemplates))
     addToast('Form type removed', 'success')
@@ -1196,13 +1254,15 @@ export default function Settings() {
     const reader = new FileReader()
     reader.onload = (e) => {
       const base64 = e.target.result
-      const updated = formTemplates.filter(t => t.type !== templateType)
+      // Replaces only this campus's own template; a shared one stays for the other campuses
+      const updated = formTemplates.filter(t => !(t.type === templateType && ownsRow(t)))
       updated.push({
         type: templateType,
+        ...(tplCampus ? { campusKey: tplCampus, campus: settingsCampusName } : {}),
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
-        data: base64,
+        fileData: base64,
         uploadedAt: new Date().toISOString(),
         uploadedBy: user?.name || 'Admin',
       })
@@ -1214,10 +1274,81 @@ export default function Settings() {
   }
 
   const removeTemplate = (templateType) => {
-    const updated = formTemplates.filter(t => t.type !== templateType)
+    const updated = formTemplates.filter(t => !(t.type === templateType && ownsRow(t)))
     setFormTemplates(updated)
     localStorage.setItem('almirene_form_templates', JSON.stringify(updated))
     addToast('Template removed', 'success')
+  }
+
+  // ── College programs (Settings → Grade Levels), saved for the campus being configured ──
+  // Adding a program lists it for this campus (enrollment, Subject Load, Students) and creates empty
+  // fee rows for it in Fee Structure so the fees can be filled in. Returns an error text, or null.
+  const addCollegeProgram = (name) => {
+    const campus = campuses.find(c => c.key === settingsCampusKey)
+    if (!campus) return 'Choose a campus first.'
+    const current = campus.college?.programs ?? campus.collegePrograms ?? []
+    if (current.some(p => p.toLowerCase() === name.toLowerCase())) return `${name} is already offered here.`
+    const nextCampuses = campuses.map(c => c.key !== settingsCampusKey ? c : {
+      ...c, hasCollege: true, collegePrograms: [...current, name],
+      ...(c.college ? { college: { ...c.college, programs: [...(c.college.programs ?? current), name] } } : {}),
+    })
+    updateConfig('campuses', nextCampuses)
+    setEditCampuses(nextCampuses)
+    // Empty fee rows: every year level, both semesters (this campus's own rows)
+    let nextId = Math.max(CUSTOM_FEE_ID_START, ...feeStructure.map(f => Number(f.id) || 0), ...editFees.map(f => Number(f.id) || 0))
+    const rows = getProgramYearLevels(settingsCampusKey, name).flatMap(yearLevel => ['1st', '2nd'].map(semester => ({
+      id: ++nextId, program: name, yearLevel, semester,
+      tuitionRatePerUnit: 0, labRatePerUnit: 0, typicalUnits: 0, typicalLabUnits: 0, enrollment: 0, misc: 0,
+      campus: settingsCampusName,
+    })))
+    updateConfig('feeStructure', [...rows, ...feeStructure])
+    setEditFees(prev => [...rows, ...prev])
+    addToast(`${name} added to ${settingsCampusName}. Set its fees in Fee Structure.`, 'success')
+    return null
+  }
+
+  // Saves this campus's Basic Ed levels and the year levels of the programs edited. Year levels are per
+  // program. A new year level gets empty fee rows (both semesters) for that program only, so its fees
+  // can be set in Fee Structure. `editedYears` / `previousYears`: { [program]: [years] }.
+  const saveGradeLevels = (groups, editedYears = {}, previousYears = {}, sections = {}) => {
+    const entry = campusGradeLevels?.[settingsCampusKey] || {}
+    updateConfig('campusGradeLevels', { ...campusGradeLevels, [settingsCampusKey]: {
+      ...entry, basicEdGroups: groups, programYears: { ...(entry.programYears || {}), ...editedYears }, sections,
+    } })
+    const have = (f, program, yearLevel, semester) =>
+      f.program === program && f.yearLevel === yearLevel && f.semester === semester && f.campus === settingsCampusName
+    const all = [...feeStructure, ...editFees]
+    let nextId = Math.max(CUSTOM_FEE_ID_START, ...all.map(f => Number(f.id) || 0))
+    const rows = Object.keys(editedYears).flatMap(program =>
+      editedYears[program].filter(y => !(previousYears[program] || []).includes(y)).flatMap(yearLevel => ['1st', '2nd']
+        .filter(semester => !all.some(f => have(f, program, yearLevel, semester)))
+        .map(semester => ({
+          id: ++nextId, program, yearLevel, semester,
+          tuitionRatePerUnit: 0, labRatePerUnit: 0, typicalUnits: 0, typicalLabUnits: 0, enrollment: 0, misc: 0,
+          campus: settingsCampusName,
+        }))))
+    if (!rows.length) return
+    updateConfig('feeStructure', [...rows, ...feeStructure])
+    setEditFees(prev => [...rows, ...prev])
+  }
+
+  const removeCollegeProgram = (name) => {
+    const campus = campuses.find(c => c.key === settingsCampusKey)
+    if (!campus) return 'Choose a campus first.'
+    const nextCampuses = campuses.map(c => c.key !== settingsCampusKey ? c : {
+      ...c, collegePrograms: (c.college?.programs ?? c.collegePrograms ?? []).filter(p => p !== name),
+      ...(c.college ? { college: { ...c.college, programs: (c.college.programs ?? []).filter(p => p !== name) } } : {}),
+    })
+    updateConfig('campuses', nextCampuses)
+    setEditCampuses(nextCampuses)
+    // Drop the program's own year-level list too
+    const entry = campusGradeLevels?.[settingsCampusKey]
+    if (entry?.programYears?.[name]) {
+      const { [name]: _gone, ...rest } = entry.programYears
+      updateConfig('campusGradeLevels', { ...campusGradeLevels, [settingsCampusKey]: { ...entry, programYears: rest } })
+    }
+    addToast(`${name} removed from ${settingsCampusName}.`, 'success')
+    return null
   }
 
   useEffect(() => {
@@ -1263,7 +1394,10 @@ export default function Settings() {
   const [newCfScale, setNewCfScale] = useState([])
   const [editCampuses,    setEditCampuses]    = useState(() => campuses)
   const [editFees, setEditFees] = useState(() => {
-    const saved = feeStructure || []
+    const allSaved = feeStructure || []
+    // Rows a campus made for itself (id from CUSTOM_FEE_ID_START up) are kept as they are
+    const customRows = allSaved.filter(f => f.id >= CUSTOM_FEE_ID_START && (f.gradeLevel || f.program) && f.campus && f.campus !== 'all')
+    const saved = allSaved.filter(f => !(f.id >= CUSTOM_FEE_ID_START))
     // Stale if: has flat BS entries without semester, or missing new entries
     const hasStale =
       saved.some(f => f.gradeLevel?.startsWith('BS') && !f.semester) ||
@@ -1278,7 +1412,7 @@ export default function Settings() {
         })
         .map(f => [f.id, f])
     )
-    return DEFAULT_FEE_STRUCTURE.map(f => {
+    const shipped = DEFAULT_FEE_STRUCTURE.map(f => {
       const sv = savedMap[f.id] || {}
       return {
         ...f, ...sv,
@@ -1290,6 +1424,7 @@ export default function Settings() {
         other:      sv.other      ?? f.other ?? 0,
       }
     })
+    return [...customRows, ...shipped]
   })
   const [editUsers,       setEditUsers]       = useState(() => systemUsers)
   const [cashierName,     setCashierName]     = useState(() => {
@@ -1356,7 +1491,10 @@ export default function Settings() {
     { id: 'receipt',       label: 'Receipt & Payment',  icon: Receipt },
     { id: 'workflow',      label: 'Workflow Config',   icon: GitBranch },
   ]
-  const tabs = allTabs.filter(t => userTabs.includes(t.id))
+  // Alphabetical by the label shown
+  const tabs = allTabs
+    .filter(t => userTabs.includes(t.id))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-PH', {
@@ -1369,7 +1507,7 @@ export default function Settings() {
   if (loading) return <PageSkeleton title="Settings" />
 
   // Tabs whose settings belong to one campus. The rest are saved once for the whole school.
-  const CAMPUS_SCOPED_TABS = ['discounts', 'receipt', 'workflow']
+  const CAMPUS_SCOPED_TABS = ['discounts', 'fees', 'formTemplates', 'grades', 'receipt', 'users', 'workflow']
 
   // A Technical Admin must choose a campus before touching any setting, so a change never lands
   // on a campus they did not mean.
@@ -2529,6 +2667,9 @@ export default function Settings() {
             campuses={activeCampuses}
             userCampus={user?.campus}
             userRole={user?.role}
+            campusName={settingsCampusName}
+            groups={basicEdGroups}
+            programYears={(prog) => getProgramYearLevels(settingsCampusKey || undefined, prog)}
             onSave={() => saveSection('feeStructure', editFees)}
             saved={savedSection === 'feeStructure'}
             defaultFees={DEFAULT_FEE_STRUCTURE}
@@ -3139,52 +3280,34 @@ export default function Settings() {
         {/* ═══ TICKETS TAB ═══ */}
 
         {activeTab === 'grades' && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[var(--color-text-primary)]">
-                Grade Level Configuration
-              </h2>
-              <button className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add Grade Level
-              </button>
+          settingsCampusKey ? (
+            <GradeLevelsTab
+              key={settingsCampusKey}
+              campusKey={settingsCampusKey}
+              campusName={settingsCampusName}
+              effectiveGroups={basicEdGroups}
+              schoolGroups={schoolBasicEdGroups}
+              hasOwnList={!!campusGradeLevels?.[settingsCampusKey]?.basicEdGroups}
+              getProgramYears={(prog) => getProgramYearLevels(settingsCampusKey, prog)}
+              getSectionNames={(level) => getSectionNames(settingsCampusKey, level)}
+              schoolYearLevels={schoolCollegeYearLevels}
+              programs={(campuses.find(c => c.key === settingsCampusKey)?.college?.programs ?? campuses.find(c => c.key === settingsCampusKey)?.collegePrograms ?? [])}
+              onAddProgram={addCollegeProgram}
+              onRemoveProgram={removeCollegeProgram}
+              onSave={saveGradeLevels}
+              onReset={() => {
+                const { [settingsCampusKey]: _removed, ...rest } = campusGradeLevels || {}
+                updateConfig('campusGradeLevels', rest)
+                addToast(`${settingsCampusName} now uses the school-wide grade levels.`, 'success')
+              }}
+              addToast={addToast}
+            />
+          ) : (
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+              <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-1">Grade Levels</h2>
+              <p className="text-sm text-[var(--color-text-secondary)]">Grade levels are set for one campus at a time. Choose a campus from the Campus menu in the header.</p>
             </div>
-
-            <div className="space-y-4">
-              {basicEdGroups.map((group) => (
-                <div
-                  key={group.label}
-                  className="border border-[var(--color-border)] rounded-lg p-4 hover:border-[var(--color-primary-readable)] transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <h3 className="text-lg font-bold text-[var(--color-text-primary)]">
-                          {group.label}
-                        </h3>
-                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs font-medium rounded-full">
-                          {group.options.length} grade{group.options.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {group.options.map((grade) => (
-                          <span
-                            key={grade}
-                            className="px-3 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] text-sm rounded-full"
-                          >
-                            {grade}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <button className="text-[var(--color-primary-readable)] hover:text-[var(--color-primary-hover)] ml-4 flex-shrink-0">
-                      <Edit className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          )
         )}
 
         {/* Discounts Tab */}
@@ -3436,12 +3559,13 @@ export default function Settings() {
 
             <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
               <Info className="w-4 h-4 flex-shrink-0" />
-              Templates are stored locally for now. When the backend is connected, they will be stored on the server and used automatically for all exports.
+              Templates are stored locally for now. When the backend is connected, they will be stored on the server and used automatically for all exports. Right now an uploaded template is filled in for SF2 and SF5; the other forms still export in the automatic format.
             </div>
 
             <div className="grid grid-cols-1 gap-4">
               {TEMPLATE_TYPES.map(tmpl => {
-                const existing = formTemplates.find(t => t.type === tmpl.id)
+                const existing = findTemplate(tmpl.id)
+                const existingShared = !!existing && isSharedRow(existing)
                 return (
                   <div key={tmpl.id} className="card p-5">
                     <div className="flex items-start gap-4">
@@ -3452,6 +3576,7 @@ export default function Settings() {
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{tmpl.label}</h3>
                           {tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] uppercase tracking-wider">Default</span>}
+                          {existingShared && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] uppercase tracking-wider">Shared template</span>}
                           {!tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 uppercase tracking-wider">Custom</span>}
                         </div>
                         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</p>
@@ -3470,9 +3595,11 @@ export default function Settings() {
                                 Replace
                                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleTemplateUpload(tmpl.id, e.target.files?.[0])} />
                               </label>
-                              <button onClick={() => removeTemplate(tmpl.id)} className="px-2.5 py-1 text-[10px] font-medium rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
-                                Remove
-                              </button>
+                              {!existingShared && (
+                                <button onClick={() => removeTemplate(tmpl.id)} className="px-2.5 py-1 text-[10px] font-medium rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                  Remove
+                                </button>
+                              )}
                             </div>
                           </div>
                         ) : (
@@ -3486,7 +3613,7 @@ export default function Settings() {
                         )}
                       </div>
                       {/* Delete button for custom forms only */}
-                      {!tmpl.isDefault && (
+                      {!tmpl.isDefault && !isSharedRow(tmpl) && (
                         <button onClick={() => removeCustomFormType(tmpl.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-muted)] hover:text-red-500 transition" title="Remove this form type">
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -3542,6 +3669,8 @@ export default function Settings() {
             onSave={(list) => saveSection('systemUsers', list ?? editUsers)}
             saved={savedSection === 'systemUsers'}
             currentUser={user}
+            campusName={settingsCampusName}
+            campusKey={settingsCampusKey}
           />
         )}
 
@@ -3604,7 +3733,7 @@ const EMPTY_FORM = {
   moduleDuties: [],         // extra modules this account also uses (e.g. 'guidance')
 }
 
-function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
+function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campusName, campusKey }) {
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null) // null = adding new
   const [form, setForm] = useState(EMPTY_FORM)
@@ -3627,6 +3756,14 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   // System admin can only see/manage users from their own campus
   const isSystemAdmin = currentUser?.role === 'system_admin'
   const myCampus = currentUser?.campus
+
+  // Campus-only: while a campus is being configured, this tab lists and creates that campus's
+  // accounts. Accounts that belong to no campus (owner, Technical Admin) are on their own
+  // "School-wide" view, and only a Technical Admin can see or change those.
+  const campusLocked = !!campusName && campusName !== 'all'
+  const canSeeSchoolWide = currentUser?.role === 'technical_admin'
+  const [staffScope, setStaffScope] = useState('campus') // 'campus' | 'schoolwide'
+  const isSchoolWide = (u) => !u.campus || u.campus === 'all'
 
   // System admin can't create super admins, other system admins, or owners
   const assignableRoles = isSystemAdmin
@@ -3656,6 +3793,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
   const activeCampusOptions = (campuses || [])
     .filter(c => c.isActive !== false)
     .filter(c => !isSystemAdmin || c.name === myCampus) // system admin only sees their campus
+    .filter(c => !campusLocked || c.name === campusName) // campus-only: accounts made here belong here
     .map(c => ({ value: c.name, label: c.name, key: c.key }))
 
   // ── Filtering ─────────────────────────────────────────────────
@@ -3664,6 +3802,10 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
     if (isSystemAdmin) {
       if (u.role === 'technical_admin' || u.role === 'admin') return false
       if (u.campus && u.campus !== 'all' && u.campus !== myCampus) return false
+    }
+    if (campusLocked) {
+      if (staffScope === 'schoolwide') return canSeeSchoolWide && isSchoolWide(u)
+      return u.campus === campusName
     }
     return true
   })
@@ -3682,7 +3824,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
     // System admin: auto-set campus to their own
     const defaultForm = isSystemAdmin
       ? { ...EMPTY_FORM, campus: myCampus, campusKey: currentUser?.campusKey || '' }
-      : EMPTY_FORM
+      : campusLocked
+        ? { ...EMPTY_FORM, campus: campusName, campusKey: campusKey || '' }
+        : EMPTY_FORM
     setForm(defaultForm)
     setErrors({})
     setShowModal(true)
@@ -3933,19 +4077,39 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
               onClick={() => setUserTabView(tab.id)}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                 userTabView === tab.id
-                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
+                  ? 'bg-[var(--color-secondary)] text-[var(--color-secondary-contrast)] shadow-sm'
                   : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
               }`}
             >
               {tab.label}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                 userTabView === tab.id
-                  ? 'bg-primary/10 text-[var(--color-primary-readable)]'
+                  ? 'bg-[var(--color-secondary-contrast)]/20 text-[var(--color-secondary-contrast)]'
                   : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)]'
               }`}>{tab.count}</span>
             </button>
           ))}
         </div>
+
+        {/* Campus accounts or school-wide accounts */}
+        {userTabView === 'staff' && campusLocked && canSeeSchoolWide && (
+          <div className="flex gap-1 p-1 rounded-xl bg-[var(--color-bg-subtle)] mb-4 w-fit max-w-full overflow-x-auto">
+            {[
+              { id: 'campus',     label: campusName },
+              { id: 'schoolwide', label: 'School-wide accounts' },
+            ].map(o => (
+              <button
+                key={o.id}
+                onClick={() => setStaffScope(o.id)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors ${
+                  staffScope === o.id
+                    ? 'bg-[var(--color-secondary)] text-[var(--color-secondary-contrast)] shadow-sm'
+                    : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                }`}
+              >{o.label}</button>
+            ))}
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-3">
@@ -4266,7 +4430,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                         : null
                       return (
                         <label key={d.id}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
+                          className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
                             ${own ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
                             ${checked ? 'border-[var(--color-primary-readable)] bg-[var(--color-bg-subtle)]' : 'border-[var(--color-border)]'}`}>
                           <input
@@ -4279,7 +4443,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                                 ? [...new Set([...(f.clearanceDuties || []), d.id])]
                                 : (f.clearanceDuties || []).filter(x => x !== d.id),
                             }))}
-                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                            className="w-4 h-4 mt-0.5 shrink-0 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                           <span className="text-[var(--color-text-primary)]">
                             {d.label}
                             {onlyScope && <span className="block text-[10px] text-[var(--color-text-muted)]">{onlyScope} only</span>}
@@ -4290,12 +4454,12 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                     })}
                     {staleDuties.map(id => (
                       <label key={id}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-[var(--color-border)] text-sm cursor-pointer">
+                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border border-dashed border-[var(--color-border)] text-sm cursor-pointer">
                         <input
                           type="checkbox"
                           checked
                           onChange={() => setForm(f => ({ ...f, clearanceDuties: (f.clearanceDuties || []).filter(x => x !== id) }))}
-                          className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                          className="w-4 h-4 mt-0.5 shrink-0 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                         <span className="text-[var(--color-text-muted)]">
                           {id}
                           <span className="block text-[10px]">No longer a requirement. Untick to remove.</span>
@@ -4323,7 +4487,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                       const checked = own || (form.moduleDuties || []).includes(o.id)
                       return (
                         <label key={o.id}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
+                          className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm transition-colors
                             ${own ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}
                             ${checked ? 'border-[var(--color-primary-readable)] bg-[var(--color-bg-subtle)]' : 'border-[var(--color-border)]'}`}>
                           <input
@@ -4336,7 +4500,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser }) {
                                 ? [...new Set([...(f.moduleDuties || []), o.id])]
                                 : (f.moduleDuties || []).filter(x => x !== o.id),
                             }))}
-                            className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
+                            className="w-4 h-4 mt-0.5 shrink-0 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
                           <span className="text-[var(--color-text-primary)]">
                             {o.label}
                             <span className="block text-[10px] text-[var(--color-text-muted)]">{o.description}</span>

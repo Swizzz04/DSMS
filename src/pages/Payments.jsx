@@ -15,7 +15,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
-import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS, getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD } from '../config/appConfig'
+import { getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD } from '../config/appConfig'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import {
   DeptPaymentCard,
@@ -63,7 +63,7 @@ function getSchoolBrand() {
 // ADMIN PAYMENTS OVERVIEW
 // ════════════════════════════════════════════════════════════════════
 function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, currentSchoolYear, addToast, onRecordPayment }) {
-  const { isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels } = useAppConfig()
   const shownCampuses   = campusFilter !== 'all'
     ? activeCampuses.filter(c => c.key === campusFilter)
     : activeCampuses
@@ -83,7 +83,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
 
       if (campus.hasBasicEd) {
         const rows = []
-        BASIC_ED_GROUPS.forEach(group => {
+        getCampusBasicEdGroups(campus.key).forEach(group => {
           group.options.forEach(grade => {
             const gp = campusPayments.filter(p => p.gradeLevel === grade)
             if (gp.length > 0) rows.push({
@@ -103,7 +103,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
       if (campus.hasCollege && campus.collegePrograms?.length) {
         const rows = []
         campus.collegePrograms.forEach(prog => {
-          COLLEGE_YEAR_LEVELS.forEach(yr => {
+          getProgramYearLevels(campus.key, prog).forEach(yr => {
             const key = `${prog} - ${yr}`
             const gp  = campusPayments.filter(p => p.gradeLevel === key)
             if (gp.length > 0) rows.push({
@@ -265,7 +265,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
                   </span>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {BASIC_ED_GROUPS.map(group => (
+                  {getCampusBasicEdGroups(campus.key).map(group => (
                     <DeptPaymentCard key={group.label} group={group} payments={basicPayments} />
                   ))}
                 </div>
@@ -808,7 +808,7 @@ const BALANCE_SORTERS = {
 }
 
 function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast }) {
-  const { isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { isBasicGrade, isCollegeGrade, basicEdGroups: configBasicEdGroups, getProgramYearLevels: configProgramYears } = useAppConfig()
   const [search,     setSearch]     = useState('')
   const [deptFilter, setDeptFilter] = useState('all')
   const [yearFilter, setYearFilter] = useState('all')
@@ -818,8 +818,8 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
 
   const handleDeptChange = (dept) => { setDeptFilter(dept); setYearFilter('all') }
 
-  // Basic Ed — all grades from static config
-  const basicEdGroups = BASIC_ED_GROUPS.map(group => ({
+  // Basic Ed — the working campus's grade levels (every campus's when none is chosen)
+  const basicEdGroups = configBasicEdGroups.map(group => ({
     label: group.label,
     options: group.options.map(g => ({ value: g, label: g }))
   }))
@@ -827,7 +827,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
   // College — all programs × all year levels from static config
   const collegeGroups = collegePrograms.map(prog => ({
     label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
+    options: configProgramYears(undefined, prog).map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
   }))
 
   // Only students with remaining balance
@@ -1654,7 +1654,7 @@ function PaymentsListTable({ items, showCampus, resetKey, onView, onPay }) {
 
 export default function Payments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade, schoolYears, basicEdGroups: configBasicEdGroups, getProgramYearLevels: configProgramYears } = useAppConfig()
 
   const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
   const accountingCampus   = isAccountingLocked ? user.campus : null
@@ -1972,14 +1972,14 @@ export default function Payments() {
   })()
 
   // Static option groups — all grades/year levels always shown
-  const mainBasicEdGroups = BASIC_ED_GROUPS.map(group => ({
+  const mainBasicEdGroups = configBasicEdGroups.map(group => ({
     label: group.label,
     options: group.options.map(g => ({ value: g, label: g }))
   }))
   // One group per program, options are year levels
   const mainCollegeGroups = mainCollegePrograms.map(prog => ({
     label: prog,
-    options: COLLEGE_YEAR_LEVELS.map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
+    options: configProgramYears(undefined, prog).map(yr => ({ value: `${prog} - ${yr}`, label: yr }))
   }))
 
   const handleMainDeptChange = (dept) => { setDeptFilter(dept); setYearFilter('all'); setGradeLevelFilter('all') }

@@ -11,7 +11,7 @@ import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { useLocation } from 'react-router-dom'
 import { useToast, ToastContainer, ConfirmDialog, PageSkeleton, EmptyState, ModalPortal } from '../components/UIComponents'
 import { useAppConfig } from '../context/AppConfigContext'
-import { getMinimumPayment, computeDefaultDueDate, getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS, BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
+import { getMinimumPayment, computeDefaultDueDate, getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS } from '../config/appConfig'
 import { printReceiptHtml } from '../utils/printReceipt'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import GradeLevelSelect from '../components/GradeLevelSelect'
@@ -41,7 +41,7 @@ function StatusBadge({ status }) {
 
 // ── Admin Overview ─────────────────────────────────────────────────
 function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
-  const { isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels } = useAppConfig()
   const [collapsed, setCollapsed] = useState({})
   const toggle = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -59,7 +59,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
       const result = []
       if (campus.hasBasicEd) {
         const rows = []
-        BASIC_ED_GROUPS.forEach(group => {
+        getCampusBasicEdGroups(campus.key).forEach(group => {
           group.options.forEach(grade => {
             rows.push({ Department: group.label, 'Grade Level': grade, Enrolled: campusEnr.filter(e => e.enrollment.gradeLevel === grade).length })
           })
@@ -69,7 +69,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
       if (campus.hasCollege && campus.collegePrograms?.length) {
         const rows = []
         campus.collegePrograms.forEach(prog => {
-          COLLEGE_YEAR_LEVELS.forEach(yr => {
+          getProgramYearLevels(campus.key, prog).forEach(yr => {
             rows.push({ Program: prog, 'Year Level': yr, Enrolled: campusEnr.filter(e => e.enrollment.gradeLevel === `${prog} - ${yr}`).length })
           })
         })
@@ -129,7 +129,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
                 {!collapsed[`${campus.key}-basic`] && (
                   <div className="px-4 pb-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {BASIC_ED_GROUPS.map(group => (
+                  {getCampusBasicEdGroups(campus.key).map(group => (
                     <div key={group.label} className="bg-[var(--color-bg-subtle)] rounded-lg p-3">
                       <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">{group.label}</p>
                       <div className="space-y-1">
@@ -172,7 +172,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
                       <div key={prog} className="bg-[var(--color-bg-subtle)] rounded-lg p-3">
                         <p className="text-[10px] font-semibold text-[var(--color-primary-readable)] uppercase tracking-wider mb-2">{prog}</p>
                         <div className="space-y-1">
-                          {COLLEGE_YEAR_LEVELS.map(yr => {
+                          {getProgramYearLevels(campus.key, prog).map(yr => {
                             const count = campusEnr.filter(e => e.enrollment.gradeLevel === `${prog} - ${yr}`).length
                             return (
                               <div key={yr} className="flex items-center justify-between py-0.5">

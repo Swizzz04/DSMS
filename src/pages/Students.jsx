@@ -20,6 +20,7 @@ import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
+import { getSubjectLoadData } from '../utils/subjectLoadBridge'
 
 // Lazy-loaded chart wrapper — only loads chart.js when stats section renders
 const LazyBar = lazy(() =>
@@ -611,7 +612,7 @@ function normaliseSubmissions() {
             schoolYear:  en.schoolYear  || '',
             semester:    en.semester    || '',
             yearLevel:   yearPart,
-            section:     '',
+            section:     en.section     || '',
           },
           parents: {
             father: {
@@ -649,7 +650,7 @@ const STUDENT_SORTERS = {
 
 export default function Students() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS, getSectionNames, getProgramYearLevels } = useAppConfig()
   const BASIC_GROUPS = useMemo(() => buildBasicGroups(basicEdGroups), [basicEdGroups])
   const allBasicGrades = BASIC_GROUPS.flatMap(g => g.grades)
   const location = useLocation()
@@ -693,6 +694,48 @@ export default function Students() {
       window.history.replaceState({}, '')
     }
   }, [location.state])
+
+  // ── Section assignment (registrars) ──────────────────────────────────
+  // Options = the section names configured for the student's level in Settings → Grade Levels,
+  // plus any extra sections Subject Load generated when a level outgrows its list.
+  const canAssignSection = ['registrar_basic', 'registrar_college', 'admin', 'technical_admin'].includes(user?.role)
+
+  const sectionOptionsFor = (stu) => {
+    if (!stu) return []
+    const { campus, gradeLevel, schoolYear } = stu.academic
+    const camp = activeCampuses.find(c => c.name === campus)
+    if (!camp) return []
+    const names = [...(getSectionNames(camp.key, gradeLevel) || [])]
+    try {
+      const progs = camp.college?.programs ?? camp.collegePrograms ?? []
+      const data = getSubjectLoadData(camp.key, schoolYear || currentSchoolYear, camp.name, progs, (p) => getProgramYearLevels(camp.key, p), (lv) => getSectionNames(camp.key, lv))
+      let generated = []
+      if (isCollegeGrade(gradeLevel)) {
+        const [prog, yr] = gradeLevel.split(' - ')
+        generated = data.collegeSections?.[prog]?.[yr] || []
+      } else {
+        generated = data.basicEdSections?.[gradeLevel] || []
+      }
+      generated.forEach(sec => { if (!names.includes(sec.displayName)) names.push(sec.displayName) })
+    } catch { /* keep configured names */ }
+    if (stu.academic.section && !names.includes(stu.academic.section)) names.push(stu.academic.section)
+    return names
+  }
+
+  const sectionCount = (stu, name) => students.filter(x =>
+    x.academic.campus === stu.academic.campus && x.academic.gradeLevel === stu.academic.gradeLevel &&
+    x.academic.schoolYear === stu.academic.schoolYear && x.academic.section === name).length
+
+  const assignSection = (stu, name) => {
+    try {
+      const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
+      const next = subs.map(x => (x.id || x.referenceNumber) === stu.id ? { ...x, enrollment: { ...(x.enrollment || {}), section: name } } : x)
+      localStorage.setItem('almirene_submissions', JSON.stringify(next))
+      window.dispatchEvent(new Event('almirene_enrollment_updated'))
+      setSelectedStudent(prev => prev && prev.id === stu.id ? { ...prev, academic: { ...prev.academic, section: name } } : prev)
+      addToast(name ? `Section set to ${name}` : 'Section cleared', 'success')
+    } catch { addToast('Could not save the section', 'error') }
+  }
 
   const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' || user?.role === 'principal_basic' || user?.role === 'program_head'
   // Both Basic Ed roles share the same Basic Ed views (breakdown table, banner, export tag)
@@ -1251,9 +1294,28 @@ export default function Students() {
               <Section title="Academic Information" icon={<GraduationCap className="w-4 h-4"/>}>
                 <Grid cols={3} fields={[
                   ['Campus', selectedStudent.academic.campus], ['Program / Grade Level', selectedStudent.academic.gradeLevel],
-                  ['Section', selectedStudent.academic.section], ['Student Type', selectedStudent.academic.studentType],
+                  ...(canAssignSection ? [] : [['Section', selectedStudent.academic.section]]),
+                  ['Student Type', selectedStudent.academic.studentType],
                   ['School Year', selectedStudent.academic.schoolYear], ['Year Level', selectedStudent.academic.yearLevel],
                 ]} />
+                {canAssignSection && (() => {
+                  const opts = sectionOptionsFor(selectedStudent)
+                  return (
+                    <div className="mt-3 max-w-sm">
+                      <p className="text-xs text-[var(--color-text-muted)] mb-1">Section</p>
+                      {opts.length === 0 ? (
+                        <p className="text-xs text-[var(--color-text-muted)]">No sections configured for this level yet (Settings → Grade Levels).</p>
+                      ) : (
+                        <GroupedSelect
+                          value={selectedStudent.academic.section || 'all'}
+                          onChange={v => assignSection(selectedStudent, v === 'all' ? '' : v)}
+                          allLabel="Not assigned"
+                          options={opts.map(n => ({ value: n, label: `${n} (${sectionCount(selectedStudent, n)} students)` }))}
+                        />
+                      )}
+                    </div>
+                  )
+                })()}
               </Section>
               <Section title="Parent / Guardian" icon={<Users className="w-4 h-4"/>}>
                 <div className="space-y-4">

@@ -402,7 +402,7 @@ export default function TeacherForms() {
         {FORM_TYPES.map(form => {
           const Icon    = ICON_MAP[form.icon] || FileText
           const colors  = COLOR_MAP[form.color] || COLOR_MAP.blue
-          const hasTmpl = hasTemplate(form.templateKey)
+          const hasTmpl = hasTemplate(form.templateKey, userCampus)
           const isExporting = exporting === form.id
           const isPreviewing = previewing === form.id
 
