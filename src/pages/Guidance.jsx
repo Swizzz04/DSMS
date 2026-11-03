@@ -3,10 +3,13 @@
  *
  * One page, three ways to see it (decided by getGuidanceAccess in appConfig.js):
  *   - Editor   the Guidance role, or any account with the Guidance module duty.
- *              Referrals, Incidents, Testing and Activity. Adds, edits, closes.
+ *              Referrals, Incidents, Testing and Activity. Adds, edits, closes. Reviews what
+ *              teachers send: referral requests (accept / decline) and incident reports
+ *              (accept = re-enter as a full incident, or decline with a reason from a list).
  *   - Viewer   Principal / Program Head (their own level) and Super Admin (one campus at a time).
  *              Same lists, read only. Activity is for editors and Super Admin only.
- *   - Teacher  a teacher who is not an editor. Sends referral requests and follows their status.
+ *   - Teacher  a teacher who is not an editor. Sends referral requests and incident reports and
+ *              follows the result (and the decline reason of a report).
  *              Never sees any Guidance record.
  *
  * PRIVACY: this page never asks for or shows free text. Counseling notes are not stored.
@@ -19,7 +22,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   HeartHandshake, Plus, Search, X, Pencil, Trash2, Info, AlertCircle, School,
-  Send, RotateCcw, Check, Clock, Eye, Lock,
+  Send, RotateCcw, Check, Clock, Eye, Lock, Flag,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -34,13 +37,16 @@ import {
   getGuidanceAccess, todayYMD, CLEARANCE_DEPARTMENT_SCOPES,
   GUIDANCE_REFERRAL_SOURCES, GUIDANCE_REFERRAL_REASONS, GUIDANCE_REFERRAL_STATUSES,
   GUIDANCE_INCIDENT_CATEGORIES, GUIDANCE_SANCTIONS, GUIDANCE_INCIDENT_STATUSES,
+  GUIDANCE_REPORT_DECLINE_REASONS,
   GUIDANCE_TESTS, GUIDANCE_TEST_TRACKS,
 } from '../config/appConfig'
 import {
   getGuidanceRecords, getGuidanceAudit, getGuidanceStudents,
   createGuidanceRecord, updateGuidanceRecord, setGuidanceStatus,
   deleteGuidanceRecord, canDeleteGuidanceRecord, describeGuidanceRecord, isFollowUpDue,
+  acceptIncidentReport, declineIncidentReport,
   getReferralStudents, createReferralRequest, getMyReferralRequests, withdrawReferralRequest,
+  createIncidentReport, getMyIncidentReports, withdrawIncidentReport,
 } from '../utils/guidanceBridge'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,11 +72,13 @@ const TONES = {
   warning: 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)]',
   info:    'bg-[var(--color-info-light)] text-[var(--color-info-text)] border-[var(--color-info-border)]',
   success: 'bg-[var(--color-success-light)] text-[var(--color-success-text)] border-[var(--color-success-border)]',
+  danger:  'bg-[var(--color-error-light)] text-[var(--color-error-text)] border-[var(--color-error-border)]',
   neutral: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)]',
 }
 const STATUS_TONE = {
-  requested: 'warning', open: 'info', in_progress: 'info', closed: 'neutral', resolved: 'success',
-  sent: 'warning', received: 'info',
+  requested: 'warning', reported: 'warning', open: 'info', in_progress: 'info', closed: 'neutral', resolved: 'success',
+  declined: 'danger',
+  sent: 'warning', received: 'info', accepted: 'success',
 }
 
 function Pill({ tone = 'neutral', children }) {
@@ -99,12 +107,17 @@ const TRANSITIONS = {
     closed:      [{ to: 'open', label: 'Reopen', done: 'Referral reopened.' }],
   },
   incident: {
+    // A teacher's report: Accept re-enters it as a full incident (opens the form), Decline asks for a reason.
+    reported: [{ to: 'open', label: 'Accept', special: 'accept' }, { to: 'declined', label: 'Decline', special: 'decline' }],
     open:     [{ to: 'resolved', label: 'Resolve', done: 'Incident resolved.' }],
     resolved: [{ to: 'open', label: 'Reopen', done: 'Incident reopened.' }],
+    declined: [],
   },
 }
 const KIND_NOUN = { referral: 'referral', incident: 'incident', testing: 'test result' }
-const isLocked = (kind, status) => (kind === 'referral' && status === 'closed') || (kind === 'incident' && status === 'resolved')
+const isLocked = (kind, status) =>
+  (kind === 'referral' && status === 'closed') ||
+  (kind === 'incident' && (status === 'resolved' || status === 'reported' || status === 'declined'))
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STUDENT PICKER — searchable list (GroupedSelect has no search)
@@ -204,8 +217,10 @@ function SelectField({ label, value, onChange, options, placeholder, error, requ
   )
 }
 
-function RecordModal({ kind, record, students, onSubmit, onClose }) {
+// mode 'accept': the in-charge re-enters a teacher's incident report as a full incident.
+function RecordModal({ kind, record, students, onSubmit, onClose, mode }) {
   const editing = !!record
+  const accepting = mode === 'accept'
   const [form, setForm] = useState(() => initialForm(kind, record))
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
@@ -225,7 +240,7 @@ function RecordModal({ kind, record, students, onSubmit, onClose }) {
         <div className="modal-panel">
           <div className="modal-header">
             <h3 className="text-base font-bold text-[var(--color-text-primary)]">
-              {editing ? 'Edit' : 'Add'} {KIND_NOUN[kind]}
+              {accepting ? 'Accept incident report' : `${editing ? 'Edit' : 'Add'} ${KIND_NOUN[kind]}`}
             </h3>
             <button type="button" onClick={onClose} className="icon-btn icon-btn-ghost" aria-label="Close">
               <X className="w-5 h-5" />
@@ -233,6 +248,14 @@ function RecordModal({ kind, record, students, onSubmit, onClose }) {
           </div>
 
           <div className="p-5 space-y-4 overflow-y-auto">
+            {accepting && (
+              <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)]">
+                <Info size={14} className="text-[var(--color-info-text)] shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  Check the details the teacher reported, correct them if needed, and choose a sanction. Saving makes this an open incident.
+                </p>
+              </div>
+            )}
             <div>
               <label className="form-label">Student <span className="text-[var(--color-error-text)]">*</span></label>
               <StudentPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} locked={editing} error={errors.studentId} />
@@ -307,8 +330,52 @@ function RecordModal({ kind, record, students, onSubmit, onClose }) {
           <div className="modal-footer">
             <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
             <button type="button" onClick={submit} disabled={saving} className="btn-submit">
-              {editing ? 'Save changes' : 'Save'}
+              {accepting ? 'Accept and save' : editing ? 'Save changes' : 'Save'}
             </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DECLINE MODAL — the in-charge declines a teacher's incident report with a reason
+// The reason is a list choice (never typed text). The teacher sees it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DeclineReportModal({ row, onSubmit, onClose }) {
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const submit = () => {
+    if (!reason) { setError('Choose a reason.'); return }
+    const res = onSubmit(reason)
+    if (res && res.ok === false) setError(res.errors?.reason || res.message || 'Something went wrong.')
+  }
+  return (
+    <ModalPortal onClose={onClose}>
+      <div className="modal-backdrop">
+        <div className="modal-panel">
+          <div className="modal-header">
+            <h3 className="text-base font-bold text-[var(--color-text-primary)]">Decline incident report</h3>
+            <button type="button" onClick={onClose} className="icon-btn icon-btn-ghost" aria-label="Close"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-5 space-y-4 overflow-y-auto">
+            <div className="px-3 py-2.5 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)]">
+              <p className="text-sm font-semibold text-[var(--color-text-primary)]">{row.studentName}</p>
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {row.categoryLabel} · {fmtDate(row.date)}{row.reportedBy ? ` · reported by ${row.reportedBy}` : ''}
+              </p>
+            </div>
+            <SelectField label="Reason" value={reason} onChange={v => { setReason(v); setError('') }}
+              options={toOptions(GUIDANCE_REPORT_DECLINE_REASONS)} placeholder="Choose a reason…" error={error} />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              The teacher will see this reason. A declined report cannot be changed; the teacher can send a new one.
+            </p>
+          </div>
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
+            <button type="button" onClick={submit} className="btn-submit">Decline report</button>
           </div>
         </div>
       </div>
@@ -430,8 +497,9 @@ function GuidanceWorkspace({ user, access }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [dueOnly, setDueOnly]         = useState(false)
   const [tick, setTick]               = useState(0)
-  const [modal, setModal]             = useState(null)     // { kind, record|null }
+  const [modal, setModal]             = useState(null)     // { kind, record|null, mode? }
   const [confirm, setConfirm]         = useState(null)     // { kind, row }
+  const [declining, setDeclining]     = useState(null)     // the incident report row being declined
 
   const isCurrentYear = schoolYear === currentSchoolYear
   const canAct = access.canEdit && isCurrentYear
@@ -453,7 +521,7 @@ function GuidanceWorkspace({ user, access }) {
   }, [])
 
   // Switching campus or school year closes anything open for the previous view
-  useEffect(() => { setModal(null); setConfirm(null) }, [campusKey, schoolYear])
+  useEffect(() => { setModal(null); setConfirm(null); setDeclining(null) }, [campusKey, schoolYear])
   // Filters belong to a tab
   useEffect(() => { setStatusFilter('all'); setDueOnly(false) }, [tab])
 
@@ -488,6 +556,9 @@ function GuidanceWorkspace({ user, access }) {
       statusLabel: d.status || '', result: d.result || '',
       reasonLabel: d.reason || '', categoryLabel: d.category || '', sanctionLabel: d.sanction || '', testLabel: d.test || '',
       sourceLabel: d.source || '',
+      // Incidents a teacher reported: who sent it, and why it was declined (if it was)
+      reportedBy: kind === 'incident' && r.fromReport ? (r.createdByName || '') : '',
+      declineLabel: d.declineReason || '',
       followUp: r.followUpDate || '', due: kind === 'referral' && isFollowUpDue(r),
       canDelete: canAct && canDeleteGuidanceRecord(user, kind, r, campusKey),
     }
@@ -511,7 +582,7 @@ function GuidanceWorkspace({ user, access }) {
   const activity = useMemo(() => rawAudit.map(e => {
     const st = studentMap.get(String(e.studentId))
     const statuses = e.kind === 'incident' ? GUIDANCE_INCIDENT_STATUSES : GUIDANCE_REFERRAL_STATUSES
-    const actionLabel = e.action === 'created' ? 'Added'
+    const actionLabel = e.action === 'created' ? (e.status === 'reported' ? 'Reported' : e.status === 'requested' ? 'Requested' : 'Added')
       : e.action === 'edited' ? 'Edited'
       : e.action === 'deleted' ? 'Deleted'
       : `Status: ${statuses.find(s => s.id === e.status)?.label || e.status || ''}`
@@ -524,7 +595,9 @@ function GuidanceWorkspace({ user, access }) {
   [rawAudit, studentMap, q, levelFilter])
 
   // ── Stats ──
-  const requestsWaiting = allReferrals.filter(r => r.status === 'requested').length
+  // Teacher referral requests and teacher incident reports both wait for the in-charge
+  const requestsWaiting = allReferrals.filter(r => r.status === 'requested').length +
+                          allIncidents.filter(r => r.status === 'reported').length
   const openReferrals   = allReferrals.filter(r => r.status === 'open' || r.status === 'in_progress').length
   const dueCount        = allReferrals.filter(r => r.due).length
   const openIncidents   = allIncidents.filter(r => r.status === 'open').length
@@ -544,16 +617,36 @@ function GuidanceWorkspace({ user, access }) {
   }
 
   const handleStatus = (kind, row, move) => {
+    // A teacher's incident report: Accept opens the form to re-enter it, Decline asks for a reason
+    if (move.special === 'accept')  { setModal({ kind, record: row.raw, mode: 'accept' }); return }
+    if (move.special === 'decline') { setDeclining(row); return }
     report(setGuidanceStatus(user, kind, row.id, move.to, campusKey), move.done)
   }
   const handleSubmit = (form) => {
-    const { kind, record } = modal
-    const res = record
-      ? updateGuidanceRecord(user, kind, record.id, form, campusKey)
-      : createGuidanceRecord(user, kind, { ...form, schoolYear: currentSchoolYear }, campusKey)
+    const { kind, record, mode } = modal
+    const res = mode === 'accept'
+      ? acceptIncidentReport(user, record.id, form, campusKey)
+      : record
+        ? updateGuidanceRecord(user, kind, record.id, form, campusKey)
+        : createGuidanceRecord(user, kind, { ...form, schoolYear: currentSchoolYear }, campusKey)
     if (res.ok) {
-      addToast(record ? 'Changes saved.' : `${KIND_NOUN[kind][0].toUpperCase()}${KIND_NOUN[kind].slice(1)} added.`, 'success')
+      addToast(
+        mode === 'accept' ? 'Report accepted. It is now an open incident.'
+          : record ? 'Changes saved.'
+          : `${KIND_NOUN[kind][0].toUpperCase()}${KIND_NOUN[kind].slice(1)} added.`,
+        'success')
       setModal(null)
+      setTick(t => t + 1)
+    } else if (!res.errors || Object.keys(res.errors).length === 0) {
+      addToast(res.message || 'Something went wrong.', 'error')
+    }
+    return res
+  }
+  const handleDecline = (reason) => {
+    const res = declineIncidentReport(user, declining.id, reason, campusKey)
+    if (res.ok) {
+      addToast('Report declined. The teacher will see the reason.', 'success')
+      setDeclining(null)
       setTick(t => t + 1)
     } else if (!res.errors || Object.keys(res.errors).length === 0) {
       addToast(res.message || 'Something went wrong.', 'error')
@@ -661,8 +754,20 @@ function GuidanceWorkspace({ user, access }) {
   const incidentColumns = [
     { key: 'student', label: 'Student', sortKey: 'student', cell: r => <StudentCell row={r} /> },
     { key: 'date', label: 'Date', sortKey: 'date', cell: r => <span className="text-[var(--color-text-secondary)]">{fmtDate(r.date)}</span> },
-    { key: 'category', label: 'Category', sortKey: 'category', cell: r => <span className="block">{r.categoryLabel}{r.caseNo && <span className="block mt-0.5 font-mono text-xs text-[var(--color-text-muted)]">{r.caseNo}</span>}</span> },
-    { key: 'sanction', label: 'Sanction', sortKey: 'sanction', cell: r => r.sanctionLabel },
+    { key: 'category', label: 'Category', sortKey: 'category', cell: r => (
+      <span className="block">
+        {r.categoryLabel}
+        {r.reportedBy && <span className="block mt-0.5 text-xs text-[var(--color-text-muted)]">Reported by {r.reportedBy}</span>}
+        {r.caseNo && <span className="block mt-0.5 font-mono text-xs text-[var(--color-text-muted)]">{r.caseNo}</span>}
+      </span>
+    ) },
+    { key: 'sanction', label: 'Sanction', sortKey: 'sanction', cell: r => (
+      r.status === 'declined'
+        ? <span className="text-xs text-[var(--color-text-muted)]">Declined: {r.declineLabel || '—'}</span>
+        : r.status === 'reported'
+          ? <span className="text-xs text-[var(--color-text-muted)]">Awaiting review</span>
+          : r.sanctionLabel
+    ) },
     { key: 'status', label: 'Status', sortKey: 'status', cell: r => <StatusPill status={r.status} label={r.statusLabel} /> },
     ...(canAct ? [{ key: 'actions', label: '', cell: incidentActions }] : []),
   ]
@@ -799,7 +904,9 @@ function GuidanceWorkspace({ user, access }) {
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Fact label="Date">{fmtDate(r.date)}</Fact>
                 <Fact label="Category">{r.categoryLabel}</Fact>
-                <Fact label="Sanction">{r.sanctionLabel}</Fact>
+                <Fact label="Sanction">{r.status === 'reported' ? 'Awaiting review' : r.sanctionLabel}</Fact>
+                {r.reportedBy && <Fact label="Reported by">{r.reportedBy}</Fact>}
+                {r.status === 'declined' && <Fact label="Declined because">{r.declineLabel}</Fact>}
                 <Fact label="Case no.">{r.caseNo && <span className="font-mono text-xs">{r.caseNo}</span>}</Fact>
               </dl>
               {incidentActions(r)}
@@ -837,8 +944,11 @@ function GuidanceWorkspace({ user, access }) {
 
       {/* ── Modals ───────────────────────────────────────────────────── */}
       {modal && (
-        <RecordModal kind={modal.kind} record={modal.record} students={pickerStudents}
+        <RecordModal kind={modal.kind} record={modal.record} mode={modal.mode} students={pickerStudents}
           onSubmit={handleSubmit} onClose={() => setModal(null)} />
+      )}
+      {declining && (
+        <DeclineReportModal row={declining} onSubmit={handleDecline} onClose={() => setDeclining(null)} />
       )}
       <ConfirmDialog
         open={!!confirm}
@@ -857,7 +967,7 @@ function GuidanceWorkspace({ user, access }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TEACHER VIEW — send a referral, follow its status, nothing else
+// TEACHER VIEW — send a referral or report an incident, follow the result, nothing else
 // ─────────────────────────────────────────────────────────────────────────────
 
 function ReferralRequestModal({ students, onSubmit, onClose }) {
@@ -901,12 +1011,55 @@ function ReferralRequestModal({ students, onSubmit, onClose }) {
   )
 }
 
-function TeacherReferrals({ user }) {
+function IncidentReportModal({ students, onSubmit, onClose }) {
+  const [form, setForm] = useState({ studentId: '', date: todayYMD(), category: '' })
+  const [errors, setErrors] = useState({})
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })) }
+  const submit = () => {
+    const res = onSubmit(form)
+    if (res && res.ok === false) setErrors(res.errors || {})
+  }
+  return (
+    <ModalPortal onClose={onClose}>
+      <div className="modal-backdrop">
+        <div className="modal-panel">
+          <div className="modal-header">
+            <h3 className="text-base font-bold text-[var(--color-text-primary)]">Report an incident</h3>
+            <button type="button" onClick={onClose} className="icon-btn icon-btn-ghost" aria-label="Close"><X className="w-5 h-5" /></button>
+          </div>
+          <div className="p-5 space-y-4 overflow-y-auto">
+            <div>
+              <label className="form-label">Student <span className="text-[var(--color-error-text)]">*</span></label>
+              <StudentPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} error={errors.studentId} />
+            </div>
+            <div>
+              <label className="form-label">Date of the incident <span className="text-[var(--color-error-text)]">*</span></label>
+              <DatePicker value={form.date} onChange={v => set('date', v)} placeholder="Select date" />
+              <FieldError>{errors.date}</FieldError>
+            </div>
+            <SelectField label="Category" value={form.category} onChange={v => set('category', v)} options={toOptions(GUIDANCE_INCIDENT_CATEGORIES)} placeholder="Choose a category…" error={errors.category} />
+            <p className="text-xs text-[var(--color-text-muted)]">
+              If none of the categories fits, choose Other. Choose a category only. Do not write details here.
+              The Guidance in-charge will review the report and take action.
+            </p>
+          </div>
+          <div className="modal-footer">
+            <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
+            <button type="button" onClick={submit} className="btn-submit gap-1.5"><Flag size={14} aria-hidden="true" /> Send report</button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  )
+}
+
+function TeacherView({ user }) {
   const { currentSchoolYear, activeCampuses } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
   const [tick, setTick] = useState(0)
-  const [showModal, setShowModal] = useState(false)
-  const [withdrawing, setWithdrawing] = useState(null)
+  const [tab, setTab] = useState('referral')                 // 'referral' | 'incident'
+  const [showModal, setShowModal] = useState(null)           // null | 'referral' | 'incident'
+  const [withdrawing, setWithdrawing] = useState(null)       // { kind, row }
 
   const campus = activeCampuses.find(c => c.key === user.campusKey)
 
@@ -927,35 +1080,62 @@ function TeacherReferrals({ user }) {
     [user, currentSchoolYear, tick])
   const requests = useMemo(() => getMyReferralRequests(user, { schoolYear: currentSchoolYear }), // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, currentSchoolYear, tick])
+  const reports = useMemo(() => getMyIncidentReports(user, { schoolYear: currentSchoolYear }), // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, currentSchoolYear, tick])
 
-  const handleSend = (form) => {
+  const handleSendReferral = (form) => {
     const res = createReferralRequest(user, { ...form, schoolYear: currentSchoolYear })
-    if (res.ok) { addToast('Referral sent to Guidance.', 'success'); setShowModal(false); setTick(t => t + 1) }
+    if (res.ok) { addToast('Referral sent to Guidance.', 'success'); setShowModal(null); setTab('referral'); setTick(t => t + 1) }
+    else if (!res.errors || Object.keys(res.errors).length === 0) addToast(res.message || 'Something went wrong.', 'error')
+    return res
+  }
+  const handleSendReport = (form) => {
+    const res = createIncidentReport(user, { ...form, schoolYear: currentSchoolYear })
+    if (res.ok) { addToast('Incident reported to Guidance.', 'success'); setShowModal(null); setTab('incident'); setTick(t => t + 1) }
     else if (!res.errors || Object.keys(res.errors).length === 0) addToast(res.message || 'Something went wrong.', 'error')
     return res
   }
   const handleWithdraw = () => {
-    const res = withdrawReferralRequest(user, withdrawing.id)
-    addToast(res.ok ? 'Referral withdrawn.' : res.message, res.ok ? 'success' : 'error')
+    const { kind, row } = withdrawing
+    const res = kind === 'incident' ? withdrawIncidentReport(user, row.id) : withdrawReferralRequest(user, row.id)
+    addToast(res.ok ? (kind === 'incident' ? 'Report withdrawn.' : 'Referral withdrawn.') : res.message, res.ok ? 'success' : 'error')
     setWithdrawing(null)
     setTick(t => t + 1)
   }
 
-  const columns = [
-    { key: 'student', label: 'Student', sortKey: 'student', cell: r => (
-      <span className="block">
-        <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{r.studentName}</span>
-        <span className="block text-xs text-[var(--color-text-muted)]">{r.gradeLevel || '—'}</span>
-      </span>
-    ) },
+  const studentCell = (r) => (
+    <span className="block">
+      <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{r.studentName}</span>
+      <span className="block text-xs text-[var(--color-text-muted)]">{r.gradeLevel || '—'}</span>
+    </span>
+  )
+  const withdrawBtn = (kind) => (r) => r.canWithdraw && (
+    <button type="button" onClick={() => setWithdrawing({ kind, row: r })} className="btn btn-ghost text-xs py-1.5 px-3">Withdraw</button>
+  )
+  // A declined report shows its reason under the status
+  const reportResult = (r) => (
+    <span className="block">
+      <StatusPill status={r.status} label={r.statusLabel} />
+      {r.declineReasonLabel && <span className="block mt-1 text-xs text-[var(--color-text-muted)]">{r.declineReasonLabel}</span>}
+    </span>
+  )
+
+  const referralColumns = [
+    { key: 'student', label: 'Student', sortKey: 'student', cell: studentCell },
     { key: 'date', label: 'Date', sortKey: 'date', cell: r => <span className="text-[var(--color-text-secondary)]">{fmtDate(r.date)}</span> },
     { key: 'reason', label: 'Reason', cell: r => r.reasonLabel },
     { key: 'status', label: 'Status', sortKey: 'status', cell: r => <StatusPill status={r.status} label={r.statusLabel} /> },
-    { key: 'actions', label: '', cell: r => r.canWithdraw && (
-      <button type="button" onClick={() => setWithdrawing(r)} className="btn btn-ghost text-xs py-1.5 px-3">Withdraw</button>
-    ) },
+    { key: 'actions', label: '', cell: withdrawBtn('referral') },
   ]
-  const rows = requests.map(r => ({ ...r, student: r.studentName }))
+  const reportColumns = [
+    { key: 'student', label: 'Student', sortKey: 'student', cell: studentCell },
+    { key: 'date', label: 'Date', sortKey: 'date', cell: r => <span className="text-[var(--color-text-secondary)]">{fmtDate(r.date)}</span> },
+    { key: 'category', label: 'Category', cell: r => r.categoryLabel },
+    { key: 'status', label: 'Result', sortKey: 'status', cell: reportResult },
+    { key: 'actions', label: '', cell: withdrawBtn('incident') },
+  ]
+  const referralRows = requests.map(r => ({ ...r, student: r.studentName }))
+  const reportRows = reports.map(r => ({ ...r, student: r.studentName }))
   const sorters = { student: (a, b) => a.studentName.localeCompare(b.studentName), date: byStr('date'), status: byStr('statusLabel') }
 
   if (!campus) {
@@ -970,6 +1150,21 @@ function TeacherReferrals({ user }) {
     )
   }
 
+  const emptyBox = (title, text) => (
+    <div className="card p-12 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-subtle)] flex items-center justify-center mx-auto mb-4">
+        <HeartHandshake size={28} className="text-[var(--color-text-muted)] opacity-50" />
+      </div>
+      <p className="text-subheading text-[var(--color-text-primary)]">{title}</p>
+      <p className="text-small text-[var(--color-text-muted)] mt-1">{text}</p>
+    </div>
+  )
+
+  const tabs = [
+    { id: 'referral', label: 'Referrals', count: requests.length },
+    { id: 'incident', label: 'Incident reports', count: reports.length },
+  ]
+
   return (
     <div className="page-enter space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -977,52 +1172,83 @@ function TeacherReferrals({ user }) {
           <h1 className="text-display text-[var(--color-text-primary)]">Guidance</h1>
           <p className="text-body text-[var(--color-text-muted)] mt-1">{currentSchoolYear} · {campus.name}</p>
         </div>
-        <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary gap-1.5 text-sm shrink-0 self-start">
-          <Send size={15} aria-hidden="true" /> Refer a student
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-start">
+          <button type="button" onClick={() => setShowModal('incident')} className="btn btn-ghost gap-1.5 text-sm shrink-0">
+            <Flag size={15} aria-hidden="true" /> Report an incident
+          </button>
+          <button type="button" onClick={() => setShowModal('referral')} className="btn btn-primary gap-1.5 text-sm shrink-0">
+            <Send size={15} aria-hidden="true" /> Refer a student
+          </button>
+        </div>
       </div>
 
       <div className="flex items-start gap-2.5 p-4 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)]">
         <Info size={15} className="text-[var(--color-info-text)] shrink-0 mt-0.5" aria-hidden="true" />
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Send a referral when a student may need Guidance. You will see below that it was sent, received or closed.
+          Refer a student when they may need Guidance, or report an incident that happened at school. The Guidance in-charge
+          reviews it. You will see below whether it was sent, received, accepted or declined, and the reason if it was declined.
           You will not see what Guidance records, and no notes are kept in the system.
         </p>
       </div>
 
-      <RecordList rows={rows} columns={columns} sorters={sorters}
-        defaultSort={{ key: 'date', dir: 'desc' }} descFirst={['date']} noun="referral"
-        empty={(
-          <div className="card p-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-subtle)] flex items-center justify-center mx-auto mb-4">
-              <HeartHandshake size={28} className="text-[var(--color-text-muted)] opacity-50" />
-            </div>
-            <p className="text-subheading text-[var(--color-text-primary)]">No referrals sent yet</p>
-            <p className="text-small text-[var(--color-text-muted)] mt-1">Use "Refer a student" when a student needs Guidance.</p>
-          </div>
-        )}
-        mobileCard={r => (
-          <div className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <span className="block">
-                <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{r.studentName}</span>
-                <span className="block text-xs text-[var(--color-text-muted)]">{r.gradeLevel || '—'}</span>
-              </span>
-              <StatusPill status={r.status} label={r.statusLabel} />
-            </div>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <Fact label="Date">{fmtDate(r.date)}</Fact>
-              <Fact label="Reason">{r.reasonLabel}</Fact>
-            </dl>
-            {r.canWithdraw && <button type="button" onClick={() => setWithdrawing(r)} className="btn btn-ghost text-xs py-1.5 px-3">Withdraw</button>}
-          </div>
-        )} />
+      <div className="flex gap-2 border-b border-[var(--color-border)] overflow-x-auto" role="tablist">
+        {tabs.map(t => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px whitespace-nowrap ${
+              tab === t.id
+                ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
+            {t.label}<span className="text-xs opacity-70">({t.count})</span>
+          </button>
+        ))}
+      </div>
 
-      {showModal && <ReferralRequestModal students={students} onSubmit={handleSend} onClose={() => setShowModal(false)} />}
+      {tab === 'referral' && (
+        <RecordList rows={referralRows} columns={referralColumns} sorters={sorters}
+          defaultSort={{ key: 'date', dir: 'desc' }} descFirst={['date']} noun="referral"
+          empty={emptyBox('No referrals sent yet', 'Use "Refer a student" when a student needs Guidance.')}
+          mobileCard={r => (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                {studentCell(r)}
+                <StatusPill status={r.status} label={r.statusLabel} />
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Fact label="Date">{fmtDate(r.date)}</Fact>
+                <Fact label="Reason">{r.reasonLabel}</Fact>
+              </dl>
+              {withdrawBtn('referral')(r)}
+            </div>
+          )} />
+      )}
+      {tab === 'incident' && (
+        <RecordList rows={reportRows} columns={reportColumns} sorters={sorters}
+          defaultSort={{ key: 'date', dir: 'desc' }} descFirst={['date']} noun="report"
+          empty={emptyBox('No incident reports yet', 'Use "Report an incident" when something happens at school that Guidance should know about.')}
+          mobileCard={r => (
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                {studentCell(r)}
+                <StatusPill status={r.status} label={r.statusLabel} />
+              </div>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Fact label="Date">{fmtDate(r.date)}</Fact>
+                <Fact label="Category">{r.categoryLabel}</Fact>
+                {r.declineReasonLabel && <Fact label="Declined because">{r.declineReasonLabel}</Fact>}
+              </dl>
+              {withdrawBtn('incident')(r)}
+            </div>
+          )} />
+      )}
+
+      {showModal === 'referral' && <ReferralRequestModal students={students} onSubmit={handleSendReferral} onClose={() => setShowModal(null)} />}
+      {showModal === 'incident' && <IncidentReportModal students={students} onSubmit={handleSendReport} onClose={() => setShowModal(null)} />}
       <ConfirmDialog
         open={!!withdrawing}
-        title="Withdraw this referral?"
-        message="Guidance has not received it yet. It will be removed from their list."
+        title={withdrawing?.kind === 'incident' ? 'Withdraw this report?' : 'Withdraw this referral?'}
+        message={withdrawing?.kind === 'incident'
+          ? 'Guidance has not reviewed it yet. It will be removed from their list.'
+          : 'Guidance has not received it yet. It will be removed from their list.'}
         confirmLabel="Withdraw"
         danger
         onConfirm={handleWithdraw}
@@ -1054,6 +1280,6 @@ export default function Guidance() {
     )
   }
   return access.canRefer
-    ? <TeacherReferrals user={user} />
+    ? <TeacherView user={user} />
     : <GuidanceWorkspace user={user} access={access} />
 }

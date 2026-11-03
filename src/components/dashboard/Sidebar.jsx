@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { getUserPermissions } from '../../config/appConfig'
+import { getPendingGuidanceCount } from '../../utils/guidanceBridge'
 import SchoolLogo from '../SchoolLogo'
 
 // Read school branding
@@ -20,7 +21,7 @@ function getSchoolConfig() {
 
 // ── Helpers ───────────────────────────────────────────────────────
 // isBasicGrade / isCollegeGrade come from useAppConfig() (live grade lists)
-function computeBadges(user, { isBasicGrade, isCollegeGrade }) {
+function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }) {
   if (!user) return {}
   const role   = user.role
   const campus = user.campus
@@ -74,6 +75,9 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade }) {
     payments:    payBadge,
     students:    stuBadge,
     settings:    0,
+    // Teacher referral requests and incident reports waiting for the Guidance in-charge
+    // (Guidance role or Guidance module duty). Everyone else gets 0, so no badge.
+    guidance:    getPendingGuidanceCount(user, currentSchoolYear),
   }
 }
 
@@ -110,25 +114,29 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
   const { user }  = useAuth()
   const { theme } = useTheme()
-  const { isBasicGrade, isCollegeGrade } = useAppConfig()
+  const { isBasicGrade, isCollegeGrade, currentSchoolYear } = useAppConfig()
   const school    = getSchoolConfig()
   const [badges, setBadges] = useState({})
 
   const refreshBadges = useCallback(
-    () => setBadges(computeBadges(user, { isBasicGrade, isCollegeGrade })),
-    [user, isBasicGrade, isCollegeGrade]
+    () => setBadges(computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear })),
+    [user, isBasicGrade, isCollegeGrade, currentSchoolYear]
   )
 
   useEffect(() => {
     refreshBadges()
-    const handleStorage = (e) => { if (e.key === 'almirene_submissions' || e.key === null) refreshBadges() }
+    const handleStorage = (e) => {
+      if (e.key === 'almirene_submissions' || e.key === 'almirene_guidance_records' || e.key === null) refreshBadges()
+    }
     window.addEventListener('almirene_enrollment_updated', refreshBadges)
     window.addEventListener('almirene_new_submission',     refreshBadges)
+    window.addEventListener('almirene_guidance_updated',   refreshBadges)
     window.addEventListener('storage',                 handleStorage)
     const t = setInterval(refreshBadges, 10_000)
     return () => {
       window.removeEventListener('almirene_enrollment_updated', refreshBadges)
       window.removeEventListener('almirene_new_submission',     refreshBadges)
+      window.removeEventListener('almirene_guidance_updated',   refreshBadges)
       window.removeEventListener('storage',                 handleStorage)
       clearInterval(t)
     }
@@ -200,17 +208,33 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     attendance:                'Academic',
   }[id])
 
-  // Insert section dividers
+  // Insert section dividers — one per section.
+  // The page list is not always in section order (a duty can append a page at the end, for
+  // example Clearance for a teacher), so items are grouped by section first. An item with no
+  // section joins the section of the item before it. The groups are then sorted alphabetically.
   const itemsWithDividers = []
-  let lastSection = null
+  const sectionOrder = []
+  const bySection = {}
+  let currentSection = null
   navItems.forEach((item, idx) => {
-    if (idx === 0) { itemsWithDividers.push(item); return }
-    const sec = getSectionLabel(item.id)
-    if (sec && sec !== lastSection) {
-      itemsWithDividers.push({ type: 'divider', label: sec })
-      lastSection = sec
-    }
-    itemsWithDividers.push(item)
+    if (idx === 0) { itemsWithDividers.push(item); return }   // Dashboard stays on top
+    const sec = getSectionLabel(item.id) || currentSection
+    currentSection = sec
+    const key = sec || '__none__'
+    if (!bySection[key]) { bySection[key] = []; sectionOrder.push(key) }
+    bySection[key].push(item)
+  })
+  // Alphabetical: sections A–Z, and the pages inside each section A–Z by their label.
+  // Dashboard stays on top. Items with no section (if any) go last.
+  const byLabel = (a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' })
+  sectionOrder.sort((a, b) => {
+    if (a === '__none__') return 1
+    if (b === '__none__') return -1
+    return a.localeCompare(b, undefined, { sensitivity: 'base' })
+  })
+  sectionOrder.forEach(key => {
+    if (key !== '__none__') itemsWithDividers.push({ type: 'divider', label: key })
+    itemsWithDividers.push(...[...bySection[key]].sort(byLabel))
   })
 
   return (

@@ -26,6 +26,8 @@
  *  7. Tab-isolated sessions via sessionStorage (no cross-tab auto-login)
  *  8. Session fingerprint — prevents session replay across tabs
  *  9. Password validation utility for user creation
+ * 10. Live refresh — the session copy of the account follows Settings → Users
+ *     (duties, role, campus, custom permissions); deleted/inactive accounts are signed out
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
@@ -38,7 +40,7 @@ const LOCKOUT_KEY     = 'almirene_lockout'
 const SESSION_KEY     = 'almirene_session_user'
 const EXPIRED_KEY     = 'almirene_expired'
 const FINGERPRINT_KEY = 'almirene_session_fp'
-const SESSION_TIMEOUT = 5 * 60 * 1000     // 5 minutes inactivity
+const SESSION_TIMEOUT = 5  * 60 * 1000     // 5 minutes inactivity
 const MAX_ATTEMPTS    = 5
 const LOCKOUT_DURATION= 15 * 60 * 1000    // 15 minutes
 
@@ -87,6 +89,30 @@ function updateSystemUser(userId, patch) {
     cfg.systemUsers = list.map(u => (u.id === userId ? { ...u, ...patch } : u))
     localStorage.setItem(APP_CONFIG_KEY, JSON.stringify(cfg))
   } catch {}
+}
+
+/**
+ * The safe copy of an account kept in the session (never the password hash).
+ * One builder for login and for the live refresh below, so both always produce the same shape.
+ * `permissions` is only present when the account has a custom permission set (Settings → Users),
+ * because getUserPermissions() reads user.permissions first.
+ */
+function buildSessionUser(found, lastLogin) {
+  const safe = {
+    id:         found.id,
+    name:       found.name,
+    email:      found.email,
+    role:       found.role,
+    campus:     found.campus,
+    campusKey:  found.campusKey ?? null,
+    clearanceDuties: Array.isArray(found.clearanceDuties) ? found.clearanceDuties : [],
+    // Extra modules (e.g. the Guidance module) given in Settings → Users. Without this the
+    // duty would be lost the moment the person logs in.
+    moduleDuties: Array.isArray(found.moduleDuties) ? found.moduleDuties : [],
+    lastLogin,
+  }
+  if (found.permissions && typeof found.permissions === 'object') safe.permissions = found.permissions
+  return safe
 }
 
 function getLockoutState(email) {
@@ -171,6 +197,7 @@ export function AuthProvider({ children }) {
           setUser(parsed)
           resetTimer()
           setLoading(false)
+          refreshSession()   // pick up anything changed in Settings since this session began
           return
         }
         sessionStorage.removeItem(SESSION_KEY)
@@ -182,6 +209,48 @@ export function AuthProvider({ children }) {
     }
     setLoading(false)
   }, [])
+
+  // ── Live refresh of the signed-in account ───────────────────────────
+  // The session holds a copy of the account taken at login. When Settings → Users changes that
+  // account (a duty, the role, the campus, custom permissions), the copy would stay old until the
+  // person logs out and in again. This re-reads the saved account and updates the session:
+  //   - on page load, after the session is restored
+  //   - when the saved config changes in ANOTHER tab (the 'storage' event; Settings saves in the
+  //     Tech Admin's tab, the teacher's tab is a different one)
+  //   - when the app config event fires, and when the window gets focus again
+  // If the account was deleted or set inactive, the person is signed out.
+  // Nothing is written back to the saved account, so this cannot loop.
+  const refreshSession = useCallback(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY)
+      if (!raw) return
+      const current = JSON.parse(raw)
+      if (!isValidSession(current)) return
+
+      const found = getSystemUsers().find(u => u.id === current.id)
+      if (!found || found.status !== 'active') {
+        doLogoutRef.current?.(false)
+        return
+      }
+
+      const next = buildSessionUser(found, current.lastLogin)
+      if (JSON.stringify(next) === JSON.stringify(current)) return   // nothing changed
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(next))
+      setUser(next)
+    } catch { /* keep the current session if the saved config cannot be read */ }
+  }, [])
+
+  useEffect(() => {
+    const onStorage = (e) => { if (e.key === null || e.key === APP_CONFIG_KEY) refreshSession() }
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('almirene_app_config_updated', refreshSession)
+    window.addEventListener('focus', refreshSession)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener('almirene_app_config_updated', refreshSession)
+      window.removeEventListener('focus', refreshSession)
+    }
+  }, [refreshSession])
 
   // ── Login ──────────────────────────────────────────────────────────
   const login = async (email, password) => {
@@ -225,19 +294,7 @@ export function AuthProvider({ children }) {
     // `campus` stays the plain name string ('Carcar City Campus', 'Talisay
     // City Campus', 'Bohol Campus', or 'all') — Sidebar/Dashboard/Students/
     // Enrollments/Payments/Reports/SchoolComponents all read it directly.
-    const safe = {
-      id:         found.id,
-      name:       found.name,
-      email:      found.email,
-      role:       found.role,
-      campus:     found.campus,
-      campusKey:  found.campusKey ?? null,
-      clearanceDuties: Array.isArray(found.clearanceDuties) ? found.clearanceDuties : [],
-      // Extra modules (e.g. the Guidance module) given in Settings → Users. Without this the
-      // duty would be lost the moment the person logs in.
-      moduleDuties: Array.isArray(found.moduleDuties) ? found.moduleDuties : [],
-      lastLogin:  new Date().toISOString(),
-    }
+    const safe = buildSessionUser(found, new Date().toISOString())
 
     updateSystemUser(found.id, { lastLogin: safe.lastLogin })
 

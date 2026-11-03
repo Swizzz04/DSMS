@@ -27,6 +27,12 @@
  *     category only. It starts as "requested", is not an open case, and Guidance accepts it
  *     (open) or declines it (closed). The teacher sees only their own requests and a simple
  *     status (Sent / Received / Closed), and may withdraw a request that is still "requested".
+ *   - Teachers may also REPORT AN INCIDENT: student, date and a category only (list choices, no
+ *     free text). It is stored as an incident with status "reported", is not an open case, and
+ *     the in-charge reviews it: ACCEPT re-enters it as a full incident (sanction required, status
+ *     "open") or DECLINE gives a reason from a list (status "declined", final). The teacher sees
+ *     only their own reports, the result (Sent / Accepted / Declined) and the decline reason,
+ *     and may withdraw a report that is still "reported".
  *   - Every create / edit / status change / delete is written to an append-only audit list
  *     (who, when, what, which student). The audit never holds record content.
  *   - The only thing other modules may ask is hasOpenCase(): a yes/no and a count, no details.
@@ -36,6 +42,7 @@ import {
   getGuidanceAccess, todayYMD,
   GUIDANCE_REFERRAL_SOURCES, GUIDANCE_REFERRAL_REASONS, GUIDANCE_REFERRAL_STATUSES,
   GUIDANCE_INCIDENT_CATEGORIES, GUIDANCE_SANCTIONS, GUIDANCE_INCIDENT_STATUSES,
+  GUIDANCE_REPORT_DECLINE_REASONS,
   GUIDANCE_TESTS, GUIDANCE_TEST_TRACKS, GUIDANCE_CASE_NO_PATTERN,
 } from '../config/appConfig'
 
@@ -282,8 +289,9 @@ export function isFollowUpDue(referral) {
 /**
  * Status only, for other modules (the Guidance clearance slot). No permission needed on
  * purpose: it returns a yes/no and a count, never who, why or what.
- * An open case is a referral that is accepted and not closed, or an incident that is not
- * resolved. A teacher's request still waiting for Guidance is not a case yet.
+ * An open case is a referral that is accepted and not closed, or an incident that is open.
+ * A teacher's request or report still waiting for Guidance, and a declined report, are not
+ * cases.
  * @returns {{hasOpenCase:boolean, openCount:number}}
  */
 export function hasOpenCase(studentId, campusKey) {
@@ -291,8 +299,25 @@ export function hasOpenCase(studentId, campusKey) {
   const b = campusBucket(readAll(), campusKey)
   const openCount =
     b.referrals.filter(r => sameId(r.studentId, studentId) && r.status !== 'closed' && r.status !== 'requested').length +
-    b.incidents.filter(r => sameId(r.studentId, studentId) && r.status !== 'resolved').length
+    b.incidents.filter(r => sameId(r.studentId, studentId) && r.status === 'open').length
   return { hasOpenCase: openCount > 0, openCount }
+}
+
+/**
+ * How many teacher referral requests and incident reports are waiting for the in-charge to
+ * review, for the red counter on the Guidance menu item. Only an editor of the campus gets a
+ * number (everyone else gets 0). Optionally limited to one school year, so an old unreviewed
+ * request does not show a counter that the current year's list cannot explain.
+ * Returns a count only, never who or what.
+ */
+export function getPendingGuidanceCount(user, schoolYear) {
+  if (!user) return 0
+  const ctx = readContext(user)
+  if (!ctx || !ctx.access.canEdit) return 0
+  const b = campusBucket(readAll(), ctx.campusKey)
+  const mine = (r) => ctx.access.levels.includes(r.level) && (!schoolYear || r.schoolYear === schoolYear)
+  return b.referrals.filter(r => r.status === 'requested' && mine(r)).length +
+         b.incidents.filter(r => r.status === 'reported' && mine(r)).length
 }
 
 /** Plain-words label for a record's list fields, for tables and exports. */
@@ -307,6 +332,7 @@ export function describeGuidanceRecord(kind, r) {
     category: labelOf(GUIDANCE_INCIDENT_CATEGORIES, r.category),
     sanction: labelOf(GUIDANCE_SANCTIONS, r.sanction),
     status:   labelOf(GUIDANCE_INCIDENT_STATUSES, r.status),
+    declineReason: labelOf(GUIDANCE_REPORT_DECLINE_REASONS, r.declineReason),
   }
   const test = GUIDANCE_TESTS.find(t => t.id === r.testId)
   return {
@@ -384,6 +410,8 @@ export function updateGuidanceRecord(user, kind, id, patch = {}, campusKey) {
   if (found.error) return found.error
   const { ctx, all, bucket, record, def } = found
   if (def.closed && record.status === def.closed) return fail('This record is closed. Reopen it to change it.')
+  if (kind === 'incident' && record.status === 'reported') return fail('Accept this report first. Accepting it lets you complete the incident.')
+  if (kind === 'incident' && record.status === 'declined') return fail('This report was declined and cannot be changed.')
 
   const { values, errors } = buildFields(kind, { ...record, ...patch })
   if (Object.keys(errors).length) return fail('Check the highlighted fields.', errors)
@@ -404,7 +432,11 @@ export function setGuidanceStatus(user, kind, id, status, campusKey) {
   const { ctx, all, bucket, record, def } = found
   if (!def.statuses) return fail('This record type has no status.')
   if (!inList(def.statuses, status)) return fail('Unknown status.')
-  if (status === 'requested') return fail('A request can only be sent by a teacher.')
+  if (status === 'requested' || status === 'reported') return fail('Only a teacher can send a request or a report.')
+  if (status === 'declined') return fail('Decline a report with a reason instead.')
+  if (kind === 'incident' && (record.status === 'reported' || record.status === 'declined')) {
+    return fail('Accept or decline the report instead.')
+  }
   if (record.status === status) return { ok: true, record }
 
   record.status = status
@@ -445,10 +477,49 @@ export function deleteGuidanceRecord(user, kind, id, campusKey) {
   return { ok: true }
 }
 
+/**
+ * ACCEPT a teacher's incident report. The in-charge re-enters it as a full incident: category,
+ * date and case no. may be corrected and a sanction is required. The report becomes 'open'.
+ * input: date, category, sanction, caseNo?  (the student and school year stay as reported)
+ */
+export function acceptIncidentReport(user, id, input = {}, campusKey) {
+  const found = locate(user, 'incident', id, campusKey)
+  if (found.error) return found.error
+  const { ctx, all, bucket, record } = found
+  if (record.status !== 'reported') return fail('This report has already been reviewed.')
+
+  const { values, errors } = buildFields('incident', { ...record, ...input })
+  if (Object.keys(errors).length) return fail('Check the highlighted fields.', errors)
+
+  Object.assign(record, values, { status: 'open', closedAt: null, updatedAt: new Date().toISOString() })
+  pushAudit(bucket, auditEntry(user, 'status', 'incident', record, { status: 'open' }))
+  save(all, ctx.campusKey, bucket)
+  return { ok: true, record }
+}
+
+/**
+ * DECLINE a teacher's incident report with a reason from GUIDANCE_REPORT_DECLINE_REASONS.
+ * The teacher sees the reason. A declined report is final; the teacher may send a new one.
+ */
+export function declineIncidentReport(user, id, reason, campusKey) {
+  const found = locate(user, 'incident', id, campusKey)
+  if (found.error) return found.error
+  const { ctx, all, bucket, record } = found
+  if (record.status !== 'reported') return fail('This report has already been reviewed.')
+  if (!inList(GUIDANCE_REPORT_DECLINE_REASONS, reason)) return fail('Choose a reason.', { reason: 'Choose a reason.' })
+
+  record.status = 'declined'
+  record.declineReason = reason
+  record.updatedAt = new Date().toISOString()
+  pushAudit(bucket, auditEntry(user, 'status', 'incident', record, { status: 'declined' }))
+  save(all, ctx.campusKey, bucket)
+  return { ok: true, record }
+}
+
 // ─────────────────────────────────────────────────────────────────────
-// TEACHER REFERRAL REQUESTS
-// A teacher who is not a Guidance editor can send a request and follow its status. Nothing
-// else of the Guidance records is visible to them.
+// TEACHER REFERRAL REQUESTS AND INCIDENT REPORTS
+// A teacher who is not a Guidance editor can send a request or a report and follow its
+// result. Nothing else of the Guidance records is visible to them.
 // ─────────────────────────────────────────────────────────────────────
 
 /** What a teacher sees as the status of a request they sent. */
@@ -560,6 +631,108 @@ export function withdrawReferralRequest(user, id) {
   if (record.status !== 'requested') return fail('Guidance has already received this request, so it cannot be withdrawn.')
   bucket.referrals = bucket.referrals.filter(r => r.id !== id)
   pushAudit(bucket, auditEntry(user, 'deleted', 'referral', record))
+  save(all, ctx.campusKey, bucket)
+  return { ok: true }
+}
+
+/** What a teacher sees as the result of an incident report they sent. */
+export const TEACHER_REPORT_STATUS = {
+  reported: { id: 'sent',     label: 'Sent'     },
+  open:     { id: 'accepted', label: 'Accepted' },
+  resolved: { id: 'accepted', label: 'Accepted' },
+  declined: { id: 'declined', label: 'Declined' },
+}
+
+/**
+ * Report an incident to Guidance.
+ * input: studentId, schoolYear, date, category  (anything else is ignored)
+ * Stored as an incident with status 'reported'. It has no sanction until the in-charge accepts it.
+ * @returns {{ok:true, record}|{ok:false, message, errors}}
+ */
+export function createIncidentReport(user, input = {}) {
+  const ctx = referContext(user)
+  if (!ctx) return fail('You cannot report incidents here.')
+
+  const student = readStudents().find(s => sameId(s.id, input.studentId) && s.campusKey === ctx.campusKey)
+  if (!student) return fail('Choose a student from your campus.', { studentId: 'Choose a student.' })
+  if (!input.schoolYear || typeof input.schoolYear !== 'string') return fail('The school year is missing.', { schoolYear: 'Missing school year.' })
+
+  const errors = {}
+  if (!isYMD(input.date)) errors.date = 'Choose a valid date.'
+  else if (input.date > todayYMD()) errors.date = 'The date cannot be in the future.'
+  if (!inList(GUIDANCE_INCIDENT_CATEGORIES, input.category)) errors.category = 'Choose a category.'
+  if (Object.keys(errors).length) return fail('Check the highlighted fields.', errors)
+
+  const now = new Date().toISOString()
+  const record = {
+    id: uid(GUIDANCE_KINDS.incident.prefix),
+    studentId: student.id,
+    schoolYear: input.schoolYear,
+    level: student.department,
+    date: input.date,
+    category: input.category,
+    caseNo: '',
+    fromReport: true,
+    status: 'reported',
+    closedAt: null,
+    createdBy: user.id,
+    createdByName: user.name || '',
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  const all = readAll()
+  const bucket = campusBucket(all, ctx.campusKey)
+  bucket.incidents.push(record)
+  pushAudit(bucket, auditEntry(user, 'created', 'incident', record, { status: 'reported' }))
+  save(all, ctx.campusKey, bucket)
+  return { ok: true, record }
+}
+
+/**
+ * The incident reports this teacher sent, newest first, with only what they need: the student,
+ * the date, the category they chose, the result, and the decline reason when declined. The
+ * sanction, case number and everything Guidance adds later are never exposed.
+ * @returns {{id, studentId, studentName, gradeLevel, date, category, categoryLabel, status, statusLabel, declineReasonLabel, canWithdraw}[]}
+ */
+export function getMyIncidentReports(user, { schoolYear } = {}) {
+  const ctx = referContext(user)
+  if (!ctx) return []
+  const students = readStudents()
+  return campusBucket(readAll(), ctx.campusKey).incidents
+    .filter(r => r.fromReport === true && sameId(r.createdBy, user.id))
+    .filter(r => !schoolYear || r.schoolYear === schoolYear)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    .map(r => {
+      const s = students.find(x => sameId(x.id, r.studentId))
+      const shown = TEACHER_REPORT_STATUS[r.status] || TEACHER_REPORT_STATUS.reported
+      return {
+        id: r.id,
+        studentId: r.studentId,
+        studentName: s ? toStudentOption(s).name : 'Student not found',
+        gradeLevel: s?.gradeLevel || '',
+        date: r.date,
+        category: r.category,
+        categoryLabel: labelOf(GUIDANCE_INCIDENT_CATEGORIES, r.category),
+        status: shown.id,
+        statusLabel: shown.label,
+        declineReasonLabel: r.status === 'declined' ? labelOf(GUIDANCE_REPORT_DECLINE_REASONS, r.declineReason) : '',
+        canWithdraw: r.status === 'reported',
+      }
+    })
+}
+
+/** A teacher takes back a report that Guidance has not reviewed yet. The audit notes it. */
+export function withdrawIncidentReport(user, id) {
+  const ctx = referContext(user)
+  if (!ctx) return fail('You cannot change reports here.')
+  const all = readAll()
+  const bucket = campusBucket(all, ctx.campusKey)
+  const record = bucket.incidents.find(r => r.id === id && r.fromReport === true && sameId(r.createdBy, user.id))
+  if (!record) return fail('That report was not found.')
+  if (record.status !== 'reported') return fail('Guidance has already reviewed this report, so it cannot be withdrawn.')
+  bucket.incidents = bucket.incidents.filter(r => r.id !== id)
+  pushAudit(bucket, auditEntry(user, 'deleted', 'incident', record))
   save(all, ctx.campusKey, bucket)
   return { ok: true }
 }
