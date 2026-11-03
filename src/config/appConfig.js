@@ -660,6 +660,7 @@ export const GUIDANCE_INCIDENT_CATEGORIES = [
   { id: 'fighting',   label: 'Fighting'            },
   { id: 'property',   label: 'Property damage'     },
   { id: 'disrespect', label: 'Disrespect'          },
+  { id: 'other',      label: 'Other'               },   // when none of the above fits (a category only, never a description)
 ]
 
 export const GUIDANCE_SANCTIONS = [
@@ -671,9 +672,31 @@ export const GUIDANCE_SANCTIONS = [
   { id: 'probation',         label: 'Probation'         },
 ]
 
+/**
+ * 'reported' is an incident a TEACHER reported and the Guidance in-charge has not reviewed yet.
+ * It is not a case: it never counts as an open case on clearance. The in-charge either accepts
+ * it (re-enters it as a full incident with a sanction → 'open') or declines it with a reason
+ * from GUIDANCE_REPORT_DECLINE_REASONS → 'declined'. Only the teacher report flow creates
+ * 'reported', and 'declined' is final (the teacher may send a new report).
+ */
 export const GUIDANCE_INCIDENT_STATUSES = [
+  { id: 'reported', label: 'Reported' },
   { id: 'open',     label: 'Open'     },
   { id: 'resolved', label: 'Resolved' },
+  { id: 'declined', label: 'Declined' },
+]
+
+/**
+ * Why the in-charge declined a teacher's incident report. A list choice, never typed text,
+ * so no description of the incident can end up in the system. The teacher sees this label.
+ */
+export const GUIDANCE_REPORT_DECLINE_REASONS = [
+  { id: 'not_guidance',  label: 'Not a Guidance matter'                 },
+  { id: 'handled',       label: 'Already handled by the teacher or adviser' },
+  { id: 'duplicate',     label: 'Already reported'                      },
+  { id: 'incorrect',     label: 'Student or date is incorrect'          },
+  { id: 'insufficient',  label: 'Not enough to act on'                  },
+  { id: 'other_office',  label: 'Referred to another office'            },
 ]
 
 /**
@@ -705,8 +728,9 @@ export const GUIDANCE_CASE_NO_PATTERN = /^[A-Za-z0-9-]{1,20}$/
  *   canView   the account has the Guidance page (role default, Role Permissions, or module duty)
  *   canEdit   may add and change records: the Guidance role, or any account given the
  *             Guidance module duty. Super Admin and the others below only read.
- *   canRefer  a teacher who is not an editor: may send a referral to Guidance and sees only
- *             the referrals they sent, with a simple status. They never see the records.
+ *   canRefer  a teacher who is not an editor: may send a referral or report an incident to
+ *             Guidance and sees only the ones they sent, with a simple status (and the decline
+ *             reason of a report). They never see the records.
  *   levels    which departments' students they see ('basicEd' | 'college'). Editors see both.
  *             Principal sees Basic Ed, Program Head sees College; any other role that was
  *             given the page by hand sees none until a level is defined for it here.
@@ -1331,18 +1355,78 @@ export function campusHasRole(campusKey, roleKey, override) {
   return roleMap[roleKey] ?? false
 }
 
-/** Get all college grades (program + year) for a campus */
-export function getCampusCollegeGrades(campusKey, override) {
+/** Get all college grades (program + year) for a campus. `yearsFor(program)` = that program's year levels. */
+export function getCampusCollegeGrades(campusKey, override, yearsFor) {
   const campus = getCampusByKey(campusKey, override)
   if (!campus?.hasCollege) return []
   return (campus.college?.programs ?? campus.collegePrograms ?? []).flatMap(prog =>
-    COLLEGE_YEAR_LEVELS.map(yr => `${prog} - ${yr}`)
+    (yearsFor ? yearsFor(prog) : COLLEGE_YEAR_LEVELS).map(yr => `${prog} - ${yr}`)
   )
+}
+
+/**
+ * College year levels are kept per program (Settings → Grade Levels), because one program may run
+ * five years and another four. Saved shape: { [campusKey]: { programYears: { [program]: [years] } } }.
+ * A program with no list of its own uses its campus's default list (older saves kept one), then the
+ * school-wide list.
+ */
+export function getCampusCollegeYearLevels(campusKey, schoolWideLevels, campusGradeLevels) {
+  const own = campusKey ? campusGradeLevels?.[campusKey]?.collegeYearLevels : null
+  return Array.isArray(own) && own.length ? own : (schoolWideLevels || COLLEGE_YEAR_LEVELS)
+}
+
+/** Year levels of one program at one campus. */
+export function getProgramYearLevels(campusKey, program, schoolWideLevels, campusGradeLevels) {
+  const own = campusKey ? campusGradeLevels?.[campusKey]?.programYears?.[program] : null
+  return Array.isArray(own) && own.length ? own : getCampusCollegeYearLevels(campusKey, schoolWideLevels, campusGradeLevels)
+}
+
+/** Every year level used by any program at one campus (default list first). */
+export function getCampusAllYearLevels(campusKey, schoolWideLevels, campusGradeLevels) {
+  const out = [...getCampusCollegeYearLevels(campusKey, schoolWideLevels, campusGradeLevels)]
+  Object.values(campusGradeLevels?.[campusKey]?.programYears || {}).forEach(list =>
+    (list || []).forEach(y => { if (!out.includes(y)) out.push(y) }))
+  return out
+}
+
+/** Every year level any program at any campus uses (order of first appearance), for all-campus views. */
+export function unionCollegeYearLevels(schoolWideLevels, campusGradeLevels) {
+  const out = [...(schoolWideLevels || COLLEGE_YEAR_LEVELS)]
+  Object.keys(campusGradeLevels || {}).forEach(key =>
+    getCampusAllYearLevels(key, schoolWideLevels, campusGradeLevels).forEach(y => { if (!out.includes(y)) out.push(y) }))
+  return out
 }
 
 /** Get all basic ed grade levels (flat list) */
 export function getAllBasicEdGrades(groupsOverride) {
   return (groupsOverride || BASIC_ED_GROUPS).flatMap(g => g.options)
+}
+
+/**
+ * Basic Ed groups for one campus. Each campus can keep its own list of levels (Settings → Grade
+ * Levels); a campus that never changed it uses the school-wide list.
+ * `campusGradeLevels` is the saved map { [campusKey]: { basicEdGroups } }.
+ */
+export function getCampusBasicEdGroups(campusKey, schoolWideGroups, campusGradeLevels) {
+  const own = campusKey ? campusGradeLevels?.[campusKey]?.basicEdGroups : null
+  return Array.isArray(own) && own.length ? own : (schoolWideGroups || BASIC_ED_GROUPS)
+}
+
+/**
+ * Every level any campus uses, merged by group label (order of first appearance).
+ * Used where no single campus is chosen (all-campus views) and to recognise a level's department,
+ * so a level one campus added is never mistaken for something else on another screen.
+ */
+export function unionBasicEdGroups(schoolWideGroups, campusGradeLevels) {
+  const lists = [schoolWideGroups || BASIC_ED_GROUPS]
+  Object.values(campusGradeLevels || {}).forEach(v => { if (Array.isArray(v?.basicEdGroups)) lists.push(v.basicEdGroups) })
+  const byLabel = new Map()
+  lists.forEach(groups => groups.forEach(g => {
+    if (!byLabel.has(g.label)) byLabel.set(g.label, [])
+    const opts = byLabel.get(g.label)
+    ;(g.options || []).forEach(o => { if (!opts.includes(o)) opts.push(o) })
+  }))
+  return [...byLabel].map(([label, options]) => ({ label, options }))
 }
 
 /**
@@ -1381,14 +1465,29 @@ export function getCurrentSchoolYear(yearsOverride) {
   return (years.find(y => y.isCurrent) || years[0])?.year || '2026-2027'
 }
 
-/** Get total fee for a grade level at a campus */
-export function getTotalFee(gradeLevel, campusName, feesOverride) {
-  const fees = feesOverride || FEE_STRUCTURE
+/**
+ * Fee rows saved by a campus for itself (a copy of a shared Basic Ed row, changed there) get an
+ * id from this number up, so they can never collide with the shipped default ids (1–47).
+ */
+export const CUSTOM_FEE_ID_START = 1000
+
+/**
+ * The fee row that applies to a grade level at a campus. A campus's OWN row wins over a shared
+ * ('all') row, whatever order the list is in.
+ */
+function pickFeeRow(fees, gradeLevel, campusName) {
   const programBase = gradeLevel.split(' - ')[0]
-  const fee = fees.find(f =>
+  const matches = fees.filter(f =>
     (f.gradeLevel === gradeLevel || f.gradeLevel === programBase) &&
     (f.campus === 'all' || f.campus === campusName)
   )
+  return matches.find(f => f.campus === campusName) ?? matches[0] ?? null
+}
+
+/** Get total fee for a grade level at a campus */
+export function getTotalFee(gradeLevel, campusName, feesOverride) {
+  const fees = feesOverride || FEE_STRUCTURE
+  const fee = pickFeeRow(fees, gradeLevel, campusName)
   if (!fee) return 0
   return fee.tuition + fee.enrollment + fee.misc + (fee.lab || 0) + (fee.books || 0) + (fee.other || 0)
 }
@@ -1400,11 +1499,7 @@ export function getTotalFee(gradeLevel, campusName, feesOverride) {
  */
 export function getFeeBreakdown(gradeLevel, campusName, feesOverride) {
   const fees = feesOverride || FEE_STRUCTURE
-  const programBase = gradeLevel.split(' - ')[0]
-  const fee = fees.find(f =>
-    (f.gradeLevel === gradeLevel || f.gradeLevel === programBase) &&
-    (f.campus === 'all' || f.campus === campusName)
-  )
+  const fee = pickFeeRow(fees, gradeLevel, campusName)
   if (!fee) return { tuition: 0, enrollment: 0, misc: 0, lab: 0, books: 0, other: 0, total: 0 }
   const tuition    = fee.tuition    || 0
   const enrollment = fee.enrollment || 0
@@ -1538,11 +1633,7 @@ export function getCollegeSemFee(program, yearLevel, semester, campusName, feesO
 /** Get fee entry for a grade level at a campus */
 export function getFeeEntry(gradeLevel, campusName, feesOverride) {
   const fees = feesOverride || FEE_STRUCTURE
-  const programBase = gradeLevel.split(' - ')[0]
-  return fees.find(f =>
-    (f.gradeLevel === gradeLevel || f.gradeLevel === programBase) &&
-    (f.campus === 'all' || f.campus === campusName)
-  ) ?? null
+  return pickFeeRow(fees, gradeLevel, campusName)
 }
 
 /** Get grading scale for a campus + department */
@@ -1847,13 +1938,13 @@ export function isWorkflowConfirmed(campusKey, override) {
 }
 
 /** Get campus programs map (used by GradeLevelSelect) */
-export function buildCampusProgramsMap(campusesOverride) {
+export function buildCampusProgramsMap(campusesOverride, yearsFor) {
   const campuses = campusesOverride || CAMPUSES
   return Object.fromEntries(
     campuses.map(c => [
       c.key,
       (c.college?.programs ?? c.collegePrograms ?? [])
-        .flatMap(prog => COLLEGE_YEAR_LEVELS.map(yr => `${prog} - ${yr}`))
+        .flatMap(prog => (yearsFor ? yearsFor(c.key, prog) : COLLEGE_YEAR_LEVELS).map(yr => `${prog} - ${yr}`))
     ])
   )
 }

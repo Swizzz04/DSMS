@@ -8,7 +8,7 @@
  * Priority: localStorage overrides > appConfig.js defaults
  */
 
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import {
   SCHOOL_INFO,
   SCHOOL_YEARS,
@@ -17,6 +17,7 @@ import {
   COLLEGE_YEAR_LEVELS,
   GRADE_SECTIONS,
   FEE_STRUCTURE,
+  CUSTOM_FEE_ID_START,
   SYSTEM_USERS,
   ROLE_DEFINITIONS,
   DEFAULT_DISCOUNTS,
@@ -24,6 +25,12 @@ import {
   getCampusByName,
   getCampusCollegeGrades,
   getAllBasicEdGrades,
+  getCampusBasicEdGroups,
+  unionBasicEdGroups,
+  getCampusCollegeYearLevels,
+  getProgramYearLevels,
+  getCampusAllYearLevels,
+  unionCollegeYearLevels,
   isBasicGrade   as checkBasicGrade,
   isCollegeGrade as checkCollegeGrade,
   getCurrentSchoolYear,
@@ -43,6 +50,8 @@ import {
   getFeeBreakdown,
   computeStudentBill,
 } from '../config/appConfig'
+import { useAuth } from './AuthContext'
+import { useCampusFilter } from './CampusFilterContext'
 
 const STORAGE_KEY = 'almirene_app_config'
 
@@ -64,8 +73,12 @@ function buildInitialState() {
   // Stale detection: old fee structure used flat college entries with gradeLevel='BS Criminology'
   // New structure uses program+yearLevel+semester fields. Also detect if saved data
   // is missing new entries (count mismatch means new entries were added to appConfig).
-  const hasFlatCollege  = savedFees.some(f => f.gradeLevel?.startsWith('BS') && !f.semester)
-  const isMissingNew    = savedFees.length > 0 && savedFees.length < FEE_STRUCTURE.length
+  // Rows a campus saved for itself (id from CUSTOM_FEE_ID_START up) are kept apart from the
+  // shipped rows, so they never count towards "missing new entries" and are never thrown away.
+  const savedShipped = savedFees.filter(f => !(f.id >= CUSTOM_FEE_ID_START))
+  const savedCustom  = savedFees.filter(f => f.id >= CUSTOM_FEE_ID_START && (f.gradeLevel || f.program) && f.campus && f.campus !== 'all')
+  const hasFlatCollege  = savedShipped.some(f => f.gradeLevel?.startsWith('BS') && !f.semester)
+  const isMissingNew    = savedShipped.length > 0 && savedShipped.length < FEE_STRUCTURE.length
   const hasStaleData    = hasFlatCollege || isMissingNew
 
   // Build saved fee map — but ONLY use saved values for fees that have matching
@@ -87,11 +100,13 @@ function buildInitialState() {
 
   const mergedFees = FEE_STRUCTURE.map(f => ({ ...f, ...(savedFeeMap[f.id] || {}) }))
 
-  // Clear stale localStorage fee data so it won't persist
+  // Clear stale localStorage fee data so it won't persist. Campus-made rows are put back
+  // right after, so a reset of the shipped rows never deletes a campus's own fees.
   if (hasStaleData) {
     try {
       const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
-      delete cfg.feeStructure
+      if (savedCustom.length) cfg.feeStructure = savedCustom
+      else delete cfg.feeStructure
       localStorage.setItem('almirene_app_config', JSON.stringify(cfg))
     } catch {}
   }
@@ -101,9 +116,10 @@ function buildInitialState() {
     schoolYears:       saved.schoolYears       || SCHOOL_YEARS,
     campuses:          saved.campuses          || CAMPUSES,
     basicEdGroups:     saved.basicEdGroups     || BASIC_ED_GROUPS,
+    campusGradeLevels: saved.campusGradeLevels || {},
     collegeYearLevels: saved.collegeYearLevels || COLLEGE_YEAR_LEVELS,
     gradeSections:     saved.gradeSections     || GRADE_SECTIONS,
-    feeStructure:      mergedFees,
+    feeStructure:      [...savedCustom, ...mergedFees],
     systemUsers:       saved.systemUsers       || SYSTEM_USERS,
     discounts:         saved.discounts         || DEFAULT_DISCOUNTS,
     roleDefs:          ROLE_DEFINITIONS,
@@ -139,7 +155,7 @@ export function AppConfigProvider({ children }) {
       campuses: CAMPUSES, basicEdGroups: BASIC_ED_GROUPS,
       collegeYearLevels: COLLEGE_YEAR_LEVELS, gradeSections: GRADE_SECTIONS,
       feeStructure: FEE_STRUCTURE, systemUsers: SYSTEM_USERS,
-      discounts: DEFAULT_DISCOUNTS,
+      discounts: DEFAULT_DISCOUNTS, campusGradeLevels: {},
     }
     updateConfig(section, defaults[section])
   }, [updateConfig])
@@ -147,12 +163,64 @@ export function AppConfigProvider({ children }) {
   // ── Derived values ──────────────────────────────────────────────
   const activeCampuses    = config.campuses.filter(c => c.isActive)
   const currentSchoolYear = getCurrentSchoolYear(config.schoolYears)
-  const allBasicEdGrades  = getAllBasicEdGrades(config.basicEdGroups)
-  const campusProgramsMap = buildCampusProgramsMap(config.campuses)
+  // Grade levels are kept per campus. `workingCampusKey` is the campus the signed-in person is
+  // working in (set by <WorkingCampusSync/>); with none, every campus's levels are merged.
+  const [workingCampusKey, setWorkingCampusKey] = useState('')
+  const unionGroups = useMemo(
+    () => unionBasicEdGroups(config.basicEdGroups, config.campusGradeLevels),
+    [config.basicEdGroups, config.campusGradeLevels]
+  )
+  const basicEdGroups = useMemo(
+    () => workingCampusKey
+      ? getCampusBasicEdGroups(workingCampusKey, config.basicEdGroups, config.campusGradeLevels)
+      : unionGroups,
+    [workingCampusKey, config.basicEdGroups, config.campusGradeLevels, unionGroups]
+  )
+  const allBasicEdGrades  = useMemo(() => getAllBasicEdGrades(basicEdGroups), [basicEdGroups])
+  // College year levels are kept per campus the same way
+  const unionYears = useMemo(
+    () => unionCollegeYearLevels(config.collegeYearLevels, config.campusGradeLevels),
+    [config.collegeYearLevels, config.campusGradeLevels]
+  )
+  const collegeYearLevels = useMemo(
+    () => workingCampusKey
+      ? getCampusAllYearLevels(workingCampusKey, config.collegeYearLevels, config.campusGradeLevels)
+      : unionYears,
+    [workingCampusKey, config.collegeYearLevels, config.campusGradeLevels, unionYears]
+  )
+  // A campus's default year levels (what a program uses until it gets a list of its own)
+  const getCampusYears = useCallback((campusKey) =>
+    getCampusCollegeYearLevels(campusKey, config.collegeYearLevels, config.campusGradeLevels),
+    [config.collegeYearLevels, config.campusGradeLevels])
+  // Section names the campus configured for a level ("Grade 7", or "BS Nursing - 1st Year"), or []
+  const getSectionNames = useCallback((campusKey, level) => {
+    const names = campusKey ? config.campusGradeLevels?.[campusKey]?.sections?.[level] : null
+    return Array.isArray(names) ? names : []
+  }, [config.campusGradeLevels])
+  // One program's year levels at one campus. With no campus: every campus's years for that program, merged.
+  const getProgramYears = useCallback((campusKey, program) => {
+    if (campusKey) return getProgramYearLevels(campusKey, program, config.collegeYearLevels, config.campusGradeLevels)
+    const out = [...(config.collegeYearLevels || [])]
+    Object.keys(config.campusGradeLevels || {}).forEach(k => {
+      const list = config.campusGradeLevels[k]?.programYears?.[program]
+      ;(list || []).forEach(y => { if (!out.includes(y)) out.push(y) })
+    })
+    return out
+  }, [config.collegeYearLevels, config.campusGradeLevels])
+  const getCampusGroups = useCallback((campusKey) =>
+    getCampusBasicEdGroups(campusKey, config.basicEdGroups, config.campusGradeLevels),
+    [config.basicEdGroups, config.campusGradeLevels])
+  // Fee rows with a campus of their own come before the shared ('all') ones, so a page that
+  // takes the first matching row (Enrollments does) gets the campus's own fee, not the shared one.
+  const feeStructure = useMemo(
+    () => [...config.feeStructure.filter(f => f.campus !== 'all'), ...config.feeStructure.filter(f => f.campus === 'all')],
+    [config.feeStructure]
+  )
+  const campusProgramsMap = useMemo(() => buildCampusProgramsMap(config.campuses, getProgramYears), [config.campuses, getProgramYears])
 
   // ── Per-campus helpers (all read from live config) ──────────────
   const getCollegeGrades = useCallback((campusKey) =>
-    getCampusCollegeGrades(campusKey, config.campuses), [config.campuses])
+    getCampusCollegeGrades(campusKey, config.campuses, (prog) => getProgramYears(campusKey, prog)), [config.campuses, getProgramYears])
 
   const getFee = useCallback((gradeLevel, campusName) =>
     getTotalFee(gradeLevel, campusName, config.feeStructure), [config.feeStructure])
@@ -190,17 +258,28 @@ export function AppConfigProvider({ children }) {
   // Grade-level department checks — bound to the LIVE (admin-editable) lists,
   // so levels edited in Settings are respected everywhere. Identity changes
   // only when the lists change, so they are safe in effect/memo dependencies.
+  // Recognising a level uses every campus's list, so a record from another campus is never misread.
   const isBasicGrade = useCallback((gradeLevel) =>
-    checkBasicGrade(gradeLevel, config.basicEdGroups), [config.basicEdGroups])
+    checkBasicGrade(gradeLevel, unionGroups), [unionGroups])
 
   const isCollegeGrade = useCallback((gradeLevel) =>
-    checkCollegeGrade(gradeLevel, config.collegeYearLevels), [config.collegeYearLevels])
+    checkCollegeGrade(gradeLevel, unionYears), [unionYears])
 
   const value = {
     // Raw config sections
     ...config,
 
     // Derived
+    feeStructure,            // overrides the raw list above: campus rows first
+    basicEdGroups,           // overrides the raw list: the working campus's levels (all campuses merged if none)
+    collegeYearLevels,       // same for college year levels
+    schoolCollegeYearLevels: config.collegeYearLevels,
+    getCampusYearLevels: getCampusYears,
+    getSectionNames,         // (campusKey, level) => configured section names ([] = automatic A, B, C)
+    getProgramYearLevels: getProgramYears,   // (campusKey, program) => that program's year levels
+    schoolBasicEdGroups: config.basicEdGroups,   // the school-wide list a campus starts from
+    getCampusBasicEdGroups: getCampusGroups,     // (campusKey) => that campus's levels
+    setWorkingCampusKey,
     activeCampuses,
     currentSchoolYear,
     campusProgramsMap,
@@ -245,4 +324,20 @@ export function useAppConfig() {
   const ctx = useContext(AppConfigContext)
   if (!ctx) throw new Error('useAppConfig must be used inside <AppConfigProvider>')
   return ctx
+}
+
+/**
+ * Tells the config which campus is being worked in, so `basicEdGroups` / `allBasicEdGrades`
+ * are that campus's levels on every page. Technical Admin: the campus picked in the header menu.
+ * Everyone else: their own campus. Render once, inside AuthProvider and CampusFilterProvider.
+ */
+export function WorkingCampusSync() {
+  const { user } = useAuth()
+  const { campusFilter } = useCampusFilter()
+  const { setWorkingCampusKey, activeCampuses } = useAppConfig()
+  const key = user?.role === 'technical_admin'
+    ? (activeCampuses?.some(c => c.key === campusFilter) ? campusFilter : '')
+    : (user?.campusKey || '')
+  useEffect(() => { setWorkingCampusKey(key) }, [key, setWorkingCampusKey])
+  return null
 }

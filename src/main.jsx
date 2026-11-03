@@ -4,7 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider } from './context/AuthContext'
-import { AppConfigProvider } from './context/AppConfigContext'
+import { AppConfigProvider, WorkingCampusSync } from './context/AppConfigContext'
 import { CampusFilterProvider } from './context/CampusFilterContext'
 import { initTheme, listenForThemeChanges, migrateLocalStorageKeys } from './utils/themeInitializer'
 import { exposeDevTools } from './utils/devTools'
@@ -33,6 +33,7 @@ createRoot(document.getElementById('root')).render(
       <AppConfigProvider>
         <AuthProvider>
           <CampusFilterProvider>
+           <WorkingCampusSync />
            <App />
           </CampusFilterProvider>
         </AuthProvider>
