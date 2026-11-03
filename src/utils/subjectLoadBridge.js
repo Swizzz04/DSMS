@@ -42,16 +42,21 @@ function setCY(campusKey, schoolYear, data) {
 function uid(p) { return `${p}_${Date.now()}_${Math.random().toString(36).slice(2,7)}` }
 
 // ── Section generation ────────────────────────────────────────────
-function buildSections(count, max, prefix, existing = [], letterOnly = false) {
+// `names`: section names the school configured for this level (Settings → Grade Levels). The first
+// section takes the first name, and so on; sections beyond the list are named "<prefix>-<letter>".
+// A section keeps its id (advisers and loads point at it) when its name changes, matched by position.
+// A name typed in Subject Load (displayName different from defaultName) is kept.
+function buildSections(count, max, prefix, existing = [], letterOnly = false, names = []) {
   const n = Math.max(1, Math.ceil(count / (max || DEFAULT_MAX)))
   return Array.from({ length: n }, (_, i) => {
     const letter = ALPHA[i] || String(i + 1)
-    const defaultName = `${prefix}-${letter}`
-    const prev = existing.find(s => s.defaultName === defaultName)
+    const defaultName = (names && names[i]) || `${prefix}-${letter}`
+    const prev = existing.find(s => s.defaultName === defaultName) || existing[i]
+    const custom = prev && prev.displayName && prev.displayName !== prev.defaultName ? prev.displayName : null
     return {
       id:           prev?.id || uid('sec'),
       defaultName,
-      displayName:  letterOnly ? defaultName : (prev?.displayName || defaultName),
+      displayName:  letterOnly ? defaultName : (custom || defaultName),
       studentCount: Math.min(max, count - i * max),
     }
   })
@@ -79,28 +84,33 @@ function getCollegeEnrolledCount(campusName, program, yearLevel) {
   } catch { return 0 }
 }
 
-function rebuildSections(data, campusName, collegePrograms) {
+function rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor) {
   const max = data.maxPerSection || DEFAULT_MAX
-  const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+  // `yearLevels`: a list, or (program) => list. Programs can run different numbers of years.
+  const DEFAULT_YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+  const yearsFor = (prog) => {
+    const list = typeof yearLevels === 'function' ? yearLevels(prog) : yearLevels
+    return list?.length ? list : DEFAULT_YEARS
+  }
 
   // Basic Ed
   Object.keys(data.basicEdSubjects || {}).forEach(grade => {
     const count = getEnrolledCount(campusName, grade)
     const existing = data.basicEdSections?.[grade] || []
     if (!data.basicEdSections) data.basicEdSections = {}
-    data.basicEdSections[grade] = buildSections(count, max, grade, existing, false)
+    data.basicEdSections[grade] = buildSections(count, max, grade, existing, false, sectionNamesFor?.(grade) || [])
   })
 
   // College
   if (!data.collegeSections) data.collegeSections = {};
   (collegePrograms || []).forEach(prog => {
     if (!data.collegeSections[prog]) data.collegeSections[prog] = {}
-    YEAR_LEVELS.forEach(yr => {
+    yearsFor(prog).forEach(yr => {
       const count = getCollegeEnrolledCount(campusName, prog, yr)
       const shortProg = prog.replace('BS ', '')
       const prefix = `${shortProg} ${yr.replace(' Year','')}`
       const existing = data.collegeSections[prog]?.[yr] || []
-      data.collegeSections[prog][yr] = buildSections(count, max, prefix, existing, true)
+      data.collegeSections[prog][yr] = buildSections(count, max, prefix, existing, true, sectionNamesFor?.(`${prog} - ${yr}`) || [])
     })
   })
 
@@ -126,10 +136,10 @@ function initCY(campusKey, schoolYear, campusName, collegePrograms = []) {
 
 // ═══════════════════════════════ PUBLIC API ═══════════════════════
 
-export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePrograms = []) {
+export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePrograms = [], yearLevels, sectionNamesFor) {
   let data = initCY(campusKey, schoolYear, campusName, collegePrograms)
   const sectionsBefore = JSON.stringify([data.basicEdSections, data.collegeSections])
-  data = rebuildSections(data, campusName, collegePrograms)
+  data = rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor)
 
   // Section ids must survive a reload: advisers and college loads point at them by id. Sections are
   // generated here, so save them whenever they changed (new section, new count). Saved quietly (no
@@ -143,10 +153,10 @@ export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePro
   return data
 }
 
-export function setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, max) {
+export function setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, max, yearLevels, sectionNamesFor) {
   const data = getCY(campusKey, schoolYear) || initCY(campusKey, schoolYear, campusName, collegePrograms)
   data.maxPerSection = Math.max(1, parseInt(max, 10) || DEFAULT_MAX)
-  setCY(campusKey, schoolYear, rebuildSections(data, campusName, collegePrograms))
+  setCY(campusKey, schoolYear, rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor))
 }
 
 export function renameSection(campusKey, schoolYear, gradeLevel, sectionId, newName) {

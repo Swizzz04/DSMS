@@ -17,7 +17,6 @@ import {
   assignBasicEdLoad, assignAdviser, assignCollegeLoad,
   setBasicEdSubjectArea,
 } from '../utils/subjectLoadBridge'
-import { BASIC_ED_GROUPS, COLLEGE_YEAR_LEVELS } from '../config/appConfig'
 import { getGradingFramework, getSubjectAreaOptions, DEFAULT_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
 import GroupedSelect from '../components/GroupedSelect'
 
@@ -210,6 +209,8 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions,
 // BASIC ED TAB
 // ─────────────────────────────────────────────────────────────────
 function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaInfo, onDataChange, addToast }) {
+  const { getCampusBasicEdGroups } = useAppConfig()
+  const campusGroups = getCampusBasicEdGroups(campusKey)
   // MAPEH-type sub-subjects are locked to the HELE / MAPEH area, but only when the list has that area
   // (the DO 8 list does; a school's own framework may not)
   const lockComposite = areaOptions.some(a => a.id === 'hele_mapeh')
@@ -220,7 +221,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 
   const toggle = g => setOpenGrades(p => ({ ...p, [g]: !p[g] }))
 
-  const allGrades = BASIC_ED_GROUPS.flatMap(g => g.options)
+  const allGrades = campusGroups.flatMap(g => g.options)
   const totalSubjects = Object.values(data.basicEdSubjects || {}).reduce((s, a) => s + a.length, 0)
   const assignedSubjects = (data.basicEdLoads || []).filter(l => l.teacherId).length
   const totalSections = Object.values(data.basicEdSections || {}).reduce((s, a) => s + a.length, 0)
@@ -228,7 +229,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 
   // Group open state — track which department groups are open
   const [openGroups, setOpenGroups] = useState(() =>
-    Object.fromEntries(BASIC_ED_GROUPS.map(g => [g.label, true]))
+    Object.fromEntries(campusGroups.map(g => [g.label, true]))
   )
   const toggleGroup = label => setOpenGroups(p => ({ ...p, [label]: !p[label] }))
 
@@ -269,7 +270,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
       </div>
 
       {/* Grade level accordion — grouped by department */}
-      {BASIC_ED_GROUPS.map(group => {
+      {campusGroups.map(group => {
         // Stats for this group
         const groupGrades = group.options
         const groupTotalSubj = groupGrades.reduce((s, g) => s + (data.basicEdSubjects?.[g]?.length || 0), 0)
@@ -473,6 +474,8 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 // COLLEGE TAB
 // ─────────────────────────────────────────────────────────────────
 function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, onDataChange, addToast }) {
+  const { getProgramYearLevels } = useAppConfig()
+  const yearsFor = (prog) => getProgramYearLevels(campusKey, prog)
   const [openKeys, setOpenKeys] = useState({})
   const [picker, setPicker]   = useState(null)
   const [addModal, setAddModal] = useState(null)
@@ -483,7 +486,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
   // Stats
   let totalSubj = 0, assignedSubj = 0
   collegePrograms.forEach(prog => {
-    COLLEGE_YEAR_LEVELS.forEach(yr => {
+    yearsFor(prog).forEach(yr => {
       const sections = data.collegeSections?.[prog]?.[yr] || []
       SEMESTERS.forEach(sem => {
         const subs = data.collegeSubjects?.[prog]?.[yr]?.[sem] || []
@@ -538,7 +541,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
             <h3 className="text-sm font-bold text-[var(--color-text-primary)] uppercase tracking-wide">{program}</h3>
           </div>
 
-          {COLLEGE_YEAR_LEVELS.map(yearLevel => {
+          {yearsFor(program).map(yearLevel => {
             const key      = `${program}__${yearLevel}__${semFilter}`
             const isOpen   = openKeys[key]
             const subjects = data.collegeSubjects?.[program]?.[yearLevel]?.[semFilter] || []
@@ -659,7 +662,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
 // ─────────────────────────────────────────────────────────────────
 // SETTINGS PANEL — max per section
 // ─────────────────────────────────────────────────────────────────
-function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, collegePrograms, onDataChange, addToast, onClose }) {
+function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, collegePrograms, yearLevels, sectionNamesFor, onDataChange, addToast, onClose }) {
   const [value, setValue] = useState(String(maxPerSection))
   const n = parseInt(value, 10)
   const valid = !isNaN(n) && n >= 1 && n <= 100
@@ -686,7 +689,7 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
         <div className="action-row">
           <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button disabled={!valid} onClick={() => {
-            setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, n)
+            setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, n, yearLevels, sectionNamesFor)
             onDataChange()
             addToast(`Max per section updated to ${n}`, 'success')
             onClose()
@@ -705,7 +708,7 @@ function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, colle
 // ─────────────────────────────────────────────────────────────────
 export default function SubjectLoad() {
   const { user }    = useAuth()
-  const { activeCampuses, currentSchoolYear, systemUsers, schoolYears } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, systemUsers, schoolYears, getProgramYearLevels, getSectionNames } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
 
   const role     = user?.role
@@ -721,6 +724,10 @@ export default function SubjectLoad() {
   const campusKey  = campus?.key    || ''
   const campusName = campus?.name   || (isTechAdmin ? '' : (user?.campus || ''))
   const collegePrograms = campus?.college?.programs ?? campus?.collegePrograms ?? []
+  // (program) => that program's year levels at this campus
+  const campusYearLevels = useCallback((prog) => getProgramYearLevels(campusKey, prog), [getProgramYearLevels, campusKey])
+  // (level) => section names this campus configured in Settings → Grade Levels
+  const sectionNamesFor = useCallback((level) => getSectionNames(campusKey, level), [getSectionNames, campusKey])
 
   // Subject Area choices come from this school year's grading framework (school-wide), the same list
   // the e-Class Record offers. See getSubjectAreaOptions() in gradingEngine.js.
@@ -747,9 +754,9 @@ export default function SubjectLoad() {
   const reload = useCallback(() => {
     // No campus chosen yet: read nothing and create nothing (an empty key would write junk to storage)
     if (!campusKey) { setData(null); return }
-    const d = getSubjectLoadData(campusKey, currentSchoolYear, campusName, collegePrograms)
+    const d = getSubjectLoadData(campusKey, currentSchoolYear, campusName, collegePrograms, campusYearLevels, sectionNamesFor)
     setData(d)
-  }, [campusKey, currentSchoolYear, campusName])
+  }, [campusKey, currentSchoolYear, campusName, campusYearLevels, sectionNamesFor])
 
   // Switching campus closes anything open for the campus we are leaving
   useEffect(() => { setShowSettings(false) }, [campusKey])
@@ -941,7 +948,7 @@ export default function SubjectLoad() {
         <SettingsPanel
           maxPerSection={data.maxPerSection || 40}
           campusKey={campusKey} schoolYear={currentSchoolYear}
-          campusName={campusName} collegePrograms={collegePrograms}
+          campusName={campusName} collegePrograms={collegePrograms} yearLevels={campusYearLevels} sectionNamesFor={sectionNamesFor}
           onDataChange={reload} addToast={addToast}
           onClose={() => setShowSettings(false)}
         />
