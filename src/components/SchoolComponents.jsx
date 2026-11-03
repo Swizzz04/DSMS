@@ -48,7 +48,8 @@ import {
   BookOpen, GraduationCap, ChevronDown, ChevronUp,
   MapPin, FileText
 } from 'lucide-react'
-import { COLLEGE_YEAR_LEVELS, isCampusLockedRole } from '../config/appConfig'
+import { isCampusLockedRole } from '../config/appConfig'
+import { useAppConfig } from '../context/AppConfigContext'
 
 // ────────────────────────────────────────────────────────────────
 // PRIMITIVES
@@ -476,6 +477,8 @@ export function DeptEnrollmentCard({ group, enrollments }) {
  *   <ProgramEnrollmentCard program="BS Nursing" colorIdx={0} enrollments={filteredEnrollments} />
  */
 export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
+  const { getProgramYearLevels } = useAppConfig()
+  const COLLEGE_YEAR_LEVELS = getProgramYearLevels(undefined, program)   // this program's years (merged across campuses)
   const [expanded, setExpanded] = useState(true)
   const style = PROG_COLORS[colorIdx % PROG_COLORS.length]
 
@@ -719,6 +722,8 @@ export function DeptPaymentCard({ group, payments }) {
  *   <ProgramPaymentCard program="BS Nursing" colorIdx={0} payments={filteredPayments} />
  */
 export function ProgramPaymentCard({ program, colorIdx, payments }) {
+  const { getProgramYearLevels } = useAppConfig()
+  const COLLEGE_YEAR_LEVELS = getProgramYearLevels(undefined, program)
   const [expanded, setExpanded] = useState(true)
   const style = PROG_COLORS[colorIdx % PROG_COLORS.length]
 
