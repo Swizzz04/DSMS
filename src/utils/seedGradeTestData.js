@@ -15,17 +15,14 @@
  * ─────────────────────────────────────────────────────────────────
  */
 
+import { getCurrentSchoolYear, readCampusSchoolYears } from '../config/appConfig'
+
 export function seedGradeTestData() {
   const campusKey = 'Carcar'
   const campusName = 'Carcar City Campus'
-  // Detect active school year from config
+  // Detect this campus's current school year (each campus owns its own list)
   const schoolYear = (() => {
-    try {
-      const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
-      const years = cfg.schoolYears || []
-      const current = years.find(sy => sy.isCurrent)
-      return current?.year || '2026-2027'
-    } catch { return '2026-2027' }
+    try { return getCurrentSchoolYear(readCampusSchoolYears(campusKey)) } catch { return '2026-2027' }
   })()
   const teacherId = 19
   const teacherName = 'Maria Santos'

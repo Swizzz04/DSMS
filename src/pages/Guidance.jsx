@@ -33,6 +33,7 @@ import {
 import { useTablePaging, SortTh, Pager } from '../components/DataTable'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
+import StudentSearchPicker from '../components/StudentSearchPicker'
 import {
   getGuidanceAccess, todayYMD, CLEARANCE_DEPARTMENT_SCOPES,
   GUIDANCE_REFERRAL_SOURCES, GUIDANCE_REFERRAL_REASONS, GUIDANCE_REFERRAL_STATUSES,
@@ -120,73 +121,6 @@ const isLocked = (kind, status) =>
   (kind === 'incident' && (status === 'resolved' || status === 'reported' || status === 'declined'))
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STUDENT PICKER — searchable list (GroupedSelect has no search)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function StudentPicker({ students, value, onChange, locked = false, error }) {
-  const [q, setQ] = useState('')
-  const selected = students.find(s => String(s.id) === String(value))
-  const matches = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    const list = t ? students.filter(s => s.name.toLowerCase().includes(t) || String(s.studentNo).includes(t)) : students
-    return list.slice(0, 30)
-  }, [students, q])
-
-  if (selected) {
-    return (
-      <div>
-        <div className="flex items-center gap-3 px-3 py-2.5 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)]">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">{selected.name}</p>
-            <p className="text-xs text-[var(--color-text-muted)] truncate">
-              <span className="font-mono">{selected.studentNo || '—'}</span>{selected.gradeLevel ? ` · ${selected.gradeLevel}` : ''}
-            </p>
-          </div>
-          {locked
-            ? <Lock size={14} className="text-[var(--color-text-muted)] shrink-0" aria-label="Student cannot be changed" />
-            : <button type="button" onClick={() => onChange('')} className="btn btn-ghost text-xs py-1.5 px-3">Change</button>}
-        </div>
-        <FieldError>{error}</FieldError>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" aria-hidden="true" />
-        <input
-          type="text" value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Search student name or number…"
-          aria-label="Search student"
-          className={`${INPUT_CLASS} pl-9`}
-        />
-      </div>
-      <ul className="mt-2 max-h-48 overflow-y-auto border border-[var(--color-border)] rounded-xl divide-y divide-[var(--color-border)]">
-        {matches.length === 0 && (
-          <li className="px-3 py-4 text-sm text-center text-[var(--color-text-muted)]">No student found.</li>
-        )}
-        {matches.map(s => (
-          <li key={s.id}>
-            <button type="button" onClick={() => onChange(s.id)}
-              className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-bg-subtle)] transition">
-              <span className="block text-sm font-medium text-[var(--color-text-primary)]">{s.name}</span>
-              <span className="block text-xs text-[var(--color-text-muted)]">
-                <span className="font-mono">{s.studentNo || '—'}</span>{s.gradeLevel ? ` · ${s.gradeLevel}` : ''}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {students.length > matches.length && !q && (
-        <p className="text-xs text-[var(--color-text-muted)] mt-1">Showing the first {matches.length}. Type to narrow down.</p>
-      )}
-      <FieldError>{error}</FieldError>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // RECORD MODAL — add / edit a referral, incident or test result (editors)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -258,7 +192,7 @@ function RecordModal({ kind, record, students, onSubmit, onClose, mode }) {
             )}
             <div>
               <label className="form-label">Student <span className="text-[var(--color-error-text)]">*</span></label>
-              <StudentPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} locked={editing} error={errors.studentId} />
+              <StudentSearchPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} locked={editing} error={errors.studentId} />
             </div>
 
             <div>
@@ -989,7 +923,7 @@ function ReferralRequestModal({ students, onSubmit, onClose }) {
           <div className="p-5 space-y-4 overflow-y-auto">
             <div>
               <label className="form-label">Student <span className="text-[var(--color-error-text)]">*</span></label>
-              <StudentPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} error={errors.studentId} />
+              <StudentSearchPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} error={errors.studentId} />
             </div>
             <div>
               <label className="form-label">Date <span className="text-[var(--color-error-text)]">*</span></label>
@@ -1030,7 +964,7 @@ function IncidentReportModal({ students, onSubmit, onClose }) {
           <div className="p-5 space-y-4 overflow-y-auto">
             <div>
               <label className="form-label">Student <span className="text-[var(--color-error-text)]">*</span></label>
-              <StudentPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} error={errors.studentId} />
+              <StudentSearchPicker students={students} value={form.studentId} onChange={v => set('studentId', v)} error={errors.studentId} />
             </div>
             <div>
               <label className="form-label">Date of the incident <span className="text-[var(--color-error-text)]">*</span></label>

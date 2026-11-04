@@ -12,6 +12,7 @@ import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAuth } from '../context/AuthContext'
 import GradeLevelsTab from '../components/settings/GradeLevelsTab'
+import SchoolYearTab from '../components/settings/SchoolYearTab'
 import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, CUSTOM_FEE_ID_START, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
 import DatePicker from '../components/DatePicker'
@@ -137,7 +138,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)] flex items-center gap-2">
@@ -268,7 +269,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
       )}
 
       {/* Discount list */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 divide-y divide-[var(--color-border)] overflow-hidden">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] divide-y divide-[var(--color-border)] overflow-hidden">
         {discounts.length === 0 && (
           <div className="py-12 text-center text-gray-400">
             <Tag className="w-8 h-8 mx-auto mb-2 opacity-30"/>
@@ -360,7 +361,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
         const SAMPLE_ENROLLMENT = 2500
         const SAMPLE_MISC       = 1800
         return (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
               <Percent className="w-4 h-4 text-[var(--color-primary-readable)]"/> Cascading Discount Preview
             </h3>
@@ -613,7 +614,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Fee Structure</h2>
@@ -671,7 +672,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
         const isExpanded = openKey === group.key
 
         return (
-          <div key={group.key} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+          <div key={group.key} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
             {/* Group header */}
             <button
               onClick={() => toggleGroup(group.key)}
@@ -814,7 +815,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
 
       {/* College semester fee tables */}
       {collegePrograms.length > 0 && collegePrograms.map(program => (
-        <div key={program} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+        <div key={program} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
           {/* Program header */}
           <button
             onClick={() => toggleGroup(program)}
@@ -1044,7 +1045,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
       ))}
 
       {/* Save footer */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <p className="text-xs text-gray-400">
           {hasChanges
             ? <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400"><AlertCircle className="w-3.5 h-3.5"/> You have unsaved changes</span>
@@ -1083,7 +1084,8 @@ export default function Settings() {
   const { user } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const {
-    schoolYears, campuses, feeStructure, systemUsers, basicEdGroups,
+    schoolYears, getCampusSchoolYears, schoolWideSchoolYears, campusSchoolYears, currentYearsByCampus, updateCampusSchoolYears, resetCampusSchoolYears,
+    campuses, feeStructure, systemUsers, basicEdGroups,
     schoolBasicEdGroups, campusGradeLevels, schoolCollegeYearLevels, getProgramYearLevels, getSectionNames,
     updateConfig, resetSection, activeCampuses, currentSchoolYear
   } = useAppConfig()
@@ -1102,15 +1104,6 @@ export default function Settings() {
 
   const [loading, setLoading] = useState(true)
   const { toasts, addToast, removeToast } = useToast()
-  const [showAddSY, setShowAddSY] = useState(false)
-  const [addSYForm, setAddSYForm] = useState({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' })
-  const [expandedSY, setExpandedSY] = useState(null)
-  const [showAddEvent, setShowAddEvent] = useState(null)  // { syId, dept }
-  const [newEvtName, setNewEvtName] = useState('')
-  const [newEvtType, setNewEvtType] = useState('academic')
-  const [newEvtStart, setNewEvtStart] = useState('')
-  const [newEvtEnd, setNewEvtEnd] = useState('')
-  const [editSY, setEditSY] = useState(null)
   const [syDeptView, setSyDeptView] = useState(() =>
     user?.role === 'program_head' ? 'college' : 'basic_ed'
   )
@@ -1376,7 +1369,6 @@ export default function Settings() {
   }, [activeTab])
 
   // Local editable copies — committed to context on Save
-  const [editSchoolYears, setEditSchoolYears] = useState(() => schoolYears)
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [editFrameworks, setEditFrameworks] = useState(() => getGradingFrameworks())
   const [activeFrameworkId, setActiveFrameworkId] = useState(() => getGradingFrameworks()[0]?.id)
@@ -1507,7 +1499,7 @@ export default function Settings() {
   if (loading) return <PageSkeleton title="Settings" />
 
   // Tabs whose settings belong to one campus. The rest are saved once for the whole school.
-  const CAMPUS_SCOPED_TABS = ['discounts', 'fees', 'formTemplates', 'grades', 'receipt', 'users', 'workflow']
+  const CAMPUS_SCOPED_TABS = ['discounts', 'fees', 'formTemplates', 'grades', 'receipt', 'schoolYear', 'users', 'workflow']
 
   // A Technical Admin must choose a campus before touching any setting, so a change never lands
   // on a campus they did not mean.
@@ -1598,171 +1590,26 @@ export default function Settings() {
           // vice versa. Only technical_admin sees both.
           const canManageBasicEd = role === 'technical_admin' || role === 'principal_basic' || role === 'registrar_basic'
           const canManageCollege = role === 'technical_admin' || role === 'program_head' || role === 'registrar_college'
-          const deptLabel = { basic_ed: 'Basic Education', college: 'College' }
-          const deptKey = visibleDept === 'college' ? 'college' : 'basicEd'
-          const sorted = editSchoolYears.slice().sort((a, b) => b.year.localeCompare(a.year))
 
           return (
           <>
-          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-              <div>
-                <h2 className="text-xl font-bold text-[var(--color-text-primary)]">School Year Management</h2>
-                <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                  {canSeeBoth ? 'Manage academic calendars per department' : `Manage ${deptLabel[visibleDept]} academic calendar`}
-                </p>
-              </div>
-              <button onClick={() => setShowAddSY(true)}
-                className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold self-start sm:self-auto">
-                <Plus className="w-4 h-4" /> Add School Year
-              </button>
-            </div>
-
-            {/* Department tabs — tech admin only */}
-            {canSeeBoth && (
-              <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl mb-5 w-fit">
-                {[
-                  { key: 'basic_ed', label: 'Basic Education', icon: BookOpen },
-                  { key: 'college',  label: 'College',         icon: GraduationCap },
-                ].map(dept => (
-                  <button key={dept.key} onClick={() => { setSyDeptView(dept.key); setExpandedSY(null) }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                      syDeptView === dept.key ? 'is-selected shadow-sm' : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                    }`}>
-                    <dept.icon className="w-4 h-4" /> {dept.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Department label for locked roles */}
-            {!canSeeBoth && (
-              <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-[var(--color-bg-subtle)] rounded-lg w-fit">
-                {visibleDept === 'basic_ed' ? <BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /> : <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />}
-                <span className="text-sm font-medium text-[var(--color-text-primary)]">{deptLabel[visibleDept]} Department</span>
-              </div>
-            )}
-
-            {sorted.length === 0 ? (
-              <div className="text-center py-12">
-                <Calendar className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
-                <p className="text-sm text-[var(--color-text-muted)]">No school years configured yet.</p>
-                <button onClick={() => setShowAddSY(true)} className="mt-3 text-sm text-[var(--color-primary-readable)] font-medium hover:underline">Add your first school year</button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {sorted.map((sy) => {
-                  const isExpanded = expandedSY === sy.id
-                  const cal = sy[deptKey] || { startDate: '', endDate: '', events: [] }
-                  const events = cal.events || []
-                  const eventTypeColors = {
-                    academic: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-                    holiday:  'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
-                    special:  'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400',
-                  }
-                  return (
-                  <div key={sy.id} className={`border rounded-xl overflow-hidden transition-colors ${sy.isCurrent ? 'border-primary/40 bg-primary/5' : 'border-[var(--color-border)]'}`}>
-                    {/* Header */}
-                    <button onClick={() => setExpandedSY(isExpanded ? null : sy.id)} aria-expanded={isExpanded}
-                      className="w-full text-left p-4 flex items-center justify-between hover:bg-[var(--color-bg-subtle)]/50 transition">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                          <h3 className="text-base font-bold text-[var(--color-text-primary)]">{sy.year}</h3>
-                          {sy.isCurrent && (
-                            <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-semibold rounded-full uppercase tracking-wider">Current</span>
-                          )}
-                          <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wider ${
-                            sy.status === 'active'    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' :
-                            sy.status === 'completed' ? 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]' :
-                            'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                          }`}>{sy.status}</span>
-                          {deptKey === 'basicEd' && (
-                            <span className="px-2 py-0.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] text-[10px] font-semibold rounded-full uppercase tracking-wider">
-                              {sy.gradingPeriodType === 'trimester' ? 'Trimester' : 'Quarterly'} · {getGradingFrameworks().find(f => f.id === sy.gradingFramework)?.label.replace(/^DepEd Order No\.\s*/, '') || 'DO 8 s.2015'}
-                            </span>
-                          )}
-                          {events.length > 0 && (
-                            <span className="text-[10px] text-[var(--color-text-muted)]">{events.length} event{events.length !== 1 ? 's' : ''}</span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[var(--color-text-muted)]">
-                          {cal.startDate
-                            ? `${new Date(cal.startDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} — ${new Date(cal.endDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-                            : 'No dates configured for this department'
-                          }
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); setEditSY({ ...sy, _dept: visibleDept }) }} className="icon-btn-ghost" title="Edit school year">
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <ChevronDown className={`w-5 h-5 text-[var(--color-text-muted)] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                      </div>
-                    </button>
-
-                    {/* Expanded — events */}
-                    <AccordionBody open={isExpanded}>
-                      <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)]/30">
-                        <div className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-                              <Clock className="w-4 h-4 text-[var(--color-text-muted)]" /> {deptLabel[visibleDept]} Events
-                            </h4>
-                            <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="text-xs text-[var(--color-primary-readable)] font-medium hover:underline flex items-center gap-1">
-                              <Plus className="w-3.5 h-3.5" /> Add Event
-                            </button>
-                          </div>
-
-                          {events.length === 0 ? (
-                            <div className="text-center py-6 border border-dashed border-[var(--color-border)] rounded-lg">
-                              <p className="text-xs text-[var(--color-text-muted)]">No events scheduled</p>
-                              <button onClick={() => setShowAddEvent({ syId: sy.id, dept: deptKey })} className="mt-2 text-xs text-[var(--color-primary-readable)] font-medium hover:underline">Add your first event</button>
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              {events.slice().sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).map((evt) => (
-                                <div key={evt.id} className="flex items-start gap-3 p-3 bg-[var(--color-bg-card)] rounded-lg border border-[var(--color-border)]">
-                                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                                    <Calendar className="w-4 h-4 text-[var(--color-primary-readable)]" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                                      <span className="text-sm font-medium text-[var(--color-text-primary)]">{evt.name}</span>
-                                      <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded uppercase tracking-wider ${eventTypeColors[evt.type] || eventTypeColors.special}`}>{evt.type}</span>
-                                    </div>
-                                    <p className="text-xs text-[var(--color-text-muted)]">
-                                      {new Date(evt.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                      {evt.endDate && evt.endDate !== evt.startDate && (<> — {new Date(evt.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</>)}
-                                      {(!evt.endDate || evt.endDate === evt.startDate) && (<>, {new Date(evt.startDate).getFullYear()}</>)}
-                                    </p>
-                                  </div>
-                                  <button onClick={() => {
-                                    setEditSchoolYears(editSchoolYears.map(s => s.id === sy.id ? { ...s, [deptKey]: { ...s[deptKey], events: (s[deptKey]?.events || []).filter(e => e.id !== evt.id) } } : s))
-                                    addToast(`"${evt.name}" removed`, 'success')
-                                  }} className="icon-btn-ghost flex-shrink-0" title="Remove event">
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </AccordionBody>
-                  </div>
-                )})}
-              </div>
-            )}
-
-            <div className="mt-6 flex items-center justify-between border-t border-[var(--color-border)] pt-4">
-              <p className="text-xs text-[var(--color-text-muted)]">{sorted.length} school year{sorted.length !== 1 ? 's' : ''} · {deptLabel[visibleDept]}</p>
-              <button onClick={() => saveSection('schoolYears', editSchoolYears)}
-                className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
-                {savedSection === 'schoolYears' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {savedSection === 'schoolYears' ? 'Saved!' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
+          <SchoolYearTab
+            campusKey={settingsCampusKey}
+            campusName={settingsCampusName}
+            years={getCampusSchoolYears(settingsCampusKey)}   // read for THIS campus directly, not the context's working campus (which updates one render later)
+            hasOwnList={!!campusSchoolYears?.[settingsCampusKey]?.length}
+            schoolWideYears={schoolWideSchoolYears}
+            currentYearsByCampus={currentYearsByCampus}
+            canSeeBoth={canSeeBoth}
+            visibleDept={visibleDept}
+            onDeptChange={setSyDeptView}
+            onSave={(list) => updateCampusSchoolYears(settingsCampusKey, list)}
+            onReset={() => {
+              resetCampusSchoolYears(settingsCampusKey)
+              addToast(`${settingsCampusName} now uses the school-wide school years.`, 'success')
+            }}
+            addToast={addToast}
+          />
 
           {(canManageBasicEd || canManageCollege) && (() => {
             const activeFramework = editFrameworks.find(f => f.id === activeFrameworkId) || editFrameworks[0]
@@ -1784,7 +1631,7 @@ export default function Settings() {
             return (
             <>
             {canManageBasicEd && activeFramework && (
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50 mt-4">
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)] mt-4">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-[var(--color-text-primary)]">Grading Frameworks</h2>
@@ -2001,7 +1848,7 @@ export default function Settings() {
             )}
 
             {canManageCollege && activeCollegeFramework && (
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50 mt-4">
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)] mt-4">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-xl font-bold text-[var(--color-text-primary)]">College Grading</h2>
@@ -2124,7 +1971,7 @@ export default function Settings() {
                   </thead>
                   <tbody>
                     {activeCollegeFramework.scale.map((row, idx) => (
-                      <tr key={idx} className="border-b border-[var(--color-border)]/50">
+                      <tr key={idx} className="border-b border-[var(--color-border)]">
                         {['min', 'max'].map(field => (
                           <td key={field} className="px-3 py-1.5">
                             <input type="number" min="0" max="100" value={row[field]}
@@ -2362,299 +2209,6 @@ export default function Settings() {
             )
         })()}
 
-        {/* Add School Year Modal */}
-        {showAddSY && (() => {
-          const existingYears = editSchoolYears.map(y => y.year)
-          const latestYear = editSchoolYears.length > 0
-            ? Math.max(...editSchoolYears.map(y => parseInt(y.year.split('-')[1])))
-            : new Date().getFullYear()
-          const suggestedYear = `${latestYear}-${latestYear + 1}`
-
-          // Init form on first open
-          if (!addSYForm.year && !existingYears.includes(suggestedYear)) {
-            setTimeout(() => setAddSYForm({ year: suggestedYear, beStart: `${latestYear}-06-01`, beEnd: `${latestYear + 1}-03-31`, colStart: `${latestYear}-08-01`, colEnd: `${latestYear + 1}-05-31` }), 0)
-          }
-
-          return (
-            <ModalPortal>
-            <div className="modal-backdrop-center">
-              <div className="modal-panel-sm">
-                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Add School Year</h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-5">Create a new academic year with department calendars</p>
-
-                <label className="form-label">School Year</label>
-                <input type="text" value={addSYForm.year} onChange={e => setAddSYForm(f => ({ ...f, year: e.target.value }))} placeholder="e.g. 2028-2029"
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
-
-                {(canSeeBoth || visibleDept === 'basic_ed') && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <DatePicker label={<span className="flex items-center gap-1.5"><BookOpen className="w-3 h-3" /> Basic Ed Start</span>} value={addSYForm.beStart} onChange={v => setAddSYForm(f => ({ ...f, beStart: v }))} />
-                    <DatePicker label="Basic Ed End" value={addSYForm.beEnd} onChange={v => setAddSYForm(f => ({ ...f, beEnd: v }))} />
-                  </div>
-                )}
-
-                {(canSeeBoth || visibleDept === 'college') && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <DatePicker label={<span className="flex items-center gap-1.5"><GraduationCap className="w-3 h-3" /> College Start</span>} value={addSYForm.colStart} onChange={v => setAddSYForm(f => ({ ...f, colStart: v }))} />
-                    <DatePicker label="College End" value={addSYForm.colEnd} onChange={v => setAddSYForm(f => ({ ...f, colEnd: v }))} />
-                  </div>
-                )}
-                {!canSeeBoth && (
-                  <p className="text-[10px] text-[var(--color-text-muted)] -mt-2 mb-4">
-                    {visibleDept === 'basic_ed' ? 'College' : 'Basic Ed'} dates will be set to a standard default — a Super Admin or {visibleDept === 'basic_ed' ? 'College' : 'Basic Ed'} staff member can adjust them afterward.
-                  </p>
-                )}
-
-                <label className="form-label mb-1.5">Status</label>
-                <div className="mb-5">
-                  <GroupedSelect value="upcoming" onChange={() => {}} allLabel={null} options={[
-                    { value: 'upcoming', label: 'Upcoming' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' },
-                  ]} />
-                </div>
-
-                <div className="action-row">
-                  <button onClick={() => { setShowAddSY(false); setAddSYForm({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' }) }} className="btn-cancel">Cancel</button>
-                  <button className="btn-action" onClick={() => {
-                    const year = addSYForm.year.trim()
-                    if (!year) { addToast('Please enter a school year', 'error'); return }
-                    if (!/^\d{4}-\d{4}$/.test(year)) { addToast('Format must be YYYY-YYYY', 'error'); return }
-                    const [sY, eY] = year.split('-').map(Number)
-                    if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
-                    if (existingYears.includes(year)) { addToast(`${year} already exists`, 'error'); return }
-
-                    // Only require dates for the department this user can actually see —
-                    // a Basic Ed principal/registrar creating a school year shouldn't need
-                    // to think about College's calendar (and vice versa for a College
-                    // dean/registrar). The other department gets a standard default,
-                    // adjustable later by whoever actually manages it.
-                    const needsBasicEd = canSeeBoth || visibleDept === 'basic_ed'
-                    const needsCollege = canSeeBoth || visibleDept === 'college'
-                    if (needsBasicEd && (!addSYForm.beStart || !addSYForm.beEnd)) { addToast('Please set Basic Ed dates', 'error'); return }
-                    if (needsCollege && (!addSYForm.colStart || !addSYForm.colEnd)) { addToast('Please set College dates', 'error'); return }
-
-                    setEditSchoolYears(prev => [...prev, {
-                      id: Date.now(), year, status: 'upcoming', isCurrent: false,
-                      gradingPeriodType: 'quarterly', gradingFramework: 'do8_2015', collegeGradingFramework: 'ched_standard',
-                      basicEd: {
-                        startDate: addSYForm.beStart || `${sY}-06-01`,
-                        endDate:   addSYForm.beEnd   || `${eY}-03-31`,
-                        events: [],
-                      },
-                      college: {
-                        startDate: addSYForm.colStart || `${sY}-08-01`,
-                        endDate:   addSYForm.colEnd   || `${eY}-05-31`,
-                        events: [],
-                      },
-                    }])
-                    setShowAddSY(false); setAddSYForm({ year: '', beStart: '', beEnd: '', colStart: '', colEnd: '' })
-                    addToast(`School year ${year} added! Click "Save Changes" to apply.`, 'success')
-                  }}>Add School Year</button>
-                </div>
-              </div>
-            </div>
-            </ModalPortal>
-          )
-        })()}
-
-        {/* Add Event Modal */}
-        {showAddEvent && (() => {
-          const targetSY = editSchoolYears.find(sy => sy.id === showAddEvent.syId)
-          if (!targetSY) return null
-          const dept = showAddEvent.dept
-          const deptName = dept === 'basicEd' ? 'Basic Education' : 'College'
-
-          const presetEvents = [
-            { name: 'Enrollment Period',    type: 'academic' },
-            { name: 'Midterm Examinations', type: 'academic' },
-            { name: 'Final Examinations',   type: 'academic' },
-            { name: 'Semestral Break',      type: 'holiday' },
-            { name: 'Summer Break',         type: 'holiday' },
-            { name: 'Graduation Ceremony',  type: 'special' },
-            { name: 'Foundation Day',       type: 'special' },
-          ]
-          const existingEvents = targetSY[dept]?.events || []
-
-          return (
-            <ModalPortal>
-            <div className="modal-backdrop-center">
-              <div className="modal-panel-sm" style={{ maxWidth: '28rem' }}>
-                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-0.5">Add Event</h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-5">
-                  {deptName} · <span className="font-semibold text-[var(--color-text-primary)]">{targetSY.year}</span>
-                </p>
-
-                <label className="form-label">Quick Add</label>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {presetEvents.map(preset => {
-                    const exists = existingEvents.some(e => e.name === preset.name)
-                    return (
-                      <button key={preset.name} disabled={exists}
-                        onClick={() => { setNewEvtName(preset.name); setNewEvtType(preset.type) }}
-                        className={`px-2.5 py-1 text-[11px] rounded-lg border transition ${
-                          exists ? 'border-[var(--color-border)] text-[var(--color-text-muted)] opacity-40 cursor-not-allowed line-through'
-                            : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-primary-readable)] hover:text-[var(--color-primary-readable)] cursor-pointer'
-                        }`}>{preset.name}</button>
-                    )
-                  })}
-                </div>
-
-                <label className="form-label">Event Name</label>
-                <input type="text" value={newEvtName} onChange={e => setNewEvtName(e.target.value)}
-                  placeholder="e.g. Enrollment Period"
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
-
-                <label className="form-label mb-1.5">Event Type</label>
-                <div className="mb-4">
-                  <GroupedSelect value={newEvtType} onChange={setNewEvtType} allLabel={null}
-                    options={[
-                      { value: 'academic', label: 'Academic' },
-                      { value: 'holiday',  label: 'Holiday / Break' },
-                      { value: 'special',  label: 'Special Event' },
-                    ]} />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                  <DatePicker label="Start Date" value={newEvtStart} onChange={setNewEvtStart} />
-                  <DatePicker label="End Date" value={newEvtEnd} onChange={setNewEvtEnd} />
-                </div>
-
-                <div className="action-row">
-                  <button onClick={() => { setShowAddEvent(null); setNewEvtName(''); setNewEvtType('academic'); setNewEvtStart(''); setNewEvtEnd('') }} className="btn-cancel">Cancel</button>
-                  <button className="btn-action" onClick={() => {
-                    const name = newEvtName.trim()
-                    if (!name) { addToast('Please enter an event name', 'error'); return }
-                    if (!newEvtStart) { addToast('Please set a start date', 'error'); return }
-                    const endDate = newEvtEnd || newEvtStart
-                    if (new Date(endDate) < new Date(newEvtStart)) { addToast('End date cannot be before start', 'error'); return }
-
-                    setEditSchoolYears(editSchoolYears.map(sy =>
-                      sy.id === showAddEvent.syId
-                        ? { ...sy, [dept]: { ...sy[dept], events: [...(sy[dept]?.events || []), { id: Date.now(), name, type: newEvtType, startDate: newEvtStart, endDate }] } }
-                        : sy
-                    ))
-                    setShowAddEvent(null); setNewEvtName(''); setNewEvtType('academic'); setNewEvtStart(''); setNewEvtEnd('')
-                    addToast(`"${name}" added to ${targetSY.year}`, 'success')
-                  }}>Add Event</button>
-                </div>
-              </div>
-            </div>
-            </ModalPortal>
-          )
-        })()}
-
-        {/* Edit School Year Modal */}
-        {editSY && (() => {
-          const dept = editSY._dept || 'basic_ed'
-          const deptKey = dept === 'college' ? 'college' : 'basicEd'
-          const cal = editSY[deptKey] || { startDate: '', endDate: '' }
-
-          return (
-            <ModalPortal>
-            <div className="modal-backdrop-center">
-              <div className="modal-panel-sm">
-                <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Edit School Year</h3>
-                <p className="text-xs text-[var(--color-text-muted)] mb-5">
-                  Editing <span className="font-semibold text-[var(--color-text-primary)]">{editSY.year}</span> · {dept === 'college' ? 'College' : 'Basic Education'} dates
-                </p>
-
-                <label className="form-label">School Year</label>
-                <input type="text" value={editSY.year} onChange={e => setEditSY({ ...editSY, year: e.target.value })}
-                  className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition mb-4" />
-
-                <div className="mb-4">
-                  <DatePicker label={`Start Date (${dept === 'college' ? 'College' : 'Basic Ed'})`} value={cal.startDate} onChange={v => setEditSY({ ...editSY, [deptKey]: { ...cal, startDate: v } })} />
-                </div>
-
-                <div className="mb-4">
-                  <DatePicker label={`End Date (${dept === 'college' ? 'College' : 'Basic Ed'})`} value={cal.endDate} onChange={v => setEditSY({ ...editSY, [deptKey]: { ...cal, endDate: v } })} />
-                </div>
-
-                <label className="form-label mb-1.5">Status</label>
-                <div className="mb-4">
-                  <GroupedSelect value={editSY.status} onChange={v => setEditSY({ ...editSY, status: v })} allLabel={null}
-                    options={[
-                      { value: 'upcoming', label: 'Upcoming' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' },
-                    ]} />
-                </div>
-
-                {dept === 'basic_ed' && (
-                  <>
-                    <label className="form-label mb-1.5">Grading Period Type</label>
-                    <div className="mb-4">
-                      <GroupedSelect value={editSY.gradingPeriodType || 'quarterly'}
-                        onChange={v => setEditSY({ ...editSY, gradingPeriodType: v })} allLabel={null}
-                        options={[
-                          { value: 'quarterly', label: 'Quarterly (Q1–Q4)' },
-                          { value: 'trimester', label: 'Trimester (T1–T3) — DepEd Order No. 9, s.2026' },
-                        ]} />
-                    </div>
-
-                    <label className="form-label mb-1.5">Grading Framework</label>
-                    <div className="mb-4">
-                      <GroupedSelect value={editSY.gradingFramework || 'do8_2015'}
-                        onChange={v => setEditSY({ ...editSY, gradingFramework: v })} allLabel={null}
-                        options={getGradingFrameworks().map(f => ({ value: f.id, label: f.label }))} />
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                        Manage component weights, transmutation, and add new frameworks (e.g. when DepEd
-                        revises the grading system again) in the Grading Frameworks panel below. Score-entry
-                        UI for frameworks with more than 3 flat components (e.g. WW/PT/EX with sub-exams)
-                        is still being built.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {dept === 'college' && (
-                  <div className="mb-4">
-                    <label className="form-label mb-1.5">Grading Framework</label>
-                    <GroupedSelect value={editSY.collegeGradingFramework || 'ched_standard'}
-                      onChange={v => setEditSY({ ...editSY, collegeGradingFramework: v })} allLabel={null}
-                      options={getCollegeGradingFrameworks().map(f => ({ value: f.id, label: f.label }))} />
-                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
-                      Manage component weights and the point-scale conversion, and add new frameworks (e.g.
-                      when CHED revises grading), in the College Grading panel below.
-                    </p>
-                  </div>
-                )}
-
-                <label className="flex items-center gap-3 mb-5 cursor-pointer">
-                  <input type="checkbox" checked={editSY.isCurrent || false}
-                    onChange={e => setEditSY({ ...editSY, isCurrent: e.target.checked })}
-                    className="w-4 h-4 rounded border-[var(--color-border)] text-[var(--color-primary-readable)] focus:ring-primary" />
-                  <span className="text-sm text-[var(--color-text-secondary)]">Set as current school year</span>
-                </label>
-
-                <div className="action-row">
-                  <button onClick={() => setEditSY(null)} className="btn-cancel">Cancel</button>
-                  <button className="btn-action" onClick={() => {
-                    const year = editSY.year.trim()
-                    if (!year || !/^\d{4}-\d{4}$/.test(year)) { addToast('Format must be YYYY-YYYY', 'error'); return }
-                    const [sY, eY] = year.split('-').map(Number)
-                    if (eY !== sY + 1) { addToast('End year must be 1 year after start', 'error'); return }
-                    const dupe = editSchoolYears.find(sy => sy.year === year && sy.id !== editSY.id)
-                    if (dupe) { addToast(`${year} already exists`, 'error'); return }
-                    const updatedCal = editSY[deptKey]
-                    if (!updatedCal?.startDate || !updatedCal?.endDate) { addToast('Please set both dates', 'error'); return }
-                    if (new Date(updatedCal.endDate) <= new Date(updatedCal.startDate)) { addToast('End date must be after start', 'error'); return }
-
-                    setEditSchoolYears(editSchoolYears.map(sy => {
-                      if (sy.id === editSY.id) {
-                        const updated = { ...editSY }
-                        delete updated._dept
-                        return updated
-                      }
-                      if (editSY.isCurrent) return { ...sy, isCurrent: false }
-                      return sy
-                    }))
-                    setEditSY(null)
-                    addToast(`${year} updated! Click "Save Changes" to apply.`, 'success')
-                  }}>Save Changes</button>
-                </div>
-              </div>
-            </div>
-            </ModalPortal>
-          )
-        })()}
           </>
           )
         })()}
@@ -2695,7 +2249,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 1: General Information ── */}
-            <div id="info-section-general" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-general" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('general')} aria-expanded={infoSections.general} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><School className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -2732,7 +2286,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 2: System Branding ── */}
-            <div id="info-section-branding" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-branding" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('branding')} aria-expanded={infoSections.branding} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Paintbrush className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -2795,7 +2349,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 3: Login Page ── */}
-            <div id="info-section-loginPage" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-loginPage" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('loginPage')} aria-expanded={infoSections.loginPage} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -2847,7 +2401,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 4: About — Mission, Vision, Goals, Core Values ── */}
-            <div id="info-section-about" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-about" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('about')} aria-expanded={infoSections.about} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -2895,7 +2449,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 4: FAQ Management ── */}
-            <div id="info-section-faq" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-faq" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('faq')} aria-expanded={infoSections.faq} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><HelpCircle className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -2959,7 +2513,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 5: Academic Programs ── */}
-            <div id="info-section-programs" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-programs" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('programs')} aria-expanded={infoSections.programs} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -3046,7 +2600,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 6: Admission Requirements & Steps ── */}
-            <div id="info-section-admissions" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-admissions" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('admissions')} aria-expanded={infoSections.admissions} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Tag className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -3136,7 +2690,7 @@ export default function Settings() {
             </div>
 
             {/* ── Section 7: Campus Configuration ── */}
-            <div id="info-section-campuses" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+            <div id="info-section-campuses" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
               <button onClick={() => toggleInfoSection('campuses')} aria-expanded={infoSections.campuses} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
@@ -3303,7 +2857,7 @@ export default function Settings() {
               addToast={addToast}
             />
           ) : (
-            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+            <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]">
               <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-1">Grade Levels</h2>
               <p className="text-sm text-[var(--color-text-secondary)]">Grade levels are set for one campus at a time. Choose a campus from the Campus menu in the header.</p>
             </div>
@@ -3322,7 +2876,7 @@ export default function Settings() {
 
         {/* Receipt Settings Tab — accounting only */}
         {activeTab === 'receipt' && (
-          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]/50">
+          <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm p-6 border border-[var(--color-border)]">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
                 <Receipt className="w-5 h-5 text-[var(--color-primary-readable)]" />
@@ -4046,7 +3600,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">User Management</h2>
@@ -4137,7 +3691,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
 
       {/* ── STUDENTS & PARENTS VIEW ─────────────────────────────── */}
       {userTabView === 'students' && (
-        <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+        <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
           {filteredStudents.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <Users className="w-10 h-10 mx-auto mb-3 text-[var(--color-text-muted)]" />
@@ -4223,7 +3777,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
       {userTabView === 'staff' && (<>
 
       {/* User table */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 overflow-hidden">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
         {/* Mobile list */}
         <ul className="md:hidden divide-y divide-[var(--color-border)]">
           {filtered.map(u => (

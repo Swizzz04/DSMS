@@ -88,7 +88,7 @@ function chartTheme() {
 // ─────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, getSchoolYearLabel, getSchoolYearsForCampusName } = useAppConfig()
   const { campusFilter = 'all' } = useCampusFilter()
   const [loading, setLoading] = useState(true)
   const [submissions, setSubmissions] = useState(loadSubmissions)
@@ -136,6 +136,9 @@ export default function Dashboard() {
     ? activeCampuses.find(c => c.name === accountingCampus)?.key || campusFilter
     : campusFilter
 
+  // Each campus has its own school year: one campus shows its year, all campuses show every campus's own
+  const yearLabel = getSchoolYearLabel(effectiveCampusFilter)
+
   const shownCampuses = isAccountingLocked
     ? activeCampuses.filter(c => c.name === accountingCampus)
     : effectiveCampusFilter === 'all'
@@ -172,7 +175,7 @@ export default function Dashboard() {
       totalFee:   s.totalFee   || 0,
       amountPaid: s.amountPaid || 0,
       balance:    s.balance    || 0,
-      status:     getPaymentStatus(s.balance || 0, getSubmissionDueDate(s, { schoolYears, isCollegeGrade }))
+      status:     getPaymentStatus(s.balance || 0, getSubmissionDueDate(s, { getSchoolYearsFor: getSchoolYearsForCampusName, isCollegeGrade }))
     }))
 
   const filteredStudents = submissions
@@ -318,7 +321,7 @@ export default function Dashboard() {
       {
         data: [
           { Metric: 'Campus',              Value: campusLabel },
-          { Metric: 'School Year',         Value: currentSchoolYear },
+          { Metric: 'School Year',         Value: yearLabel },
           { Metric: 'Total Students',      Value: stuTotal },
           { Metric: 'Basic Ed Students',   Value: basicStu.length },
           { Metric: 'College Students',    Value: collegeStu.length },
@@ -574,7 +577,7 @@ export default function Dashboard() {
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <h1 className="text-display text-[var(--color-text-primary)]">Owner Dashboard</h1>
-            <p className="text-body text-[var(--color-text-muted)] mt-1">{currentSchoolYear} · All Campuses · Executive Overview</p>
+            <p className="text-body text-[var(--color-text-muted)] mt-1">{getSchoolYearLabel('all')} · All Campuses · Executive Overview</p>
           </div>
           <button onClick={handleExport} className="btn btn-primary self-start"><Download className="w-4 h-4" /> Export Report</button>
         </div>
@@ -688,7 +691,7 @@ export default function Dashboard() {
             {dashboardTitle()}
           </h1>
           <p className="text-body text-[var(--color-text-muted)] mt-1">
-            {currentSchoolYear} · {campusLabel} · Summary Report
+            {yearLabel} · {campusLabel} · Summary Report
           </p>
         </div>
 
@@ -839,7 +842,7 @@ export default function Dashboard() {
                 Students &amp; Enrollments by Campus
               </h3>
             </div>
-            <p className="text-caption text-[var(--color-text-muted)] mb-4">{currentSchoolYear}</p>
+            <p className="text-caption text-[var(--color-text-muted)] mb-4">{yearLabel}</p>
             <div style={{ height: 200 }}>
               <Bar data={campusBarData} options={baseOpts} />
             </div>
@@ -853,7 +856,7 @@ export default function Dashboard() {
               </h3>
             </div>
             <p className="text-caption text-[var(--color-text-muted)] mb-4">
-              {campusLabel} · {currentSchoolYear}
+              {campusLabel} · {yearLabel}
             </p>
             <div style={{ height: 200 }}>
               <Bar

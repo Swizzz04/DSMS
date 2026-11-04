@@ -62,7 +62,8 @@ function getSchoolBrand() {
 
 // ADMIN PAYMENTS OVERVIEW
 // ════════════════════════════════════════════════════════════════════
-function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, currentSchoolYear, addToast, onRecordPayment }) {
+function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, addToast, onRecordPayment }) {
+  const { getSchoolYearLabel } = useAppConfig()
   const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels } = useAppConfig()
   const shownCampuses   = campusFilter !== 'all'
     ? activeCampuses.filter(c => c.key === campusFilter)
@@ -137,7 +138,7 @@ function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, current
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Payments</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            {currentSchoolYear} · {isSingleCampus ? `${shownCampuses[0].name} payment overview` : 'School-wide income and payment overview'}
+            {getSchoolYearLabel(isSingleCampus ? shownCampuses[0].key : 'all')} · {isSingleCampus ? `${shownCampuses[0].name} payment overview` : 'School-wide income and payment overview'}
           </p>
         </div>
         <button onClick={handleExport}
@@ -1654,7 +1655,7 @@ function PaymentsListTable({ items, showCampus, resetKey, onView, onPay }) {
 
 export default function Payments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, campusProgramsMap, isBasicGrade, isCollegeGrade, schoolYears, basicEdGroups: configBasicEdGroups, getProgramYearLevels: configProgramYears } = useAppConfig()
+  const { activeCampuses, getSchoolYearLabel, getSchoolYearsForCampusName, campusProgramsMap, isBasicGrade, isCollegeGrade, basicEdGroups: configBasicEdGroups, getProgramYearLevels: configProgramYears } = useAppConfig()
 
   const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
   const accountingCampus   = isAccountingLocked ? user.campus : null
@@ -1734,7 +1735,7 @@ export default function Payments() {
           }] : [])
           // Due date: the one saved on the record (set at enrollment or moved by a
           // promissory note); otherwise worked out from the campus policy.
-          const dueDate = getSubmissionDueDate(s, { schoolYears, isCollegeGrade })
+          const dueDate = getSubmissionDueDate(s, { getSchoolYearsFor: getSchoolYearsForCampusName, isCollegeGrade })
           // Freeze: a date worked out from the calendar is saved on the record, so later
           // calendar edits only affect new students (existing dates move only by extension).
           if (!s.dueDate && dueDate) frozenDates.set(s.referenceNumber, dueDate)
@@ -1784,7 +1785,7 @@ export default function Payments() {
       window.removeEventListener('almirene_enrollment_updated', load)
       window.removeEventListener('storage', handleStorage)
     }
-  }, [baseCampusFilter, schoolYears, isCollegeGrade])
+  }, [baseCampusFilter, getSchoolYearsForCampusName, isCollegeGrade])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
     const t = setTimeout(() => setLoading(false), 100)
@@ -1943,7 +1944,6 @@ export default function Payments() {
           payments={payments}
           campusFilter={campusFilter}
           activeCampuses={activeCampuses}
-          currentSchoolYear={currentSchoolYear}
           addToast={addToast}
           onRecordPayment={handleRecordPayment}
         />
@@ -2311,7 +2311,7 @@ export default function Payments() {
         <SOATab
           payments={filtered}
           cashierName={cashierName}
-          schoolYear={currentSchoolYear}
+          schoolYear={getSchoolYearLabel(baseCampusFilter || 'all')}
           campusName={isAccountingLocked ? accountingCampus : 'All Campuses'}
           exportToExcel={exportToExcel}
           addToast={addToast}
@@ -2327,7 +2327,7 @@ export default function Payments() {
           onClose={() => setShowRecordModal(false)}
           onSave={handleSavePayment}
           cashierName={cashierName}
-          schoolYear={currentSchoolYear}
+          schoolYear={selectedPayment?.schoolYear || getSchoolYearLabel(baseCampusFilter || 'all')}
         />
       )}
 
@@ -2347,7 +2347,7 @@ export default function Payments() {
           newTransaction={pendingTransaction}
           schoolName={getSchoolBrand().name}
           cashierName={cashierName}
-          schoolYear={currentSchoolYear}
+          schoolYear={selectedPayment?.schoolYear || getSchoolYearLabel(baseCampusFilter || 'all')}
           onClose={() => { setShowReceiptModal(false); setPendingTransaction(null); addToast('Payment recorded successfully!', 'success') }}
           onPrint={() => addToast('Receipt sent to printer!', 'success')}
         />

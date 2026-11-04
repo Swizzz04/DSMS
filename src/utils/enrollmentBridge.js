@@ -23,7 +23,7 @@
 // SECTION 1: WEBSITE SUBMISSION BRIDGE (original — do not modify)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { DEFAULT_WEBSITE_CONTENT } from '../config/appConfig'
+import { DEFAULT_WEBSITE_CONTENT, getCurrentSchoolYear, readCampusSchoolYears } from '../config/appConfig'
 
 const STORAGE_KEY  = 'almirene_submissions'
 const COUNTER_KEY  = 'almirene_ref_counter'
@@ -147,7 +147,8 @@ function normalizeFormData(raw, refNum) {
       campus:      CAMPUS_MAP[campusKey]  || campusKey,
       gradeLevel:  GRADE_MAP[gradeRaw]    || gradeRaw,
       studentType: TYPE_MAP[typeRaw]      || typeRaw,
-      schoolYear:  raw.schoolYear         || '2025-2026',
+      // A new enrollment belongs to the current school year of the campus it is for
+      schoolYear:  raw.schoolYear         || getCurrentSchoolYear(readCampusSchoolYears(CAMPUS_MAP[campusKey] || campusKey)),
     },
 
     father: {

@@ -40,8 +40,8 @@ function StatusBadge({ status }) {
 }
 
 // ── Admin Overview ─────────────────────────────────────────────────
-function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, currentSchoolYear, addToast }) {
-  const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels } = useAppConfig()
+function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, addToast }) {
+  const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels, getSchoolYearLabel } = useAppConfig()
   const [collapsed, setCollapsed] = useState({})
   const toggle = (key) => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -89,7 +89,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, cu
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Enrollment Count</h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            {currentSchoolYear} · {isSingleCampus ? shownCampuses[0].name : 'All Campuses'} · {allShownEnr.length} total enrollments
+            {getSchoolYearLabel(isSingleCampus ? shownCampuses[0].key : 'all')} · {isSingleCampus ? shownCampuses[0].name : 'All Campuses'} · {allShownEnr.length} total enrollments
           </p>
         </div>
         <button onClick={handleExport}
@@ -1319,7 +1319,7 @@ function EnrollmentList({
 // ════════════════════════════════════════════════════════════════════
 export default function Enrollments() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade, schoolYears } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade, getSchoolYearsForCampusName } = useAppConfig()
 
   const campusDiscounts = (() => {
     try {
@@ -1474,7 +1474,6 @@ export default function Enrollments() {
           enrollments={enrollments}
           campusFilter={campusFilter}
           activeCampuses={activeCampuses}
-          currentSchoolYear={currentSchoolYear}
           addToast={addToast}
         />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -1599,7 +1598,7 @@ export default function Enrollments() {
       campusName: feeModalEnroll.enrollment?.campus,
       department: isCollegeGrade(feeModalEnroll.enrollment?.gradeLevel || '') ? 'college' : 'basicEd',
       schoolYear: feeModalEnroll.enrollment?.schoolYear,
-      schoolYears,
+      schoolYears: getSchoolYearsForCampusName(feeModalEnroll.enrollment?.campus),   // the record's own campus calendar
     })
 
     // Keep any payments already on record — append, never replace.
@@ -2027,7 +2026,7 @@ export default function Enrollments() {
           enrollment={receiptData.enrollment}
           paymentData={receiptData.paymentData}
           cashierName={cashierName}
-          schoolYear={currentSchoolYear}
+          schoolYear={receiptData.enrollment?.enrollment?.schoolYear || currentSchoolYear}
           onPopupBlocked={() => addToast('Pop-up blocked — allow pop-ups for this site to print the receipt.', 'error')}
           onClose={() => {
             const wasReprint = receiptData?.isReprint
@@ -2045,7 +2044,7 @@ export default function Enrollments() {
           onClose={() => { setShowDetailDrawer(false); setDrawerEnrollment(null) }}
           onPrintReceipt={handleReprintReceipt}
           cashierName={cashierName}
-          schoolYear={currentSchoolYear}
+          schoolYear={drawerEnrollment.enrollment?.schoolYear || currentSchoolYear}
         />
       )}
 

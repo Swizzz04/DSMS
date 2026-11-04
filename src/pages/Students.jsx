@@ -650,7 +650,7 @@ const STUDENT_SORTERS = {
 
 export default function Students() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS, getSectionNames, getProgramYearLevels } = useAppConfig()
+  const { activeCampuses, getCampusCurrentSchoolYear, getSchoolYearLabel, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS, getSectionNames, getProgramYearLevels } = useAppConfig()
   const BASIC_GROUPS = useMemo(() => buildBasicGroups(basicEdGroups), [basicEdGroups])
   const allBasicGrades = BASIC_GROUPS.flatMap(g => g.grades)
   const location = useLocation()
@@ -708,7 +708,7 @@ export default function Students() {
     const names = [...(getSectionNames(camp.key, gradeLevel) || [])]
     try {
       const progs = camp.college?.programs ?? camp.collegePrograms ?? []
-      const data = getSubjectLoadData(camp.key, schoolYear || currentSchoolYear, camp.name, progs, (p) => getProgramYearLevels(camp.key, p), (lv) => getSectionNames(camp.key, lv))
+      const data = getSubjectLoadData(camp.key, schoolYear || getCampusCurrentSchoolYear(camp.key), camp.name, progs, (p) => getProgramYearLevels(camp.key, p), (lv) => getSectionNames(camp.key, lv))
       let generated = []
       if (isCollegeGrade(gradeLevel)) {
         const [prog, yr] = gradeLevel.split(' - ')
@@ -939,7 +939,7 @@ export default function Students() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Students</h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-1">
-              {currentSchoolYear} · School-wide student overview across all campuses
+              {getSchoolYearLabel(shownCampuses.length === 1 ? shownCampuses[0].key : 'all')} · {shownCampuses.length === 1 ? `${shownCampuses[0].name} student overview` : 'School-wide student overview across all campuses'}
             </p>
           </div>
           <button onClick={handleAdminExport}
@@ -965,7 +965,7 @@ export default function Students() {
                 campus={campus}
                 allStudents={students}
                 allEnrollments={enrollments}
-                currentSchoolYear={currentSchoolYear}
+                currentSchoolYear={getCampusCurrentSchoolYear(campus.key)}
               />
             )}
 
@@ -974,7 +974,7 @@ export default function Students() {
                 campus={campus}
                 allStudents={students}
                 allEnrollments={enrollments}
-                currentSchoolYear={currentSchoolYear}
+                currentSchoolYear={getCampusCurrentSchoolYear(campus.key)}
               />
             )}
           </div>

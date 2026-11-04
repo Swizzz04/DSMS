@@ -45,6 +45,7 @@ import {
   BASIC_ED_GROUPS,
   SCHOOL_YEARS,
   getCurrentSchoolYear,
+  readCampusSchoolYears,
   getDefaultClearanceReasons,
   computeStudentBill,
   computeCollegeFee,
@@ -315,6 +316,8 @@ export function packA() {
       seq += group.rows.length
       return
     }
+    // Each campus owns its school years, so its records use that campus's current year
+    const schoolYear = getCurrentSchoolYear(readCampusSchoolYears(campus.key))
     const isCollege   = !!campus.college && group.grade.includes(' - ')
     const department  = isCollege ? 'college' : 'basicEd'
     const feeEntry    = findFeeEntry(cfg.fees, group.grade, campus.name)
@@ -545,6 +548,7 @@ export async function packClearance() {
   const skipped = []
 
   campusKeys.forEach(campusKey => {
+    const schoolYear = getCurrentSchoolYear(readCampusSchoolYears(campusKey))   // this campus's own current year
     // Split this campus's students by their LIVE balance (same read the app uses)
     const paid = [], owing = []
     students
@@ -880,6 +884,7 @@ export async function packLoads() {
 
   cfg.campuses.filter(c => c.isActive !== false).forEach(campus => {
     const key = campus.key
+    const schoolYear = getCurrentSchoolYear(readCampusSchoolYears(key))   // this campus's own current year
     const mine = seeded.filter(s => s.campusKey === key)
     if (!mine.length) return
 
