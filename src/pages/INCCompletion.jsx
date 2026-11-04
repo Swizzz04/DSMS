@@ -356,11 +356,11 @@ function INCDrawer({ record: initialRecord, currentUser, onUpdate, onClose }) {
 
 export default function INCCompletion() {
   const { user }       = useAuth()
-  const { currentSchoolYear, activeCampuses } = useAppConfig()
+  const { activeCampuses, getCampusCurrentSchoolYear } = useAppConfig()
 
   const campusKey  = user?.campusKey || activeCampuses?.[0]?.key || ''
-  // currentSchoolYear is already the year string (e.g. '2026-2027'), not an object
-  const schoolYear = currentSchoolYear || '2026-2027'
+  // The current school year of THIS campus (each campus keeps its own)
+  const schoolYear = getCampusCurrentSchoolYear(campusKey) || '2026-2027'
 
   const [records,       setRecords]       = useState([])
   const [loading,       setLoading]       = useState(true)

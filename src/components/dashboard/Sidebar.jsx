@@ -397,7 +397,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                 onMouseLeave={e => {
                   if (!active) {
                     e.currentTarget.style.backgroundColor = 'transparent'
-                    e.currentTarget.style.color           = 'var(--color-text-primary)'
+                    e.currentTarget.style.color           = 'var(--color-text-secondary)'   // same colour the item renders with, so a hovered item never stays brighter than the rest
                   }
                 }}
               >

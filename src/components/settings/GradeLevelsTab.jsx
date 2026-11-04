@@ -297,7 +297,7 @@ export default function GradeLevelsTab({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Grade Levels</h2>
@@ -335,7 +335,7 @@ export default function GradeLevelsTab({
 
       {/* Groups */}
       {draft.map((group, gi) => (
-        <div key={`${group.label}-${gi}`} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+        <div key={`${group.label}-${gi}`} className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
           <div className="flex items-center gap-2 mb-3">
             {renaming && renaming.g === gi && renaming.i === null ? (
               <>
@@ -422,7 +422,7 @@ export default function GradeLevelsTab({
       ))}
 
       {/* Add group */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <p className="text-sm font-semibold text-[var(--color-text-primary)] mb-2">Add a group</p>
         <div className="flex gap-2">
           <input value={newGroup} maxLength={MAX_NAME + 10} onChange={e => setNewGroup(e.target.value)}
@@ -433,7 +433,7 @@ export default function GradeLevelsTab({
       </div>
 
       {/* College programs + year levels */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)]/50 p-5">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] p-5">
         <h3 className="text-base font-bold text-[var(--color-text-primary)]">College programs</h3>
         <p className="text-xs text-[var(--color-text-muted)] mt-0.5 mb-3">
           Programs {campusName} offers, each with its own year levels (one program can run 5 years while another runs 4). Adding a program turns on College here and creates empty fee rows for it in Fee Structure. Year level changes are saved with the Save button at the top.

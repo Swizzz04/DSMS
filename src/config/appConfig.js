@@ -1459,10 +1459,77 @@ export function isCollegeGrade(gradeLevel, yearLevelsOverride) {
     .some(y => g.endsWith(String(y).trim().toLowerCase()))
 }
 
+/**
+ * Student search boxes (Guidance, and any screen that picks one student).
+ * The list stays empty until someone types `minChars` characters or picks a grade level, waits
+ * `debounceMs` after the last keystroke, and shows at most `limit` rows of name + student number.
+ * This is also the shape of the backend call: GET /students/search?q=&gradeLevel=&limit=
+ */
+export const STUDENT_SEARCH = { minChars: 2, limit: 20, debounceMs: 250 }
+
 /** Get current school year string */
 export function getCurrentSchoolYear(yearsOverride) {
   const years = yearsOverride || SCHOOL_YEARS
   return (years.find(y => y.isCurrent) || years[0])?.year || '2026-2027'
+}
+
+/**
+ * School years for one campus. Each campus owns its own list (Settings → School Year): start
+ * dates, calendar events, grading period type and which year is current. A campus that never
+ * saved its own list uses the school-wide one (copy-on-write: its first Save writes a full copy).
+ * `campusSchoolYears` is the saved map { [campusKey]: [school year, ...] }.
+ */
+export function getCampusSchoolYears(campusKey, schoolWideYears, campusSchoolYears) {
+  const own = campusKey ? campusSchoolYears?.[campusKey] : null
+  return Array.isArray(own) && own.length ? own : (schoolWideYears || SCHOOL_YEARS)
+}
+
+/** Current school year string for one campus. */
+export function getCampusCurrentSchoolYear(campusKey, schoolWideYears, campusSchoolYears) {
+  return getCurrentSchoolYear(getCampusSchoolYears(campusKey, schoolWideYears, campusSchoolYears))
+}
+
+/**
+ * Current school year of every campus, for screens that show all campuses together (Owner).
+ * @returns {{ key: string, name: string, year: string, hasOwnList: boolean }[]}
+ */
+export function getCurrentYearsByCampus(campuses, schoolWideYears, campusSchoolYears) {
+  return (campuses || CAMPUSES).map(c => ({
+    key:        c.key,
+    name:       c.name,
+    year:       getCampusCurrentSchoolYear(c.key, schoolWideYears, campusSchoolYears),
+    hasOwnList: Array.isArray(campusSchoolYears?.[c.key]) && campusSchoolYears[c.key].length > 0,
+  }))
+}
+
+/**
+ * One line for a header when no single campus is chosen: "2026-2027" when every campus agrees,
+ * otherwise the campuses grouped by year, e.g. "2026-2027 (Talisay, Bohol) · 2027-2028 (Carcar)".
+ * `rows` comes from getCurrentYearsByCampus.
+ */
+export function summarizeCurrentYears(rows) {
+  const list = rows || []
+  if (!list.length) return getCurrentSchoolYear()
+  const byYear = new Map()
+  list.forEach(r => byYear.set(r.year, [...(byYear.get(r.year) || []), r.key]))
+  if (byYear.size === 1) return [...byYear.keys()][0]
+  return [...byYear].map(([year, keys]) => `${year} (${keys.join(', ')})`).join(' · ')
+}
+
+/**
+ * Outside React (bridges, seed tools): the school years of one campus, read from saved config.
+ * `campusRef` may be a campus key or a campus name. With no campus, the school-wide list.
+ */
+export function readCampusSchoolYears(campusRef) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}') || {}
+    const campus = campusRef
+      ? (cfg.campuses || CAMPUSES).find(c => c.key === campusRef || c.name === campusRef)
+      : null
+    return getCampusSchoolYears(campus?.key || campusRef, cfg.schoolYears, cfg.campusSchoolYears)
+  } catch {
+    return SCHOOL_YEARS
+  }
 }
 
 /**
@@ -1913,14 +1980,15 @@ export function computeDefaultDueDate(args = {}) {
  * otherwise worked out from the campus policy. Pass the live isCollegeGrade
  * from useAppConfig() so admin-edited grade lists are respected.
  */
-export function getSubmissionDueDate(sub, { schoolYears, isCollegeGrade } = {}) {
+export function getSubmissionDueDate(sub, { schoolYears, getSchoolYearsFor, isCollegeGrade } = {}) {
   if (sub?.dueDate) return toYMD(sub.dueDate)
   const grade = sub?.enrollment?.gradeLevel || ''
   return computeDefaultDueDate({
     campusName: sub?.enrollment?.campus,
     department: isCollegeGrade?.(grade) ? 'college' : 'basicEd',
     schoolYear: sub?.enrollment?.schoolYear,
-    schoolYears,
+    // The exam dates come from the record's OWN campus calendar when the caller can resolve it
+    schoolYears: getSchoolYearsFor ? getSchoolYearsFor(sub?.enrollment?.campus) : schoolYears,
     fromDate:   sub?.paymentHistory?.[0]?.date || sub?.lastPaymentDate || sub?.updatedAt || sub?.submittedDate,
   })
 }

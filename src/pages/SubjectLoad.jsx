@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import AccordionBody from '../components/AccordionBody'
 import {
   BookOpen, GraduationCap, User, Plus, X, ChevronDown, ChevronUp,
   Check, Search, AlertCircle, Download, Pencil, Users,
@@ -143,7 +144,7 @@ function RenameSectionModal({ section, onRename, onClose }) {
 // ─────────────────────────────────────────────────────────────────
 // SUBJECT ROW — reusable
 // ─────────────────────────────────────────────────────────────────
-function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions, staleArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
+function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions = [], staleArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
   const areaLabel = areaOptions.find(a => a.id === subjectArea)?.label ?? null
   // Shorten label for display — use the first meaningful word group
   const shortArea = areaLabel
@@ -151,7 +152,7 @@ function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions,
     : null
 
   return (
-    <div className="py-2.5 border-b border-[var(--color-border)]/50 last:border-0 space-y-1.5">
+    <div className="py-2.5 border-b border-[var(--color-border)] last:border-0 space-y-1.5">
       {/* Row 1: subject name + teacher + remove */}
       <div className="flex items-center gap-2">
         <p className="flex-1 text-sm text-[var(--color-text-primary)] truncate">{subject}</p>
@@ -214,12 +215,13 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
   // MAPEH-type sub-subjects are locked to the HELE / MAPEH area, but only when the list has that area
   // (the DO 8 list does; a school's own framework may not)
   const lockComposite = areaOptions.some(a => a.id === 'hele_mapeh')
-  const [openGrades, setOpenGrades] = useState({})
+  // One level card open at a time: opening another closes it; clicking the open one closes it
+  const [openGrade, setOpenGrade] = useState(null)
   const [picker, setPicker] = useState(null)     // { type:'subject'|'adviser', gradeLevel, subject?, sectionId?, load }
   const [addModal, setAddModal] = useState(null) // gradeLevel
   const [renameModal, setRenameModal] = useState(null) // { gradeLevel, section }
 
-  const toggle = g => setOpenGrades(p => ({ ...p, [g]: !p[g] }))
+  const toggle = g => setOpenGrade(p => (p === g ? null : g))
 
   const allGrades = campusGroups.flatMap(g => g.options)
   const totalSubjects = Object.values(data.basicEdSubjects || {}).reduce((s, a) => s + a.length, 0)
@@ -311,7 +313,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
         const sections = data.basicEdSections?.[grade] || []
         const loads    = (data.basicEdLoads || []).filter(l => l.gradeLevel === grade)
         const advisers = (data.basicEdAdvisers || [])
-        const isOpen   = openGrades[grade]
+        const isOpen   = openGrade === grade
         const unassignedSubj = subjects.filter(s => !loads.find(l => l.subject === s && l.teacherId)).length
         const unassignedAdv  = sections.filter(s => !advisers.find(a => a.sectionId === s.id && a.teacherId)).length
 
@@ -342,7 +344,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
               </div>
             </button>
 
-            {isOpen && (
+            <AccordionBody open={isOpen}>
               <div className="border-t border-[var(--color-border)]">
                 {/* ── Subjects ── */}
                 <div className="px-4 pt-3 pb-2">
@@ -432,7 +434,7 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
                   </div>
                 )}
               </div>
-            )}
+            </AccordionBody>
           </div>
             )
           })}
@@ -476,12 +478,13 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, onDataChange, addToast }) {
   const { getProgramYearLevels } = useAppConfig()
   const yearsFor = (prog) => getProgramYearLevels(campusKey, prog)
-  const [openKeys, setOpenKeys] = useState({})
+  // One program/year card open at a time, same as Basic Education
+  const [openKey, setOpenKey] = useState(null)
   const [picker, setPicker]   = useState(null)
   const [addModal, setAddModal] = useState(null)
   const [semFilter, setSemFilter] = useState('1st')
 
-  const toggle = k => setOpenKeys(p => ({ ...p, [k]: !p[k] }))
+  const toggle = k => setOpenKey(p => (p === k ? null : k))
 
   // Stats
   let totalSubj = 0, assignedSubj = 0
@@ -543,7 +546,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
 
           {yearsFor(program).map(yearLevel => {
             const key      = `${program}__${yearLevel}__${semFilter}`
-            const isOpen   = openKeys[key]
+            const isOpen   = openKey === key
             const subjects = data.collegeSubjects?.[program]?.[yearLevel]?.[semFilter] || []
             const sections = data.collegeSections?.[program]?.[yearLevel] || []
 
@@ -584,7 +587,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                   </div>
                 </button>
 
-                {isOpen && (
+                <AccordionBody open={isOpen}>
                   <div className="border-t border-[var(--color-border)]">
                     {sections.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-[var(--color-text-muted)] text-center">
@@ -630,7 +633,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
                       })
                     )}
                   </div>
-                )}
+                </AccordionBody>
               </div>
             )
           })}

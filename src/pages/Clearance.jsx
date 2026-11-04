@@ -802,20 +802,22 @@ function StatsBar({ clearances, needsMe, showMine }) {
 
 // Reasons for clearance come from the school's setup (Settings → Workflow Config → Student Clearance → Reasons).
 
-function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser, onSave, onClose }) {
+function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear: pageSchoolYear, currentUser, onSave, onClose }) {
   const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [reasonId, setReasonId] = useState('')
   const [saving, setSaving] = useState(false)
   const [pickedKey, setPickedKey] = useState('')
   const { toasts, addToast, removeToast } = useToast()
-  const { isBasicGrade, activeCampuses } = useAppConfig()
+  const { isBasicGrade, activeCampuses, getCampusCurrentSchoolYear } = useAppConfig()
 
   // The page already knows the campus (own campus, or the one chosen in the header menu).
   // Only with "All Campuses" selected does the registrar choose one here.
   const needsCampusPick = !lockedCampusKey
   const campusKey  = lockedCampusKey || pickedKey
   const campusName = activeCampuses?.find(c => c.key === campusKey)?.name ?? campusKey
+  // The clearance belongs to the school year of the campus it is for (each campus has its own)
+  const schoolYear = campusKey ? getCampusCurrentSchoolYear(campusKey) : pageSchoolYear
   const campusOptions = (activeCampuses || []).map(c => ({ value: c.key, label: c.name }))
 
   // Students come from the student records (they carry the school ID), scoped to the
@@ -1071,7 +1073,7 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear, currentUser
 
 export default function Clearance() {
   const { user }       = useAuth()
-  const { currentSchoolYear, activeCampuses } = useAppConfig()
+  const { currentSchoolYear, activeCampuses, getCampusCurrentSchoolYear, getSchoolYearLabel } = useAppConfig()
 
   // Campus: a campus user works in their own campus. Admin / technical admin follow the
   // header Campus menu. '' = All Campuses (the list shows every campus; New Clearance asks).
@@ -1084,8 +1086,8 @@ export default function Clearance() {
     [activeCampuses]
   )
   const campusName = campusKey ? campusNameOf(campusKey) : 'All Campuses'
-  // currentSchoolYear is already the year string (e.g. '2026-2027'), not an object
-  const schoolYear = currentSchoolYear || '2026-2027'
+  // The year of the campus being viewed; with All Campuses each clearance is matched to its own campus's year
+  const schoolYear = (campusKey ? getCampusCurrentSchoolYear(campusKey) : currentSchoolYear) || '2026-2027'
   const role       = user?.role
 
   // Which requirements can this account sign? Read from the Technical Admin's setup: the roles /
@@ -1131,7 +1133,8 @@ export default function Clearance() {
       syncAllClearances()
 
       // An empty campusKey means "All Campuses" — getClearances skips the campus filter
-      let all = getClearances({ campusKey, schoolYear })
+      let all = getClearances({ campusKey })
+      all = all.filter(c => c.schoolYear === getCampusCurrentSchoolYear(c.campusKey || campusKey))
 
       // Accounting role: only show clearances where the balance check hasn't been signed yet
       if (pureAccounting) {
@@ -1148,7 +1151,7 @@ export default function Clearance() {
     } finally {
       setLoading(false)
     }
-  }, [campusKey, schoolYear, pureAccounting, restrictToMine, user])
+  }, [campusKey, schoolYear, getCampusCurrentSchoolYear, pureAccounting, restrictToMine, user])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -1288,7 +1291,7 @@ export default function Clearance() {
         <div>
           <h1 className="text-display text-[var(--color-text-primary)]">Student Clearance</h1>
           <p className="text-body text-[var(--color-text-muted)] mt-1">
-            {schoolYear} · {campusName}
+            {getSchoolYearLabel(campusKey)} · {campusName}
             {!isSuperAdmin && myLabels.length > 0 && (
               <span className="ml-2 badge" style={{
                 background: 'var(--color-secondary-muted)',

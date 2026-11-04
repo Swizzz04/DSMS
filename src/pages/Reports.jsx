@@ -573,7 +573,7 @@ function MethodBreakdown({ transactions }) {
 // ─────────────────────────────────────────────────────────────────────
 export default function Reports() {
   const { user } = useAuth()
-  const { activeCampuses, currentSchoolYear, feeStructure, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels } = useAppConfig()
+  const { activeCampuses, getSchoolYearLabel, feeStructure, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels } = useAppConfig()
   const schoolName = getSchoolName()
 
   // Cashier name — campus-scoped (from accounting's settings)
@@ -846,7 +846,7 @@ export default function Reports() {
             <BarChart2 className="w-7 h-7 text-[var(--color-primary-readable)]"/> Income Reports
           </h1>
           <p className="text-sm text-[var(--color-text-muted)] mt-1">
-            {currentSchoolYear} · {effectiveCampusName === 'all' ? 'All Campuses' : effectiveCampusName}
+            {getSchoolYearLabel(effectiveCampusName)} · {effectiveCampusName === 'all' ? 'All Campuses' : effectiveCampusName}
           </p>
         </div>
         <button onClick={handleExport}
@@ -1192,7 +1192,7 @@ export default function Reports() {
           tx={receiptTx}
           cashierName={cashierName}
           schoolName={schoolName}
-          schoolYear={currentSchoolYear}
+          schoolYear={receiptTx.schoolYear || getSchoolYearLabel(receiptTx.campus)}
           onClose={() => setReceiptTx(null)}
           onPopupBlocked={() => addToast('Allow pop-ups for this site to print the receipt.', 'error')}
         />

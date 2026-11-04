@@ -241,7 +241,7 @@ function PreviewTable({ formId, data }) {
 // ── Main page ──────────────────────────────────────────────────────
 export default function TeacherForms() {
   const { user }                       = useAuth()
-  const { campuses, currentSchoolYear } = useAppConfig()
+  const { campuses, currentSchoolYear, getSchoolYearsForCampusName } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
 
   const [loading,    setLoading]    = useState(true)
@@ -334,7 +334,9 @@ export default function TeacherForms() {
   if (loading) return <PageSkeleton />
 
   // Select options
-  const syOptions      = ['2024-2025','2025-2026','2026-2027'].map(y => ({ value: y, label: y }))
+  // The school years of this teacher's own campus (each campus keeps its own list)
+  const campusYears    = getSchoolYearsForCampusName(userCampus).map(y => y.year).sort().reverse()
+  const syOptions      = (campusYears.includes(selectedSY) ? campusYears : [selectedSY, ...campusYears]).map(y => ({ value: y, label: y }))
   const gradeOptions   = gradeLevels.map(g => ({ value: g, label: g }))
   const sectionOptions = filteredSections.map(s => ({
     value: s.section || s.gradeLevel,
@@ -356,7 +358,7 @@ export default function TeacherForms() {
       </div>
 
       {/* Filters */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)]/50 p-5 shadow-sm">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 shadow-sm">
         <h2 className="text-sm font-bold text-[var(--color-text-primary)] mb-3 uppercase tracking-wide">Filters</h2>
         {/* Campus is auto-set from your account — shown as info only */}
         <div className="flex items-center gap-2 mb-3 px-1">
@@ -408,7 +410,7 @@ export default function TeacherForms() {
 
           return (
             <div key={form.id}
-                 className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)]/50 shadow-sm overflow-hidden flex flex-col">
+                 className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-sm overflow-hidden flex flex-col">
               {/* Card header */}
               <div className={`p-4 ${colors.bg}`}>
                 <div className="flex items-start justify-between gap-3">
@@ -459,7 +461,7 @@ export default function TeacherForms() {
               )}
 
               {/* Actions */}
-              <div className="mt-auto p-3 flex items-center gap-2 border-t border-[var(--color-border)]/50">
+              <div className="mt-auto p-3 flex items-center gap-2 border-t border-[var(--color-border)]">
                 <button
                   onClick={() => buildPreview(form.id)}
                   disabled={isExporting || !canExport}
@@ -488,7 +490,7 @@ export default function TeacherForms() {
       </div>
 
       {/* Info note */}
-      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)]/50 p-4 shadow-sm">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-4 shadow-sm">
         <div className="flex gap-3">
           <Info className="w-4 h-4 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
           <div className="space-y-1">

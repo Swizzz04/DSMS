@@ -8,7 +8,7 @@
  * Priority: localStorage overrides > appConfig.js defaults
  */
 
-import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   SCHOOL_INFO,
   SCHOOL_YEARS,
@@ -34,6 +34,10 @@ import {
   isBasicGrade   as checkBasicGrade,
   isCollegeGrade as checkCollegeGrade,
   getCurrentSchoolYear,
+  getCampusSchoolYears,
+  getCampusCurrentSchoolYear,
+  getCurrentYearsByCampus,
+  summarizeCurrentYears,
   getTotalFee,
   getFeeEntry,
   getGradingScale,
@@ -114,6 +118,7 @@ function buildInitialState() {
   return {
     schoolInfo:        saved.schoolInfo        || SCHOOL_INFO,
     schoolYears:       saved.schoolYears       || SCHOOL_YEARS,
+    campusSchoolYears: saved.campusSchoolYears || {},
     campuses:          saved.campuses          || CAMPUSES,
     basicEdGroups:     saved.basicEdGroups     || BASIC_ED_GROUPS,
     campusGradeLevels: saved.campusGradeLevels || {},
@@ -140,11 +145,50 @@ export function AppConfigProvider({ children }) {
     })
   }, [])
 
+  // Grade levels and school years are kept per campus. `workingCampusKey` is the campus the
+  // signed-in person is working in (set by <WorkingCampusSync/>); with none, grade levels of every
+  // campus are merged and school years fall back to the school-wide list.
+  const [workingCampusKey, setWorkingCampusKey] = useState('')
+  const workingCampusRef = useRef('')
+  useEffect(() => { workingCampusRef.current = workingCampusKey }, [workingCampusKey])
+
+  const persist = (next) => {
+    const { roleDefs, ...toSave } = next
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
+  }
+
   const updateConfig = useCallback((section, value) => {
     setConfig(prev => {
-      const next = { ...prev, [section]: value }
-      const { roleDefs, ...toSave } = next
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
+      // Interim (until the School Year tab calls updateCampusSchoolYears itself): a save of the
+      // 'schoolYears' section while a campus is being worked in goes to THAT campus's own list,
+      // never over the school-wide one.
+      const key = section === 'schoolYears' ? workingCampusRef.current : ''
+      const next = key
+        ? { ...prev, campusSchoolYears: { ...(prev.campusSchoolYears || {}), [key]: value } }
+        : { ...prev, [section]: value }
+      persist(next)
+      return next
+    })
+  }, [])
+
+  // Save one campus's own school year list (copy-on-write: the first save writes the full list)
+  const updateCampusSchoolYears = useCallback((campusKey, years) => {
+    if (!campusKey) return
+    setConfig(prev => {
+      const next = { ...prev, campusSchoolYears: { ...(prev.campusSchoolYears || {}), [campusKey]: years } }
+      persist(next)
+      return next
+    })
+  }, [])
+
+  // Drop a campus's own list so it goes back to the school-wide one
+  const resetCampusSchoolYears = useCallback((campusKey) => {
+    if (!campusKey) return
+    setConfig(prev => {
+      const rest = { ...(prev.campusSchoolYears || {}) }
+      delete rest[campusKey]
+      const next = { ...prev, campusSchoolYears: rest }
+      persist(next)
       return next
     })
   }, [])
@@ -155,17 +199,52 @@ export function AppConfigProvider({ children }) {
       campuses: CAMPUSES, basicEdGroups: BASIC_ED_GROUPS,
       collegeYearLevels: COLLEGE_YEAR_LEVELS, gradeSections: GRADE_SECTIONS,
       feeStructure: FEE_STRUCTURE, systemUsers: SYSTEM_USERS,
-      discounts: DEFAULT_DISCOUNTS, campusGradeLevels: {},
+      discounts: DEFAULT_DISCOUNTS, campusGradeLevels: {}, campusSchoolYears: {},
+    }
+    if (section === 'schoolYears' && workingCampusRef.current) {
+      resetCampusSchoolYears(workingCampusRef.current)
+      return
     }
     updateConfig(section, defaults[section])
-  }, [updateConfig])
+  }, [updateConfig, resetCampusSchoolYears])
 
   // ── Derived values ──────────────────────────────────────────────
   const activeCampuses    = config.campuses.filter(c => c.isActive)
-  const currentSchoolYear = getCurrentSchoolYear(config.schoolYears)
-  // Grade levels are kept per campus. `workingCampusKey` is the campus the signed-in person is
-  // working in (set by <WorkingCampusSync/>); with none, every campus's levels are merged.
-  const [workingCampusKey, setWorkingCampusKey] = useState('')
+  // School years: the working campus's own list; with no campus (school owner) the school-wide
+  // list, and `currentYearsByCampus` carries each campus's own current year for all-campus screens.
+  const schoolYears = useMemo(
+    () => workingCampusKey
+      ? getCampusSchoolYears(workingCampusKey, config.schoolYears, config.campusSchoolYears)
+      : config.schoolYears,
+    [workingCampusKey, config.schoolYears, config.campusSchoolYears]
+  )
+  const currentSchoolYear = getCurrentSchoolYear(schoolYears)
+  const currentYearsByCampus = useMemo(
+    () => getCurrentYearsByCampus(config.campuses.filter(c => c.isActive), config.schoolYears, config.campusSchoolYears),
+    [config.campuses, config.schoolYears, config.campusSchoolYears]
+  )
+  // Header text when no single campus is chosen: one year if all agree, else each campus's own
+  const currentSchoolYearLabel = workingCampusKey ? currentSchoolYear : summarizeCurrentYears(currentYearsByCampus)
+  // Header text for any screen: that campus's own year when one campus is meant (key or name),
+  // otherwise the working campus's year, or every campus's own when none is chosen.
+  const getSchoolYearLabel = useCallback((campusRef) => {
+    const c = campusRef && campusRef !== 'all'
+      ? config.campuses.find(x => x.key === campusRef || x.name === campusRef)
+      : null
+    if (c) return getCampusCurrentSchoolYear(c.key, config.schoolYears, config.campusSchoolYears)
+    return currentSchoolYearLabel
+  }, [config.campuses, config.schoolYears, config.campusSchoolYears, currentSchoolYearLabel])
+  const getCampusSchoolYearList = useCallback((campusKey) =>
+    getCampusSchoolYears(campusKey, config.schoolYears, config.campusSchoolYears),
+    [config.schoolYears, config.campusSchoolYears])
+  const getCampusYear = useCallback((campusKey) =>
+    getCampusCurrentSchoolYear(campusKey, config.schoolYears, config.campusSchoolYears),
+    [config.schoolYears, config.campusSchoolYears])
+  // Same lookups by campus NAME (enrollment records store the name, not the key)
+  const getSchoolYearsForCampusName = useCallback((campusName) => {
+    const c = getCampusByName(campusName, config.campuses)
+    return getCampusSchoolYears(c?.key, config.schoolYears, config.campusSchoolYears)
+  }, [config.campuses, config.schoolYears, config.campusSchoolYears])
   const unionGroups = useMemo(
     () => unionBasicEdGroups(config.basicEdGroups, config.campusGradeLevels),
     [config.basicEdGroups, config.campusGradeLevels]
@@ -281,7 +360,17 @@ export function AppConfigProvider({ children }) {
     getCampusBasicEdGroups: getCampusGroups,     // (campusKey) => that campus's levels
     setWorkingCampusKey,
     activeCampuses,
-    currentSchoolYear,
+    schoolYears,             // overrides the raw list: the working campus's school years (school-wide if none)
+    currentSchoolYear,       // the working campus's current year (school-wide current if none)
+    currentSchoolYearLabel,  // header text: one year, or each campus's own when no campus is chosen
+    currentYearsByCampus,    // [{ key, name, year, hasOwnList }] for all-campus (Owner) views
+    getSchoolYearLabel,      // (campusKeyOrName | 'all') => header text for that scope
+    schoolWideSchoolYears: config.schoolYears,   // the school-wide list a campus starts from
+    getCampusSchoolYears: getCampusSchoolYearList,       // (campusKey) => that campus's school years
+    getCampusCurrentSchoolYear: getCampusYear,           // (campusKey) => that campus's current year
+    getSchoolYearsForCampusName,                         // (campusName) => that campus's school years
+    updateCampusSchoolYears,                             // (campusKey, years) => save that campus's list
+    resetCampusSchoolYears,                              // (campusKey) => back to the school-wide list
     campusProgramsMap,
     allBasicEdGrades,
 

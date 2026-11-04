@@ -4,8 +4,8 @@
  */
 
 import { GRADING_PERIODS } from '../engines/gradingEngine'
+import { readCampusSchoolYears, getCurrentSchoolYear } from '../config/appConfig'
 
-const SCHOOL_YEAR_KEY = 'almirene_app_config'
 const SUBMISSIONS_KEY = 'almirene_submissions'
 const STUDENTS_KEY    = 'almirene_students'
 const GRADES_KEY      = 'almirene_grades'
@@ -36,16 +36,16 @@ function load(key) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') } catch { return null }
 }
 
-function getSchoolInfo() {
+function getSchoolInfo(campusKey) {
   const w = load(WEBSITE_KEY) || {}
-  const c = load(SCHOOL_YEAR_KEY) || {}
   return {
     schoolName: w.schoolName || 'School Name',
     schoolId:   w.schoolId   || '',
     region:     w.region     || '',
     division:   w.division   || '',
     district:   w.district   || '',
-    schoolYear: (c.schoolYears || []).find(y => y.isCurrent)?.year || '2026-2027',
+    // Each campus owns its school year list, so "current" is that campus's current year
+    schoolYear: getCurrentSchoolYear(readCampusSchoolYears(campusKey)),
   }
 }
 
@@ -54,11 +54,10 @@ function getSchoolInfo() {
  * configured for a specific school year — SF2/SF5/SF9/SF10 must follow
  * whatever gradingPeriodType that year was set to in Settings → School Year,
  * not assume quarterly. Falls back to quarterly if the year isn't found
- * (e.g. exporting for a year not yet in almirene_app_config).
+ * (e.g. exporting for a year not yet in that campus's list). The list is the campus's own.
  */
-function getPeriodIdsForSchoolYear(schoolYear) {
-  const c = load(SCHOOL_YEAR_KEY) || {}
-  const syConfig = (c.schoolYears || []).find(y => y.year === schoolYear)
+function getPeriodIdsForSchoolYear(schoolYear, campusKey) {
+  const syConfig = readCampusSchoolYears(campusKey).find(y => y.year === schoolYear)
   const periodType = syConfig?.gradingPeriodType || 'quarterly'
   const periods = GRADING_PERIODS[periodType] || GRADING_PERIODS.quarterly
   return periods.map(p => p.id)
@@ -216,7 +215,7 @@ export function getSubjectsForSection(campusKey, gradeLevel, section, schoolYear
 // ─────────────────────────────────────────────────────────────────
 
 export function buildSF1Data(campusKey, gradeLevel, section, schoolYear) {
-  const info     = getSchoolInfo()
+  const info     = getSchoolInfo(campusKey)
   const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
 
   return {
@@ -267,7 +266,7 @@ export function buildSF1Data(campusKey, gradeLevel, section, schoolYear) {
 }
 
 export function buildSF2Data(campusKey, gradeLevel, section, schoolYear, monthName) {
-  const info       = getSchoolInfo()
+  const info       = getSchoolInfo(campusKey)
   const students   = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   const attendance = getAttendanceForMonth(campusKey, gradeLevel, section, schoolYear, monthName)
   return {
@@ -284,10 +283,10 @@ export function buildSF2Data(campusKey, gradeLevel, section, schoolYear, monthNa
 }
 
 export function buildSF5Data(campusKey, gradeLevel, section, schoolYear) {
-  const info       = getSchoolInfo()
+  const info       = getSchoolInfo(campusKey)
   const students   = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   const grades     = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
-  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear).slice(-1)[0] || 'Q4'
+  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear, campusKey).slice(-1)[0] || 'Q4'
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, region: info.region, division: info.division, district: info.district, schoolYear, gradeLevel, section },
     students: students.map(s => {
@@ -302,7 +301,7 @@ export function buildSF5Data(campusKey, gradeLevel, section, schoolYear) {
 }
 
 export function buildSF8Data(campusKey, gradeLevel, section, schoolYear) {
-  const info     = getSchoolInfo()
+  const info     = getSchoolInfo(campusKey)
   const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, schoolYear, gradeLevel, section },
@@ -311,11 +310,11 @@ export function buildSF8Data(campusKey, gradeLevel, section, schoolYear) {
 }
 
 export function buildSF9Data(campusKey, gradeLevel, section, schoolYear) {
-  const info     = getSchoolInfo()
+  const info     = getSchoolInfo(campusKey)
   const students = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   const grades   = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
   const subjects = getSubjectsForSection(campusKey, gradeLevel, section, schoolYear)
-  const periods  = getPeriodIdsForSchoolYear(schoolYear)
+  const periods  = getPeriodIdsForSchoolYear(schoolYear, campusKey)
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, schoolYear, gradeLevel, section },
     subjects,
@@ -338,11 +337,11 @@ export function buildSF9Data(campusKey, gradeLevel, section, schoolYear) {
 }
 
 export function buildSF10Data(campusKey, gradeLevel, section, schoolYear) {
-  const info       = getSchoolInfo()
+  const info       = getSchoolInfo(campusKey)
   const students   = getSectionStudents(campusKey, gradeLevel, section, schoolYear)
   const grades     = getGradesForSection(campusKey, gradeLevel, section, schoolYear)
   const subjects   = getSubjectsForSection(campusKey, gradeLevel, section, schoolYear)
-  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear).slice(-1)[0] || 'Q4'
+  const lastPeriod = getPeriodIdsForSchoolYear(schoolYear, campusKey).slice(-1)[0] || 'Q4'
   return {
     header: { schoolName: info.schoolName, schoolId: info.schoolId, schoolYear, gradeLevel, section },
     subjects,
