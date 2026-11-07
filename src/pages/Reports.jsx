@@ -15,6 +15,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
 import { getRequests } from '../utils/documentBridge'
+import { getCampusScope } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -376,6 +377,9 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
             </div>
           </div>
         </div>
+        {tx.recordedBy && tx.recordedBy !== cashierName && (
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">Recorded by: {tx.recordedBy}</p>
+        )}
         <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
@@ -598,9 +602,9 @@ export default function Reports() {
   const [selectedTx,  setSelectedTx]  = useState(null)   // tx open in detail modal
   const [receiptTx,   setReceiptTx]   = useState(null)   // tx open in receipt modal
 
-  const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
-  const effectiveCampus    = isAccountingLocked ? user.campus : campusFilter
-  // The header filter holds a campus KEY ('Talisay'); accounting's locked campus and every
+  const { locked: isCampusLocked, campusName: lockedCampus } = getCampusScope(user)
+  const effectiveCampus    = isCampusLocked ? lockedCampus : campusFilter
+  // The header filter holds a campus KEY ('Talisay'); the user's locked campus and every
   // submission hold the campus NAME. Resolve to the name so the comparisons are exact.
   const effectiveCampusName = effectiveCampus === 'all'
     ? 'all'

@@ -11,8 +11,9 @@ import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { useLocation } from 'react-router-dom'
 import { useToast, ToastContainer, ConfirmDialog, PageSkeleton, EmptyState, ModalPortal } from '../components/UIComponents'
 import { useAppConfig } from '../context/AppConfigContext'
-import { getMinimumPayment, computeDefaultDueDate, getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS } from '../config/appConfig'
+import { getMinimumPayment, computeDefaultDueDate, getFeeBreakdown, computeStudentBill, computeCollegeFee, getLoadStatus, DEFAULT_DISCOUNTS, getCampusScope } from '../config/appConfig'
 import { printReceiptHtml } from '../utils/printReceipt'
+import { updateSubmissionStatus, ensureStudentIds, getSubmissionStudentId } from '../utils/enrollmentBridge'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import GradeLevelSelect from '../components/GradeLevelSelect'
 import GroupedSelect from '../components/GroupedSelect'
@@ -118,7 +119,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, ad
             {campus.hasBasicEd && (
               <div className="card overflow-hidden">
                 <button onClick={() => toggle(`${campus.key}-basic`)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+                  className="w-full flex items-center justify-between p-4 row-hover transition text-left">
                   <div className="flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-emerald-600" />
                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Basic Education</h3>
@@ -155,7 +156,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, ad
             {campus.hasCollege && campus.collegePrograms?.length > 0 && (
               <div className="card overflow-hidden">
                 <button onClick={() => toggle(`${campus.key}-college`)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+                  className="w-full flex items-center justify-between p-4 row-hover transition text-left">
                   <div className="flex items-center gap-2">
                     <GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" />
                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">College</h3>
@@ -349,6 +350,9 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
             </div>
           </div>
         </div>
+        {paymentData.recordedBy && paymentData.recordedBy !== cashierName && (
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">Recorded by: {paymentData.recordedBy}</p>
+        )}
         <p className="mt-3 text-gray-400 text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
@@ -759,9 +763,8 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
         other:      feeEntry.other      || 0,
         total: 0
       }
-      const b = computeStudentBill(breakdown, discountInputs)
-      b.grandTotal = b.tuitionAfterDiscount + breakdown.misc + breakdown.lab + breakdown.books + breakdown.other
-      return b
+      // grandTotal already excludes the enrollment fee (kept in b.enrollment)
+      return computeStudentBill(breakdown, discountInputs)
     }
   })()
 
@@ -1342,6 +1345,7 @@ export default function Enrollments() {
   const { toasts, addToast, removeToast } = useToast()
 
   const getWebSubs = () => {
+    ensureStudentIds()   // students approved before IDs existed get theirs here
     try { return JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch { return [] }
   }
 
@@ -1401,19 +1405,11 @@ export default function Enrollments() {
     }
   }, [loadBridge])
 
+  // One place changes a submission's status: the bridge (it also issues the Student ID on approval)
   const updateWebsiteStatus = (refNum, newStatus) => {
-    try {
-      const raw  = localStorage.getItem('almirene_submissions')
-      const subs = raw ? JSON.parse(raw) : []
-      const updated = subs.map(s =>
-        (s.referenceNumber === refNum || s.id === refNum)
-          ? { ...s, status: newStatus, updatedAt: new Date().toISOString() }
-          : s
-      )
-      localStorage.setItem('almirene_submissions', JSON.stringify(updated))
-      localStorage.setItem('almirene_status_update', JSON.stringify({ refNum, newStatus, ts: Date.now() }))
-      loadBridge()
-    } catch {}
+    const ok = updateSubmissionStatus(refNum, newStatus)
+    if (ok) loadBridge()
+    return ok
   }
   const approveWebsite  = (refNum) => updateWebsiteStatus(refNum, 'approved')
   const rejectWebsite   = (refNum) => updateWebsiteStatus(refNum, 'rejected')
@@ -1454,10 +1450,8 @@ export default function Enrollments() {
     }
   }, [location.state])
 
-  const isCampusLocked = user?.role === 'registrar_college' || user?.role === 'registrar_basic' ||
-    user?.role === 'principal_basic' || user?.role === 'program_head' ||
-    (user?.role === 'accounting' && user?.campus !== 'all')
-  const effectiveCampusFilter = isCampusLocked ? user.campus : campusFilter
+  const { locked: isCampusLocked, campusName: lockedCampus } = getCampusScope(user)
+  const effectiveCampusFilter = isCampusLocked ? lockedCampus : campusFilter
   // campusFilter holds a campus KEY ('Carcar'); enrollment.campus holds the NAME
   // ('Carcar City Campus'), so resolve key -> name before comparing.
   const campusFilterName = effectiveCampusFilter === 'all'
@@ -1564,7 +1558,8 @@ export default function Enrollments() {
         orNumber:         lastPayment.orNumber || '—',
         notes:            lastPayment.notes,
         discountsApplied: enrollment.discountsApplied || [],
-        paymentDate:      lastPayment.date
+        paymentDate:      lastPayment.date,
+        recordedBy:       lastPayment.recordedBy || ''   // older payments have none: the receipt falls back to the cashier name
       }
     })
     setShowReceiptModal(true)
@@ -1607,7 +1602,8 @@ export default function Enrollments() {
     const totalPaid   = prevPaid + incoming.amountPaid
     const balance     = Math.max(0, (incoming.totalFee || 0) - totalPaid)
     // The receipt shows the balance after ALL payments
-    const paymentData = { ...incoming, balance }
+    const recordedBy  = user?.name || cashierName
+    const paymentData = { ...incoming, balance, recordedBy }
 
     const updatedFields = {
       status:           'payment_received',
@@ -1623,6 +1619,8 @@ export default function Enrollments() {
         date:       paymentData.paymentDate,
         orNumber:   paymentData.orNumber,
         notes:      paymentData.notes,
+        recordedBy,
+        recordedById: user?.id ?? null,
         paymentFor: ['tuition', 'misc',
           ...(paymentData.feeBreakdown?.lab   > 0 ? ['lab']   : []),
           ...(paymentData.feeBreakdown?.books > 0 ? ['books'] : []),
@@ -1647,7 +1645,6 @@ export default function Enrollments() {
             : s
         )
         localStorage.setItem('almirene_submissions', JSON.stringify(updated))
-        localStorage.setItem('almirene_status_update', JSON.stringify({ refNum: ref, newStatus: 'payment_received', ts: Date.now() }))
       } catch {}
     }
 
@@ -1670,18 +1667,20 @@ export default function Enrollments() {
       else if (confirm.type === 'reject')       newStatus = 'rejected'
       else if (confirm.type === 'mark_payment') newStatus = 'payment_received'
 
-      setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: newStatus } : e))
-      if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: newStatus }))
-
+      // Save first (the bridge issues the Student ID on approval), then update the screen
       const isWebsite = websiteSubmissions.some(s => s.id === confirm.id || s.referenceNumber === confirm.id)
       if (isWebsite) {
         if (confirm.type === 'approve')           approveWebsite(confirm.id)
         else if (confirm.type === 'reject')       rejectWebsite(confirm.id)
         else if (confirm.type === 'mark_payment') markPaidWebsite(confirm.id)
       }
+      const issuedId = confirm.type === 'approve' && isWebsite ? getSubmissionStudentId(confirm.id) : ''
+
+      setEnrollments(prev => prev.map(e => e.id === confirm.id ? { ...e, status: newStatus, ...(issuedId ? { studentId: issuedId } : {}) } : e))
+      if (selectedEnrollment?.id === confirm.id) setSelectedEnrollment(prev => ({ ...prev, status: newStatus, ...(issuedId ? { studentId: issuedId } : {}) }))
 
       const toastMsg = {
-        approve:      'Enrollment approved! ✓',
+        approve:      issuedId ? `Enrollment approved! Student ID ${issuedId}` : 'Enrollment approved! ✓',
         reject:       'Enrollment rejected.',
         mark_payment: 'Payment recorded — registrar has been notified.'
       }
@@ -1857,7 +1856,7 @@ export default function Enrollments() {
           />
           <div>
             <GradeLevelSelect value={gradeLevelFilter} onChange={setGradeLevelFilter}
-              campusFilter={isCampusLocked ? (activeCampuses.find(c => c.name === user.campus)?.key || 'all') : effectiveCampusFilter}
+              campusFilter={isCampusLocked ? (activeCampuses.find(c => c.name === lockedCampus)?.key || 'all') : effectiveCampusFilter}
               userRole={user?.role} />
           </div>
           <div className="flex gap-2">
@@ -1909,6 +1908,9 @@ export default function Enrollments() {
                   <h2 className="text-base font-bold text-[var(--color-text-primary)] truncate">{formatStudentName(selectedEnrollment.student, {short: true})}</h2>
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-mono text-[var(--color-primary-readable)]">{selectedEnrollment.referenceNumber}</p>
+                    {selectedEnrollment.studentId && (
+                      <p className="text-xs font-mono font-semibold text-[var(--color-success-text)]">ID {selectedEnrollment.studentId}</p>
+                    )}
                     {selectedEnrollment.source === 'website' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                         <Globe className="w-3 h-3" /> Submitted Online
