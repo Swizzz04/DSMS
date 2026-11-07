@@ -154,7 +154,10 @@ export function AppConfigProvider({ children }) {
 
   const persist = (next) => {
     const { roleDefs, ...toSave } = next
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
+    // Merge over what is already stored: some keys (rolePermissions, customRoles) are written
+    // straight to storage by their own settings tab and are not part of this state, so saving
+    // another section must not erase them.
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...loadPersisted(), ...toSave }))
   }
 
   const updateConfig = useCallback((section, value) => {

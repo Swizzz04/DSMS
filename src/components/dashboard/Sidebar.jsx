@@ -7,8 +7,8 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useTheme } from '../../context/ThemeContext'
 import { useAppConfig } from '../../context/AppConfigContext'
-import { getUserPermissions } from '../../config/appConfig'
-import { getPendingGuidanceCount } from '../../utils/guidanceBridge'
+import { getUserPermissions, getAllRoleDefinitions } from '../../config/appConfig'
+import { getPendingGuidanceCount, getMyGuidanceUpdateCount } from '../../utils/guidanceBridge'
 import SchoolLogo from '../SchoolLogo'
 
 // Read school branding
@@ -30,7 +30,6 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }
     return val === campus || val.includes(campus) || campus.includes(val)
   }
   const campusEnr = []
-  const campusStu = []
   let webSubs = []
   try {
     const all = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
@@ -40,7 +39,7 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }
     })
   } catch {}
   const allEnr = [...campusEnr, ...webSubs]
-  let enrBadge = 0, payBadge = 0, stuBadge = 0
+  let enrBadge = 0, payBadge = 0
 
   if (role === 'admin') {
     enrBadge = allEnr.filter(e => e.status === 'pending' || e.status === 'payment_received').length
@@ -52,11 +51,9 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }
   }
   if (role === 'registrar_basic') {
     enrBadge = allEnr.filter(e => e.status === 'payment_received' && isBasicGrade(e.enrollment?.gradeLevel || '')).length
-    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
   }
   if (role === 'registrar_college') {
     enrBadge = allEnr.filter(e => e.status === 'payment_received' && isCollegeGrade(e.enrollment?.gradeLevel || '')).length
-    stuBadge = campusStu.filter(s => isCollegeGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
   }
   if (role === 'accounting') {
     enrBadge = allEnr.filter(e => e.status === 'pending').length
@@ -66,18 +63,16 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }
       Math.floor((Date.now() - new Date(s.submittedDate)) / 86400000) > 30
     ).length
   }
-  if (role === 'principal_basic' || role === 'program_head') {
-    stuBadge = campusStu.filter(s => isBasicGrade(s.academic?.gradeLevel) && s.status === 'inactive').length
-  }
   return {
-    dashboard:   enrBadge + payBadge + stuBadge,
+    dashboard:   enrBadge + payBadge,
     enrollments: enrBadge,
     payments:    payBadge,
-    students:    stuBadge,
     settings:    0,
     // Teacher referral requests and incident reports waiting for the Guidance in-charge
     // (Guidance role or Guidance module duty). Everyone else gets 0, so no badge.
     guidance:    getPendingGuidanceCount(user, currentSchoolYear),
+    // A teacher whose referral request or incident report Guidance has answered: a dot, not a number
+    guidanceDot: getMyGuidanceUpdateCount(user, currentSchoolYear) > 0,
   }
 }
 
@@ -105,6 +100,26 @@ function NavBadge({ count }) {
       color:           'var(--color-alert-contrast)',
     }}>
       {count > 99 ? '99+' : count}
+    </span>
+  )
+}
+
+// ── Dot ───────────────────────────────────────────────────────────
+// "Something new here" without a number: Guidance answered something the teacher sent.
+function NavDot({ label }) {
+  return (
+    <span
+      title={label}
+      style={{
+        marginLeft:      'auto',
+        width:           9,
+        height:          9,
+        borderRadius:    999,
+        flexShrink:      0,
+        backgroundColor: 'var(--color-alert)',
+      }}
+    >
+      <span className="sr-only">{label}</span>
     </span>
   )
 }
@@ -184,7 +199,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
     principal_basic:   'Basic Ed Principal',
     program_head:      'Program Head',
     teacher:           'Teacher Portal',
-  }[user?.role] || 'Portal')
+  }[user?.role] || (getAllRoleDefinitions()[user?.role]?.label ? `${getAllRoleDefinitions()[user.role].label} Portal` : 'Portal'))
 
   // ── Section label helper (visual grouping within long nav lists) ──
   const getSectionLabel = (id) => ({
@@ -426,6 +441,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
 
                 {/* Badge */}
                 <NavBadge count={badgeCount} />
+                {item.id === 'guidance' && badges.guidanceDot && <NavDot label="Guidance answered something you sent" />}
               </Link>
             )
           })}

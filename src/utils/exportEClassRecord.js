@@ -1,4 +1,4 @@
-import { GRADING_PERIODS, WEIGHT_TABLES, transmute, DEFAULT_TRANSMUTATION_TABLE } from '../engines/gradingEngine'
+import { GRADING_PERIODS, transmute, DEFAULT_TRANSMUTATION_TABLE } from '../engines/gradingEngine'
 
 let XLSX = null
 async function getXLSX() {
@@ -6,23 +6,80 @@ async function getXLSX() {
   return XLSX
 }
 
+/**
+ * Export the e-Class Record to Excel — one sheet per grading period plus a
+ * summary and the transmutation table.
+ *
+ * Generic across however many components the active grading framework
+ * defines (previously hardcoded to exactly Written Works/Performance
+ * Tasks/Quarterly Assessment, with Quarterly Assessment oddly special-cased
+ * as a single score rather than summed like the other two — inconsistent
+ * with how the entry screen itself computes it). Every component is now
+ * treated uniformly: its activities are summed the same way, whatever it's
+ * called and however many components the framework has.
+ *
+ * @param {object} params.framework — the grading framework these scores were
+ *   entered against (components, subjectGroups, transmutationTable,
+ *   useTransmutation). Weights come from framework.subjectGroups, not the
+ *   old hardcoded WEIGHT_TABLES constant, so a school's actual configured
+ *   weights show up in the export, not always the DO 8, s.2015 defaults.
+ */
 export async function exportEClassRecord(params) {
   const XLSX = await getXLSX()
-  const { subjectName, section, gradeLevel, teacherName, schoolYear, schoolName, periodType, subjectArea, activitiesByPeriod, scoresByPeriod, students, transmutationTable = DEFAULT_TRANSMUTATION_TABLE } = params
+  const {
+    subjectName, section, gradeLevel, teacherName, schoolYear, schoolName,
+    periodType, subjectArea, activitiesByPeriod, scoresByPeriod, students,
+    framework,
+  } = params
+
   const wb = XLSX.utils.book_new()
   const periods = GRADING_PERIODS[periodType] || GRADING_PERIODS.quarterly
-  const weights = WEIGHT_TABLES[subjectArea] || { ww: 0.40, pt: 0.40, qa: 0.20 }
+  const components = framework.components
+  const weights = framework.subjectGroups.find(g => g.id === subjectArea)?.weights || {}
+  const useTransmutation = framework.useTransmutation !== false
+  const transmutationTable = framework.transmutationTable || DEFAULT_TRANSMUTATION_TABLE
+  const applyFinal = (initial) => useTransmutation
+    ? transmute(initial, transmutationTable)
+    : Math.round(Math.min(100, Math.max(0, initial)))
   const sorted = [...students].sort((a, b) => a.name.localeCompare(b.name))
 
-  periods.forEach((period, pIdx) => {
-    const acts = activitiesByPeriod[period.id] || { ww: [{ name: 'WW1', maxScore: 20 }], pt: [{ name: 'PT1', maxScore: 50 }], qa: [{ name: 'QA', maxScore: 100 }] }
-    const scores = scoresByPeriod[period.id] || {}
-    const wwCount = acts.ww.length, ptCount = acts.pt.length
-    const wwMax = acts.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-    const ptMax = acts.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-    const qaMax = acts.qa[0]?.maxScore || 100
-    const rows = []
+  // Fill in a sensible default for any component this period's saved
+  // activities config predates (e.g. a framework edited after this period's
+  // activities were first set up).
+  function normalizeActs(acts) {
+    const out = { ...acts }
+    components.forEach(c => { if (!out[c.key] || out[c.key].length === 0) out[c.key] = [{ name: c.label, maxScore: 100 }] })
+    return out
+  }
 
+  // Per-student, per-period stats for every component: sum, max, percentage
+  // score, and weighted score — plus the Initial Grade (sum of weighted
+  // scores) and whether the student has any score entered at all.
+  function computeStudent(scoresForStudent, acts) {
+    let initial = 0
+    let hasAny = false
+    const perComp = {}
+    components.forEach(c => {
+      const arr = (scoresForStudent?.[c.key]) || []
+      const max = acts[c.key].reduce((s, a) => s + (a.maxScore || 0), 0)
+      const sum = arr.reduce((s, v) => s + (Number(v) || 0), 0)
+      const pct = max > 0 ? Math.round((sum / max) * 10000) / 100 : 0
+      const w   = weights[c.key] || 0
+      const weighted = Math.round(pct * w * 100) / 100
+      perComp[c.key] = { sum, max, pct, weighted }
+      if (arr.some(v => v !== '' && v !== 0)) hasAny = true
+      initial += weighted
+    })
+    return { perComp, initial: Math.round(initial * 100) / 100, hasAny }
+  }
+
+  periods.forEach((period, pIdx) => {
+    const acts   = normalizeActs(activitiesByPeriod[period.id] || {})
+    const scores = scoresByPeriod[period.id] || {}
+    const colCounts = {}
+    components.forEach(c => { colCounts[c.key] = acts[c.key].length })
+
+    const rows = []
     rows.push(['', subjectName])
     rows.push(['', section, '', '', schoolName || ''])
     rows.push([]); rows.push([])
@@ -32,57 +89,73 @@ export async function exportEClassRecord(params) {
     rows.push(['', '', '', '', teacherName])
     rows.push([])
 
+    // Header row: activity names per component, then TOTAL/PS/WS per component
     const h = [section, 'ID no.', 'STUDENT NAME', '']
-    acts.ww.forEach(a => h.push(a.name)); h.push('TOTAL', 'PS', 'WS')
-    acts.pt.forEach(a => h.push(a.name)); h.push('TOTAL', 'PS', 'WS')
-    h.push('QUARTERLY ASSESSMENT', 'PS', 'WS', 'Initial Grade', 'Quarterly Grade (' + period.label.split(' ')[0] + ')', 'Adjusted Grades', 'MARK')
+    components.forEach(c => {
+      acts[c.key].forEach(a => h.push(a.name))
+      h.push('TOTAL', 'PS', 'WS')
+    })
+    h.push('Initial Grade', 'Quarterly Grade (' + period.label.split(' ')[0] + ')', 'Adjusted Grades', 'MARK')
     for (let p = pIdx - 1; p >= 0; p--) h.push(periods[p].label)
     rows.push(h)
 
+    // Weight row — "if you scored 100% on this component, it's worth this
+    // much of your final grade" — shown under each component's PS/WS columns
     const wr = new Array(h.length).fill('')
-    wr[4 + wwCount + 1] = 100; wr[4 + wwCount + 2] = weights.ww * 100 + '%'
-    wr[4 + wwCount + 3 + ptCount + 1] = 100; wr[4 + wwCount + 3 + ptCount + 2] = weights.pt * 100 + '%'
-    wr[4 + wwCount + 3 + ptCount + 4] = 100; wr[4 + wwCount + 3 + ptCount + 5] = weights.qa * 100 + '%'
+    let col = 4
+    components.forEach(c => {
+      col += colCounts[c.key]
+      wr[col + 1] = 100
+      wr[col + 2] = Math.round((weights[c.key] || 0) * 100) + '%'
+      col += 3
+    })
     rows.push(wr)
 
+    // Highest Possible Score row
     const hp = new Array(h.length).fill('')
     hp[2] = 'HIGHEST POSSIBLE SCORE'
-    acts.ww.forEach((a, i) => { hp[4 + i] = a.maxScore }); hp[4 + wwCount] = wwMax
-    acts.pt.forEach((a, i) => { hp[4 + wwCount + 3 + i] = a.maxScore }); hp[4 + wwCount + 3 + ptCount] = ptMax
-    hp[4 + wwCount + 3 + ptCount + 3] = qaMax
+    let col2 = 4
+    components.forEach(c => {
+      acts[c.key].forEach((a, i) => { hp[col2 + i] = a.maxScore })
+      hp[col2 + colCounts[c.key]] = acts[c.key].reduce((s, a) => s + (a.maxScore || 0), 0)
+      col2 += colCounts[c.key] + 3
+    })
     rows.push(hp); rows.push([])
 
     sorted.forEach((stu, idx) => {
-      const sc = scores[stu.id] || {}, ww = sc.ww || [], pt = sc.pt || [], qa = sc.qa || []
-      const wwS = ww.reduce((s, v) => s + (Number(v) || 0), 0), ptS = pt.reduce((s, v) => s + (Number(v) || 0), 0), qaV = Number(qa[0]) || 0
-      const wwP = wwMax > 0 ? Math.round((wwS / wwMax) * 10000) / 100 : 0
-      const ptP = ptMax > 0 ? Math.round((ptS / ptMax) * 10000) / 100 : 0
-      const qaP = qaMax > 0 ? Math.round((qaV / qaMax) * 10000) / 100 : 0
-      const wwW = Math.round(wwP * weights.ww * 100) / 100, ptW = Math.round(ptP * weights.pt * 100) / 100, qaW = Math.round(qaP * weights.qa * 100) / 100
-      const ini = Math.round((wwW + ptW + qaW) * 100) / 100
-      const has = ww.some(v => v !== '' && v !== 0) || pt.some(v => v !== '' && v !== 0) || qaV > 0
-      const tg = has ? transmute(ini, transmutationTable) : ''
+      const studentScores = scores[stu.id] || {}
+      const { perComp, initial, hasAny } = computeStudent(studentScores, acts)
+      const finalGrade = hasAny ? applyFinal(initial) : ''
 
       const r = [idx + 1, stu.id, stu.name, '']
-      ww.forEach(v => r.push(v !== '' ? Number(v) || 0 : '')); r.push(has ? wwS : '', has ? wwP : '', has ? wwW : '')
-      pt.forEach(v => r.push(v !== '' ? Number(v) || 0 : '')); r.push(has ? ptS : '', has ? ptP : '', has ? ptW : '')
-      r.push(qaV || '', has ? qaP : '', has ? qaW : '', has ? ini : '', tg, tg, has ? (tg >= 75 ? 'PASSED' : 'FAILED') : '')
-      for (let p = pIdx - 1; p >= 0; p--) {
-        const ps = (scoresByPeriod[periods[p].id] || {})[stu.id], pa = activitiesByPeriod[periods[p].id] || acts
-        let pg = ''
-        if (ps) {
-          const w = (ps.ww || []).reduce((s, v) => s + (Number(v) || 0), 0), wm = pa.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-          const p2 = (ps.pt || []).reduce((s, v) => s + (Number(v) || 0), 0), pm = pa.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-          const q = Number((ps.qa || [])[0]) || 0, qm = pa.qa[0]?.maxScore || 100
-          pg = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0), transmutationTable)
+      components.forEach(c => {
+        const arr = studentScores[c.key] || []
+        for (let i = 0; i < colCounts[c.key]; i++) {
+          const v = arr[i]
+          r.push(v !== undefined && v !== '' ? Number(v) || 0 : '')
         }
-        r.push(pg)
+        r.push(hasAny ? perComp[c.key].sum : '', hasAny ? perComp[c.key].pct : '', hasAny ? perComp[c.key].weighted : '')
+      })
+      r.push(hasAny ? initial : '', finalGrade, finalGrade, hasAny ? (finalGrade >= 75 ? 'PASSED' : 'FAILED') : '')
+
+      // Recap of already-computed earlier periods (read-only reference columns)
+      for (let p = pIdx - 1; p >= 0; p--) {
+        const pastScores = (scoresByPeriod[periods[p].id] || {})[stu.id]
+        const pastActs   = normalizeActs(activitiesByPeriod[periods[p].id] || acts)
+        let pastGrade = ''
+        if (pastScores) {
+          const { initial: pastInitial } = computeStudent(pastScores, pastActs)
+          pastGrade = applyFinal(pastInitial)
+        }
+        r.push(pastGrade)
       }
       rows.push(r)
     })
+
     rows.push([]); rows.push(['', '', 'Date Submitted:']); rows.push(['', '', 'Checked By:'])
     const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 4 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, ...Array(wwCount).fill({ wch: 6 }), { wch: 6 }, { wch: 7 }, { wch: 8 }, ...Array(ptCount).fill({ wch: 6 }), { wch: 5 }, { wch: 7 }, { wch: 8 }, { wch: 9 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 10 }]
+    const compColWidths = components.flatMap(c => [...Array(colCounts[c.key]).fill({ wch: 6 }), { wch: 6 }, { wch: 5 }, { wch: 7 }])
+    ws['!cols'] = [{ wch: 4 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, ...compColWidths, { wch: 9 }, { wch: 14 }, { wch: 10 }, { wch: 10 }, ...periods.slice(0, pIdx).map(() => ({ wch: 10 }))]
     XLSX.utils.book_append_sheet(wb, ws, period.label)
   })
 
@@ -93,25 +166,29 @@ export async function exportEClassRecord(params) {
   sorted.forEach((stu, idx) => {
     const r = [idx + 1, stu.name, '', ''], pg = []
     periods.forEach(period => {
-      const sc = (scoresByPeriod[period.id] || {})[stu.id], ac = activitiesByPeriod[period.id] || { ww: [], pt: [], qa: [] }
-      if (!sc) { r.push(''); return }
-      const w = (sc.ww || []).reduce((s, v) => s + (Number(v) || 0), 0), wm = ac.ww.reduce((s, a) => s + (a.maxScore || 0), 0)
-      const p2 = (sc.pt || []).reduce((s, v) => s + (Number(v) || 0), 0), pm = ac.pt.reduce((s, a) => s + (a.maxScore || 0), 0)
-      const q = Number((sc.qa || [])[0]) || 0, qm = ac.qa[0]?.maxScore || 100
-      const t = transmute((wm > 0 ? (w / wm) * 100 * weights.ww : 0) + (pm > 0 ? (p2 / pm) * 100 * weights.pt : 0) + (qm > 0 ? (q / qm) * 100 * weights.qa : 0), transmutationTable)
-      r.push(t); pg.push(t)
+      const studentScores = (scoresByPeriod[period.id] || {})[stu.id]
+      const acts = normalizeActs(activitiesByPeriod[period.id] || {})
+      if (!studentScores) { r.push(''); return }
+      const { initial, hasAny } = computeStudent(studentScores, acts)
+      const t = hasAny ? applyFinal(initial) : ''
+      r.push(t); if (t !== '') pg.push(t)
     })
-    const v = pg.filter(g => g > 0), f = v.length > 0 ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : ''
+    const f = pg.length > 0 ? Math.round(pg.reduce((a, b) => a + b, 0) / pg.length) : ''
     r.push(f, f >= 75 ? 'PASSED' : f ? 'FAILED' : ''); sr.push(r)
   })
   const sw = XLSX.utils.aoa_to_sheet(sr)
   sw['!cols'] = [{ wch: 4 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, ...periods.map(() => ({ wch: 14 })), { wch: 14 }, { wch: 10 }]
   XLSX.utils.book_append_sheet(wb, sw, 'SUMMARY OF GRADES')
 
-  // Transmutation Table
-  const td = [['Transmutation Table','',''], [0,3.99,60],[4,7.99,61],[8,11.99,62],[12,15.99,63],[16,19.99,64],[20,23.99,65],[24,27.99,66],[28,31.99,67],[32,35.99,68],[36,39.99,69],[40,43.99,70],[44,47.99,71],[48,51.99,72],[52,55.99,73],[56,59.99,74],[60,61.59,75],[61.6,63.19,76],[63.2,64.79,77],[64.8,66.39,78],[66.4,67.99,79],[68,69.59,80],[69.6,71.19,81],[71.2,72.79,82],[72.8,74.39,83],[74.4,75.99,84],[76,77.59,85],[77.6,79.19,86],[79.2,80.79,87],[80.8,82.39,88],[82.4,83.99,89],[84,85.59,90],[85.6,87.19,91],[87.2,88.79,92],[88.8,90.39,93],[90.4,91.99,94],[92,93.59,95],[93.6,95.19,96],[95.2,96.79,97],[96.8,98.39,98],[98.4,99.99,99],[100,100,100]]
-  const tw = XLSX.utils.aoa_to_sheet(td); tw['!cols'] = [{ wch: 9 }, { wch: 9 }, { wch: 9 }]
-  XLSX.utils.book_append_sheet(wb, tw, 'Transmutation Table')
+  // Transmutation Table — the one actually in effect for this framework, not
+  // always DO 8, s.2015's, and omitted entirely for zero-based grading
+  // (useTransmutation: false), since there'd be nothing to show.
+  if (useTransmutation) {
+    const sortedTable = [...transmutationTable].sort((a, b) => a[0] - b[0])
+    const td = [['Transmutation Table', '', ''], ...sortedTable.map(row => [row[0], row[1], row[2]])]
+    const tw = XLSX.utils.aoa_to_sheet(td); tw['!cols'] = [{ wch: 9 }, { wch: 9 }, { wch: 9 }]
+    XLSX.utils.book_append_sheet(wb, tw, 'Transmutation Table')
+  }
 
   const filename = 'e-Class_Record_' + subjectName.replace(/[^a-zA-Z0-9]/g, '_') + '_' + section.replace(/[^a-zA-Z0-9]/g, '_') + '_' + schoolYear + '.xlsx'
   XLSX.writeFile(wb, filename)

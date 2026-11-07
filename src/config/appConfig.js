@@ -318,12 +318,13 @@ export const ALL_TABS = [
   { id: 'discounts',     label: 'Discounts',       forRoles: ['accounting'] },
   { id: 'receipt',       label: 'Receipt & Payment', forRoles: ['accounting'] },
   { id: 'workflow',      label: 'Workflow Config',  forRoles: ['technical_admin'] },
+  { id: 'rolePermissions', label: 'Role Permissions', forRoles: ['technical_admin'] },
 ]
 
 /** Default permissions per role — used when user.permissions is not set */
 export const DEFAULT_PERMISSIONS = {
   admin:             { pages: ['dashboard', 'enrollments', 'reports', 'inc-completion'],                      tabs: [] },
-  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'clearance', 'reports', 'settings', 'subject-load', 'e-class-record', 'teacher-forms'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow'] },
+  technical_admin:   { pages: ['dashboard', 'enrollments', 'students', 'payments', 'document-requests', 'clearance', 'reports', 'settings', 'subject-load', 'e-class-record', 'teacher-forms'], tabs: ['users', 'schoolInfo', 'formTemplates', 'workflow', 'rolePermissions'] },
   system_admin:      { pages: ['dashboard', 'settings'],                                                       tabs: ['users'] },
   registrar_basic:   { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'grade-change-requests'], tabs: [] },
   registrar_college: { pages: ['dashboard', 'enrollments', 'students', 'document-requests', 'clearance', 'subject-load', 'grade-change-requests', 'inc-completion'], tabs: [] },
@@ -642,7 +643,9 @@ export const GUIDANCE_REFERRAL_REASONS = [
 /**
  * 'requested' is a teacher's referral waiting for Guidance to accept it. It is not a case
  * yet: it never counts as an open case on clearance, and Guidance moves it to Open (accept)
- * or Closed (decline). Only the teacher referral flow creates it.
+ * or Closed (decline, with an optional reason from GUIDANCE_REFERRAL_DECLINE_REASONS: the
+ * record is then marked declined, and the teacher sees "Declined"). Only the teacher referral
+ * flow creates it.
  */
 export const GUIDANCE_REFERRAL_STATUSES = [
   { id: 'requested',   label: 'Requested'   },
@@ -697,6 +700,19 @@ export const GUIDANCE_REPORT_DECLINE_REASONS = [
   { id: 'incorrect',     label: 'Student or date is incorrect'          },
   { id: 'insufficient',  label: 'Not enough to act on'                  },
   { id: 'other_office',  label: 'Referred to another office'            },
+]
+
+/**
+ * Why the in-charge declined a teacher's referral request. OPTIONAL: the in-charge may decline
+ * without choosing one. A list choice, never typed text, so no description of the student can
+ * end up in the system. The teacher sees the label when one was chosen.
+ */
+export const GUIDANCE_REFERRAL_DECLINE_REASONS = [
+  { id: 'not_guidance', label: 'Not a Guidance matter'                     },
+  { id: 'handled',      label: 'Already handled by the teacher or adviser' },
+  { id: 'duplicate',    label: 'Already referred'                          },
+  { id: 'incorrect',    label: 'Student or date is incorrect'              },
+  { id: 'other_office', label: 'Referred to another office'                },
 ]
 
 /**
@@ -810,8 +826,16 @@ function resolveUserPermissions(user) {
   const rolePerms = getRolePermissions()
   if (rolePerms && rolePerms[user.role]) return rolePerms[user.role]
 
-  // Tier 3: hardcoded defaults
-  return DEFAULT_PERMISSIONS[user.role] || { pages: ['dashboard'], tabs: [] }
+  // Tier 3: hardcoded defaults, or the pages/tabs set on a custom role (Settings → Role Permissions)
+  if (DEFAULT_PERMISSIONS[user.role]) return DEFAULT_PERMISSIONS[user.role]
+  const custom = getCustomRoles().find(r => r.id === user.role)
+  if (custom) {
+    return {
+      pages: [...new Set(['dashboard', ...(custom.pages || [])])],
+      tabs:  custom.tabs || [],
+    }
+  }
+  return { pages: ['dashboard'], tabs: [] }
 }
 
 /** Save role-level permissions to almirene_app_config */
@@ -825,6 +849,60 @@ export function saveRolePermissions(rolePermissions) {
   } catch { return false }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// CUSTOM ROLES — roles a school adds itself (Settings → Role Permissions)
+// Stored in almirene_app_config.customRoles as
+//   { id, label, description, campusScoped, pages: [], tabs: [] }
+// The id is made once from the name ("custom_" + slug) and never changes, so renaming a role
+// does not detach the users who hold it. A custom role carries page and tab access only;
+// workflow behaviour that belongs to a built-in role (approving enrollments, recording
+// payments, Basic Ed / College splits) stays with that role.
+// ─────────────────────────────────────────────────────────────────────
+
+export function getCustomRoles() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
+    return Array.isArray(cfg.customRoles) ? cfg.customRoles : []
+  } catch { return [] }
+}
+
+/** Save the whole custom role list. Returns true when it was stored. */
+export function saveCustomRoles(list) {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('almirene_app_config') || '{}')
+    cfg.customRoles = Array.isArray(list) ? list : []
+    localStorage.setItem('almirene_app_config', JSON.stringify(cfg))
+    window.dispatchEvent(new CustomEvent('almirene_app_config_updated'))
+    return true
+  } catch { return false }
+}
+
+/** Make an id for a new custom role from its name; never collides with a built-in or existing role. */
+export function makeCustomRoleId(label, existingIds = []) {
+  const base = 'custom_' + (String(label).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'role')
+  const taken = new Set([...Object.keys(ROLE_DEFINITIONS), ...existingIds])
+  let id = base, n = 2
+  while (taken.has(id)) id = `${base}_${n++}`
+  return id
+}
+
+/** Built-in roles plus the school's custom roles, in the same shape as ROLE_DEFINITIONS. */
+export function getAllRoleDefinitions() {
+  const out = { ...ROLE_DEFINITIONS }
+  getCustomRoles().forEach(r => {
+    if (out[r.id]) return
+    out[r.id] = {
+      label:        r.label,
+      description:  r.description || 'Custom role',
+      color:        'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',
+      permissions:  r.pages || [],
+      campusScoped: r.campusScoped !== false,
+      custom:       true,
+    }
+  })
+  return out
+}
+
 /** Get current role permissions (from config or defaults) */
 export function getRolePermissions() {
   try {
@@ -835,22 +913,26 @@ export function getRolePermissions() {
 }
 
 /**
- * Is this role inherently scoped to a single campus (vs. seeing all campuses)?
- * This is a role-identity fact, not a configurable permission — it's used for
- * UI like the campus-lock banner/chip, not access control. Kept as one shared
- * list so it can't drift between the places that need it.
+ * Which campus is this user tied to? One rule for every page, so it cannot drift:
+ * a user whose account has a specific campus is locked to it, whatever their role.
+ * A user with campus 'all' (Owner, Technical Admin) or no campus is not locked and picks a
+ * campus with the header filter.
+ *
+ * @returns {{ locked: boolean, campusName: string|null }}  campusName is the campus NAME
+ *          ('Carcar City Campus'), never the key
+ */
+export function getCampusScope(user) {
+  const campus = user?.campus
+  const locked = typeof campus === 'string' && campus.trim() !== '' && campus !== 'all'
+  return { locked, campusName: locked ? campus : null }
+}
+
+/**
+ * Is this user locked to a single campus? Used for UI like the campus-lock banner/chip.
+ * Follows the user's own campus value (see getCampusScope), not a list of roles.
  */
 export function isCampusLockedRole(user) {
-  if (!user) return false
-  return (
-    user.role === 'registrar_basic'   ||
-    user.role === 'registrar_college' ||
-    user.role === 'principal_basic'   ||
-    user.role === 'program_head'      ||
-    user.role === 'system_admin'      ||
-    user.role === 'teacher'           ||
-    (user.role === 'accounting' && user.campus !== 'all')
-  )
+  return getCampusScope(user).locked
 }
 // ─────────────────────────────────────────────────────────────────────
 export const COLLEGE_YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
@@ -1467,6 +1549,12 @@ export function isCollegeGrade(gradeLevel, yearLevelsOverride) {
  */
 export const STUDENT_SEARCH = { minChars: 2, limit: 20, debounceMs: 250 }
 
+/**
+ * The clearance requirement the Guidance in-charge signs (the built-in requirement id). The
+ * Clearance page shows an "Open case" marker on it, to the Guidance in-charge only.
+ */
+export const GUIDANCE_CLEARANCE_REQUIREMENT_ID = 'guidance'
+
 /** Get current school year string */
 export function getCurrentSchoolYear(yearsOverride) {
   const years = yearsOverride || SCHOOL_YEARS
@@ -1579,15 +1667,18 @@ export function getFeeBreakdown(gradeLevel, campusName, feesOverride) {
 
 /**
  * Compute final student bill after applying discounts.
- * Discounts apply to TUITION ONLY — enrollment, misc, lab, books, other are fixed.
+ * Discounts apply to TUITION ONLY — misc, lab, books, other are fixed.
+ * The enrollment fee is returned in `enrollment` but is NEVER part of grandTotal
+ * (it is the minimum down payment, shown as its own line).
  *
  * @param {object} feeBreakdown  — from getFeeBreakdown()
  * @param {Array}  discounts     — active discounts [{ name, rate, type }]
- * @returns {{ tuitionAfterDiscount, totalDiscount, grandTotal, breakdown }}
+ * @returns {{ tuitionAfterDiscount, totalDiscount, enrollment, grandTotal, discountBreakdown }}
  */
 export function computeStudentBill(feeBreakdown, discounts = []) {
   const discountResult = applyDiscountsCascading(feeBreakdown.tuition, discounts)
-  const fixedFees = feeBreakdown.enrollment + feeBreakdown.misc +
+  // Enrollment fee is deliberately left out of the fixed fees (it never goes into the grand total)
+  const fixedFees = (feeBreakdown.misc || 0) +
                     (feeBreakdown.lab || 0) + (feeBreakdown.books || 0) + (feeBreakdown.other || 0)
   return {
     originalTuition:     feeBreakdown.tuition,
@@ -1645,7 +1736,7 @@ export function computeCollegeFee(feeEntry, actualUnits, actualLabUnits, student
     misc,
     semTotal,              // what shows as "Sem Total" in the fee table
     total:       semTotal, // alias for backward compat
-    grandTotal:  semTotal + enroll, // full amount due this semester including enrollment fee
+    grandTotal:  semTotal, // enrollment fee is NOT included (shown separately in `enrollment`)
     units,
     labUnits,
     isUnderload: units < typical,

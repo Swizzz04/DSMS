@@ -13,15 +13,29 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAuth } from '../context/AuthContext'
 import GradeLevelsTab from '../components/settings/GradeLevelsTab'
 import SchoolYearTab from '../components/settings/SchoolYearTab'
-import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, CUSTOM_FEE_ID_START, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
+import { DEFAULT_DISCOUNTS, applyDiscountsCascading, FEE_STRUCTURE as DEFAULT_FEE_STRUCTURE, CUSTOM_FEE_ID_START, previewCollegeFee, getLoadStatus, ROLE_DEFINITIONS, CLEARANCE_DEPARTMENT_SCOPES, CLEARANCE_DUTY_ROLE_ACCESS, MODULE_DUTY_OPTIONS, getClearanceDutyOptions, getClearanceDepartments, getUserPermissions, getCustomRoles, getAllRoleDefinitions, ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS, DEFAULT_PERMISSIONS, DEFAULT_WEBSITE_CONTENT, DEFAULT_MINIMUM_PAYMENT, getDueDatePolicy, resolveDueDate, todayYMD } from '../config/appConfig'
 import GroupedSelect from '../components/GroupedSelect'
+import PromptDialog from '../components/PromptDialog'
+import SlidingTabs from '../components/SlidingTabs'
 import DatePicker from '../components/DatePicker'
 import ColorPicker from '../components/ColorPicker'
 import AccordionBody from '../components/AccordionBody'
 import SchoolLogo from '../components/SchoolLogo'
 import { applyTheme } from '../utils/themeInitializer'
 import WorkflowConfigTab from '../components/settings/WorkflowConfigTab'
+import RolePermissionsTab from '../components/settings/RolePermissionsTab'
 import { getGradingFrameworks, saveGradingFrameworks, DEFAULT_TRANSMUTATION_TABLE, DEFAULT_GRADING_FRAMEWORKS, getCollegeGradingFrameworks, saveCollegeGradingFrameworks, DEFAULT_COLLEGE_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
+
+// Remembers which grading-framework tab was open (Settings → Grade Levels), so it survives logout/login
+const FW_ACTIVE_KEY_BASIC = 'almirene_settings_active_framework_basic'
+const FW_ACTIVE_KEY_COLLEGE = 'almirene_settings_active_framework_college'
+function readSavedFrameworkId(key, frameworks) {
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved && frameworks.some(f => f.id === saved)) return saved
+  } catch { /* storage unavailable */ }
+  return frameworks[0]?.id
+}
 
 
 
@@ -677,7 +691,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
             <button
               onClick={() => toggleGroup(group.key)}
               aria-expanded={isExpanded}
-              className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg-subtle)]/40 transition">
+              className="w-full flex items-center justify-between px-5 py-4 row-hover transition">
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-primary"/>
                 <span className="font-semibold text-sm text-[var(--color-text-primary)]">{group.label}</span>
@@ -745,7 +759,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                 {/* Desktop: table layout */}
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-[var(--color-bg-subtle)]/50">
+                    <thead className="bg-subtle-soft">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
                           Grade Level
@@ -764,7 +778,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                         const isEditing = editingId === fee.id
                         return (
                           <tr key={fee.id}
-                            className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
+                            className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'row-hover'}`}>
                             <td className="px-4 py-3">
                               <p className="text-sm font-semibold text-[var(--color-text-primary)]">{fee.gradeLevel}</p>
                               {feeTag(fee)}
@@ -820,7 +834,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
           <button
             onClick={() => toggleGroup(program)}
             aria-expanded={openKey === program}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-[var(--color-bg-subtle)]/40 transition">
+            className="w-full flex items-center justify-between px-5 py-4 row-hover transition">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="w-2 h-2 rounded-full bg-secondary flex-shrink-0"/>
               <span className="font-semibold text-sm text-[var(--color-text-primary)]">{program}</span>
@@ -964,7 +978,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                             const cur       = isEditing ? {...sem, ...editBuffer} : sem
                             const preview   = previewCollegeFee(cur)
                             return (
-                              <tr key={sem.id} className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
+                              <tr key={sem.id} className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'row-hover'}`}>
                                 <td className="px-4 py-3">
                                   <span className="text-xs font-semibold text-[var(--color-secondary-readable)]">{label}</span>
                                   {sem.campus && <p className="text-xs text-gray-400">{sem.campus}</p>}
@@ -1086,7 +1100,7 @@ export default function Settings() {
   const {
     schoolYears, getCampusSchoolYears, schoolWideSchoolYears, campusSchoolYears, currentYearsByCampus, updateCampusSchoolYears, resetCampusSchoolYears,
     campuses, feeStructure, systemUsers, basicEdGroups,
-    schoolBasicEdGroups, campusGradeLevels, schoolCollegeYearLevels, getProgramYearLevels, getSectionNames,
+    schoolBasicEdGroups, getCampusBasicEdGroups, campusGradeLevels, schoolCollegeYearLevels, getProgramYearLevels, getSectionNames,
     updateConfig, resetSection, activeCampuses, currentSchoolYear
   } = useAppConfig()
 
@@ -1371,14 +1385,46 @@ export default function Settings() {
   // Local editable copies — committed to context on Save
   const [confirmDialog, setConfirmDialog] = useState(null)
   const [editFrameworks, setEditFrameworks] = useState(() => getGradingFrameworks())
-  const [activeFrameworkId, setActiveFrameworkId] = useState(() => getGradingFrameworks()[0]?.id)
+  // The framework tab last opened is remembered (per browser) so Settings reopens where the admin left off
+  const [activeFrameworkId, setActiveFrameworkId] = useState(() => readSavedFrameworkId(FW_ACTIVE_KEY_BASIC, getGradingFrameworks()))
   const [frameworksSaved, setFrameworksSaved] = useState(false)
   const [showAddFramework, setShowAddFramework] = useState(false)
+  // "Duplicate as New Framework" asks for the copy's name in a dialog (a dialog, not a browser prompt)
+  const [dupFramework, setDupFramework] = useState({ open: false, kind: null })   // kind: 'basic' | 'college'
   const [newFwLabel, setNewFwLabel] = useState('')
   const [newFwComponents, setNewFwComponents] = useState([{ label: 'Written Works' }, { label: 'Performance Tasks' }, { label: 'Quarterly Assessment' }])
   const [newFwGroups, setNewFwGroups] = useState([])
   const [editCollegeFrameworks, setEditCollegeFrameworks] = useState(() => getCollegeGradingFrameworks())
-  const [activeCollegeFrameworkId, setActiveCollegeFrameworkId] = useState(() => getCollegeGradingFrameworks()[0]?.id)
+  const [activeCollegeFrameworkId, setActiveCollegeFrameworkId] = useState(() => readSavedFrameworkId(FW_ACTIVE_KEY_COLLEGE, getCollegeGradingFrameworks()))
+  useEffect(() => { try { if (activeFrameworkId) localStorage.setItem(FW_ACTIVE_KEY_BASIC, activeFrameworkId) } catch { /* storage unavailable */ } }, [activeFrameworkId])
+  useEffect(() => { try { if (activeCollegeFrameworkId) localStorage.setItem(FW_ACTIVE_KEY_COLLEGE, activeCollegeFrameworkId) } catch { /* storage unavailable */ } }, [activeCollegeFrameworkId])
+
+  // Duplicate as New Framework: the framework being copied, and the copy made once a name is given
+  const dupSource = dupFramework.kind === 'college'
+    ? (editCollegeFrameworks.find(f => f.id === activeCollegeFrameworkId) || editCollegeFrameworks[0])
+    : (editFrameworks.find(f => f.id === activeFrameworkId) || editFrameworks[0])
+  const duplicateFramework = (label) => {
+    if (!dupSource) return
+    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now().toString(36)
+    if (dupFramework.kind === 'college') {
+      const copy = {
+        ...dupSource, id, label,
+        components: dupSource.components.map(c => ({ ...c })),
+        scale: dupSource.scale.map(r => ({ ...r })),
+      }
+      setEditCollegeFrameworks(prev => [...prev, copy])
+      setActiveCollegeFrameworkId(id)
+    } else {
+      const copy = {
+        ...dupSource, id, label,
+        subjectGroups: dupSource.subjectGroups.map(g => ({ ...g, weights: { ...g.weights } })),
+      }
+      setEditFrameworks(prev => [...prev, copy])
+      setActiveFrameworkId(id)
+    }
+    setDupFramework({ open: false, kind: null })
+    addToast('Framework duplicated — edit weights below, then Save', 'info')
+  }
   const [collegeFrameworksSaved, setCollegeFrameworksSaved] = useState(false)
   const [showAddCollegeFramework, setShowAddCollegeFramework] = useState(false)
   const [newCfLabel, setNewCfLabel] = useState('')
@@ -1482,6 +1528,7 @@ export default function Settings() {
     { id: 'discounts',     label: 'Discounts',         icon: Tag },
     { id: 'receipt',       label: 'Receipt & Payment',  icon: Receipt },
     { id: 'workflow',      label: 'Workflow Config',   icon: GitBranch },
+    { id: 'rolePermissions', label: 'Role Permissions', icon: Shield },
   ]
   // Alphabetical by the label shown
   const tabs = allTabs
@@ -1553,24 +1600,7 @@ export default function Settings() {
 
       {/* Tabs */}
       <div className="bg-[var(--color-bg-card)] rounded-lg shadow-lg mb-6">
-        <div className="flex overflow-x-auto border-b border-[var(--color-border)]">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                flex items-center gap-1.5 px-3 sm:px-6 py-3 sm:py-4 text-sm font-medium whitespace-nowrap transition-colors
-                ${activeTab === tab.id
-                  ? 'text-[var(--color-primary-readable)] border-b-2 border-[var(--color-primary-readable)]'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
-                }
-              `}
-            >
-              <tab.icon className="w-5 h-5" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <SlidingTabs size="lg" tabs={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Settings sections" />
       </div>
 
       {/* Tab Content */}
@@ -1651,18 +1681,7 @@ export default function Settings() {
                   }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
                     <Plus className="w-3.5 h-3.5" /> Add Framework
                   </button>
-                  <button onClick={() => {
-                    const label = window.prompt('New framework name (e.g. "DepEd Zero-Based Grading, s.2027"):', `${activeFramework.label} (Copy)`)
-                    if (!label) return
-                    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now().toString(36)
-                    const copy = {
-                      ...activeFramework, id, label,
-                      subjectGroups: activeFramework.subjectGroups.map(g => ({ ...g, weights: { ...g.weights } })),
-                    }
-                    setEditFrameworks(prev => [...prev, copy])
-                    setActiveFrameworkId(id)
-                    addToast('Framework duplicated — edit weights below, then Save', 'info')
-                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                  <button onClick={() => setDupFramework({ open: true, kind: 'basic' })} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
                     <Plus className="w-3.5 h-3.5" /> Duplicate as New Framework
                   </button>
                 </div>
@@ -1867,19 +1886,7 @@ export default function Settings() {
                   }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
                     <Plus className="w-3.5 h-3.5" /> Add Framework
                   </button>
-                  <button onClick={() => {
-                    const label = window.prompt('New framework name (e.g. "CHED Zero-Based Grading, s.2027"):', `${activeCollegeFramework.label} (Copy)`)
-                    if (!label) return
-                    const id = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now().toString(36)
-                    const copy = {
-                      ...activeCollegeFramework, id, label,
-                      components: activeCollegeFramework.components.map(c => ({ ...c })),
-                      scale: activeCollegeFramework.scale.map(r => ({ ...r })),
-                    }
-                    setEditCollegeFrameworks(prev => [...prev, copy])
-                    setActiveCollegeFrameworkId(id)
-                    addToast('Framework duplicated — edit weights below, then Save', 'info')
-                  }} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
+                  <button onClick={() => setDupFramework({ open: true, kind: 'college' })} className="px-3 py-1.5 text-xs font-medium border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition flex items-center gap-1.5">
                     <Plus className="w-3.5 h-3.5" /> Duplicate as New Framework
                   </button>
                 </div>
@@ -2222,7 +2229,7 @@ export default function Settings() {
             userCampus={user?.campus}
             userRole={user?.role}
             campusName={settingsCampusName}
-            groups={basicEdGroups}
+            groups={settingsCampusKey ? getCampusBasicEdGroups(settingsCampusKey) : basicEdGroups}
             programYears={(prog) => getProgramYearLevels(settingsCampusKey || undefined, prog)}
             onSave={() => saveSection('feeStructure', editFees)}
             saved={savedSection === 'feeStructure'}
@@ -2250,7 +2257,7 @@ export default function Settings() {
 
             {/* ── Section 1: General Information ── */}
             <div id="info-section-general" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('general')} aria-expanded={infoSections.general} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('general')} aria-expanded={infoSections.general} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><School className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">General Information</h3><p className="text-xs text-[var(--color-text-muted)]">School name, motto, contact details, school year</p></div>
@@ -2287,7 +2294,7 @@ export default function Settings() {
 
             {/* ── Section 2: System Branding ── */}
             <div id="info-section-branding" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('branding')} aria-expanded={infoSections.branding} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('branding')} aria-expanded={infoSections.branding} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Paintbrush className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">System Branding</h3><p className="text-xs text-[var(--color-text-muted)]">Logo, banner, and system colors</p></div>
@@ -2350,7 +2357,7 @@ export default function Settings() {
 
             {/* ── Section 3: Login Page ── */}
             <div id="info-section-loginPage" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('loginPage')} aria-expanded={infoSections.loginPage} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('loginPage')} aria-expanded={infoSections.loginPage} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Shield className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Login Page</h3><p className="text-xs text-[var(--color-text-muted)]">Customize the labels and text shown on the login screen</p></div>
@@ -2402,7 +2409,7 @@ export default function Settings() {
 
             {/* ── Section 4: About — Mission, Vision, Goals, Core Values ── */}
             <div id="info-section-about" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('about')} aria-expanded={infoSections.about} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('about')} aria-expanded={infoSections.about} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">About Section</h3><p className="text-xs text-[var(--color-text-muted)]">Mission, vision, goals, and core values shown on the website</p></div>
@@ -2450,7 +2457,7 @@ export default function Settings() {
 
             {/* ── Section 4: FAQ Management ── */}
             <div id="info-section-faq" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('faq')} aria-expanded={infoSections.faq} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('faq')} aria-expanded={infoSections.faq} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><HelpCircle className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">FAQ Management</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.faq.length} question{websiteContent.faq.length !== 1 ? 's' : ''} on the school website</p></div>
@@ -2514,7 +2521,7 @@ export default function Settings() {
 
             {/* ── Section 5: Academic Programs ── */}
             <div id="info-section-programs" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('programs')} aria-expanded={infoSections.programs} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('programs')} aria-expanded={infoSections.programs} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><GraduationCap className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Academic Programs</h3><p className="text-xs text-[var(--color-text-muted)]">{websiteContent.programs.length} program{websiteContent.programs.length !== 1 ? 's' : ''} listed on the website</p></div>
@@ -2601,7 +2608,7 @@ export default function Settings() {
 
             {/* ── Section 6: Admission Requirements & Steps ── */}
             <div id="info-section-admissions" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('admissions')} aria-expanded={infoSections.admissions} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('admissions')} aria-expanded={infoSections.admissions} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Tag className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Admission</h3><p className="text-xs text-[var(--color-text-muted)]">Enrollment requirements and steps shown on the website</p></div>
@@ -2691,7 +2698,7 @@ export default function Settings() {
 
             {/* ── Section 7: Campus Configuration ── */}
             <div id="info-section-campuses" className="scroll-mt-20 bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => toggleInfoSection('campuses')} aria-expanded={infoSections.campuses} className="w-full flex items-center justify-between p-5 hover:bg-[var(--color-bg-subtle)]/50 transition text-left">
+              <button onClick={() => toggleInfoSection('campuses')} aria-expanded={infoSections.campuses} className="w-full flex items-center justify-between p-5 row-hover transition text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-primary/10 rounded-lg flex items-center justify-center"><Building2 className="w-4 h-4 text-[var(--color-primary-readable)]" /></div>
                   <div><h3 className="text-sm font-bold text-[var(--color-text-primary)]">Campus Configuration</h3><p className="text-xs text-[var(--color-text-muted)]">{editCampuses.length} campus{editCampuses.length !== 1 ? 'es' : ''} configured</p></div>
@@ -2839,7 +2846,7 @@ export default function Settings() {
               key={settingsCampusKey}
               campusKey={settingsCampusKey}
               campusName={settingsCampusName}
-              effectiveGroups={basicEdGroups}
+              effectiveGroups={getCampusBasicEdGroups(settingsCampusKey)}   // read for THIS campus directly: the context's working campus updates one render later, and this tab copies the list when it opens
               schoolGroups={schoolBasicEdGroups}
               hasOwnList={!!campusGradeLevels?.[settingsCampusKey]?.basicEdGroups}
               getProgramYears={(prog) => getProgramYearLevels(settingsCampusKey, prog)}
@@ -3230,7 +3237,26 @@ export default function Settings() {
 
       </div>
       {activeTab === 'workflow' && <WorkflowConfigTab campusKey={settingsCampusKey} campusName={settingsCampusName} />}
+      {activeTab === 'rolePermissions' && <RolePermissionsTab />}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      {/* Duplicate a grading framework: asks for the copy's name */}
+      <PromptDialog
+        open={dupFramework.open}
+        title="Duplicate Framework"
+        message="Name the copy. It starts with the same weights; edit them below, then Save."
+        label="Framework name"
+        initialValue={`${dupSource?.label || ''} (Copy)`}
+        placeholder={dupFramework.kind === 'college' ? 'e.g. "CHED Zero-Based Grading, s.2027"' : 'e.g. "DepEd Zero-Based Grading, s.2027"'}
+        confirmLabel="Duplicate"
+        validate={name => {
+          const list = dupFramework.kind === 'college' ? editCollegeFrameworks : editFrameworks
+          return list.some(f => (f.label || '').trim().toLowerCase() === name.toLowerCase())
+            ? 'A framework with that name already exists.' : ''
+        }}
+        onConfirm={duplicateFramework}
+        onCancel={() => setDupFramework({ open: false, kind: null })}
+      />
+
       <ConfirmDialog
         open={!!confirmDialog}
         title={confirmDialog?.title}
@@ -3320,11 +3346,19 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
   const isSchoolWide = (u) => !u.campus || u.campus === 'all'
 
   // System admin can't create super admins, other system admins, or owners
+  // Roles the school added itself (Settings → Role Permissions) are listed after the built-in ones
+  const customRoles = getCustomRoles()
+  const roleDefs = getAllRoleDefinitions()
+  const allAssignable = [
+    ...ASSIGNABLE_ROLES,
+    ...customRoles.map(r => ({ value: r.id, label: r.label })),
+  ]
   const assignableRoles = isSystemAdmin
-    ? ASSIGNABLE_ROLES.filter(r => !['technical_admin', 'system_admin', 'admin'].includes(r.value))
-    : ASSIGNABLE_ROLES
+    ? allAssignable.filter(r => !['technical_admin', 'system_admin', 'admin'].includes(r.value))
+    : allAssignable
 
   const needsCampus = CAMPUS_SCOPED_ROLES.includes(form.role)
+    || customRoles.some(r => r.id === form.role && r.campusScoped !== false)
 
   // Clearance departments this role already signs on its own (extra duties add to these)
   // Each campus has its own clearance setup, so the duties on offer are the ones at the account's campus
@@ -3531,7 +3565,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
 
   // ── Role badge ─────────────────────────────────────────────────
   const RoleBadge = ({ role, duties, modules }) => {
-    const def = ROLE_DEFINITIONS?.[role]
+    const def = getAllRoleDefinitions()[role]
     const extra = (Array.isArray(duties) ? duties : [])
       .map(id => allDutyOptions.find(d => d.id === id)?.label)
       .filter(Boolean)
@@ -3638,7 +3672,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {tab.label}
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
                 userTabView === tab.id
-                  ? 'bg-[var(--color-secondary-contrast)]/20 text-[var(--color-secondary-contrast)]'
+                  ? 'bg-contrast-soft text-[var(--color-secondary-contrast)]'
                   : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)]'
               }`}>{tab.count}</span>
             </button>
@@ -3817,7 +3851,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
         <div className="hidden md:block min-w-0">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
-              <thead className="bg-[var(--color-bg-subtle)]/50">
+              <thead className="bg-subtle-soft">
                 <tr>
                   {['Name','Email','Role','Campus','Status','Last Login','Actions'].map(h => (
                     <th key={h} className="th">{h}</th>
@@ -3826,7 +3860,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               </thead>
               <tbody className="divide-y divide-[var(--color-border)]">
                 {filtered.map(u => (
-                  <tr key={u.id} className={`hover:bg-[var(--color-bg-subtle)]/30 transition-colors ${u.status !== 'active' ? 'opacity-50' : ''}`}>
+                  <tr key={u.id} className={`row-hover transition-colors ${u.status !== 'active' ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{u.name}</td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] whitespace-nowrap">{u.email}</td>
                     <td className="px-4 py-3 whitespace-nowrap"><RoleBadge role={u.role} duties={u.clearanceDuties} modules={u.moduleDuties} /></td>
@@ -3927,7 +3961,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                 <GroupedSelect
                   value={form.role}
                   onChange={v => {
-                    const defaults = DEFAULT_PERMISSIONS[v] || { pages: ['dashboard'], tabs: [] }
+                    const customRole = customRoles.find(r => r.id === v)
+                    const defaults = DEFAULT_PERMISSIONS[v]
+                      || (customRole ? { pages: [...new Set(['dashboard', ...(customRole.pages || [])])], tabs: customRole.tabs || [] } : { pages: ['dashboard'], tabs: [] })
                     setForm(f => ({
                       ...f, role: v, campus: '', campusKey: '',
                       permissions: form.customPermissions ? { ...defaults } : f.permissions,
@@ -3937,9 +3973,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   options={assignableRoles}
                 />
                 {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
-                {form.role && ROLE_DEFINITIONS?.[form.role] && (
+                {form.role && roleDefs[form.role] && (
                   <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
-                    {ROLE_DEFINITIONS[form.role].description}
+                    {roleDefs[form.role].description}
                   </p>
                 )}
               </div>
