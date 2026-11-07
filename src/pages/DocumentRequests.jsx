@@ -13,7 +13,7 @@
  *   technical_admin   — sees everything; the only role that opens Formats (sets up the documents)
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileText, Plus, Search, Filter, ChevronDown,
@@ -25,8 +25,10 @@ import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect    from '../components/GroupedSelect'
+import SlidingTabs from '../components/SlidingTabs'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import DatePicker       from '../components/DatePicker'
+import StudentSearchPicker from '../components/StudentSearchPicker'
 import { ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton } from '../components/UIComponents'
 import {
   getRequests, getRequestById, createRequest, createGraduateRequest,
@@ -126,8 +128,6 @@ function fmtDate(iso) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }) {
-  const [studentSearch, setStudentSearch] = useState('')
-  const [levelFilter, setLevelFilter] = useState('all')   // grade level (Basic Ed) or year level (College)
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [docType, setDocType]   = useState('')
   const [purposeChoice, setPurposeChoice] = useState('')   // a listed purpose, or OTHER_PURPOSE
@@ -140,30 +140,27 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
 
   // Load students from enrollmentBridge
   // A department registrar only files for their own students (technical admin sees both)
-  const { isBasicGrade, basicEdGroups, collegeYearLevels } = useAppConfig()
+  const { isBasicGrade } = useAppConfig()
   const studentDept = (st) => st?.department || (isBasicGrade(st?.gradeLevel) ? 'basicEd' : 'college')
   const lockedDept  = currentUser?.role === 'registrar_basic' ? 'basicEd'
                     : currentUser?.role === 'registrar_college' ? 'college' : null
-  const allStudents = (getStudents({ campusKey, schoolYear }) || [])
-    .filter(st => !lockedDept || studentDept(st) === lockedDept)
-  // Results appear from the first letter typed
-  const q = studentSearch.trim().toLowerCase()
-  // College levels are stored as "Program - 1st Year"; Basic Ed as "Grade 7". Exact match only.
-  const matchesLevel = (st) => levelFilter === 'all'
-    || st.gradeLevel === levelFilter
-    || String(st.gradeLevel || '').split(' - ').pop() === levelFilter
-  const levelGroups = [
-    ...(lockedDept !== 'college' ? (basicEdGroups || []).map(g => ({ label: g.label, options: g.options.map(o => ({ value: o, label: o })) })) : []),
-    ...(lockedDept !== 'basicEd' ? [{ label: 'College year level', options: (collegeYearLevels || []).map(y => ({ value: y, label: y })) }] : []),
-  ]
-  const filteredStudents = (q || levelFilter !== 'all')
-    ? allStudents.filter(matchesLevel).filter(s => !q ||
-        s.firstName?.toLowerCase().includes(q) ||
-        s.lastName?.toLowerCase().includes(q) ||
-        `${s.lastName || ''}, ${s.firstName || ''}`.toLowerCase().includes(q) ||
-        String(s.studentId || '').toLowerCase().includes(q)
-      ).slice(0, 30)
-    : []
+  const allStudents = useMemo(() => (
+    (getStudents({ campusKey, schoolYear }) || [])
+      .filter(st => !lockedDept || studentDept(st) === lockedDept)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [campusKey, schoolYear, lockedDept, isBasicGrade])
+
+  // The picker needs only these fields; the full record is looked up again when one is chosen
+  const studentOptions = useMemo(() => allStudents.map(st => ({
+    id: st.id,
+    studentNo: st.studentId || '',
+    name: `${st.lastName || ''}, ${st.firstName || ''}`.replace(/^, |, $/g, ''),
+    gradeLevel: st.gradeLevel || '',
+  })), [allStudents])
+  const pickStudent = (id) => {
+    setSelectedStudent(id ? (allStudents.find(st => st.id === id) || null) : null)
+    setDocType('')
+  }
 
   const department = selectedStudent ? studentDept(selectedStudent) : 'basicEd'
   const docTypes   = getDocumentTypes(campusKey, department)
@@ -237,66 +234,16 @@ function NewRequestModal({ campusKey, schoolYear, currentUser, onSave, onClose }
           </div>
 
           <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-            {/* Student search */}
+            {/* Student */}
             <div>
               <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
                 Student *
               </label>
-              {selectedStudent ? (
-                <div className="flex items-center justify-between p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-success-light)]">
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                      {selectedStudent.lastName}, {selectedStudent.firstName}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {selectedStudent.gradeLevel} · {selectedStudent.studentId}
-                    </p>
-                  </div>
-                  <button onClick={() => { setSelectedStudent(null); setDocType('') }}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition">
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-                    <input
-                      className="w-full pl-9 pr-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition"
-                      placeholder="Search by name or student ID..."
-                      value={studentSearch}
-                      onChange={e => setStudentSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="mt-2">
-                    <GroupedSelect
-                      value={levelFilter}
-                      onChange={setLevelFilter}
-                      groups={levelGroups}
-                      allLabel={lockedDept === 'college' ? 'All year levels' : lockedDept === 'basicEd' ? 'All grade levels' : 'All levels'}
-                      placeholder={lockedDept === 'college' ? 'All year levels' : lockedDept === 'basicEd' ? 'All grade levels' : 'All levels'}
-                    />
-                  </div>
-                  {filteredStudents.length > 0 && (
-                    <div className="mt-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-y-auto max-h-56">
-                      {filteredStudents.map(s => (
-                        <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentSearch(''); setDocType('') }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition text-sm">
-                          <span className="font-medium text-[var(--color-text-primary)]">
-                            {s.lastName}, {s.firstName}
-                          </span>
-                          <span className="text-[var(--color-text-muted)] ml-2 text-xs">
-                            {s.gradeLevel} · {s.studentId}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {(q || levelFilter !== 'all') && filteredStudents.length === 0 && (
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">No students found.</p>
-                  )}
-                </div>
-              )}
+              <StudentSearchPicker
+                students={studentOptions}
+                value={selectedStudent?.id ?? ''}
+                onChange={pickStudent}
+              />
             </div>
 
             {/* Document type */}
@@ -1664,23 +1611,13 @@ export default function DocumentRequests() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl w-fit">
-        {[
+      <SlidingTabs variant="pill" value={activeTab} onChange={goToTab} ariaLabel="Document request sections"
+        tabs={[
           { id: 'requests',  label: 'Requests',  icon: FileText },
           ...(isRegistrar ? [{ id: 'print', label: 'Print', icon: Printer }] : []),
           ...(canSetupDocuments ? [{ id: 'formats', label: 'Formats', icon: Upload }] : []),
           ...(canManageFees ? [{ id: 'fees', label: 'Fees', icon: Tag }] : []),
-        ].map(tab => (
-          <button key={tab.id} onClick={() => goToTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              ${activeTab === tab.id
-                ? 'is-selected shadow-sm'
-                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
-      </div>
+        ]} />
 
       {/* ── REQUESTS TAB ── */}
       {activeTab === 'requests' && (

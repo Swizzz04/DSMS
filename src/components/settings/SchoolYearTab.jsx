@@ -94,7 +94,7 @@ function NoCampusView({ currentYearsByCampus }) {
 
       <div className="space-y-2">
         {(currentYearsByCampus || []).map(row => (
-          <div key={row.key} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-subtle)]/40">
+          <div key={row.key} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-border)] bg-subtle-soft">
             <div className="flex items-center gap-3 min-w-0">
               <Building2 className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0" />
               <div className="min-w-0">
@@ -317,7 +317,7 @@ function CampusSchoolYears({
                 <div key={sy.id} className={`border rounded-xl overflow-hidden transition-colors ${sy.isCurrent ? 'border-[var(--color-border-strong)] bg-primary/5' : 'border-[var(--color-border)]'}`}>
                   <div className="flex items-stretch">
                     <button onClick={() => setExpandedSY(isExpanded ? null : sy.id)} aria-expanded={isExpanded}
-                      className="flex-1 min-w-0 text-left p-4 flex items-center justify-between gap-2 hover:bg-[var(--color-bg-subtle)]/50 transition">
+                      className="flex-1 min-w-0 text-left p-4 flex items-center justify-between gap-2 row-hover transition">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1.5">
                           <h3 className="text-base font-bold text-[var(--color-text-primary)]">{sy.year}</h3>
@@ -350,7 +350,7 @@ function CampusSchoolYears({
                   </div>
 
                   <AccordionBody open={isExpanded}>
-                    <div className="border-t border-[var(--color-border)] bg-[var(--color-bg-subtle)]/30">
+                    <div className="border-t border-[var(--color-border)] bg-subtle-soft">
                       <div className="p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">

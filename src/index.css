@@ -772,6 +772,16 @@ button, a, [role="button"] {
   background-color: var(--color-bg-subtle);
 }
 
+/* ── Soft tints ───────────────────────────────────────────────────────────────
+   Tailwind v3 cannot put an opacity suffix on a var() colour (bg-[var(--x)]/50 draws nothing).
+   These three classes do the same job from the theme variables, so light and dark both follow.
+   Use: .row-hover (table row / accordion header hover), .bg-subtle-soft (quiet panel),
+        .bg-contrast-soft (tint on a secondary-coloured fill, e.g. a count badge). */
+.row-hover { transition: background-color var(--t-fast); }
+.row-hover:hover { background-color: color-mix(in srgb, var(--color-bg-subtle) 60%, transparent); }
+.bg-subtle-soft { background-color: color-mix(in srgb, var(--color-bg-subtle) 60%, transparent); }
+.bg-contrast-soft { background-color: color-mix(in srgb, var(--color-secondary-contrast) 20%, transparent); }
+
 /* ── Nav items ────────────────────────────────── */
 .nav-item {
   display: flex;

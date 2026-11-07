@@ -5,7 +5,8 @@
  *   - Editor   the Guidance role, or any account with the Guidance module duty.
  *              Referrals, Incidents, Testing and Activity. Adds, edits, closes. Reviews what
  *              teachers send: referral requests (accept / decline) and incident reports
- *              (accept = re-enter as a full incident, or decline with a reason from a list).
+ *              (accept = re-enter as a full incident, or decline with a reason from a list;
+ *              a referral request is declined with an optional reason).
  *   - Viewer   Principal / Program Head (their own level) and Super Admin (one campus at a time).
  *              Same lists, read only. Activity is for editors and Super Admin only.
  *   - Teacher  a teacher who is not an editor. Sends referral requests and incident reports and
@@ -32,20 +33,21 @@ import {
 } from '../components/UIComponents'
 import { useTablePaging, SortTh, Pager } from '../components/DataTable'
 import GroupedSelect from '../components/GroupedSelect'
+import SlidingTabs from '../components/SlidingTabs'
 import DatePicker from '../components/DatePicker'
 import StudentSearchPicker from '../components/StudentSearchPicker'
 import {
   getGuidanceAccess, todayYMD, CLEARANCE_DEPARTMENT_SCOPES,
   GUIDANCE_REFERRAL_SOURCES, GUIDANCE_REFERRAL_REASONS, GUIDANCE_REFERRAL_STATUSES,
   GUIDANCE_INCIDENT_CATEGORIES, GUIDANCE_SANCTIONS, GUIDANCE_INCIDENT_STATUSES,
-  GUIDANCE_REPORT_DECLINE_REASONS,
+  GUIDANCE_REPORT_DECLINE_REASONS, GUIDANCE_REFERRAL_DECLINE_REASONS,
   GUIDANCE_TESTS, GUIDANCE_TEST_TRACKS,
 } from '../config/appConfig'
 import {
   getGuidanceRecords, getGuidanceAudit, getGuidanceStudents,
   createGuidanceRecord, updateGuidanceRecord, setGuidanceStatus,
   deleteGuidanceRecord, canDeleteGuidanceRecord, describeGuidanceRecord, isFollowUpDue,
-  acceptIncidentReport, declineIncidentReport,
+  acceptIncidentReport, declineIncidentReport, declineReferralRequest, markMyGuidanceUpdatesSeen,
   getReferralStudents, createReferralRequest, getMyReferralRequests, withdrawReferralRequest,
   createIncidentReport, getMyIncidentReports, withdrawIncidentReport,
 } from '../utils/guidanceBridge'
@@ -102,7 +104,8 @@ function FieldError({ children }) {
 // What each status can move to. Closed records are locked until reopened.
 const TRANSITIONS = {
   referral: {
-    requested:   [{ to: 'open', label: 'Accept', done: 'Referral accepted.' }, { to: 'closed', label: 'Decline', done: 'Referral declined.' }],
+    // Decline asks for an optional reason (a list choice) and tells the teacher it was declined.
+    requested:   [{ to: 'open', label: 'Accept', done: 'Referral accepted.' }, { to: 'closed', label: 'Decline', special: 'decline' }],
     open:        [{ to: 'in_progress', label: 'Start', done: 'Marked in progress.' }, { to: 'closed', label: 'Close', done: 'Referral closed.' }],
     in_progress: [{ to: 'closed', label: 'Close', done: 'Referral closed.' }],
     closed:      [{ to: 'open', label: 'Reopen', done: 'Referral reopened.' }],
@@ -274,16 +277,23 @@ function RecordModal({ kind, record, students, onSubmit, onClose, mode }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DECLINE MODAL — the in-charge declines a teacher's incident report with a reason
+// DECLINE MODAL — the in-charge declines a teacher's incident report or referral request
 // The reason is a list choice (never typed text). The teacher sees it.
+//   incident report   a reason is required
+//   referral request  a reason is optional ("No reason given" is a valid choice)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DeclineReportModal({ row, onSubmit, onClose }) {
-  const [reason, setReason] = useState('')
+const NO_REASON = 'none'
+
+function DeclineModal({ kind, row, onSubmit, onClose }) {
+  const isReferral = kind === 'referral'
+  const [reason, setReason] = useState(isReferral ? NO_REASON : '')
   const [error, setError] = useState('')
+  const reasons = isReferral ? GUIDANCE_REFERRAL_DECLINE_REASONS : GUIDANCE_REPORT_DECLINE_REASONS
+  const options = isReferral ? [{ value: NO_REASON, label: 'No reason given' }, ...toOptions(reasons)] : toOptions(reasons)
   const submit = () => {
     if (!reason) { setError('Choose a reason.'); return }
-    const res = onSubmit(reason)
+    const res = onSubmit(reason === NO_REASON ? '' : reason)
     if (res && res.ok === false) setError(res.errors?.reason || res.message || 'Something went wrong.')
   }
   return (
@@ -291,25 +301,27 @@ function DeclineReportModal({ row, onSubmit, onClose }) {
       <div className="modal-backdrop">
         <div className="modal-panel">
           <div className="modal-header">
-            <h3 className="text-base font-bold text-[var(--color-text-primary)]">Decline incident report</h3>
+            <h3 className="text-base font-bold text-[var(--color-text-primary)]">{isReferral ? 'Decline referral request' : 'Decline incident report'}</h3>
             <button type="button" onClick={onClose} className="icon-btn icon-btn-ghost" aria-label="Close"><X className="w-5 h-5" /></button>
           </div>
           <div className="p-5 space-y-4 overflow-y-auto">
             <div className="px-3 py-2.5 border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)]">
               <p className="text-sm font-semibold text-[var(--color-text-primary)]">{row.studentName}</p>
               <p className="text-xs text-[var(--color-text-muted)]">
-                {row.categoryLabel} · {fmtDate(row.date)}{row.reportedBy ? ` · reported by ${row.reportedBy}` : ''}
+                {isReferral ? row.reasonLabel : row.categoryLabel} · {fmtDate(row.date)}{row.reportedBy ? ` · reported by ${row.reportedBy}` : ''}
               </p>
             </div>
-            <SelectField label="Reason" value={reason} onChange={v => { setReason(v); setError('') }}
-              options={toOptions(GUIDANCE_REPORT_DECLINE_REASONS)} placeholder="Choose a reason…" error={error} />
+            <SelectField label="Reason" required={!isReferral} value={reason} onChange={v => { setReason(v); setError('') }}
+              options={options} placeholder="Choose a reason…" error={error} />
             <p className="text-xs text-[var(--color-text-muted)]">
-              The teacher will see this reason. A declined report cannot be changed; the teacher can send a new one.
+              {isReferral
+                ? 'The teacher will see that the request was declined, and the reason if you choose one. A declined request is closed; you can reopen it, or the teacher can send a new one.'
+                : 'The teacher will see this reason. A declined report cannot be changed; the teacher can send a new one.'}
             </p>
           </div>
           <div className="modal-footer">
             <button type="button" onClick={onClose} className="btn-cancel">Cancel</button>
-            <button type="button" onClick={submit} className="btn-submit">Decline report</button>
+            <button type="button" onClick={submit} className="btn-submit">{isReferral ? 'Decline request' : 'Decline report'}</button>
           </div>
         </div>
       </div>
@@ -390,7 +402,7 @@ function RowActions({ kind, row, canAct, onStatus, onEdit, onDelete }) {
       {moves.map(m => (
         <button key={m.to} type="button" onClick={() => onStatus(kind, row, m)}
           className="btn btn-ghost text-xs py-1.5 px-3 gap-1">
-          {m.to === 'closed' || m.to === 'resolved' ? <Check size={13} aria-hidden="true" /> : m.label === 'Reopen' ? <RotateCcw size={13} aria-hidden="true" /> : null}
+          {!m.special && (m.to === 'closed' || m.to === 'resolved') ? <Check size={13} aria-hidden="true" /> : m.label === 'Reopen' ? <RotateCcw size={13} aria-hidden="true" /> : null}
           {m.label}
         </button>
       ))}
@@ -433,7 +445,7 @@ function GuidanceWorkspace({ user, access }) {
   const [tick, setTick]               = useState(0)
   const [modal, setModal]             = useState(null)     // { kind, record|null, mode? }
   const [confirm, setConfirm]         = useState(null)     // { kind, row }
-  const [declining, setDeclining]     = useState(null)     // the incident report row being declined
+  const [declining, setDeclining]     = useState(null)     // { kind, row }: the report or request being declined
 
   const isCurrentYear = schoolYear === currentSchoolYear
   const canAct = access.canEdit && isCurrentYear
@@ -493,6 +505,7 @@ function GuidanceWorkspace({ user, access }) {
       // Incidents a teacher reported: who sent it, and why it was declined (if it was)
       reportedBy: kind === 'incident' && r.fromReport ? (r.createdByName || '') : '',
       declineLabel: d.declineReason || '',
+      declined: kind === 'referral' && r.declined === true,
       followUp: r.followUpDate || '', due: kind === 'referral' && isFollowUpDue(r),
       canDelete: canAct && canDeleteGuidanceRecord(user, kind, r, campusKey),
     }
@@ -553,7 +566,7 @@ function GuidanceWorkspace({ user, access }) {
   const handleStatus = (kind, row, move) => {
     // A teacher's incident report: Accept opens the form to re-enter it, Decline asks for a reason
     if (move.special === 'accept')  { setModal({ kind, record: row.raw, mode: 'accept' }); return }
-    if (move.special === 'decline') { setDeclining(row); return }
+    if (move.special === 'decline') { setDeclining({ kind, row }); return }
     report(setGuidanceStatus(user, kind, row.id, move.to, campusKey), move.done)
   }
   const handleSubmit = (form) => {
@@ -577,9 +590,14 @@ function GuidanceWorkspace({ user, access }) {
     return res
   }
   const handleDecline = (reason) => {
-    const res = declineIncidentReport(user, declining.id, reason, campusKey)
+    const isReferral = declining.kind === 'referral'
+    const res = isReferral
+      ? declineReferralRequest(user, declining.row.id, reason, campusKey)
+      : declineIncidentReport(user, declining.row.id, reason, campusKey)
     if (res.ok) {
-      addToast('Report declined. The teacher will see the reason.', 'success')
+      addToast(isReferral
+        ? (reason ? 'Request declined. The teacher will see the reason.' : 'Request declined. The teacher will see that it was declined.')
+        : 'Report declined. The teacher will see the reason.', 'success')
       setDeclining(null)
       setTick(t => t + 1)
     } else if (!res.errors || Object.keys(res.errors).length === 0) {
@@ -648,7 +666,6 @@ function GuidanceWorkspace({ user, access }) {
   const hasFilters = q !== '' || levelFilter !== 'all' || statusFilter !== 'all' || dueOnly
   const clearFilters = () => { setSearch(''); setLevelFilter('all'); setStatusFilter('all'); setDueOnly(false) }
   const resetOn = [q, levelFilter, statusFilter, dueOnly, schoolYear, campusKey]
-  const noun = KIND_NOUN[shownTab] || 'entry'
 
   const emptyBox = (title, text) => (
     <div className="card p-12 text-center">
@@ -682,7 +699,12 @@ function GuidanceWorkspace({ user, access }) {
     { key: 'followUp', label: 'Follow-up', sortKey: 'followUp', cell: r => (
       <span className="block">{fmtDate(r.followUp)}{r.due && <span className="block mt-1"><DueBadge /></span>}</span>
     ) },
-    { key: 'status', label: 'Status', sortKey: 'status', cell: r => <StatusPill status={r.status} label={r.statusLabel} /> },
+    { key: 'status', label: 'Status', sortKey: 'status', cell: r => (
+      <span className="block">
+        <StatusPill status={r.status} label={r.statusLabel} />
+        {r.declined && <span className="block mt-1 text-xs text-[var(--color-text-muted)]">Declined{r.declineLabel ? `: ${r.declineLabel}` : ''}</span>}
+      </span>
+    ) },
     ...(canAct ? [{ key: 'actions', label: '', cell: referralActions }] : []),
   ]
   const incidentColumns = [
@@ -773,17 +795,7 @@ function GuidanceWorkspace({ user, access }) {
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────────────── */}
-      <div className="flex gap-2 border-b border-[var(--color-border)] overflow-x-auto" role="tablist">
-        {tabs.map(t => (
-          <button key={t.id} type="button" role="tab" aria-selected={shownTab === t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px whitespace-nowrap ${
-              shownTab === t.id
-                ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
-                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
-            {t.label}{t.count != null && <span className="text-xs opacity-70">({t.count})</span>}
-          </button>
-        ))}
-      </div>
+      <SlidingTabs tabs={tabs} value={shownTab} onChange={setTab} ariaLabel="Guidance sections" />
 
       {/* ── Filters ──────────────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
@@ -821,6 +833,7 @@ function GuidanceWorkspace({ user, access }) {
                 <Fact label="Referred by">{r.sourceLabel}</Fact>
                 <Fact label="Reason">{r.reasonLabel}</Fact>
                 <Fact label="Follow-up">{r.followUp ? fmtDate(r.followUp) : ''}</Fact>
+                {r.declined && <Fact label="Declined">{r.declineLabel || 'No reason given'}</Fact>}
                 <Fact label="Case no.">{r.caseNo && <span className="font-mono text-xs">{r.caseNo}</span>}</Fact>
               </dl>
               {r.due && <DueBadge />}
@@ -882,7 +895,7 @@ function GuidanceWorkspace({ user, access }) {
           onSubmit={handleSubmit} onClose={() => setModal(null)} />
       )}
       {declining && (
-        <DeclineReportModal row={declining} onSubmit={handleDecline} onClose={() => setDeclining(null)} />
+        <DeclineModal kind={declining.kind} row={declining.row} onSubmit={handleDecline} onClose={() => setDeclining(null)} />
       )}
       <ConfirmDialog
         open={!!confirm}
@@ -1017,6 +1030,15 @@ function TeacherView({ user }) {
   const reports = useMemo(() => getMyIncidentReports(user, { schoolYear: currentSchoolYear }), // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, currentSchoolYear, tick])
 
+  // What Guidance answered since this teacher last looked: marked "New" until they leave the page
+  const [newIds, setNewIds] = useState(() => new Set())
+  useEffect(() => {
+    const fresh = [...requests, ...reports].filter(r => r.isNew).map(r => r.id)
+    if (!fresh.length) return
+    setNewIds(prev => { const n = new Set(prev); fresh.forEach(id => n.add(id)); return n })
+    markMyGuidanceUpdatesSeen(user)          // clears the dot on the menu item
+  }, [requests, reports, user])
+
   const handleSendReferral = (form) => {
     const res = createReferralRequest(user, { ...form, schoolYear: currentSchoolYear })
     if (res.ok) { addToast('Referral sent to Guidance.', 'success'); setShowModal(null); setTab('referral'); setTick(t => t + 1) }
@@ -1046,10 +1068,13 @@ function TeacherView({ user }) {
   const withdrawBtn = (kind) => (r) => r.canWithdraw && (
     <button type="button" onClick={() => setWithdrawing({ kind, row: r })} className="btn btn-ghost text-xs py-1.5 px-3">Withdraw</button>
   )
-  // A declined report shows its reason under the status
-  const reportResult = (r) => (
+  // The result, a "New" chip for what was answered since the last visit, and a decline reason if there is one
+  const resultCell = (r) => (
     <span className="block">
-      <StatusPill status={r.status} label={r.statusLabel} />
+      <span className="inline-flex items-center gap-1.5 flex-wrap">
+        <StatusPill status={r.status} label={r.statusLabel} />
+        {newIds.has(r.id) && <Pill tone="info">New</Pill>}
+      </span>
       {r.declineReasonLabel && <span className="block mt-1 text-xs text-[var(--color-text-muted)]">{r.declineReasonLabel}</span>}
     </span>
   )
@@ -1058,14 +1083,14 @@ function TeacherView({ user }) {
     { key: 'student', label: 'Student', sortKey: 'student', cell: studentCell },
     { key: 'date', label: 'Date', sortKey: 'date', cell: r => <span className="text-[var(--color-text-secondary)]">{fmtDate(r.date)}</span> },
     { key: 'reason', label: 'Reason', cell: r => r.reasonLabel },
-    { key: 'status', label: 'Status', sortKey: 'status', cell: r => <StatusPill status={r.status} label={r.statusLabel} /> },
+    { key: 'status', label: 'Status', sortKey: 'status', cell: resultCell },
     { key: 'actions', label: '', cell: withdrawBtn('referral') },
   ]
   const reportColumns = [
     { key: 'student', label: 'Student', sortKey: 'student', cell: studentCell },
     { key: 'date', label: 'Date', sortKey: 'date', cell: r => <span className="text-[var(--color-text-secondary)]">{fmtDate(r.date)}</span> },
     { key: 'category', label: 'Category', cell: r => r.categoryLabel },
-    { key: 'status', label: 'Result', sortKey: 'status', cell: reportResult },
+    { key: 'status', label: 'Result', sortKey: 'status', cell: resultCell },
     { key: 'actions', label: '', cell: withdrawBtn('incident') },
   ]
   const referralRows = requests.map(r => ({ ...r, student: r.studentName }))
@@ -1125,17 +1150,7 @@ function TeacherView({ user }) {
         </p>
       </div>
 
-      <div className="flex gap-2 border-b border-[var(--color-border)] overflow-x-auto" role="tablist">
-        {tabs.map(t => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px whitespace-nowrap ${
-              tab === t.id
-                ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
-                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'}`}>
-            {t.label}<span className="text-xs opacity-70">({t.count})</span>
-          </button>
-        ))}
-      </div>
+      <SlidingTabs tabs={tabs} value={tab} onChange={setTab} ariaLabel="Referral and incident sections" />
 
       {tab === 'referral' && (
         <RecordList rows={referralRows} columns={referralColumns} sorters={sorters}
@@ -1145,7 +1160,7 @@ function TeacherView({ user }) {
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 {studentCell(r)}
-                <StatusPill status={r.status} label={r.statusLabel} />
+                {resultCell(r)}
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Fact label="Date">{fmtDate(r.date)}</Fact>
@@ -1163,12 +1178,11 @@ function TeacherView({ user }) {
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 {studentCell(r)}
-                <StatusPill status={r.status} label={r.statusLabel} />
+                {resultCell(r)}
               </div>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Fact label="Date">{fmtDate(r.date)}</Fact>
                 <Fact label="Category">{r.categoryLabel}</Fact>
-                {r.declineReasonLabel && <Fact label="Declined because">{r.declineReasonLabel}</Fact>}
               </dl>
               {withdrawBtn('incident')(r)}
             </div>

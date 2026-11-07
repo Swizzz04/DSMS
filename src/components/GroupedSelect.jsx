@@ -343,7 +343,7 @@ export default function GroupedSelect({
                 {/* Group header — hidden for flat (unnamed) groups */}
                 {group.label !== '__flat__' && (
                   <div className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider
-                    text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)]/60 sticky top-0">
+                    text-[var(--color-text-muted)] bg-subtle-soft sticky top-0">
                     {group.label}
                   </div>
                 )}

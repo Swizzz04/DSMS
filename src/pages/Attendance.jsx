@@ -26,6 +26,7 @@ import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { PageSkeleton, useToast, ToastContainer } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import SlidingTabs from '../components/SlidingTabs'
 import DatePicker   from '../components/DatePicker'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import {
@@ -662,17 +663,7 @@ export default function Attendance() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl w-fit">
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                ${activeTab === tab.id
-                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
-              <tab.icon size={14} />{tab.label}
-            </button>
-          ))}
-        </div>
+        <SlidingTabs variant="pill" tabs={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Attendance sections" />
 
         {activeTab === 'entry' && (
           <DailyEntry

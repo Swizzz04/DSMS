@@ -30,6 +30,7 @@ import {
 import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import GroupedSelect    from '../components/GroupedSelect'
+import SlidingTabs from '../components/SlidingTabs'
 import {
   ConfirmDialog, useToast, ToastContainer, ModalPortal, PageSkeleton
 } from '../components/UIComponents'
@@ -431,17 +432,8 @@ export default function INCCompletion() {
 
       {/* Tabs (Super Admin gets audit trail tab) */}
       {isSuperAdmin && (
-        <div className="flex gap-1 p-1 bg-[var(--color-bg-subtle)] rounded-xl w-fit">
-          {[{ id: 'records', label: 'Records', icon: Hourglass }, { id: 'audit', label: 'Audit Trail', icon: History }].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                ${activeTab === tab.id
-                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'}`}>
-              <tab.icon size={14} />{tab.label}
-            </button>
-          ))}
-        </div>
+        <SlidingTabs variant="pill" value={activeTab} onChange={setActiveTab} ariaLabel="INC completion sections"
+          tabs={[{ id: 'records', label: 'Records', icon: Hourglass }, { id: 'audit', label: 'Audit Trail', icon: History }]} />
       )}
 
       {/* ── RECORDS TAB ── */}
@@ -491,7 +483,7 @@ export default function INCCompletion() {
               <div className="divide-y divide-[var(--color-border)]">
                 {filtered.map(r => (
                   <div key={r.id}
-                    className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_120px_80px_60px] gap-2 sm:gap-3 px-4 py-3 hover:bg-[var(--color-bg-subtle)]/50 transition-colors items-center">
+                    className="grid grid-cols-1 sm:grid-cols-[1fr_120px_150px_120px_80px_60px] gap-2 sm:gap-3 px-4 py-3 row-hover transition-colors items-center">
                     <div>
                       <p className="text-sm font-medium text-[var(--color-text-primary)]">{r.studentName}</p>
                       <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{r.subjectName}</p>
