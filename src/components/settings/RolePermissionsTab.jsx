@@ -13,13 +13,16 @@
 
 import { useState, useCallback } from 'react'
 import {
-  Shield, RotateCcw, Save, Info, Check, ChevronDown, ChevronUp,
+  Shield, RotateCcw, Save, Info, Check, ChevronDown, ChevronUp, Plus, Pencil, Trash2,
 } from 'lucide-react'
 import {
   ALL_PAGES, ALL_TABS as ALL_SETTINGS_TABS,
   DEFAULT_PERMISSIONS, ROLE_DEFINITIONS,
   getRolePermissions, saveRolePermissions,
+  getCustomRoles, saveCustomRoles, makeCustomRoleId,
 } from '../../config/appConfig'
+import { useAppConfig } from '../../context/AppConfigContext'
+import RoleFormDialog from './RoleFormDialog'
 import { useToast, ToastContainer, ConfirmDialog } from '../UIComponents'
 import AccordionBody from '../AccordionBody'
 
@@ -47,7 +50,7 @@ const PAGE_GROUPS = [
   },
   {
     group: 'Academic',
-    pages: ALL_PAGES.filter(p => ['subject-load','e-class-record','teacher-forms','grade-change-requests','attendance'].includes(p.id)),
+    pages: ALL_PAGES.filter(p => ['subject-load','e-class-record','teacher-forms','grade-change-requests','inc-completion','attendance'].includes(p.id)),
   },
   {
     group: 'System',
@@ -59,10 +62,11 @@ const PAGE_GROUPS = [
 // ROLE ROW
 // ─────────────────────────────────────────────────────────────────────────────
 
-function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) {
+function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle, custom = false, userCount = 0, onEdit, onDelete }) {
   const pages = permissions?.pages ?? defaults.pages ?? []
   const tabs  = permissions?.tabs  ?? defaults.tabs  ?? []
-  const isCustomized = !!permissions
+  const isCustomized = !custom && !!permissions
+  const riskyTabs = custom ? tabs.filter(t => ['users', 'rolePermissions'].includes(t)) : []
 
   const togglePage = (pageId) => {
     const next = pages.includes(pageId)
@@ -95,7 +99,7 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
     <div className="card overflow-hidden">
       {/* Role header */}
       <div
-        className="flex items-center justify-between p-4 cursor-pointer hover:bg-[var(--color-bg-subtle)]/50 transition-colors select-none"
+        className="flex items-center justify-between p-4 cursor-pointer row-hover transition-colors select-none"
         onClick={onToggle}
         role="button"
         aria-expanded={expanded}
@@ -117,6 +121,11 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
                   Customized
                 </span>
               )}
+              {custom && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border border-[var(--color-border)]">
+                  Custom role
+                </span>
+              )}
             </div>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{role.description}</p>
           </div>
@@ -134,13 +143,24 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
         <div className="border-t border-[var(--color-border)] p-4 space-y-5 bg-[var(--color-bg-page)]">
           {/* Quick actions */}
           <div className="flex gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={resetToDefault}
-              className="btn btn-ghost text-xs gap-1.5"
-            >
-              <RotateCcw size={12} /> Reset to Default
-            </button>
+            {custom ? (
+              <>
+                <button type="button" onClick={onEdit} className="btn btn-ghost text-xs gap-1.5">
+                  <Pencil size={12} /> Edit Details
+                </button>
+                <button type="button" onClick={onDelete} className="btn btn-ghost text-xs gap-1.5">
+                  <Trash2 size={12} /> Delete Role
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={resetToDefault}
+                className="btn btn-ghost text-xs gap-1.5"
+              >
+                <RotateCcw size={12} /> Reset to Default
+              </button>
+            )}
             <button
               type="button"
               onClick={grantAll}
@@ -154,7 +174,15 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
           <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-info-light)] border border-[var(--color-info-border)] text-xs text-[var(--color-info-text)]">
             <Info size={12} className="shrink-0 mt-0.5" />
             Dashboard is always included. Per-user overrides in the Users tab take priority over these settings.
+            {custom && ` ${userCount} user${userCount !== 1 ? 's' : ''} hold${userCount === 1 ? 's' : ''} this role. It is ${role.campusScoped === false ? 'school-wide' : 'assigned to one campus per user'}.`}
           </div>
+
+          {riskyTabs.length > 0 && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] text-xs text-[var(--color-warning-text)]">
+              <Info size={12} className="shrink-0 mt-0.5" />
+              This role can open Users or Role Permissions, which lets its holders change other people's access. Give these tabs only to people you fully trust.
+            </div>
+          )}
 
           {/* Page access by group */}
           <div className="space-y-4">
@@ -235,6 +263,13 @@ function RoleRow({ role, permissions, defaults, onChange, expanded, onToggle }) 
 
 export default function RolePermissionsTab() {
   const { toasts, addToast, removeToast } = useToast()
+  const { systemUsers } = useAppConfig()
+
+  // Roles this school added itself; edited here and saved together with the permissions below
+  const [customRoles, setCustomRoles] = useState(() => getCustomRoles())
+  const [roleDialog,  setRoleDialog]  = useState({ open: false, role: null })
+  const [deleteRole,  setDeleteRole]  = useState(null)
+  const usersOf = (roleId) => (systemUsers || []).filter(u => u.role === roleId).length
 
   // Load current role permissions
   const [rolePerms, setRolePerms] = useState(() => {
@@ -276,7 +311,7 @@ export default function RolePermissionsTab() {
           toSave[role.id] = rolePerms[role.id]
         }
       })
-      const ok = saveRolePermissions(toSave)
+      const ok = saveRolePermissions(toSave) && saveCustomRoles(customRoles)
       if (ok) {
         addToast('Role permissions saved. Changes take effect on next navigation.', 'success')
         setIsDirty(false)
@@ -288,8 +323,33 @@ export default function RolePermissionsTab() {
     }
   }
 
+  const handleCustomChange = (roleId, perms) => {
+    setCustomRoles(prev => prev.map(r => r.id === roleId ? { ...r, pages: perms.pages, tabs: perms.tabs } : r))
+    setIsDirty(true)
+  }
+
+  const handleRoleDetails = ({ label, description, campusScoped }) => {
+    const editing = roleDialog.role
+    if (editing) {
+      setCustomRoles(prev => prev.map(r => r.id === editing.id ? { ...r, label, description, campusScoped } : r))
+    } else {
+      const id = makeCustomRoleId(label, customRoles.map(r => r.id))
+      setCustomRoles(prev => [...prev, { id, label, description, campusScoped, pages: ['dashboard'], tabs: [] }])
+      setExpandedRole(id)
+    }
+    setRoleDialog({ open: false, role: null })
+    setIsDirty(true)
+  }
+
+  const handleDeleteRole = () => {
+    if (!deleteRole) return
+    setCustomRoles(prev => prev.filter(r => r.id !== deleteRole.id))
+    setDeleteRole(null)
+    setIsDirty(true)
+  }
+
   const handleResetAll = () => {
-    // Clear all customizations — everyone goes back to DEFAULT_PERMISSIONS
+    // Clear all customizations — everyone goes back to DEFAULT_PERMISSIONS (custom roles are kept)
     saveRolePermissions({})
     setRolePerms(() => {
       const r = {}
@@ -312,7 +372,14 @@ export default function RolePermissionsTab() {
             Per-user overrides set in the Users tab take priority over these settings.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setRoleDialog({ open: true, role: null })}
+            className="btn btn-ghost text-xs gap-1.5"
+          >
+            <Plus size={12} /> Add Role
+          </button>
           <button
             type="button"
             onClick={() => setResetConfirm(true)}
@@ -365,7 +432,46 @@ export default function RolePermissionsTab() {
             onToggle={() => setExpandedRole(p => (p === role.id ? null : role.id))}
           />
         ))}
+        {customRoles.map(role => (
+          <RoleRow
+            key={role.id}
+            role={role}
+            custom
+            userCount={usersOf(role.id)}
+            permissions={{ pages: role.pages || [], tabs: role.tabs || [] }}
+            defaults={{ pages: ['dashboard'], tabs: [] }}
+            onChange={(perms) => handleCustomChange(role.id, perms || { pages: ['dashboard'], tabs: [] })}
+            onEdit={() => setRoleDialog({ open: true, role })}
+            onDelete={() => setDeleteRole(role)}
+            expanded={expandedRole === role.id}
+            onToggle={() => setExpandedRole(p => (p === role.id ? null : role.id))}
+          />
+        ))}
       </div>
+
+      <RoleFormDialog
+        open={roleDialog.open}
+        role={roleDialog.role}
+        takenNames={[
+          ...CONFIGURABLE_ROLES.map(r => r.label),
+          ...Object.values(ROLE_DEFINITIONS).map(r => r.label),
+          ...customRoles.filter(r => r.id !== roleDialog.role?.id).map(r => r.label),
+        ]}
+        onSave={handleRoleDetails}
+        onCancel={() => setRoleDialog({ open: false, role: null })}
+      />
+
+      <ConfirmDialog
+        open={!!deleteRole}
+        title="Delete Role"
+        message={deleteRole && usersOf(deleteRole.id) > 0
+          ? `${usersOf(deleteRole.id)} user(s) still hold "${deleteRole.label}". Move them to another role in the Users tab first.`
+          : `Delete the role "${deleteRole?.label}"? This is applied when you click Save Changes.`}
+        confirmLabel={deleteRole && usersOf(deleteRole.id) > 0 ? 'OK' : 'Delete'}
+        danger={!(deleteRole && usersOf(deleteRole.id) > 0)}
+        onConfirm={() => (deleteRole && usersOf(deleteRole.id) > 0) ? setDeleteRole(null) : handleDeleteRole()}
+        onCancel={() => setDeleteRole(null)}
+      />
 
       <ConfirmDialog
         open={resetConfirm}
