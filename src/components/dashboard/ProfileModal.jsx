@@ -64,8 +64,75 @@ function Toast({ message, type }) {
 }
 
 // ── Main Modal ────────────────────────────────────────
+// ── Shared field and button components ────────────
+// These live at module level on purpose. Defined inside ProfileModal they were created anew on
+// every keystroke, so React remounted the input and it lost focus after each character.
+const InputField = ({ label, type = 'text', value, onChange, placeholder, hint, rightEl }) => (
+  <div>
+    <label className="text-label mb-1.5 block" style={{ color: 'var(--color-text-muted)' }}>
+      {label}
+    </label>
+    <div className="relative">
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="input pr-10"
+      />
+      {rightEl && <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightEl}</div>}
+    </div>
+    {hint && <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{hint}</p>}
+  </div>
+)
+
+const PrimaryBtn = ({ onClick, loading, disabled, children, danger }) => (
+  <button
+    onClick={onClick}
+    disabled={loading || disabled}
+    className="w-full py-2.5 rounded-[var(--radius-md)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    style={{
+      backgroundColor: danger ? 'var(--color-error)' : 'var(--color-primary)',
+      color: danger ? '#ffffff' : 'var(--color-primary-contrast)',
+    }}
+    onMouseEnter={e => {
+      if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? '#b91c1c' : 'var(--color-primary-hover)'
+    }}
+    onMouseLeave={e => {
+      if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? 'var(--color-error)' : 'var(--color-primary)'
+    }}
+  >
+    {loading ? (
+      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+    ) : children}
+  </button>
+)
+
+const GhostBtn = ({ onClick, children }) => (
+  <button
+    onClick={onClick}
+    className="btn btn-ghost flex-1 py-2.5"
+  >
+    {children}
+  </button>
+)
+
+// ── Password visibility toggle ────────────────────
+const EyeToggle = ({ show, onToggle }) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    className="transition-colors"
+    style={{ color: 'var(--color-text-muted)' }}
+    onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
+    onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
+  >
+    {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+  </button>
+)
+
 export default function ProfileModal({ onClose }) {
-  const { user, logout } = useAuth()
+  const { user, logout, changePassword } = useAuth()
 
   // Pull persisted profile extras from localStorage
   const savedExtras = JSON.parse(localStorage.getItem(`almirene_profile_${user?.id}`) || '{}')
@@ -178,16 +245,6 @@ export default function ProfileModal({ onClose }) {
   }
 
   // ── Password ──────────────────────────────────────
-  const MOCK_PASSWORDS = {
-    admin: 'admin123',
-    technical_admin: 'techadmin123',
-    registrar_basic: 'registrar123',
-    registrar_college: 'registrar123',
-    accounting: 'accounting123',
-    principal_basic: 'principal123',
-    program_head: 'principal123',
-  }
-
   const pwStrength = (pw) => {
     if (!pw) return null
     let score = 0
@@ -202,9 +259,9 @@ export default function ProfileModal({ onClose }) {
   const strengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][strength || 0]
   const strengthColors = ['', 'var(--color-error)', 'var(--color-warning)', 'var(--color-info)', 'var(--color-success)']
 
-  const handleChangePassword = () => {
-    if (currentPassword !== MOCK_PASSWORDS[user?.role]) {
-      showToast('Current password is incorrect', 'error'); return
+  const handleChangePassword = async () => {
+    if (!currentPassword) {
+      showToast('Enter your current password', 'error'); return
     }
     if (newPassword.length < 8) {
       showToast('New password must be at least 8 characters', 'error'); return
@@ -213,12 +270,14 @@ export default function ProfileModal({ onClose }) {
       showToast('Passwords do not match', 'error'); return
     }
     setPwLoading(true)
-    setTimeout(() => {
-      setPwLoading(false)
-      showToast('Password changed successfully!')
-      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
-      setActiveSection(null)
-    }, 1000)
+    const result = await changePassword(currentPassword, newPassword)
+    setPwLoading(false)
+    if (!result.success) {
+      showToast(result.error, 'error'); return
+    }
+    showToast('Password changed successfully!')
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+    setActiveSection(null)
   }
 
   // ── Sections config ───────────────────────────────
@@ -266,70 +325,6 @@ export default function ProfileModal({ onClose }) {
       </button>
       <h3 className="text-base font-semibold" style={{ color: 'var(--color-text-primary)' }}>{label}</h3>
     </div>
-  )
-
-  const InputField = ({ label, type = 'text', value, onChange, placeholder, hint, rightEl }) => (
-    <div>
-      <label className="text-label mb-1.5 block" style={{ color: 'var(--color-text-muted)' }}>
-        {label}
-      </label>
-      <div className="relative">
-        <input
-          type={type}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="input pr-10"
-        />
-        {rightEl && <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightEl}</div>}
-      </div>
-      {hint && <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>{hint}</p>}
-    </div>
-  )
-
-  const PrimaryBtn = ({ onClick, loading, disabled, children, danger }) => (
-    <button
-      onClick={onClick}
-      disabled={loading || disabled}
-      className="w-full py-2.5 rounded-[var(--radius-md)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      style={{
-        backgroundColor: danger ? 'var(--color-error)' : 'var(--color-primary)',
-        color: danger ? '#ffffff' : 'var(--color-primary-contrast)',
-      }}
-      onMouseEnter={e => {
-        if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? '#b91c1c' : 'var(--color-primary-hover)'
-      }}
-      onMouseLeave={e => {
-        if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? 'var(--color-error)' : 'var(--color-primary)'
-      }}
-    >
-      {loading ? (
-        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-      ) : children}
-    </button>
-  )
-
-  const GhostBtn = ({ onClick, children }) => (
-    <button
-      onClick={onClick}
-      className="btn btn-ghost flex-1 py-2.5"
-    >
-      {children}
-    </button>
-  )
-
-  // ── Password visibility toggle ────────────────────
-  const EyeToggle = ({ show, onToggle }) => (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="transition-colors"
-      style={{ color: 'var(--color-text-muted)' }}
-      onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-      onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-muted)'}
-    >
-      {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-    </button>
   )
 
   // ── Render sections ───────────────────────────────

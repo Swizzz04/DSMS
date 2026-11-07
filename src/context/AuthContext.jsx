@@ -32,7 +32,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { SYSTEM_USERS } from '../config/users'
-import { verifyPassword } from '../utils/crypto'
+import { verifyPassword, sha256 } from '../utils/crypto'
 
 // ── Constants ────────────────────────────────────────────────────────
 const APP_CONFIG_KEY   = 'almirene_app_config'
@@ -310,11 +310,27 @@ export function AuthProvider({ children }) {
   // ── Logout ─────────────────────────────────────────────────────────
   const logout = () => doLogout(false)
 
+  // ── Change own password ────────────────────────────────────────────
+  // Checks the current password against the account's stored hash, then saves the hash of the
+  // new one (never the password itself). Frontend-only stopgap until the backend owns passwords.
+  const changePassword = async (currentPassword, newPassword) => {
+    const found = user ? getSystemUsers().find(u => u.id === user.id) : null
+    if (!found) return { success: false, error: 'Account not found. Please log in again.' }
+    if (!(await verifyPassword(currentPassword, found.passwordHash))) {
+      return { success: false, error: 'Current password is incorrect' }
+    }
+    const problem = validatePassword(newPassword)
+    if (problem) return { success: false, error: problem }
+    updateSystemUser(found.id, { passwordHash: await sha256(newPassword) })
+    return { success: true }
+  }
+
   return (
     <AuthContext.Provider value={{
       user,
       login,
       logout,
+      changePassword,
       isAuthenticated: !!user,
       loading,
     }}>
