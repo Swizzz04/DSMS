@@ -215,7 +215,11 @@ export function removeBasicEdSubject(campusKey, schoolYear, gradeLevel, subject)
 }
 
 
-/** Set the subject area (e.g. 'mapeh', 'tle') for a Basic Ed subject load */
+/**
+ * Set the subject area (e.g. 'mapeh', 'tle') for a Basic Ed subject load.
+ * A subject with no teacher yet has no load, so one is created (no teacher). Assigning a teacher
+ * later keeps the area (see assignBasicEdLoad). Stats count a load only when it has a teacherId.
+ */
 export function setBasicEdSubjectArea(campusKey, schoolYear, gradeLevel, subject, area) {
   const data = getCY(campusKey, schoolYear)
   if (!data) return
@@ -224,8 +228,35 @@ export function setBasicEdSubjectArea(campusKey, schoolYear, gradeLevel, subject
   )
   if (idx >= 0) {
     data.basicEdLoads[idx] = { ...data.basicEdLoads[idx], subjectArea: area }
-    setCY(campusKey, schoolYear, data)
+  } else {
+    data.basicEdLoads.push({
+      id: uid('be'), gradeLevel, subject,
+      teacherId: null, teacherName: '', subjectArea: area,
+      updatedAt: new Date().toISOString(),
+    })
   }
+  setCY(campusKey, schoolYear, data)
+}
+
+/**
+ * Set the subject area of several Basic Ed loads in ONE save.
+ * updates: [{ gradeLevel, subject, area }]. Subjects without a load yet are skipped (the area is
+ * stored on the load, which is created when a teacher is assigned).
+ * Returns how many loads changed, so the caller only refreshes when something was written.
+ */
+export function setBasicEdSubjectAreas(campusKey, schoolYear, updates = []) {
+  const data = getCY(campusKey, schoolYear)
+  if (!data) return 0
+  let changed = 0
+  updates.forEach(({ gradeLevel, subject, area }) => {
+    const idx = (data.basicEdLoads || []).findIndex(l => l.gradeLevel === gradeLevel && l.subject === subject)
+    if (idx >= 0 && data.basicEdLoads[idx].subjectArea !== area) {
+      data.basicEdLoads[idx] = { ...data.basicEdLoads[idx], subjectArea: area }
+      changed++
+    }
+  })
+  if (changed) setCY(campusKey, schoolYear, data)
+  return changed
 }
 
 export function addCollegeSubject(campusKey, schoolYear, program, yearLevel, semester, subject) {
@@ -255,7 +286,10 @@ export function assignBasicEdLoad(campusKey, schoolYear, gradeLevel, subject, te
   const data = getCY(campusKey, schoolYear)
   if (!data) return
   const idx = data.basicEdLoads.findIndex(l => l.gradeLevel === gradeLevel && l.subject === subject)
+  // Reassigning must only change the teacher: spread the existing load so fields set elsewhere
+  // (subjectArea) are kept
   const load = {
+    ...(idx >= 0 ? data.basicEdLoads[idx] : {}),
     id: idx >= 0 ? data.basicEdLoads[idx].id : uid('be'),
     gradeLevel, subject,
     teacherId: teacher?.id || null, teacherName: teacher?.name || '',

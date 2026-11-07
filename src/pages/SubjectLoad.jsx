@@ -16,12 +16,18 @@ import {
   addBasicEdSubject, removeBasicEdSubject,
   addCollegeSubject, removeCollegeSubject,
   assignBasicEdLoad, assignAdviser, assignCollegeLoad,
-  setBasicEdSubjectArea,
+  setBasicEdSubjectArea, setBasicEdSubjectAreas,
 } from '../utils/subjectLoadBridge'
 import { getGradingFramework, getSubjectAreaOptions, DEFAULT_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
 import GroupedSelect from '../components/GroupedSelect'
+import SlidingTabs from '../components/SlidingTabs'
 
 const SEMESTERS = ['1st', '2nd']
+
+// MAPEH-type sub-subjects always use the HELE / MAPEH area (when the school's list has that area)
+const COMPOSITE_AREA_BY_SUBJECT = {
+  'Music & Arts': 'hele_mapeh', 'PE & Health': 'hele_mapeh', 'TLE': 'hele_mapeh', 'HELE': 'hele_mapeh', 'Computer': 'hele_mapeh',
+}
 
 // ─────────────────────────────────────────────────────────────────
 // SHARED MODALS
@@ -145,12 +151,6 @@ function RenameSectionModal({ section, onRename, onClose }) {
 // SUBJECT ROW — reusable
 // ─────────────────────────────────────────────────────────────────
 function SubjectRow({ subject, teacherName, teacherId, subjectArea, areaOptions = [], staleArea, onAssign, onRemove, onSubjectAreaChange, isCompositeChild }) {
-  const areaLabel = areaOptions.find(a => a.id === subjectArea)?.label ?? null
-  // Shorten label for display — use the first meaningful word group
-  const shortArea = areaLabel
-    ? areaLabel.split('/')[0].trim()
-    : null
-
   return (
     <div className="py-2.5 border-b border-[var(--color-border)] last:border-0 space-y-1.5">
       {/* Row 1: subject name + teacher + remove */}
@@ -223,17 +223,37 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 
   const toggle = g => setOpenGrade(p => (p === g ? null : g))
 
+  // Save the locked area on composite sub-subject loads that do not have it yet. This used to run
+  // while rendering (a storage write on every paint); now it runs once after data changes.
+  // Once saved, the next pass finds nothing to change, so it does not loop.
+  useEffect(() => {
+    if (!lockComposite || !campusKey) return
+    const updates = []
+    Object.entries(data.basicEdSubjects || {}).forEach(([grade, subjects]) => {
+      subjects.forEach(subject => {
+        const area = COMPOSITE_AREA_BY_SUBJECT[subject]
+        if (!area) return
+        const load = (data.basicEdLoads || []).find(l => l.gradeLevel === grade && l.subject === subject)
+        if (load && load.subjectArea !== area) updates.push({ gradeLevel: grade, subject, area })
+      })
+    })
+    if (updates.length && setBasicEdSubjectAreas(campusKey, schoolYear, updates) > 0) onDataChange()
+  }, [data, lockComposite, campusKey, schoolYear, onDataChange])
+
   const allGrades = campusGroups.flatMap(g => g.options)
   const totalSubjects = Object.values(data.basicEdSubjects || {}).reduce((s, a) => s + a.length, 0)
   const assignedSubjects = (data.basicEdLoads || []).filter(l => l.teacherId).length
   const totalSections = Object.values(data.basicEdSections || {}).reduce((s, a) => s + a.length, 0)
   const assignedAdvisers = (data.basicEdAdvisers || []).filter(a => a.teacherId).length
 
-  // Group open state — track which department groups are open
-  const [openGroups, setOpenGroups] = useState(() =>
-    Object.fromEntries(campusGroups.map(g => [g.label, true]))
-  )
-  const toggleGroup = label => setOpenGroups(p => ({ ...p, [label]: !p[label] }))
+  // Department groups are open unless collapsed (so a group added later starts open).
+  // Collapsing a group also closes the level card open inside it, so nothing stays open out of sight.
+  const [collapsedGroups, setCollapsedGroups] = useState({})
+  const toggleGroup = (group) => {
+    const collapsing = !collapsedGroups[group.label]
+    setCollapsedGroups(p => ({ ...p, [group.label]: collapsing }))
+    if (collapsing && group.options.includes(openGrade)) setOpenGrade(null)
+  }
 
   const handleSelectTeacher = (teacher) => {
     if (!picker) return
@@ -281,13 +301,14 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
           const secs = data.basicEdSections?.[g] || []
           return s + secs.filter(sec => !(data.basicEdAdvisers || []).find(a => a.sectionId === sec.id && a.teacherId)).length
         }, 0)
-        const isGroupOpen = openGroups[group.label]
+        const isGroupOpen = !collapsedGroups[group.label]
 
         return (
           <div key={group.label} className="space-y-2">
             {/* Department group header */}
             <button
-              onClick={() => toggleGroup(group.label)}
+              onClick={() => toggleGroup(group)}
+              aria-expanded={isGroupOpen}
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-secondary/5 dark:bg-secondary/20 hover:bg-secondary/10 dark:hover:bg-secondary/30 transition"
             >
               <div className="flex items-center gap-2">
@@ -308,7 +329,9 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
             </button>
 
             {/* Grade levels inside this group */}
-            {isGroupOpen && groupGrades.map(grade => {
+            <AccordionBody open={isGroupOpen}>
+            <div className="space-y-2 pb-1">
+            {groupGrades.map(grade => {
         const subjects = data.basicEdSubjects?.[grade] || []
         const sections = data.basicEdSections?.[grade] || []
         const loads    = (data.basicEdLoads || []).filter(l => l.gradeLevel === grade)
@@ -319,8 +342,8 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
 
         return (
           <div key={grade} className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
-            <button onClick={() => toggle(grade)}
-              className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[var(--color-bg-subtle)]/30 transition">
+            <button onClick={() => toggle(grade)} aria-expanded={isOpen}
+              className="w-full flex items-center justify-between px-4 py-3.5 row-hover transition">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-lg flex items-center justify-center">
                   <BookOpen className="w-4 h-4 text-[var(--color-primary-readable)]" />
@@ -356,17 +379,13 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
                   )}
                   {subjects.map(subject => {
                     const load = loads.find(l => l.subject === subject)
-                    // Composite sub-subjects always use hele_mapeh — auto-set on first render
-                    const COMPOSITE_SUBS = { 'Music & Arts': 'hele_mapeh', 'PE & Health': 'hele_mapeh', 'TLE': 'hele_mapeh', 'HELE': 'hele_mapeh', 'Computer': 'hele_mapeh' }
-                    const isComposite = lockComposite && !!COMPOSITE_SUBS[subject]
+                    // Composite sub-subjects always use hele_mapeh (saved by the effect above)
+                    const isComposite = lockComposite && !!COMPOSITE_AREA_BY_SUBJECT[subject]
                     // An area saved under another grading framework is not in today's list: treat it as not set
                     const savedArea  = areaOptions.some(a => a.id === load?.subjectArea) ? load.subjectArea : null
                     const staleArea  = !!load?.subjectArea && !savedArea
-                    const effectiveArea = savedArea || (isComposite ? COMPOSITE_SUBS[subject] : null)
-                    // Auto-save composite area if not yet saved
-                    if (isComposite && !savedArea) {
-                      setBasicEdSubjectArea(campusKey, schoolYear, grade, subject, COMPOSITE_SUBS[subject])
-                    }
+                    // Falls back to the composite area, so the row is right before the effect has saved it
+                    const effectiveArea = savedArea || (isComposite ? COMPOSITE_AREA_BY_SUBJECT[subject] : null)
                     return (
                       <SubjectRow key={subject} subject={subject}
                         teacherName={load?.teacherName} teacherId={load?.teacherId}
@@ -438,6 +457,8 @@ function BasicEdTab({ data, teachers, campusKey, schoolYear, areaOptions, areaIn
           </div>
             )
           })}
+            </div>
+            </AccordionBody>
           </div>
         )
       })}
@@ -565,7 +586,7 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
             return (
               <div key={key} className="bg-[var(--color-bg-card)] rounded-xl shadow-sm overflow-hidden">
                 <button onClick={() => toggle(key)}
-                  className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-[var(--color-bg-subtle)]/30 transition">
+                  className="w-full flex items-center justify-between px-4 py-3.5 row-hover transition">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-secondary/10 dark:bg-secondary/20 rounded-lg flex items-center justify-center">
                       <BookOpen className="w-4 h-4 text-[var(--color-secondary-readable)]" />
@@ -920,18 +941,7 @@ export default function SubjectLoad() {
 
       {/* Tabs */}
       {tabs.length > 1 && (
-        <div className="flex gap-2 border-b border-[var(--color-border)]">
-          {tabs.map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
-                shownTab === tab.id
-                  ? 'border-[var(--color-primary-readable)] text-[var(--color-primary-readable)]'
-                  : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
-              }`}>
-              <tab.icon className="w-4 h-4" /> {tab.label}
-            </button>
-          ))}
-        </div>
+        <SlidingTabs tabs={tabs} value={shownTab} onChange={setActiveTab} ariaLabel="Subject load sections" />
       )}
 
       {/* Content */}
