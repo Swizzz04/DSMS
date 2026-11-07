@@ -48,7 +48,7 @@ import {
   BookOpen, GraduationCap, ChevronDown, ChevronUp,
   MapPin, FileText
 } from 'lucide-react'
-import { isCampusLockedRole } from '../config/appConfig'
+import { isCampusLockedRole, getAllRoleDefinitions } from '../config/appConfig'
 import { useAppConfig } from '../context/AppConfigContext'
 
 // ────────────────────────────────────────────────────────────────
@@ -194,8 +194,8 @@ export function CampusMiniCard({ campusStat: c }) {
  *
  * Usage: <CampusBanner user={user} />
  *
- * Shows for: registrar_basic, registrar_college, accounting (campus !== 'all')
- * Hidden for: admin, principal_basic, accounting with campus === 'all'
+ * Shows for any user whose account is tied to one campus (campus !== 'all').
+ * Hidden for users with campus === 'all' (Owner, Technical Admin).
  */
 export function CampusBanner({ user }) {
   if (!user) return null
@@ -215,7 +215,7 @@ export function CampusBanner({ user }) {
   }
 
   // Campus-based colors — uniform across all roles per campus
-  const label = roleLabels[user.role] || user.role?.replace('_', ' ')
+  const label = roleLabels[user.role] || getAllRoleDefinitions()[user.role]?.label || user.role?.replace(/_/g, ' ')
 
   return (
     <div className="rounded-xl px-5 py-3.5 flex items-center gap-3 border bg-[var(--color-primary-light)] border-primary/20">
@@ -805,7 +805,7 @@ export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-[
     <div className="min-w-0 -mx-1">
       <div className="overflow-x-auto rounded-lg">
       <table className="w-full text-sm min-w-[520px]">
-        <thead className="bg-[var(--color-bg-subtle)]/50">
+        <thead className="bg-subtle-soft">
           <tr>
             {['Reference','Student','Level / Program','Type','Status','Date'].map(h => (
               <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
@@ -814,7 +814,7 @@ export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-[
         </thead>
         <tbody className="divide-y divide-[var(--color-border)]">
           {rows.map(e => (
-            <tr key={e.id} className="hover:bg-[var(--color-bg-subtle)]/30">
+            <tr key={e.id} className="row-hover">
               <td className={`px-4 py-3 font-mono text-xs ${accentColor} whitespace-nowrap`}>{e.referenceNumber}</td>
               <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{e.student.firstName} {e.student.lastName}</td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{e.enrollment.gradeLevel}</td>
@@ -842,7 +842,7 @@ export function CampusEnrollmentTable({ campusStats }) {
     <div className="min-w-0">
     <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
       <table className="w-full text-sm min-w-[560px]">
-        <thead className="bg-[var(--color-bg-subtle)]/50">
+        <thead className="bg-subtle-soft">
           <tr>{['Campus','Total','Awaiting Payment','Payment Received','Approved','Rejected','Approval Rate'].map(h => (
             <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
@@ -852,7 +852,7 @@ export function CampusEnrollmentTable({ campusStats }) {
             const rate = c.enrollments > 0 ? Math.round((c.approved / c.enrollments) * 100) : 0
             const paymentReceived = c.payment_received ?? 0
             return (
-              <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+              <tr key={c.name} className="row-hover">
                 <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
                 <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.enrollments}</td>
                 <td className="px-4 py-3 text-yellow-600 dark:text-yellow-400 font-semibold">{c.pending}</td>
@@ -887,7 +887,7 @@ export function CampusStudentTable({ campusStats, stuTotal }) {
     <div className="min-w-0">
     <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
       <table className="w-full text-sm min-w-[400px]">
-        <thead className="bg-[var(--color-bg-subtle)]/50">
+        <thead className="bg-subtle-soft">
           <tr>{['Campus','Total','Basic Ed','College','Share'].map(h => (
             <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
@@ -896,7 +896,7 @@ export function CampusStudentTable({ campusStats, stuTotal }) {
           {campusStats.map(c => {
             const share = stuTotal > 0 ? Math.round((c.students / stuTotal) * 100) : 0
             return (
-              <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+              <tr key={c.name} className="row-hover">
                 <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
                 <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.students}</td>
                 <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{c.basicStu}</td>
@@ -929,14 +929,14 @@ export function CampusPaymentTable({ campusStats }) {
     <div className="min-w-0">
     <div className="overflow-x-auto rounded-xl border border-[var(--color-border)]">
       <table className="w-full text-sm min-w-[500px]">
-        <thead className="bg-[var(--color-bg-subtle)]/50">
+        <thead className="bg-subtle-soft">
           <tr>{['Campus','Expected','Collected','Outstanding','Collection Rate','Overdue'].map(h => (
             <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">{h}</th>
           ))}</tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-border)]">
           {campusStats.map(c => (
-            <tr key={c.name} className="hover:bg-[var(--color-bg-subtle)]/30">
+            <tr key={c.name} className="row-hover">
               <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{php(c.totalFee)}</td>
               <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold whitespace-nowrap">{php(c.revenue)}</td>
