@@ -236,10 +236,8 @@ function buildBill(feeEntry, isCollege, discounts, studentType) {
     other:      feeEntry.other      || 0,
     total: 0,
   }
-  const bill = computeStudentBill(breakdown, discountInputs)
-  // computeStudentBill() adds the enrollment fee; the rule says it must not be in the total
-  bill.grandTotal = bill.tuitionAfterDiscount + breakdown.misc + breakdown.lab + breakdown.books + breakdown.other
-  return bill
+  // grandTotal already excludes the enrollment fee (kept in bill.enrollment)
+  return computeStudentBill(breakdown, discountInputs)
 }
 
 // ── Payment plans ──────────────────────────────────────────────────────────────
@@ -415,10 +413,12 @@ export function packA() {
       if (status === 'approved' && !studentIds.has(id)) {
         studentCounter += 1
         const missingDocs = typeFlag === 'X'
+        // the submission carries the same Student ID as its student record (what approval does)
+        record.studentId = `${year}${pad(studentCounter, 6)}`
         students.push({
           id,
           _seed: true,
-          studentId: `${year}${pad(studentCounter, 6)}`,
+          studentId: record.studentId,
           campusKey: campus.key,
           campusName: campus.name,
           schoolYear,

@@ -21,6 +21,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { getSubjectLoadData } from '../utils/subjectLoadBridge'
+import { ensureStudentIds } from '../utils/enrollmentBridge'
 
 // Lazy-loaded chart wrapper — only loads chart.js when stats section renders
 const LazyBar = lazy(() =>
@@ -577,6 +578,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
 // ── Normalise almirene_submissions → student shape ────────────────────
 function normaliseSubmissions() {
   try {
+    ensureStudentIds()   // students approved before IDs existed get theirs here
     const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     return subs
       .filter(s => s.status === 'approved')
@@ -587,7 +589,7 @@ function normaliseSubmissions() {
         const yearPart = gradeLevel.split(' - ')[1] || ''
         return {
           id:             s.id || s.referenceNumber,
-          studentId:      s.referenceNumber || s.id || '',
+          studentId:      s.studentId || '',   // the school's Student ID; the reference number is not an ID
           status:         'active',
           enrollmentDate: s.updatedAt || s.submittedDate || new Date().toISOString(),
           personal: {
@@ -1199,7 +1201,7 @@ export default function Students() {
                 <thead className="bg-[var(--color-bg-subtle)]">
                   <tr>
                     <SortTh label="Student" sortKey="name" sort={sort} onSort={onSort} />
-                    <SortTh label="School ID" sortKey="id" sort={sort} onSort={onSort} />
+                    <SortTh label="Student ID" sortKey="id" sort={sort} onSort={onSort} />
                     <SortTh label={user?.role === 'registrar_college' ? 'Program & Year' : 'Grade Level'} sortKey="grade" sort={sort} onSort={onSort} />
                     <SortTh label="Section" sortKey="section" sort={sort} onSort={onSort} />
                     {!isCampusLocked && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
