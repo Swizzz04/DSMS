@@ -94,7 +94,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, ad
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
+          className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium">
           <Download className="w-4 h-4" /> Export
         </button>
       </div>
@@ -409,7 +409,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
               Close
             </button>
             <button onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -656,7 +656,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
             {e.status === 'payment_received' && e.paymentHistory?.length > 0 && (
               <button
                 onClick={() => onPrintReceipt(e)}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
                 <Printer className="w-4 h-4"/> Print Receipt
               </button>
             )}
@@ -1006,7 +1006,7 @@ function FeeAssessmentModal({ enrollment, campusDiscounts, feeStructure, onConfi
                   .filter(v => v > minPayment && (!bill || v < bill.grandTotal))
                   .map(v => (
                   <button key={v} onClick={() => setAmountPaid(String(v))}
-                    className={`${chip} bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-primary hover:text-[var(--color-primary-contrast)] hover:border-primary`}>
+                    className={`${chip} bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-action)] hover:text-[var(--color-action-contrast)] hover:border-[var(--color-action)]`}>
                     ₱{v.toLocaleString()}
                   </button>
                 ))}
@@ -1861,7 +1861,7 @@ export default function Enrollments() {
           </div>
           <div className="flex gap-2">
             {hasFilters && <button onClick={clearFilters} className="flex-1 px-3 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">Clear</button>}
-            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-1.5 font-medium">
+            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition flex items-center justify-center gap-1.5 font-medium">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>

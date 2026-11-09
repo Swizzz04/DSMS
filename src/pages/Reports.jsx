@@ -287,7 +287,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
               Close
             </button>
             <button onClick={() => onPrint(tx)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -420,7 +420,7 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
               Close
             </button>
             <button onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -468,7 +468,7 @@ function TxRow({ tx, onView, onPrint }) {
           </button>
           <button
             onClick={() => onPrint(tx)}
-            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)] rounded-lg font-medium transition"
+            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-[var(--color-action)] text-[var(--color-action-contrast)] hover:bg-[var(--color-action-hover)] rounded-lg font-medium transition"
             title="Print receipt">
             <Printer className="w-3.5 h-3.5"/> Receipt
           </button>
@@ -854,7 +854,7 @@ export default function Reports() {
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium shadow-sm">
+          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium shadow-sm">
           <Download className="w-4 h-4"/> Export Report
         </button>
       </div>

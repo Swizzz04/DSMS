@@ -956,7 +956,7 @@ export default function EClassRecord() {
                   </button>
                   <button onClick={() => setShowSubmitConfirm(true)}
                     disabled={collegeDraftCount === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition disabled:opacity-50">
                     <Send className="w-4 h-4" /> Submit to Program Head
                   </button>
                 </div>
@@ -1085,7 +1085,7 @@ export default function EClassRecord() {
                     <Save className="w-4 h-4" /> Save Draft
                   </button>
                   <button onClick={() => setShowSubmitConfirm(true)} disabled={!subjectArea || draftCount === 0}
-                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50">
+                    className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition disabled:opacity-50">
                     <Send className="w-4 h-4" /> Submit
                   </button>
                 </div>

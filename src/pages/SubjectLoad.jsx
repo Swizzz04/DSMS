@@ -918,7 +918,7 @@ export default function SubjectLoad() {
             <Settings2 className="w-4 h-4" />
           </button>
           <button onClick={handleExport}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
+            className="flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export
           </button>
         </div>
