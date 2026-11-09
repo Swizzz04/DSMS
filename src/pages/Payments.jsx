@@ -17,6 +17,8 @@ import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
 import { printReceiptHtml } from '../utils/printReceipt'
+import { resolveBrandColors } from '../utils/themeInitializer'
+import { printPaletteCss } from '../utils/printPalette'
 import { getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD, getCampusScope } from '../config/appConfig'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import {
@@ -35,29 +37,22 @@ const php = (n) =>
 /**
  * Reads school name + brand colors from almirene_website_content (School Info
  * settings), the same source Sidebar.jsx / Login.jsx already read from.
- * Falls back to whatever --color-primary/--color-secondary are currently
- * applied on the page (set by themeInitializer.js) if no brand color has
- * been configured yet — never hardcodes a specific school's colors.
+ * Colours come from resolveBrandColors (the school's saved pair, or the neutral
+ * defaults), so no specific school's colours are hardcoded here.
  */
 function getSchoolBrand() {
   let name = 'School Management System'
   let logo = ''
-  let primaryColor = '#F4FAFC'
-  let secondaryColor = '#212121'
+  let primaryColor = ''
+  let secondaryColor = ''
   try {
     const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
     if (saved.schoolName)     name = saved.schoolName
     if (saved.logoUrl)        logo = saved.logoUrl
-    if (saved.primaryColor)   primaryColor = saved.primaryColor
-    else if (typeof document !== 'undefined') {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim()
-      if (v) primaryColor = v
-    }
-    if (saved.secondaryColor) secondaryColor = saved.secondaryColor
-    else if (typeof document !== 'undefined') {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim()
-      if (v) secondaryColor = v
-    }
+    // Printed pages are always on white paper, so use the light pair (never the dark-mode swap)
+    const brand = resolveBrandColors(saved.primaryColor, saved.secondaryColor, false)
+    primaryColor = brand.primary
+    secondaryColor = brand.secondary
   } catch {}
   return { name, logo, primaryColor, secondaryColor }
 }
@@ -488,7 +483,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             Close
           </button>
           <button onClick={handlePrint}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
             <Printer className="w-4 h-4" /> Print Receipt
           </button>
         </div>
@@ -634,7 +629,7 @@ function RecordPaymentModal({ payment, onClose, onSave, recordedBy }) {
             <div className="flex gap-2 mt-2 flex-wrap">
               {[500, 1000, 2000, 5000].filter(v => v <= maxAmount + 1).map(v => (
                 <button key={v} onClick={() => setAmount(String(v))}
-                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
+                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition font-medium">
                   ₱{v.toLocaleString()}
                 </button>
               ))}
@@ -1059,50 +1054,50 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
         <td>${(h.paymentFor||['tuition']).map(k=>FEE_LABELS[k]||k).join(', ')}</td>
         <td>${h.notes||'—'}</td>
         <td style="text-align:right">${php(h.amount)}</td>
-        <td style="text-align:right;color:${runningBalance<=0?'green':'#b45309'}">${php(Math.max(0,runningBalance))}</td>
+        <td style="text-align:right;color:${runningBalance<=0?'var(--p-paid-text)':'var(--p-due-text)'}">${php(Math.max(0,runningBalance))}</td>
       </tr>`
     }).join('')
 
     const win = window.open('','_blank','width=900,height=700')
     win.document.write(`<!DOCTYPE html><html><head><title>SOA — ${p.studentName}</title>
     <style>
-      :root { --color-primary: ${primaryColor}; --color-secondary: ${secondaryColor}; }
-      * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-      body { padding: 32px; color: #111; font-size: 13px; }
-      .header { text-align: center; border-bottom: 3px solid var(--color-primary); padding-bottom: 16px; margin-bottom: 20px; }
-      .school-name { font-size: 20px; font-weight: bold; color: var(--color-primary); }
-      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: var(--color-secondary); letter-spacing: 2px; text-transform: uppercase; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 20px; padding: 16px; background: #f8f4ed; border-radius: 8px; }
+      ${printPaletteCss(primaryColor, secondaryColor)}
+      * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 32px; color: var(--p-ink); font-size: 13px; }
+      .header { text-align: center; border-bottom: 3px solid var(--p-brand); padding-bottom: 16px; margin-bottom: 20px; }
+      .school-name { font-size: 20px; font-weight: bold; color: var(--p-brand); }
+      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: var(--p-ink); letter-spacing: 2px; text-transform: uppercase; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 20px; padding: 16px; background: var(--p-panel); border-radius: 8px; }
       .info-row { display: flex; gap: 6px; font-size: 12px; }
-      .info-label { color: #666; min-width: 110px; }
+      .info-label { color: var(--p-muted); min-width: 110px; }
       .info-value { font-weight: 600; }
-      .fee-box { background: #fff7f0; border: 1px solid #e5c99a; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
-      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-primary); margin-bottom: 10px; }
+      .fee-box { background: var(--p-fee-box); border: 1px solid var(--p-fee-box-border); border-radius: 8px; padding: 14px; margin-bottom: 20px; }
+      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--p-brand); margin-bottom: 10px; }
       .fee-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
-      .fee-row.total { border-top: 2px solid var(--color-primary); margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
+      .fee-row.total { border-top: 2px solid var(--p-brand); margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th { background: var(--color-secondary); color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
-      td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+      th { background: var(--p-head-fill); color: var(--p-head-ink); border-bottom: 2px solid var(--p-head-edge); padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
+      td { padding: 8px 10px; border-bottom: 1px solid var(--p-row-rule); }
       tr:last-child td { border-bottom: none; }
       .balance-box { margin-top: 20px; padding: 14px; border-radius: 8px; text-align: right; }
-      .balance-box.paid { background: #ecfdf5; border: 2px solid #10b981; }
-      .balance-box.due  { background: #fffbeb; border: 2px solid #f59e0b; }
-      .balance-label { font-size: 12px; color: #555; }
+      .balance-box.paid { background: var(--p-paid-bg); border: 2px solid var(--p-paid-border); }
+      .balance-box.due  { background: var(--p-due-bg); border: 2px solid var(--p-due-border); }
+      .balance-label { font-size: 12px; color: var(--p-muted); }
       .balance-amt { font-size: 22px; font-weight: bold; }
-      .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }
+      .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: var(--p-faint); border-top: 1px solid var(--p-rule); padding-top: 12px; }
       .sig-line { text-align: center; width: 180px; }
-      .sig-line .line { border-top: 1px solid #333; margin-bottom: 4px; padding-top: 8px; margin-top: 40px; }
+      .sig-line .line { border-top: 1px solid var(--p-ink); margin-bottom: 4px; padding-top: 8px; margin-top: 40px; }
       @media print { body { padding: 16px; } }
     </style></head><body>
     <div class="header">
       <div class="school-name">${schoolName}</div>
       <div class="soa-title">Statement of Account</div>
-      <div style="font-size:12px;color:#555">School Year ${schoolYear} · ${campusName}</div>
+      <div style="font-size:12px;color:var(--p-muted)">School Year ${schoolYear} · ${campusName}</div>
     </div>
 
     <div class="info-grid">
       <div class="info-row"><span class="info-label">Student Name:</span><span class="info-value">${p.studentName}</span></div>
-      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:var(--color-primary)">${p.studentId}</span></div>
+      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:var(--p-brand)">${p.studentId}</span></div>
       <div class="info-row"><span class="info-label">Grade/Program:</span><span class="info-value">${p.gradeLevel}</span></div>
       <div class="info-row"><span class="info-label">Student Type:</span><span class="info-value">${p.studentType||'—'}</span></div>
       ${p.semester ? `<div class="info-row"><span class="info-label">Semester:</span><span class="info-value">${p.semester}</span></div>` : ''}
@@ -1112,28 +1107,28 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
     <div class="fee-box">
       <h3>Fee Assessment</h3>
       ${fb.originalTuition > 0 ? `<div class="fee-row"><span>Original Tuition</span><span>${php(fb.originalTuition)}</span></div>` : ''}
-      ${(fb.totalDiscount||0) > 0 ? `<div class="fee-row" style="color:#dc2626"><span>Discount Applied</span><span>- ${php(fb.totalDiscount)}</span></div>` : ''}
+      ${(fb.totalDiscount||0) > 0 ? `<div class="fee-row" style="color:var(--p-discount)"><span>Discount Applied</span><span>- ${php(fb.totalDiscount)}</span></div>` : ''}
       ${fb.misc > 0 ? `<div class="fee-row"><span>Misc Fee</span><span>${php(fb.misc)}</span></div>` : ''}
       ${fb.lab > 0 ? `<div class="fee-row"><span>Lab Fee</span><span>${php(fb.lab)}</span></div>` : ''}
       ${fb.books > 0 ? `<div class="fee-row"><span>Books</span><span>${php(fb.books)}</span></div>` : ''}
       ${fb.other > 0 ? `<div class="fee-row"><span>Other Fees</span><span>${php(fb.other)}</span></div>` : ''}
-      <div class="fee-row total"><span>Grand Total</span><span style="color:var(--color-primary)">${php(p.totalFee)}</span></div>
+      <div class="fee-row total"><span>Grand Total</span><span style="color:var(--p-brand)">${php(p.totalFee)}</span></div>
     </div>
 
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--color-secondary);margin-bottom:10px">Payment History</h3>
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--p-ink);margin-bottom:10px">Payment History</h3>
     <table>
       <thead><tr><th>OR Number</th><th>Date</th><th>Method</th><th>Payment For</th><th>Notes</th><th style="text-align:right">Amount</th><th style="text-align:right">Running Balance</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px">No payments recorded yet</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--p-faint);padding:20px">No payments recorded yet</td></tr>'}</tbody>
     </table>
 
     <div class="balance-box ${p.balance<=0?'paid':'due'}">
       <div class="balance-label">${p.balance<=0 ? '✓ Account Fully Settled' : 'Remaining Balance'}</div>
-      <div class="balance-amt" style="color:${p.balance<=0?'#059669':'#d97706'}">${php(p.balance)}</div>
+      <div class="balance-amt" style="color:${p.balance<=0?'var(--p-paid-text)':'var(--p-due-text)'}">${php(p.balance)}</div>
     </div>
 
     <div class="footer">
       <div class="sig-line"><div class="line"></div><div>${cashierName||'Accounting Officer'}</div><div>Accounting / Cashier</div></div>
-      <div style="text-align:right;font-size:10px;color:#aaa">This SOA is computer-generated.<br/>For concerns, contact the Accounting Office.</div>
+      <div style="text-align:right;font-size:10px;color:var(--p-faint)">This SOA is computer-generated.<br/>For concerns, contact the Accounting Office.</div>
     </div>
 
     <script>window.onload = () => { window.print() }<\/script>
@@ -1340,7 +1335,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 {/* Actions */}
                 <div className="flex gap-3 pt-1">
                   <button onClick={handlePrint}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
                     <Printer className="w-4 h-4"/> Print SOA
                   </button>
                   <ExportButton onClick={handleExportSOA} label="Export Excel" className="flex-1 py-2.5 rounded-xl font-semibold shadow-sm" />
@@ -1482,7 +1477,7 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
         <div className="modal-footer gap-3">
           <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button onClick={handleSave}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
             <Calendar className="w-4 h-4" /> Save New Due Date
           </button>
         </div>
