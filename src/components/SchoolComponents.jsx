@@ -20,7 +20,6 @@
  *   <CampusMiniCard campusStat />     — compact per-campus strip card
  *
  * ── Section Layout ──────────────────────────────────────────────
- *   <CampusBanner user />                    — campus-locked role banner (inside pages)
  *   <CampusChip    user />                    — campus pill shown in the top Header bar
  *   <SectionPanel title icon colorCls pills>  — titled collapsible section
  *
@@ -44,11 +43,11 @@
 
 import { useState } from 'react'
 import {
-  Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Building2,
+  Clock, CheckCircle, XCircle, AlertCircle, DollarSign,
   BookOpen, GraduationCap, ChevronDown, ChevronUp,
   MapPin, FileText
 } from 'lucide-react'
-import { isCampusLockedRole, getAllRoleDefinitions } from '../config/appConfig'
+import { isCampusLockedRole } from '../config/appConfig'
 import { useAppConfig } from '../context/AppConfigContext'
 
 // ────────────────────────────────────────────────────────────────
@@ -188,56 +187,6 @@ export function CampusMiniCard({ campusStat: c }) {
 // CAMPUS BANNER
 // ────────────────────────────────────────────────────────────────
 
-/**
- * Campus-locked banner shown to users who are scoped to a specific campus.
- * Automatically picks the right color and message based on the user's role.
- *
- * Usage: <CampusBanner user={user} />
- *
- * Shows for any user whose account is tied to one campus (campus !== 'all').
- * Hidden for users with campus === 'all' (Owner, Technical Admin).
- */
-export function CampusBanner({ user }) {
-  if (!user) return null
-
-  const isLocked = isCampusLockedRole(user)
-
-  if (!isLocked) return null
-
-  const roleLabels = {
-    registrar_basic:   'Basic Education Registrar',
-    registrar_college: 'College Registrar',
-    accounting:        'Accounting Officer',
-    principal_basic:   'Basic Ed Principal',
-    program_head:      'Program Head (College)',
-    system_admin:      'System Admin',
-    teacher:           'Teacher',
-  }
-
-  // Campus-based colors — uniform across all roles per campus
-  const label = roleLabels[user.role] || getAllRoleDefinitions()[user.role]?.label || user.role?.replace(/_/g, ' ')
-
-  return (
-    <div className="rounded-xl px-5 py-3.5 flex items-center gap-3 border bg-[var(--color-primary-light)] border-primary/20">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary">
-        <MapPin className="w-4 h-4 text-[var(--color-primary-contrast)]" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-          {user.campus}
-          <span className="font-normal opacity-70"> — {label}</span>
-        </p>
-        <p className="text-xs mt-0.5 text-[var(--color-text-muted)]">You are only authorized to view and manage data for this campus</p>
-      </div>
-      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10">
-        <Building2 className="w-3.5 h-3.5 text-[var(--color-primary-readable)]" />
-        <span className="text-xs font-semibold text-[var(--color-primary-readable)]">Campus Locked</span>
-      </div>
-    </div>
-  )
-}
-
-
 // ────────────────────────────────────────────────────────────────
 // CAMPUS CHIP  (Header top bar indicator)
 // ────────────────────────────────────────────────────────────────
@@ -245,8 +194,6 @@ export function CampusBanner({ user }) {
 /**
  * Compact campus pill shown in the Header navigation bar.
  * Replaces the campus picker for users locked to a single campus.
- *
- * Each role gets its own accent color so it's immediately clear who is logged in.
  *
  * Usage: <CampusChip user={user} />
  *
@@ -260,26 +207,15 @@ export function CampusChip({ user }) {
 
   if (!isLocked) return null
 
-  // Use system primary color for all campuses
+  // Action colour: stays readable in dark mode and with any school brand colour
+  // (primary on the card can be near-invisible, e.g. the default #0B0B0C in dark).
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-[var(--color-primary-contrast)] border bg-primary border-primary"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-[var(--color-action)] text-[var(--color-action-contrast)] border-[var(--color-action)]"
     >
       <MapPin className="w-3 h-3" />
       <span className="hidden sm:inline">{user.campus}</span>
       <span className="sm:hidden">{user.campusKey || user.campus?.replace(' City Campus', '').replace(' Campus', '') || ''}</span>
-    </div>
-  )
-
-  // Shorten campus name to fit the chip
-  const shortName = user.campus
-    .replace(' City Campus', '')
-    .replace(' Campus', '')
-
-  return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border ${cls} flex-shrink-0`}>
-      <MapPin className="w-4 h-4 flex-shrink-0" />
-      <span className="text-xs font-semibold max-w-[110px] truncate">{shortName}</span>
     </div>
   )
 }
