@@ -147,9 +147,16 @@ button, a, [role="button"] {
   --color-error-contrast:   #ffffff;
   --color-info-contrast:    #ffffff;
   --color-error-hover:      #b91c1c;
+  --color-success-hover:    #15803d;
+  --color-info-hover:       #1d4ed8;
 
   /* ── Modal scrim (dark mode raises it, see .dark) ─────────────── */
   --color-overlay:          rgba(0, 0, 0, 0.5);
+
+  /* ── Table / row-list lines ───────────────────────────────────
+     --color-border (#e8e8e4) is ~1.2:1 on a white card, so row lines barely show.
+     Tables and divide-y lists re-point --color-border to this (see "Table" section). */
+  --color-table-line:       #c4c4be;
 
   /* ── Theme toggle icon ─────────────────────────── */
   /* Was hardcoded directly in ThemeToggle.jsx. Kept separate from
@@ -212,6 +219,20 @@ button, a, [role="button"] {
   --color-cat-teal-solid:     #0f766e;
   --color-cat-indigo-solid:   #4338ca;
   --color-cat-violet-solid:   #7c3aed;
+
+  /* ── Chart series palette (Rev. 20) ─────────────────────────────
+     Fixed categorical colours for bar / doughnut / line charts. They do NOT follow the
+     school's brand colours, so a pale or dark brand never makes bars vanish.
+     Fixed order, never cycled; each step validated on the card surface (light #fff,
+     dark #212121): adjacent colour-blind separation >= 8, normal-vision >= 19. */
+  --color-chart-1:           #2f6fdd;   /* cobalt */
+  --color-chart-2:           #f2784b;   /* coral */
+  --color-chart-3:           #14a89b;   /* teal */
+  --color-chart-4:           #e0a010;   /* goldenrod */
+  --color-chart-5:           #c85fa8;   /* orchid */
+  --color-chart-6:           #4f9d5b;   /* leaf */
+  --color-chart-7:           #6f5bd8;   /* violet */
+  --color-chart-8:           #dc4f6a;   /* rose */
 
   /* Progress bars (clearance): none -> red, under 70% -> orange, 70-99% -> yellow, done -> green */
   --color-progress-none:      var(--color-error);
@@ -332,6 +353,17 @@ button, a, [role="button"] {
   --color-info-border:      rgba(37, 99, 235, 0.25);
 
   --color-overlay:          rgba(0, 0, 0, 0.6);
+
+  /* Chart series — same hues, stepped for the dark surface */
+  --color-chart-1:           #4a85e8;
+  --color-chart-2:           #dd6a40;
+  --color-chart-3:           #1fa797;
+  --color-chart-4:           #bf8718;
+  --color-chart-5:           #c9609f;
+  --color-chart-6:           #4f9c5f;
+  --color-chart-7:           #8576df;
+  --color-chart-8:           #e25f78;
+  --color-table-line:       #2e2e2e;   /* same as --color-border in dark: unchanged */
 
   --color-theme-toggle-icon: #fbbf24;
 
@@ -786,6 +818,17 @@ button, a, [role="button"] {
 .badge-payment  { background: var(--color-payment-bg);  color: var(--color-payment-text);  border-color: var(--color-payment-border);  }
 
 /* ── Table ────────────────────────────────────── */
+/* Row, header and cell lines inside tables, their card wrappers and divide-y row lists
+   (including the mobile card lists) use --color-table-line instead of --color-border.
+   Custom properties inherit, so every `border-[var(--color-border)]` and
+   `divide-[var(--color-border)]` below these elements picks it up with no page edits. */
+table,
+:is(div, section, article):has(> table),
+:is(div, section, article):has(> .overflow-x-auto > table),
+[class*="divide-y"][class*="divide-[var(--color-border)]"] {
+  --color-border: var(--color-table-line);
+}
+
 .table-row {
   transition: background-color var(--t-fast);
 }
@@ -1366,6 +1409,7 @@ body.modal-open {
   --color-text-muted:     #6b6b66;
   --color-success-text:   #15803d;
   --color-error-text:     #b91c1c;
+  --color-table-line:     #c4c4be;   /* paper keeps light row lines, also in dark mode */
   background-color: #ffffff;
   color: #1a1a1a;
 }

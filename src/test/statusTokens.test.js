@@ -26,6 +26,8 @@ const SHARED_TOKENS = [
   ...STATUSES.map((s) => `--color-${s}`),
   ...STATUSES.map((s) => `--color-${s}-contrast`),
   '--color-error-hover',
+  '--color-success-hover',
+  '--color-info-hover',
   '--color-cat-teal-solid',
   '--color-cat-indigo-solid',
   '--color-cat-violet-solid',
@@ -41,6 +43,8 @@ const THEMED_TOKENS = [
     `--color-cat-${c}-bg`, `--color-cat-${c}-text`, `--color-cat-${c}-border`,
   ]),
   '--color-overlay',
+  '--color-table-line',
+  ...Array.from({ length: 8 }, (_, i) => `--color-chart-${i + 1}`),
 ]
 
 describe('status tokens in index.css', () => {
@@ -59,13 +63,15 @@ describe('status tokens in index.css', () => {
   })
 })
 
-// Files whose 4.3 round is finished. Add Dashboard, Enrollments, Settings later.
+// Files whose 4.3 round is finished. Add Settings later.
 const CLEAN_FILES = [
   'components/UIComponents.jsx',
   'components/dashboard/ProfileModal.jsx',
   'components/dashboard/Header.jsx',
   'components/dashboard/NotificationPanel.jsx',
   'components/SchoolComponents.jsx',
+  'pages/Dashboard.jsx',
+  'pages/Enrollments.jsx',
 ]
 
 const PALETTES =
@@ -92,4 +98,12 @@ describe('cleaned files stay free of hardcoded colours', () => {
     expect(code.match(HEX)).toBeNull()
     expect(code.match(RGB_LITERAL)).toBeNull()
   })
+})
+
+describe('receipt paper stays light in dark mode', () => {
+  const paper = (css.match(/^\.receipt-paper\s*\{([\s\S]*?)^\}/m) || [])[1] || ''
+  it.each(['--color-bg-card', '--color-border', '--color-text-primary', '--color-table-line', '--color-success-text', '--color-error-text'])(
+    '%s is pinned inside .receipt-paper', (name) => {
+      expect(defines(paper, name)).toBe(true)
+    })
 })
