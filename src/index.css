@@ -138,6 +138,19 @@ button, a, [role="button"] {
   --color-info-light:       #eff6ff;
   --color-info-border:      #bfdbfe;
 
+  /* ── Solid status fills (Rev. 20 / 4.3) ────────────────────────
+     Text ON a solid status fill (bg-[var(--color-error)] etc.) and the
+     hover shade of the danger button. Same in light and dark, so they are
+     NOT repeated in the .dark block. */
+  --color-success-contrast: #ffffff;
+  --color-warning-contrast: #ffffff;
+  --color-error-contrast:   #ffffff;
+  --color-info-contrast:    #ffffff;
+  --color-error-hover:      #b91c1c;
+
+  /* ── Modal scrim (dark mode raises it, see .dark) ─────────────── */
+  --color-overlay:          rgba(0, 0, 0, 0.5);
+
   /* ── Theme toggle icon ─────────────────────────── */
   /* Was hardcoded directly in ThemeToggle.jsx. Kept separate from
      --color-warning on purpose — this is a decorative icon accent,
@@ -193,6 +206,12 @@ button, a, [role="button"] {
   --color-cat-pink-bg:        #fce7f3;
   --color-cat-pink-text:      #9d174d;
   --color-cat-pink-border:    #fbcfe8;
+
+  /* Solid category fills (department / program icon squares). White text or
+     icon on top. Same in light and dark. */
+  --color-cat-teal-solid:     #0f766e;
+  --color-cat-indigo-solid:   #4338ca;
+  --color-cat-violet-solid:   #7c3aed;
 
   /* Progress bars (clearance): none -> red, under 70% -> orange, 70-99% -> yellow, done -> green */
   --color-progress-none:      var(--color-error);
@@ -311,6 +330,8 @@ button, a, [role="button"] {
   --color-error-border:     rgba(220, 38, 38, 0.25);
   --color-info-light:       rgba(37, 99, 235, 0.12);
   --color-info-border:      rgba(37, 99, 235, 0.25);
+
+  --color-overlay:          rgba(0, 0, 0, 0.6);
 
   --color-theme-toggle-icon: #fbbf24;
 
