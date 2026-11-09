@@ -475,7 +475,7 @@ export default function TeacherForms() {
                   onClick={() => handleExport(form.id)}
                   disabled={isExporting || !canExport}
                   title={!canExport ? 'Select a grade level and section first' : ''}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-[var(--color-action)] text-[var(--color-action-contrast)] hover:bg-[var(--color-action-hover)] transition disabled:opacity-50"
                 >
                   {isExporting ? (
                     <><Loader className="w-3.5 h-3.5 animate-spin" /> Exporting…</>

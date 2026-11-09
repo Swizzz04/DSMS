@@ -12,8 +12,13 @@
  *     (user.clearanceDuties, Settings → Users)
  *   - a teacher-based sign-off with nobody assigned can be signed on behalf by the
  *     Principal / Program Head, with a note
- * The table's columns, the progress, the drawer and "Needs My Sign" are all built from the
- * requirements stored on each clearance, so changing the setup changes this page.
+ * The list shows one row per student (name, school ID, status); the sign-offs, progress and
+ * reason are in the drawer, and the drawer, the "waiting on" filter and "Needs My Sign" are all
+ * built from the requirements stored on each clearance, so changing the setup changes this page.
+ *
+ * Guidance open case: the Guidance in-charge (and nobody else) sees an "Open case" marker next
+ * to a student with an open referral or incident, in the list and on the Guidance sign-off. It is
+ * information only: it never blocks or changes signing. See getOpenCaseCounts() in guidanceBridge.js.
  *
  * Rules:
  *   - A requirement marked "signs last" opens only once every other requirement is signed
@@ -53,10 +58,12 @@ import { useAuth }      from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import GroupedSelect from '../components/GroupedSelect'
+import StudentSearchPicker from '../components/StudentSearchPicker'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
-import { CLEARANCE_DEPARTMENT_SCOPES } from '../config/appConfig'
+import { CLEARANCE_DEPARTMENT_SCOPES, GUIDANCE_CLEARANCE_REQUIREMENT_ID } from '../config/appConfig'
 import { getClearanceRequirements, getAllClearanceRequirements, getClearanceReasons, getClearanceScope, getClearanceProgress, canUserSignSlot, slotBlockReason } from '../utils/clearanceConfigBridge'
 import { getStudents } from '../utils/enrollmentBridge'
+import { getOpenCaseCounts } from '../utils/guidanceBridge'
 import {
   PageSkeleton, useToast, ToastContainer, ModalPortal
 } from '../components/UIComponents'
@@ -192,44 +199,26 @@ function buildColumns(list, scopeFilter, campusKey) {
   return cols.map((col, i) => ({ col, i })).sort((a, b) => rank(a.col) - rank(b.col) || a.i - b.i).map(x => x.col)
 }
 
-/** Requirement id -> how far one clearance has got with it (undefined = not part of this clearance). */
-function summaryById(clearance) {
-  const out = {}
-  getClearanceRequirementSummary(clearance).forEach(e => { out[e.id] = e })
-  return out
-}
-
 /** Column sorters for the list (module-level so their identity never changes). */
 const CLEARANCE_SORTERS = {
   student:   (a, b) => (a.studentName || '').localeCompare(b.studentName || ''),
-  reason:    (a, b) => (a.reason || '').localeCompare(b.reason || ''),
-  progress:  (a, b) => getProgress(a).percent - getProgress(b).percent,
+  // Waiting first, cleared last; then by what it is waiting on
+  status:    (a, b) => Number(!!a.isFullyCleared) - Number(!!b.isFullyCleared) || waitingLabel(a).localeCompare(waitingLabel(b)),
   requested: (a, b) => new Date(a.createdAt) - new Date(b.createdAt),
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REQUIREMENT CHIP — compact status for the phone list
+// OPEN-CASE MARKER — shown to the Guidance in-charge only (the caller passes 0 to everyone else)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function DeptChip({ label, entry }) {
-  const cleared = !!entry && entry.pending === 0
-  const partial = !!entry && !cleared && entry.cleared > 0
-  const state   = !entry ? 'not required' : cleared ? 'cleared' : partial ? `${entry.cleared}/${entry.total} signed` : 'pending'
-
+function OpenCaseChip({ count }) {
+  if (!count) return null
   return (
     <span
-      title={`${label}: ${state}`}
-      aria-label={`${label}: ${state}`}
-      className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[9px] font-bold border
-        ${!entry
-          ? 'border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] opacity-50'
-          : cleared
-            ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
-            : partial
-              ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)]'
-              : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
+      title="This student has an open Guidance case. Information only."
+      className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border border-[var(--color-warning-border)] font-semibold whitespace-nowrap"
     >
-      {label?.[0]}
+      OPEN CASE{count > 1 ? ` · ${count}` : ''}
     </span>
   )
 }
@@ -239,7 +228,7 @@ function DeptChip({ label, entry }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** One sign-off line in the drawer — a whole requirement, or one subject inside a group. */
-function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign }) {
+function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign, extra }) {
   const cleared = slot.cleared === true
   return (
     <div
@@ -260,6 +249,7 @@ function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign }
           <p className={`${nested ? 'text-xs' : 'text-sm'} font-semibold ${cleared ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
             {nested ? slot.itemLabel : slot.label}
           </p>
+          {extra}
           {slot.autoFromPayment && (
             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--color-info-light)] text-[var(--color-info)] border border-[var(--color-info-border)] font-semibold">
               AUTO
@@ -318,7 +308,7 @@ function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign }
   )
 }
 
-function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose }) {
+function ClearanceDrawer({ clearance, campusName, currentUser, openCaseCount = 0, onUpdate, onClose }) {
   const [confirmSlot, setConfirmSlot] = useState(null)   // the slot being signed
   const { toasts, addToast, removeToast } = useToast()
 
@@ -463,6 +453,7 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
                     return (
                       <SignoffRow
                         key={s.id} slot={s} Icon={Icon}
+                        extra={s.requirementId === GUIDANCE_CLEARANCE_REQUIREMENT_ID && !s.cleared ? <OpenCaseChip count={openCaseCount} /> : null}
                         canSign={signableIds.has(s.id)}
                         waitText={waitTextFor(s)}
                         signLabel={signLabelFor(s)}
@@ -566,11 +557,10 @@ function ClearanceDrawer({ clearance, campusName, currentUser, onUpdate, onClose
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** One status pill per clearance — shared by the table and the phone list. */
-function StatusPill({ clearance, needsMySign, compact = false }) {
+function StatusPill({ clearance, needsMySign }) {
   if (clearance.isFullyCleared) return <span className="badge badge-approved shrink-0">Cleared</span>
   if (needsMySign)              return <span className="badge badge-pending shrink-0">Needs your sign</span>
-  // The table already shows each department's sign-off, so it only needs "Pending";
-  // the phone list has no such columns and names who the clearance is waiting on.
+  // The list has no department columns, so the pill names who the clearance is waiting on.
   return (
     <span
       className="badge shrink-0"
@@ -580,103 +570,31 @@ function StatusPill({ clearance, needsMySign, compact = false }) {
         border: '1px solid var(--color-border)',
       }}
     >
-      {compact ? 'Pending' : `Waiting on ${waitingLabel(clearance)}`}
+      {`Waiting on ${waitingLabel(clearance)}` }
     </span>
   )
 }
 
-/** One requirement's sign-off as a round check / clock — a column cell in the table. */
-function DeptCell({ label, entry, info }) {
-  // Not part of this clearance (e.g. a College-only requirement on a Basic Ed student)
-  if (!entry) {
-    return (
-      <span className="text-[var(--color-text-muted)] opacity-50" title={`${label}: not required`}>
-        <span aria-hidden="true">—</span>
-        <span className="sr-only">{label}: not required</span>
-      </span>
-    )
-  }
-
-  const cleared = entry.pending === 0
-  const partial = !cleared && entry.cleared > 0
-
-  // Several sign-offs (one per subject): show the count
-  if (entry.total > 1) {
-    return (
-      <span
-        title={`${label}: ${entry.cleared} of ${entry.total} signed`}
-        className={`inline-flex items-center justify-center min-w-[2.25rem] px-1.5 h-6 rounded-full border text-[10px] font-bold tabular-nums
-          ${cleared
-            ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
-            : partial
-              ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] border-[var(--color-warning-border)]'
-              : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
-      >
-        {entry.cleared}/{entry.total}
-        <span className="sr-only"> {label}: {entry.cleared} of {entry.total} signed</span>
-      </span>
-    )
-  }
-
-  return (
-    <span
-      title={`${label}: ${cleared ? `Cleared by ${info?.clearedBy ?? '—'}` : 'Pending'}`}
-      className={`inline-flex items-center justify-center w-6 h-6 rounded-full border
-        ${cleared
-          ? 'bg-[var(--color-success-light)] text-[var(--color-success)] border-[var(--color-success-border)]'
-          : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] border-[var(--color-border)]'}`}
-    >
-      {cleared ? <CheckCircle size={13} /> : <Clock size={12} />}
-      <span className="sr-only">{label}: {cleared ? 'cleared' : 'pending'}</span>
-    </span>
-  )
+/** Second line under a student's name: school ID, grade or year level, and the campus when several are listed. */
+function studentLine(st, showCampus, campusName) {
+  const parts = [st?.studentId || '—', st?.gradeLevel, showCampus ? campusName : null].filter(Boolean)
+  return parts.join(' · ')
 }
 
-/** Progress as "3/5" with a thin bar. */
-function ProgressCell({ clearance }) {
-  const { cleared, total, percent } = getProgress(clearance)
-  return (
-    <div className="flex items-center gap-2">
-      <ProgressBar percent={percent} done={clearance.isFullyCleared} className="h-1.5 w-14" />
-      <span className="text-xs font-semibold text-[var(--color-text-muted)] tabular-nums">
-        {cleared}/{total}
-      </span>
-    </div>
-  )
-}
-
-function ClearanceTable({ rows, columns, summaries, studentMap, signMap, showCampus, campusNameOf, sort, onSort, onSelect }) {
+function ClearanceTable({ rows, studentMap, signMap, openCases, showCampus, campusNameOf, sort, onSort, onSelect }) {
   return (
     <div className="hidden md:block overflow-x-auto">
       <table className="w-full [&_th]:!px-3 [&_td]:!px-3">
         <thead className="bg-[var(--color-bg-subtle)]">
           <tr>
             <SortTh label="Student" sortKey="student" sort={sort} onSort={onSort} />
-            <SortTh label="Reason" sortKey="reason" sort={sort} onSort={onSort} />
-            {showCampus && <th scope="col" className="th">Campus</th>}
-            {columns.map(col => {
-              const Icon = iconFor(col)
-              return (
-                <th key={col.id} scope="col" className="th text-center !px-2"
-                    title={col.legacy ? `${col.label} (no longer required for new clearances)` : col.label}>
-                  <span className={`inline-flex items-center gap-1 ${col.legacy ? 'opacity-70' : ''}`}>
-                    <Icon size={14} />
-                    <span className="hidden 2xl:inline">{col.label}</span>
-                    <span className="2xl:hidden sr-only">{col.label}</span>
-                  </span>
-                </th>
-              )
-            })}
-            <SortTh label="Progress" sortKey="progress" sort={sort} onSort={onSort} />
-            <th scope="col" className="th">Status</th>
-            <SortTh label="Requested" sortKey="requested" sort={sort} onSort={onSort} />
+            <SortTh label="Status" sortKey="status" sort={sort} onSort={onSort} />
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--color-border)]">
           {rows.map(c => {
             const st          = studentMap.get(c.studentId)
             const needsMySign = signMap.get(c.id) === true
-            const mine        = summaries.get(c.id) || {}
             return (
               <tr
                 key={c.id}
@@ -690,23 +608,17 @@ function ClearanceTable({ rows, columns, summaries, studentMap, signMap, showCam
                     className="text-left rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-border-focus)]"
                     aria-label={`View clearance for ${c.studentName}`}
                   >
-                    <span className="block text-sm font-semibold text-[var(--color-text-primary)]">{c.studentName}</span>
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)]">{c.studentName}</span>
+                      <OpenCaseChip count={openCases[String(c.studentId)] || 0} />
+                    </span>
                     <span className="block text-xs text-[var(--color-text-muted)]">
                       <span className="font-mono">{st?.studentId || '—'}</span>
-                      {st?.gradeLevel ? ` · ${st.gradeLevel}` : ''}
+                      {(st?.gradeLevel || showCampus) ? ` · ${[st?.gradeLevel, showCampus ? campusNameOf(c.campusKey).replace(/ Campus$/, '') : null].filter(Boolean).join(' · ')}` : ''}
                     </span>
                   </button>
                 </td>
-                <td className="td text-[var(--color-text-secondary)]">{c.reason || 'General Clearance'}</td>
-                {showCampus && <td className="td text-[var(--color-text-secondary)]" title={campusNameOf(c.campusKey)}>{campusNameOf(c.campusKey).replace(/ Campus$/, '')}</td>}
-                {columns.map(col => (
-                  <td key={col.id} className="td text-center !px-2">
-                    <DeptCell label={col.label} entry={mine[col.id]} info={c.departments?.[col.id]} />
-                  </td>
-                ))}
-                <td className="td"><ProgressCell clearance={c} /></td>
-                <td className="td"><StatusPill clearance={c} needsMySign={needsMySign} compact /></td>
-                <td className="td text-[var(--color-text-muted)]">{fmtDate(c.createdAt)}</td>
+                <td className="td"><StatusPill clearance={c} needsMySign={needsMySign} /></td>
               </tr>
             )
           })}
@@ -716,15 +628,13 @@ function ClearanceTable({ rows, columns, summaries, studentMap, signMap, showCam
   )
 }
 
-/** Phone / small-tablet list: one tappable row per clearance. */
-function ClearanceMobileList({ rows, columns, summaries, studentMap, signMap, showCampus, campusNameOf, onSelect }) {
+/** Phone / small-tablet list: one tappable row per student — name, school ID and status. */
+function ClearanceMobileList({ rows, studentMap, signMap, openCases, showCampus, campusNameOf, onSelect }) {
   return (
     <ul className="md:hidden divide-y divide-[var(--color-border)]">
       {rows.map(c => {
         const st          = studentMap.get(c.studentId)
         const needsMySign = signMap.get(c.id) === true
-        const mine        = summaries.get(c.id) || {}
-        const progress    = getProgress(c)
         return (
           <li key={c.id}>
             <button
@@ -736,29 +646,15 @@ function ClearanceMobileList({ rows, columns, summaries, studentMap, signMap, sh
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{c.studentName}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{c.studentName}</p>
+                    <OpenCaseChip count={openCases[String(c.studentId)] || 0} />
+                  </div>
                   <p className="text-xs text-[var(--color-text-muted)] truncate">
-                    {[st?.studentId, st?.gradeLevel].filter(Boolean).join(' · ') || '—'}
+                    {studentLine(st, showCampus, campusNameOf(c.campusKey).replace(/ Campus$/, ''))}
                   </p>
                 </div>
                 <StatusPill clearance={c} needsMySign={needsMySign} />
-              </div>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1 truncate">
-                {c.reason || 'General Clearance'} · {fmtDate(c.createdAt)}
-                {showCampus ? ` · ${campusNameOf(c.campusKey)}` : ''}
-              </p>
-              <div className="mt-2.5 flex items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-1">
-                  {columns.filter(col => mine[col.id]).map(col => (
-                    <DeptChip key={col.id} label={col.label} entry={mine[col.id]} />
-                  ))}
-                </div>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  <ProgressBar percent={progress.percent} done={c.isFullyCleared} className="h-1.5 w-10" />
-                  <span className="text-[10px] text-[var(--color-text-muted)] font-semibold tabular-nums">
-                    {progress.cleared}/{progress.total}
-                  </span>
-                </span>
               </div>
             </button>
           </li>
@@ -774,18 +670,16 @@ function ClearanceMobileList({ rows, columns, summaries, studentMap, signMap, sh
 
 function StatsBar({ clearances, needsMe, showMine }) {
   const total    = clearances.length
-  const cleared  = clearances.filter(c => c.isFullyCleared).length
-  const pending  = total - cleared
+  const pending  = clearances.filter(c => !c.isFullyCleared).length
 
   const stats = [
     { label: 'Total',    value: total,   color: 'text-[var(--color-text-primary)]' },
-    { label: 'Cleared',  value: cleared, color: 'text-[var(--color-success)]' },
     { label: 'Pending',  value: pending, color: 'text-[var(--color-warning)]' },
     ...(showMine ? [{ label: 'Needs My Sign', value: needsMe, color: 'text-[var(--color-primary-readable)]' }] : []),
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className={`grid grid-cols-2 gap-3 ${stats.length > 2 ? 'sm:grid-cols-3' : ''}`}>
       {stats.map(stat => (
         <div key={stat.label} className="stat-card text-center py-4">
           <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -803,7 +697,6 @@ function StatsBar({ clearances, needsMe, showMine }) {
 // Reasons for clearance come from the school's setup (Settings → Workflow Config → Student Clearance → Reasons).
 
 function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear: pageSchoolYear, currentUser, onSave, onClose }) {
-  const [studentSearch, setStudentSearch] = useState('')
   const [selectedStudent, setSelectedStudent] = useState(null)
   const [reasonId, setReasonId] = useState('')
   const [saving, setSaving] = useState(false)
@@ -827,21 +720,22 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear: pageSchoolY
   const lockedDept  = currentUser?.role === 'registrar_basic' ? 'basicEd'
                     : currentUser?.role === 'registrar_college' ? 'college' : null
   // No campus yet (All Campuses, nothing picked) → no students, never "everyone"
-  const allStudents = campusKey
-    ? (getStudents({ campusKey, schoolYear }) || [])
-        .filter(st => !lockedDept || studentDept(st) === lockedDept)
-    : []
+  const allStudents = useMemo(() => (
+    campusKey
+      ? (getStudents({ campusKey, schoolYear }) || [])
+          .filter(st => !lockedDept || studentDept(st) === lockedDept)
+      : []
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [campusKey, schoolYear, lockedDept, isBasicGrade])
 
-  // Results appear from the first letter typed
-  const q = studentSearch.trim().toLowerCase()
-  const filtered = q
-    ? allStudents.filter(st =>
-        st.firstName?.toLowerCase().includes(q) ||
-        st.lastName?.toLowerCase().includes(q) ||
-        `${st.lastName || ''}, ${st.firstName || ''}`.toLowerCase().includes(q) ||
-        String(st.studentId || '').toLowerCase().includes(q)
-      ).slice(0, 30)
-    : []
+  // The picker needs only these fields; the full record is looked up again when one is chosen
+  const studentOptions = useMemo(() => allStudents.map(st => ({
+    id: st.id,
+    studentNo: st.studentId || '',
+    name: `${st.lastName || ''}, ${st.firstName || ''}`.replace(/^, |, $/g, ''),
+    gradeLevel: st.gradeLevel || '',
+  })), [allStudents])
+  const pickStudent = (id) => setSelectedStudent(id ? (allStudents.find(st => st.id === id) || null) : null)
 
   const selectedBalance = selectedStudent ? getClearanceBalance({ studentId: selectedStudent.id }) : null
 
@@ -908,7 +802,7 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear: pageSchoolY
               {needsCampusPick ? (
                 <GroupedSelect
                   value={pickedKey || 'all'}
-                  onChange={v => { setPickedKey(v === 'all' ? '' : v); setSelectedStudent(null); setStudentSearch('') }}
+                  onChange={v => { setPickedKey(v === 'all' ? '' : v); setSelectedStudent(null) }}
                   allLabel="Select campus"
                   placeholder="Select campus"
                   options={campusOptions}
@@ -918,90 +812,28 @@ function NewClearanceModal({ campusKey: lockedCampusKey, schoolYear: pageSchoolY
               )}
             </div>
 
-            {/* Student search */}
+            {/* Student */}
             <div>
               <label className="text-label text-[var(--color-text-muted)] block mb-1.5">
                 Student *
               </label>
-              {selectedStudent ? (
-                <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-[var(--color-success-border)] bg-[var(--color-success-light)]">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)] truncate">
-                      {selectedStudent.lastName}, {selectedStudent.firstName}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      School ID {selectedStudent.studentId || '—'} · {selectedStudent.gradeLevel || '—'}
-                    </p>
-                    {selectedBalance && (
-                      <p className={`text-xs font-semibold mt-0.5 ${selectedBalance.found && selectedBalance.balance > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-muted)]'}`}>
-                        {!selectedBalance.found
-                          ? 'Balance not found'
-                          : selectedBalance.balance > 0
-                            ? `Balance owing: ${fmtPeso(selectedBalance.balance)}`
-                            : 'No balance'}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => setSelectedStudent(null)}
-                    className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-error)] transition-colors shrink-0"
-                  >
-                    Change
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div className="flex items-center gap-2 border border-[var(--color-border)] rounded-[var(--radius-md)] bg-[var(--color-bg-card)] px-3 focus-within:ring-2 focus-within:ring-[var(--color-border-focus)] transition-shadow">
-                    <Search size={14} className="text-[var(--color-text-muted)] shrink-0" />
-                    <input
-                      className="flex-1 py-[0.5625rem] text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
-                      placeholder="Search by name or school ID..."
-                      value={studentSearch}
-                      onChange={e => setStudentSearch(e.target.value)}
-                      disabled={!campusKey}
-                      autoFocus
-                    />
-                  </div>
-
-                  {/* Results — in the page flow, so they always show under the field */}
-                  {filtered.length > 0 && (
-                    <div
-                      className="mt-1.5 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl overflow-y-auto max-h-56"
-                      role="listbox"
-                      aria-label="Matching students"
-                    >
-                      {filtered.map(st => (
-                        <button
-                          key={st.id}
-                          type="button"
-                          role="option"
-                          onClick={() => { setSelectedStudent(st); setStudentSearch('') }}
-                          className="w-full text-left px-4 py-2.5 hover:bg-[var(--color-bg-subtle)] transition-colors border-b border-[var(--color-border)] last:border-b-0"
-                        >
-                          <span className="block text-sm font-medium text-[var(--color-text-primary)]">
-                            {st.lastName}, {st.firstName}
-                          </span>
-                          <span className="block text-xs text-[var(--color-text-muted)] mt-0.5">
-                            School ID {st.studentId || '—'} · {st.gradeLevel || '—'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {q && filtered.length === 0 && (
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">
-                      No students found{campusName ? ` in ${campusName}` : ''}
-                      {lockedDept ? ` (${lockedDept === 'college' ? 'College' : 'Basic Ed'} only)` : ''}.
-                    </p>
-                  )}
-                  {!q && (
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5 pl-1">
-                      {campusKey
-                        ? 'Type a name or school ID, then pick the student from the list.'
-                        : 'Choose a campus first, then search for the student.'}
-                    </p>
-                  )}
-                </div>
+              <StudentSearchPicker
+                key={campusKey || 'no-campus'}
+                students={studentOptions}
+                value={selectedStudent?.id ?? ''}
+                onChange={pickStudent}
+                disabled={!campusKey}
+                disabledMessage="Choose a campus first, then search for the student."
+                autoFocus
+              />
+              {selectedStudent && selectedBalance && (
+                <p className={`text-xs font-semibold mt-1.5 pl-1 ${selectedBalance.found && selectedBalance.balance > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-text-muted)]'}`}>
+                  {!selectedBalance.found
+                    ? 'Balance not found'
+                    : selectedBalance.balance > 0
+                      ? `Balance owing: ${fmtPeso(selectedBalance.balance)}`
+                      : 'No balance'}
+                </p>
               )}
             </div>
 
@@ -1119,12 +951,13 @@ export default function Clearance() {
 
   const [clearances,   setClearances]   = useState([])
   const [loading,      setLoading]      = useState(true)
-  const [filter,       setFilter]       = useState('pending')  // 'pending' | 'cleared' | 'all'
+  const [filter,       setFilter]       = useState('pending')  // 'pending' | 'needs-me' | 'all'
   const [search,       setSearch]       = useState('')
   const [selected,     setSelected]     = useState(null)
   const [showNew,      setShowNew]      = useState(false)
   const [waitFilter,   setWaitFilter]   = useState('all')      // a requirement id, or 'all'
   const [scopeFilter,  setScopeFilter]  = useState('all')      // 'basicEd' | 'college' | 'all'
+  const [guidanceTick, setGuidanceTick] = useState(0)          // bumped when Guidance records change
   const { toasts, addToast, removeToast } = useToast()
 
   const loadData = useCallback(() => {
@@ -1213,6 +1046,23 @@ export default function Clearance() {
     [clearances, signMap]
   )
 
+  // Open Guidance cases: a count per student, for the Guidance in-charge only (everyone else gets {})
+  useEffect(() => {
+    const bump = () => setGuidanceTick(t => t + 1)
+    const onStorage = (e) => { if (e.key === null || e.key === 'almirene_guidance_records') bump() }
+    window.addEventListener('almirene_guidance_updated', bump)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('almirene_guidance_updated', bump)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
+  const openCases = useMemo(
+    () => getOpenCaseCounts(user, user?.campusKey),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, guidanceTick]
+  )
+
   // Student records give the School ID and grade / program shown in the list
   const studentMap = useMemo(() => {
     const m = new Map()
@@ -1229,7 +1079,6 @@ export default function Clearance() {
     let list = clearances
 
     if (filter === 'pending')       list = list.filter(c => !c.isFullyCleared)
-    else if (filter === 'cleared')  list = list.filter(c => c.isFullyCleared)
     else if (filter === 'needs-me' && showMine) list = list.filter(c => signMap.get(c.id))
 
     if (scopeFilter !== 'all') list = list.filter(c => c.scope === scopeFilter)
@@ -1238,7 +1087,6 @@ export default function Clearance() {
     if (q) {
       list = list.filter(c =>
         c.studentName?.toLowerCase().includes(q) ||
-        c.reason?.toLowerCase().includes(q) ||
         String(studentMap.get(c.studentId)?.studentId || '').toLowerCase().includes(q)
       )
     }
@@ -1247,7 +1095,6 @@ export default function Clearance() {
 
   // The table's columns follow the requirements of the clearances on screen
   const columns   = useMemo(() => buildColumns(baseList, scopeFilter, campusKey), [baseList, scopeFilter, campusKey, configTick])
-  const summaries = useMemo(() => new Map(clearances.map(c => [c.id, summaryById(c)])), [clearances])
   const waitOptions = columns.filter(col => !col.legacy).map(col => ({ value: col.id, label: col.label }))
 
   const filtered = useMemo(
@@ -1269,14 +1116,13 @@ export default function Clearance() {
   const { rows, sort, onSort, page, pageCount, total, setPage, pageSize, setPageSize } = useTablePaging(filtered, {
     sorters:     CLEARANCE_SORTERS,
     defaultSort: { key: 'requested', dir: 'desc' },
-    descFirst:   ['requested', 'progress'],
+    descFirst:   ['requested'],
     resetOn:     [filter, waitFilter, scopeFilter, search, campusKey],
   })
 
   const filterOptions = [
     { id: 'all',     label: `All (${clearances.length})` },
     { id: 'pending', label: `Pending (${clearances.filter(c => !c.isFullyCleared).length})` },
-    { id: 'cleared', label: `Cleared (${clearances.filter(c => c.isFullyCleared).length})` },
     ...(showMine ? [{ id: 'needs-me', label: `Needs My Sign (${needsMeCount})` }] : []),
   ]
   const hasExtraFilters = waitFilter !== 'all' || scopeFilter !== 'all' || search.trim() !== ''
@@ -1368,7 +1214,7 @@ export default function Clearance() {
             <Search size={14} className="text-[var(--color-text-muted)] shrink-0" />
             <input
               className="flex-1 min-w-0 py-[0.5625rem] text-sm bg-transparent outline-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
-              placeholder="Search name, school ID or reason..."
+              placeholder="Search name or school ID..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               aria-label="Search clearances"
@@ -1421,10 +1267,9 @@ export default function Clearance() {
         <div className="card-section border border-[var(--color-border)]">
           <ClearanceTable
             rows={rows}
-            columns={columns}
-            summaries={summaries}
             studentMap={studentMap}
             signMap={signMap}
+            openCases={openCases}
             showCampus={!campusKey}
             campusNameOf={campusNameOf}
             sort={sort}
@@ -1433,10 +1278,9 @@ export default function Clearance() {
           />
           <ClearanceMobileList
             rows={rows}
-            columns={columns}
-            summaries={summaries}
             studentMap={studentMap}
             signMap={signMap}
+            openCases={openCases}
             showCampus={!campusKey}
             campusNameOf={campusNameOf}
             onSelect={c => setSelected(c)}
@@ -1469,6 +1313,7 @@ export default function Clearance() {
           clearance={selected}
           campusName={campusNameOf(selected.campusKey)}
           currentUser={user}
+          openCaseCount={openCases[String(selected.studentId)] || 0}
           onUpdate={() => {
             loadData()
             // Refresh selected record

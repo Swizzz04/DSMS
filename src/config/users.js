@@ -1,4 +1,22 @@
-export const SYSTEM_USERS = [
+/**
+ * users.js — the accounts the system starts with.
+ *
+ * DEMO_USERS are sample accounts with passwords that are written in this file's comments and in
+ * the project docs. They exist so the app can be tried out and tested, and must never be live in a
+ * real school. They load only when:
+ *   - the app runs in development (npm run dev), or
+ *   - the build sets VITE_DEMO_ACCOUNTS=true (for a demo site).
+ *
+ * A normal production build starts with ONE account instead: a Technical Administrator taken from
+ *   VITE_BOOTSTRAP_ADMIN_EMAIL   the login email
+ *   VITE_BOOTSTRAP_ADMIN_HASH    SHA-256 hex of the password (see .env.example for how to make it)
+ * That person then creates the real accounts in Settings → Users. If neither is set, production has
+ * no accounts and nobody can log in, which is deliberate: it is safer than shipping known passwords.
+ *
+ * Once the ASP.NET backend exists, accounts come from the database and this file goes away.
+ */
+
+const DEMO_USERS = [
   {
     id: 1, name: 'School Owner',
     email: 'admin@school.edu.ph',
@@ -198,3 +216,32 @@ export const SYSTEM_USERS = [
     status: 'active', lastLogin: null,
   },
 ]
+
+/**
+ * Which accounts to start with, for a given build environment.
+ * Pure on purpose (takes the env as an argument) so it can be tested for every case.
+ * @param {{DEV?: boolean, VITE_DEMO_ACCOUNTS?: string, VITE_BOOTSTRAP_ADMIN_EMAIL?: string, VITE_BOOTSTRAP_ADMIN_HASH?: string}} env
+ */
+export function resolveSystemUsers(env = {}, demoUsers = DEMO_USERS) {
+  if (env.DEV || String(env.VITE_DEMO_ACCOUNTS || '').trim().toLowerCase() === 'true') return demoUsers
+
+  const email = String(env.VITE_BOOTSTRAP_ADMIN_EMAIL || '').trim()
+  const hash  = String(env.VITE_BOOTSTRAP_ADMIN_HASH  || '').trim().toLowerCase()
+  if (email && /^[0-9a-f]{64}$/.test(hash)) {
+    return [{
+      id: 1, name: 'Technical Administrator',
+      email, passwordHash: hash,
+      role: 'technical_admin', campus: 'all', status: 'active', lastLogin: null,
+    }]
+  }
+  return []
+}
+
+export const SYSTEM_USERS = resolveSystemUsers(import.meta.env)
+
+if (SYSTEM_USERS.length === 0) {
+  console.error(
+    '[ALMIRENE] No login accounts are configured. Set VITE_BOOTSTRAP_ADMIN_EMAIL and ' +
+    'VITE_BOOTSTRAP_ADMIN_HASH for this build (see .env.example).'
+  )
+}

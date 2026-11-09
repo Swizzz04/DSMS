@@ -15,6 +15,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
 import { getRequests } from '../utils/documentBridge'
+import { getCampusScope } from '../config/appConfig'
 
 // ─────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -286,7 +287,7 @@ function TxDetailModal({ tx, onClose, onPrint }) {
               Close
             </button>
             <button onClick={() => onPrint(tx)}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -376,6 +377,9 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
             </div>
           </div>
         </div>
+        {tx.recordedBy && tx.recordedBy !== cashierName && (
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">Recorded by: {tx.recordedBy}</p>
+        )}
         <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
@@ -416,7 +420,7 @@ function TxReceiptModal({ tx, cashierName, schoolName, schoolYear, onClose, onPo
               Close
             </button>
             <button onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
               <Printer className="w-4 h-4"/> Print Receipt
             </button>
           </div>
@@ -464,7 +468,7 @@ function TxRow({ tx, onView, onPrint }) {
           </button>
           <button
             onClick={() => onPrint(tx)}
-            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)] rounded-lg font-medium transition"
+            className="inline-flex items-center gap-1 text-xs px-2 py-1.5 bg-[var(--color-action)] text-[var(--color-action-contrast)] hover:bg-[var(--color-action-hover)] rounded-lg font-medium transition"
             title="Print receipt">
             <Printer className="w-3.5 h-3.5"/> Receipt
           </button>
@@ -598,9 +602,9 @@ export default function Reports() {
   const [selectedTx,  setSelectedTx]  = useState(null)   // tx open in detail modal
   const [receiptTx,   setReceiptTx]   = useState(null)   // tx open in receipt modal
 
-  const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
-  const effectiveCampus    = isAccountingLocked ? user.campus : campusFilter
-  // The header filter holds a campus KEY ('Talisay'); accounting's locked campus and every
+  const { locked: isCampusLocked, campusName: lockedCampus } = getCampusScope(user)
+  const effectiveCampus    = isCampusLocked ? lockedCampus : campusFilter
+  // The header filter holds a campus KEY ('Talisay'); the user's locked campus and every
   // submission hold the campus NAME. Resolve to the name so the comparisons are exact.
   const effectiveCampusName = effectiveCampus === 'all'
     ? 'all'
@@ -850,7 +854,7 @@ export default function Reports() {
           </p>
         </div>
         <button onClick={handleExport}
-          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium shadow-sm">
+          className="self-start flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium shadow-sm">
           <Download className="w-4 h-4"/> Export Report
         </button>
       </div>

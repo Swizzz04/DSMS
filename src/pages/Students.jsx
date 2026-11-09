@@ -21,6 +21,7 @@ import GroupedSelect from '../components/GroupedSelect'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { getSubjectLoadData } from '../utils/subjectLoadBridge'
+import { ensureStudentIds } from '../utils/enrollmentBridge'
 
 // Lazy-loaded chart wrapper — only loads chart.js when stats section renders
 const LazyBar = lazy(() =>
@@ -577,6 +578,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
 // ── Normalise almirene_submissions → student shape ────────────────────
 function normaliseSubmissions() {
   try {
+    ensureStudentIds()   // students approved before IDs existed get theirs here
     const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
     return subs
       .filter(s => s.status === 'approved')
@@ -587,7 +589,7 @@ function normaliseSubmissions() {
         const yearPart = gradeLevel.split(' - ')[1] || ''
         return {
           id:             s.id || s.referenceNumber,
-          studentId:      s.referenceNumber || s.id || '',
+          studentId:      s.studentId || '',   // the school's Student ID; the reference number is not an ID
           status:         'active',
           enrollmentDate: s.updatedAt || s.submittedDate || new Date().toISOString(),
           personal: {
@@ -943,7 +945,7 @@ export default function Students() {
             </p>
           </div>
           <button onClick={handleAdminExport}
-            className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition font-medium">
+            className="self-start sm:self-auto flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export All
           </button>
         </div>
@@ -1159,7 +1161,7 @@ export default function Students() {
           </div>
           <div className="col-span-2 flex gap-2">
             {hasFilters && <button onClick={clearFilters} className="flex-1 px-3 py-2.5 text-sm text-[var(--color-text-secondary)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">Clear</button>}
-            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-1.5">
+            <button onClick={handleExport} className="flex-1 px-3 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition flex items-center justify-center gap-1.5">
               <Download className="w-4 h-4" /> Export
             </button>
           </div>
@@ -1199,7 +1201,7 @@ export default function Students() {
                 <thead className="bg-[var(--color-bg-subtle)]">
                   <tr>
                     <SortTh label="Student" sortKey="name" sort={sort} onSort={onSort} />
-                    <SortTh label="School ID" sortKey="id" sort={sort} onSort={onSort} />
+                    <SortTh label="Student ID" sortKey="id" sort={sort} onSort={onSort} />
                     <SortTh label={user?.role === 'registrar_college' ? 'Program & Year' : 'Grade Level'} sortKey="grade" sort={sort} onSort={onSort} />
                     <SortTh label="Section" sortKey="section" sort={sort} onSort={onSort} />
                     {!isCampusLocked && <SortTh label="Campus" sortKey="campus" sort={sort} onSort={onSort} />}
@@ -1266,7 +1268,7 @@ export default function Students() {
                   onClick={() => handleDownloadPDF(selectedStudent)}
                   disabled={isDownloading}
                   title="Download as PDF"
-                  className="p-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isDownloading
                     ? <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -1333,7 +1335,7 @@ export default function Students() {
             </div>
             <div className="px-5 py-4 border-t border-[var(--color-border)] flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-[var(--color-bg-subtle)] flex-shrink-0">
               <button onClick={() => setShowModal(false)} className="btn-cancel">Close</button>
-              <button onClick={() => handlePrintClick(selectedStudent)} className="px-5 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition flex items-center justify-center gap-2 font-medium">
+              <button onClick={() => handlePrintClick(selectedStudent)} className="px-5 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition flex items-center justify-center gap-2 font-medium">
                 <Printer className="w-4 h-4" /> Print PDF
               </button>
             </div>

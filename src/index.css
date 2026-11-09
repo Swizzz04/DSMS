@@ -75,29 +75,29 @@ button, a, [role="button"] {
 :root {
   /* ── Brand colors (SaaS-neutral defaults — each client sets their own
      via Settings → School Info on turnover; these are placeholder-only) */
-  --color-primary:          #F4FAFC;
-  --color-primary-rgb:      244 250 252;   /* for bg-primary/NN opacity utilities */
-  --color-primary-hover:    #C3C8CA;   /* darken(primary, 20%)      */
-  --color-primary-light:    #FEFFFF;   /* lighten(primary, 92%)     */
-  --color-primary-muted:    rgba(244, 250, 252, 0.08);
+  --color-primary:          #F3F2EE;
+  --color-primary-rgb:      243 242 238;   /* for bg-primary/NN opacity utilities */
+  --color-primary-hover:    #c2c2be;   /* darken(primary, 20%)      */
+  --color-primary-light:    #fefefe;   /* lighten(primary, 92%)     */
+  --color-primary-muted:    rgba(243, 242, 238, 0.08);
 
-  --color-secondary:        #212121;
-  --color-secondary-rgb:    33 33 33;      /* for bg-secondary/NN opacity utilities */
-  --color-secondary-hover:  #1A1A1A;   /* darken(secondary, 20%)    */
-  --color-secondary-light:  #7A7A7A;   /* lighten(secondary, 40%)   */
-  --color-secondary-muted:  rgba(33, 33, 33, 0.08);
+  --color-secondary:        #0B0B0C;
+  --color-secondary-rgb:    11 11 12;      /* for bg-secondary/NN opacity utilities */
+  --color-secondary-hover:  #09090a;   /* darken(secondary, 20%)    */
+  --color-secondary-light:  #6d6d6d;   /* lighten(secondary, 40%)   */
+  --color-secondary-muted:  rgba(11, 11, 12, 0.08);
 
   /* ── Contrast-safe derived colors (computed by themeInitializer.js at
      runtime for whatever primary/secondary is actually configured — these
      are just the static first-paint fallback matching the current defaults) */
   --color-primary-contrast:    #1a1a1a;  /* text ON a bg-primary fill */
   --color-secondary-contrast:  #ffffff;  /* text ON a bg-secondary fill */
-  --color-primary-readable:    #646667;  /* text-primary/border-primary on the page bg */
-  --color-secondary-readable:  #212121;  /* text-secondary/border-secondary on the page bg */
-  --color-selected:            #212121;  /* selected chip / tab / toggle fill (from secondary) */
+  --color-primary-readable:    #636361;  /* text-primary/border-primary on the page bg */
+  --color-secondary-readable:  #0B0B0C;  /* text-secondary/border-secondary on the page bg */
+  --color-selected:            #0B0B0C;  /* selected chip / tab / toggle fill (from secondary) */
   --color-selected-contrast:   #ffffff;  /* text on the selected fill */
-  --color-action:              #212121;  /* main action button fill: brand primary if >= 3:1 on the card, else the selected colour */
-  --color-action-hover:        #1a1a1a;  /* darken(action, 20%) */
+  --color-action:              #0B0B0C;  /* main action button fill: brand primary if >= 3:1 on the card, else the selected colour */
+  --color-action-hover:        #09090a;  /* darken(action, 20%) */
   --color-action-contrast:     #ffffff;  /* text on the action fill */
   --color-alert:               #dc2626;  /* notification counters: red unless it clashes with the school's colours */
   --color-alert-contrast:      #ffffff;  /* text on the alert fill */
@@ -271,25 +271,25 @@ button, a, [role="button"] {
      custom color the same in both modes (their brand identity shouldn't
      "swap" between light/dark), and only falls back to these mode-specific
      defaults when nothing's been configured. See applyTheme() for the logic. */
-  --color-primary:          #1A1A1A;
-  --color-primary-rgb:      26 26 26;
-  --color-primary-hover:    #000000;
-  --color-primary-light:    #ededed;
+  --color-primary:          #0B0B0C;
+  --color-primary-rgb:      11 11 12;
+  --color-primary-hover:    #09090a;
+  --color-primary-light:    #ebebec;
 
-  --color-secondary:        #F4FAFC;
-  --color-secondary-rgb:    244 250 252;
-  --color-secondary-hover:  #c1c7c9;
-  --color-secondary-light:  #f8fcfd;
+  --color-secondary:        #F3F2EE;
+  --color-secondary-rgb:    243 242 238;
+  --color-secondary-hover:  #c2c2be;
+  --color-secondary-light:  #f8f7f5;
 
   /* Contrast-safe derived colors, dark mode fallback (see :root above) */
   --color-primary-contrast:    #ffffff;
   --color-secondary-contrast:  #1a1a1a;
-  --color-primary-readable:    #b7b7b7;
-  --color-secondary-readable:  #f4fafc;
-  --color-selected:            #F4FAFC;
+  --color-primary-readable:    #b2b2b2;
+  --color-secondary-readable:  #f3f2ee;
+  --color-selected:            #F3F2EE;
   --color-selected-contrast:   #1a1a1a;
-  --color-action:              #F4FAFC;
-  --color-action-hover:        #c3c8ca;
+  --color-action:              #F3F2EE;
+  --color-action-hover:        #c2c2be;
   --color-action-contrast:     #1a1a1a;
   --color-alert:               #dc2626;
   --color-alert-contrast:      #ffffff;
@@ -300,8 +300,8 @@ button, a, [role="button"] {
   --shadow-lg:   0 10px 15px rgba(0, 0, 0, 0.4), 0 4px 6px rgba(0, 0, 0, 0.2);
   --shadow-modal:0 20px 40px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
 
-  --color-primary-muted:    rgba(26, 26, 26, 0.35);
-  --color-secondary-muted:  rgba(244, 250, 252, 0.15);
+  --color-primary-muted:    rgba(11, 11, 12, 0.35);
+  --color-secondary-muted:  rgba(243, 242, 238, 0.15);
 
   --color-success-light:    rgba(22, 163, 74, 0.12);
   --color-success-border:   rgba(22, 163, 74, 0.25);
@@ -771,6 +771,16 @@ button, a, [role="button"] {
 .table-row:hover {
   background-color: var(--color-bg-subtle);
 }
+
+/* ── Soft tints ───────────────────────────────────────────────────────────────
+   Tailwind v3 cannot put an opacity suffix on a var() colour (bg-[var(--x)]/50 draws nothing).
+   These three classes do the same job from the theme variables, so light and dark both follow.
+   Use: .row-hover (table row / accordion header hover), .bg-subtle-soft (quiet panel),
+        .bg-contrast-soft (tint on a secondary-coloured fill, e.g. a count badge). */
+.row-hover { transition: background-color var(--t-fast); }
+.row-hover:hover { background-color: color-mix(in srgb, var(--color-bg-subtle) 60%, transparent); }
+.bg-subtle-soft { background-color: color-mix(in srgb, var(--color-bg-subtle) 60%, transparent); }
+.bg-contrast-soft { background-color: color-mix(in srgb, var(--color-secondary-contrast) 20%, transparent); }
 
 /* ── Nav items ────────────────────────────────── */
 .nav-item {

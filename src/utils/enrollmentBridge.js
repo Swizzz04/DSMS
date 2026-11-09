@@ -229,18 +229,51 @@ export function getWebsiteSubmissions() {
   } catch { return [] }
 }
 
-export function updateSubmissionStatus(referenceNumber, newStatus) {
+/**
+ * Change the status of a submission. `key` is the reference number or the record id (for website
+ * submissions they are the same value).
+ * The first time a submission becomes 'approved' it is also given its permanent Student ID
+ * (see generateStudentId). An ID already on the record is never changed or reissued.
+ */
+export function updateSubmissionStatus(key, newStatus) {
   try {
     const submissions = getWebsiteSubmissions()
-    const idx = submissions.findIndex(s => s.referenceNumber === referenceNumber)
-    if (idx !== -1) {
-      submissions[idx].status    = newStatus
-      submissions[idx].updatedAt = new Date().toISOString()
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions))
-      return true
+    const idx = submissions.findIndex(s => s.referenceNumber === key || s.id === key)
+    if (idx === -1) return false
+    submissions[idx].status    = newStatus
+    submissions[idx].updatedAt = new Date().toISOString()
+    if (newStatus === 'approved' && !submissions[idx].studentId) {
+      submissions[idx].studentId = issueStudentId(submissions[idx], loadStudents())
     }
-    return false
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions))
+    return true
   } catch { return false }
+}
+
+/** The Student ID of a submission ('' while it is not approved yet). */
+export function getSubmissionStudentId(key) {
+  const sub = getWebsiteSubmissions().find(s => s.referenceNumber === key || s.id === key)
+  return sub?.studentId || ''
+}
+
+/**
+ * Give a Student ID to every approved submission that has none (records approved before IDs
+ * existed). Oldest approval first, so the numbers follow the order students were enrolled.
+ * A student already in almirene_students (seed data) keeps the ID it has there, so every page
+ * shows the same number. Returns how many IDs were issued. Writes once, and fires no event.
+ */
+export function ensureStudentIds() {
+  try {
+    const submissions = getWebsiteSubmissions()
+    const missing = submissions.filter(s => s.status === 'approved' && !s.studentId)
+    if (missing.length === 0) return 0
+    const students = loadStudents()
+    missing.sort((a, b) =>
+      String(a.updatedAt || a.submittedDate || '').localeCompare(String(b.updatedAt || b.submittedDate || '')))
+    missing.forEach(s => { s.studentId = issueStudentId(s, students) })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(submissions))
+    return missing.length
+  } catch { return 0 }
 }
 
 export function deleteSubmission(referenceNumber) {
@@ -524,27 +557,44 @@ export function convertToStudent(enrollment) {
 }
 
 /**
- * Generates a numeric-only, permanent Student ID: {schoolYearStartYear}{6-digit sequence}
- * e.g. "202600001" for SY 2026-2027, "202700002" for the next new student enrolled
- * once SY 2027-2028 starts.
+ * Generates the permanent Student ID: {school year start year}{6-digit sequence},
+ * e.g. "2026000001" for SY 2026-2027.
  *
- * - The year prefix is whatever school year is CURRENT at the moment the student
- *   is created — it is baked into the ID string permanently. A student's ID never
- *   changes on its own when the school year rolls over; only NEW students enrolled
- *   after the rollover pick up the new year prefix.
- * - The 5-digit sequence is a single counter shared across ALL campuses and ALL
- *   years — it never resets. It only ever counts up, for the life of the school.
- * - 5 digits supports up to 99,999 total students ever enrolled before needing a
- *   6th digit — plenty of headroom for a single-school SaaS deployment.
+ * - The year part is the school year of the enrollment. It is part of the ID forever; an ID never
+ *   changes when the school year rolls over, only students enrolled later get the new year.
+ * - The 6-digit sequence is ONE counter for the whole school (all campuses, all years). It keeps
+ *   counting across school years and never resets: the first student of SY 2027-2028 gets the
+ *   next number after the last one issued, e.g. "2027000451".
+ * - The counter never goes below the highest sequence already on a student record, so a number is
+ *   never issued twice, even if the stored counter was lost or the records came from seed data.
  */
 function generateStudentId(schoolYear) {
-  const year = schoolYear ? schoolYear.split('-')[0] : String(new Date().getFullYear())
+  const year = schoolYear ? String(schoolYear).split('-')[0] : String(new Date().getFullYear())
   let counter = 0
   try { counter = parseInt(localStorage.getItem(STUDENT_ID_KEY) || '0', 10) || 0 }
   catch { counter = 0 }
-  counter += 1
+  counter = Math.max(counter, highestIssuedSequence()) + 1
   localStorage.setItem(STUDENT_ID_KEY, counter.toString())
   return `${year}${String(counter).padStart(6, '0')}`
+}
+
+/** Highest 6-digit sequence found on any submission or student record. */
+function highestIssuedSequence() {
+  let max = 0
+  const scan = (list) => (list || []).forEach(r => {
+    const id = String(r?.studentId ?? '')
+    if (/^\d{10}$/.test(id)) max = Math.max(max, parseInt(id.slice(4), 10))
+  })
+  scan(getWebsiteSubmissions())
+  scan(loadStudents())
+  return max
+}
+
+/** The ID for a submission being approved: the one its student record already has, else a new one. */
+function issueStudentId(submission, students) {
+  const known = students.find(st =>
+    (st.id === submission.id || st.enrollmentId === submission.id) && /^\d{10}$/.test(String(st.studentId ?? '')))
+  return known ? known.studentId : generateStudentId(submission.enrollment?.schoolYear)
 }
 
 // ── STUDENT READS & UPDATES ─────────────────────────────────────

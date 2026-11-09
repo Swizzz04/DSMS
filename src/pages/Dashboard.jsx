@@ -33,7 +33,7 @@ import {
   PointElement, LineElement,
   Title, Tooltip, Legend
 } from 'chart.js'
-import { getSubmissionDueDate, getPaymentStatus } from '../config/appConfig'
+import { getSubmissionDueDate, getPaymentStatus, getCampusScope } from '../config/appConfig'
 import { useAuth } from '../context/AuthContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -79,7 +79,7 @@ function chartTheme() {
     infoClr:       v('--color-info', '#2563eb'),
     warningClr:    v('--color-warning', '#d97706'),
     errorClr:      v('--color-error', '#dc2626'),
-    primaryClr:    v('--color-primary', '#F4FAFC'),
+    primaryClr:    v('--color-primary', '#F3F2EE'),
   }
 }
 
@@ -128,37 +128,36 @@ export default function Dashboard() {
   const isPrincipal    = user?.role === 'principal_basic'
   const isProgramHead  = user?.role === 'program_head'
   const isAccounting   = user?.role === 'accounting'
-  const isAccountingLocked = isAccounting && user?.campus !== 'all'
-  const accountingCampus   = isAccountingLocked ? user.campus : null
+  const { locked: isCampusLocked, campusName: lockedCampus } = getCampusScope(user)
 
   // ── Campus scope ──────────────────────────────────────────────
-  const effectiveCampusFilter = isAccountingLocked
-    ? activeCampuses.find(c => c.name === accountingCampus)?.key || campusFilter
+  const effectiveCampusFilter = isCampusLocked
+    ? activeCampuses.find(c => c.name === lockedCampus)?.key || campusFilter
     : campusFilter
 
   // Each campus has its own school year: one campus shows its year, all campuses show every campus's own
   const yearLabel = getSchoolYearLabel(effectiveCampusFilter)
 
-  const shownCampuses = isAccountingLocked
-    ? activeCampuses.filter(c => c.name === accountingCampus)
+  const shownCampuses = isCampusLocked
+    ? activeCampuses.filter(c => c.name === lockedCampus)
     : effectiveCampusFilter === 'all'
       ? activeCampuses
       : activeCampuses.filter(c => c.key === effectiveCampusFilter)
 
   const campusNames = shownCampuses.map(c => c.name)
-  const campusLabel = isAccountingLocked
-    ? accountingCampus
+  const campusLabel = isCampusLocked
+    ? lockedCampus
     : effectiveCampusFilter === 'all'
       ? 'All Campuses'
       : (activeCampuses.find(c => c.key === effectiveCampusFilter)?.name || effectiveCampusFilter)
 
   const inScope = useCallback((campusName) =>
-    isAccountingLocked
-      ? campusName === accountingCampus
+    isCampusLocked
+      ? campusName === lockedCampus
       : effectiveCampusFilter === 'all'
         ? true
         : campusNames.includes(campusName),
-  [isAccountingLocked, accountingCampus, effectiveCampusFilter, campusNames])
+  [isCampusLocked, lockedCampus, effectiveCampusFilter, campusNames])
 
   // ── Derived data ──────────────────────────────────────────────
   const filteredEnrollments = submissions.filter(s => inScope(s.enrollment?.campus || ''))
@@ -511,8 +510,8 @@ export default function Dashboard() {
   }
   if (user?.role === 'admin') {
     // Use primary color for all campus indicators
-    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F4FAFC'
-    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#212121'
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F3F2EE'
+    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#0B0B0C'
     // Contrast-safe variant for border/text usage (see themeInitializer.js) — the
     // raw primaryColor above is a fill color and can be too pale to see as a border.
     const primaryReadable = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-readable').trim() || primaryColor
@@ -799,7 +798,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Per-campus strip ──────────────────────────────────── */}
-      {campusStats.length > 1 && !isAccountingLocked && (
+      {campusStats.length > 1 && !isCampusLocked && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {campusStats.map((c, i) => (
             <div

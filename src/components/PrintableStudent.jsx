@@ -8,7 +8,7 @@ import { forwardRef } from 'react'
  */
 function getSchoolBrand() {
   let name = 'School Management System'
-  let primaryColor = '#F4FAFC'
+  let primaryColor = '#F3F2EE'
   try {
     const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
     if (saved.schoolName)   name = saved.schoolName

@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import {
   Search, DollarSign, Eye, Download, Receipt, Clock,
   CheckCircle, AlertCircle, XCircle, ChevronRight,
@@ -12,10 +12,14 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { exportToExcel, exportMultipleSheets } from '../utils/exportToExcel'
 import { PageSkeleton, EmptyState, useToast, ToastContainer, ModalPortal, ExportButton } from '../components/UIComponents'
 import GroupedSelect from '../components/GroupedSelect'
+import { buildGradeLevelGroups } from '../utils/studentSearch'
 import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import SchoolLogo from '../components/SchoolLogo'
 import DatePicker from '../components/DatePicker'
-import { getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD } from '../config/appConfig'
+import { printReceiptHtml } from '../utils/printReceipt'
+import { resolveBrandColors } from '../utils/themeInitializer'
+import { printPaletteCss } from '../utils/printPalette'
+import { getSubmissionDueDate, getPaymentStatus, DEFAULT_MAX_EXTENSION_DAYS, EXTENSION_REASONS, EXTENSION_QUICK_DAYS, shiftDays, daysPast, toYMD, todayYMD, getCampusScope } from '../config/appConfig'
 import { isOrNumberUsed } from '../utils/orNumbers'
 import {
   DeptPaymentCard,
@@ -33,36 +37,29 @@ const php = (n) =>
 /**
  * Reads school name + brand colors from almirene_website_content (School Info
  * settings), the same source Sidebar.jsx / Login.jsx already read from.
- * Falls back to whatever --color-primary/--color-secondary are currently
- * applied on the page (set by themeInitializer.js) if no brand color has
- * been configured yet — never hardcodes a specific school's colors.
+ * Colours come from resolveBrandColors (the school's saved pair, or the neutral
+ * defaults), so no specific school's colours are hardcoded here.
  */
 function getSchoolBrand() {
   let name = 'School Management System'
   let logo = ''
-  let primaryColor = '#F4FAFC'
-  let secondaryColor = '#212121'
+  let primaryColor = ''
+  let secondaryColor = ''
   try {
     const saved = JSON.parse(localStorage.getItem('almirene_website_content') || '{}')
     if (saved.schoolName)     name = saved.schoolName
     if (saved.logoUrl)        logo = saved.logoUrl
-    if (saved.primaryColor)   primaryColor = saved.primaryColor
-    else if (typeof document !== 'undefined') {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim()
-      if (v) primaryColor = v
-    }
-    if (saved.secondaryColor) secondaryColor = saved.secondaryColor
-    else if (typeof document !== 'undefined') {
-      const v = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim()
-      if (v) secondaryColor = v
-    }
+    // Printed pages are always on white paper, so use the light pair (never the dark-mode swap)
+    const brand = resolveBrandColors(saved.primaryColor, saved.secondaryColor, false)
+    primaryColor = brand.primary
+    secondaryColor = brand.secondary
   } catch {}
   return { name, logo, primaryColor, secondaryColor }
 }
 
 // ADMIN PAYMENTS OVERVIEW
 // ════════════════════════════════════════════════════════════════════
-function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, addToast, onRecordPayment }) {
+function AdminPaymentsOverview({ payments, campusFilter, activeCampuses, addToast }) {
   const { getSchoolYearLabel } = useAppConfig()
   const { isBasicGrade, isCollegeGrade, getCampusBasicEdGroups, getProgramYearLevels } = useAppConfig()
   const shownCampuses   = campusFilter !== 'all'
@@ -329,7 +326,7 @@ function generateOR(prefix = 'OR') {
 }
 
 // ── Receipt Preview + Print ───────────────────────────────────────
-function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, schoolYear, onClose, onPrint }) {
+function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, schoolYear, onClose, onPrint, onPopupBlocked }) {
   const receiptRef = useRef(null)
   const totalPaidAfter = payment.amountPaid + newTransaction.amount
   const balanceAfter   = payment.totalFee - totalPaidAfter
@@ -337,8 +334,9 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
   const dateStr = now.toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
   const timeStr = now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
 
-  const ReceiptCopy = ({ copyLabel }) => (
-    <div className="receipt-copy border border-[var(--color-border)] rounded-lg p-5 bg-[var(--color-bg-card)] text-[var(--color-text-primary)]" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
+  // One receipt, same paper and print path as Reports and Enrollments
+  const receiptPaper = (
+    <div className="receipt-paper receipt-copy border border-[var(--color-border-strong)] rounded-xl p-5" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
       {/* Header */}
       <div className="text-center mb-3 pb-3 border-b-2 border-double border-[var(--color-border-strong)]">
         <div className="flex justify-center mb-1">
@@ -442,46 +440,32 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             </div>
           </div>
         </div>
-        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">{copyLabel} — Thank you for your payment!</p>
+        {newTransaction.recordedBy && newTransaction.recordedBy !== cashierName && (
+          <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">Recorded by: {newTransaction.recordedBy}</p>
+        )}
+        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
   )
 
   const handlePrint = () => {
-    const printContent = receiptRef.current?.innerHTML
-    if (!printContent) return
-    const { primaryColor, secondaryColor } = getSchoolBrand()
-    const w = window.open('', '_blank', 'width=700,height=900')
-    w.document.write(`<!DOCTYPE html><html><head><title>Official Receipt - ${payment.studentName}</title>
-      <style>
-        :root { --color-primary: ${primaryColor}; --color-secondary: ${secondaryColor}; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Georgia, serif; font-size: 13px; color: #111; background: #fff; }
-        .print-page { width: 100%; padding: 16px; }
-        .receipt-pair { display: flex; gap: 16px; }
-        .receipt-copy { flex: 1; border: 1px solid #999; border-radius: 8px; padding: 20px; }
-        .cut-line { border-top: 1px dashed #aaa; margin: 16px 0; text-align: center; font-size: 10px; color: #aaa; padding-top: 4px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 3px 0; }
-        @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
-      </style></head><body>
-      <div class="print-page">${printContent}</div>
-      <script>window.onload = () => { window.print(); setTimeout(() => window.close(), 800); }<\/script>
-      </body></html>`)
-    w.document.close()
-    if (onPrint) onPrint()
+    const opened = printReceiptHtml({
+      html:  receiptRef.current?.innerHTML,
+      title: `Official Receipt - ${payment.studentName}`,
+      onBlocked: onPopupBlocked,
+    })
+    if (opened && onPrint) onPrint()
   }
 
   return (
     <ModalPortal>
     <div className="modal-backdrop-center">
-      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-3xl max-h-[94vh] flex flex-col shadow-[var(--shadow-modal)]">
+      <div className="bg-[var(--color-bg-card)] rounded-2xl w-full max-w-md max-h-[94vh] flex flex-col shadow-[var(--shadow-modal)]">
         {/* Header */}
         <div className="modal-header">
           <div className="flex items-center gap-2">
             <Printer className="w-5 h-5 text-[var(--color-primary-readable)]" />
             <h2 className="text-base font-bold text-[var(--color-text-primary)]">Receipt Preview</h2>
-            <span className="text-xs text-[var(--color-text-muted)] ml-1">— 2 copies per page</span>
           </div>
           <button onClick={onClose} className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
             <X className="w-5 h-5" />
@@ -490,15 +474,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
 
         {/* Preview area */}
         <div className="overflow-y-auto flex-1 p-5 bg-[var(--color-bg-muted)]">
-          <div ref={receiptRef} className="receipt-pair flex gap-4">
-            <div className="flex-1"><ReceiptCopy copyLabel="School Copy" /></div>
-            <div className="flex-1"><ReceiptCopy copyLabel="Student Copy" /></div>
-          </div>
-          <p className="text-center text-xs text-[var(--color-text-muted)] mt-3 flex items-center justify-center gap-1">
-            <span className="inline-block w-10 border-t border-dashed border-[var(--color-border)]"></span>
-            cut here
-            <span className="inline-block w-10 border-t border-dashed border-[var(--color-border)]"></span>
-          </p>
+          <div ref={receiptRef}>{receiptPaper}</div>
         </div>
 
         {/* Actions */}
@@ -507,7 +483,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
             Close
           </button>
           <button onClick={handlePrint}
-            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+            className="flex items-center gap-2 px-6 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
             <Printer className="w-4 h-4" /> Print Receipt
           </button>
         </div>
@@ -518,7 +494,7 @@ function ReceiptPreview({ payment, newTransaction, schoolName, cashierName, scho
 }
 
 // ── Record Payment Modal ──────────────────────────────────────────
-function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear }) {
+function RecordPaymentModal({ payment, onClose, onSave, recordedBy }) {
   const { isCollegeGrade } = useAppConfig()
   const [amount,     setAmount]     = useState('')
   const [method,     setMethod]     = useState('Cash')
@@ -653,7 +629,7 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
             <div className="flex gap-2 mt-2 flex-wrap">
               {[500, 1000, 2000, 5000].filter(v => v <= maxAmount + 1).map(v => (
                 <button key={v} onClick={() => setAmount(String(v))}
-                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium">
+                  className="text-xs px-2.5 py-1 bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] rounded-lg hover:bg-[var(--color-action)] hover:text-[var(--color-action-contrast)] transition font-medium">
                   ₱{v.toLocaleString()}
                 </button>
               ))}
@@ -751,21 +727,21 @@ function RecordPaymentModal({ payment, onClose, onSave, cashierName, schoolYear 
           <div className="bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl px-4 py-2.5 flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-[var(--color-warning-text)] flex-shrink-0" />
             <p className="text-xs text-[var(--color-warning-text)]">
-              Recorded by: <span className="font-semibold">{cashierName}</span> · {new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+              Recorded by: <span className="font-semibold">{recordedBy}</span> · {new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="modal-footer">
-          <button onClick={onClose} className="btn-cancel">
+          <button onClick={onClose} className="btn-cancel flex-1">
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl hover:opacity-90 transition font-semibold disabled:opacity-60 shadow-sm">
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm whitespace-nowrap bg-[var(--color-success)] text-[var(--color-text-inverse)] rounded-xl hover:opacity-90 transition font-semibold disabled:opacity-60 shadow-sm">
             {saving
               ? <><span className="w-4 h-4 border-2 border-[var(--color-bg-card)] border-t-white rounded-full animate-spin" /> Saving...</>
-              : <><CheckCircle className="w-4 h-4" /> Record Payment & Preview Receipt</>
+              : <><CheckCircle className="w-4 h-4" /> Record Payment</>
             }
           </button>
         </div>
@@ -987,7 +963,7 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
                   const isOld   = p.status === 'overdue'
                   const isBasic = isBasicGrade(p.gradeLevel)
                   return (
-                    <tr key={i} className={`transition ${isOld ? 'bg-[var(--color-error-light)] hover:bg-[var(--color-error-light)]' : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
+                    <tr key={i} className={`transition ${isOld ? 'bg-[var(--color-error-light)] hover:bg-[var(--color-error-light)]' : 'row-hover'}`}>
                       <td className="px-4 py-3">
                         <p className="text-sm font-semibold text-[var(--color-text-primary)]">{p.studentName}</p>
                         <p className="text-xs text-[var(--color-text-muted)] font-mono">{p.studentId}</p>
@@ -1044,15 +1020,22 @@ function StudentBalanceTab({ payments, collegePrograms, exportToExcel, addToast 
 }
 
 function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, addToast }) {
+  const { basicEdGroups, collegeYearLevels } = useAppConfig()
   const [search,      setSearch]      = useState('')
+  const [levelFilter, setLevelFilter] = useState('all')   // exact grade / year level, or 'all'
   const [selectedStudent, setSelected]= useState(null)
 
-  const fmtDate = d => d ? new Date(d).toLocaleDateString('en-PH',{month:'long',day:'numeric',year:'numeric'}) : '—'
   const FEE_LABELS = { tuition:'Tuition Fee', misc:'Misc Fee', lab:'Lab Fee', books:'Books', other:'Other Fees' }
 
+  // Grade level filter: only levels that have students in this list, with how many each one has
+  const levelGroups = useMemo(
+    () => buildGradeLevelGroups(payments.map(p => p.gradeLevel), basicEdGroups, collegeYearLevels),
+    [payments, basicEdGroups, collegeYearLevels]
+  )
   const filtered = payments.filter(p =>
-    !search || p.studentName.toLowerCase().includes(search.toLowerCase()) ||
-    p.studentId.toLowerCase().includes(search.toLowerCase())
+    (levelFilter === 'all' || p.gradeLevel === levelFilter) &&          // exact match, never .includes()
+    (!search || p.studentName.toLowerCase().includes(search.toLowerCase()) ||
+     p.studentId.toLowerCase().includes(search.toLowerCase()))
   )
 
   const handlePrint = () => {
@@ -1071,50 +1054,50 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
         <td>${(h.paymentFor||['tuition']).map(k=>FEE_LABELS[k]||k).join(', ')}</td>
         <td>${h.notes||'—'}</td>
         <td style="text-align:right">${php(h.amount)}</td>
-        <td style="text-align:right;color:${runningBalance<=0?'green':'#b45309'}">${php(Math.max(0,runningBalance))}</td>
+        <td style="text-align:right;color:${runningBalance<=0?'var(--p-paid-text)':'var(--p-due-text)'}">${php(Math.max(0,runningBalance))}</td>
       </tr>`
     }).join('')
 
     const win = window.open('','_blank','width=900,height=700')
     win.document.write(`<!DOCTYPE html><html><head><title>SOA — ${p.studentName}</title>
     <style>
-      :root { --color-primary: ${primaryColor}; --color-secondary: ${secondaryColor}; }
-      * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
-      body { padding: 32px; color: #111; font-size: 13px; }
-      .header { text-align: center; border-bottom: 3px solid var(--color-primary); padding-bottom: 16px; margin-bottom: 20px; }
-      .school-name { font-size: 20px; font-weight: bold; color: var(--color-primary); }
-      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: var(--color-secondary); letter-spacing: 2px; text-transform: uppercase; }
-      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 20px; padding: 16px; background: #f8f4ed; border-radius: 8px; }
+      ${printPaletteCss(primaryColor, secondaryColor)}
+      * { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 32px; color: var(--p-ink); font-size: 13px; }
+      .header { text-align: center; border-bottom: 3px solid var(--p-brand); padding-bottom: 16px; margin-bottom: 20px; }
+      .school-name { font-size: 20px; font-weight: bold; color: var(--p-brand); }
+      .soa-title { font-size: 15px; font-weight: bold; margin: 6px 0; color: var(--p-ink); letter-spacing: 2px; text-transform: uppercase; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 20px; padding: 16px; background: var(--p-panel); border-radius: 8px; }
       .info-row { display: flex; gap: 6px; font-size: 12px; }
-      .info-label { color: #666; min-width: 110px; }
+      .info-label { color: var(--p-muted); min-width: 110px; }
       .info-value { font-weight: 600; }
-      .fee-box { background: #fff7f0; border: 1px solid #e5c99a; border-radius: 8px; padding: 14px; margin-bottom: 20px; }
-      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-primary); margin-bottom: 10px; }
+      .fee-box { background: var(--p-fee-box); border: 1px solid var(--p-fee-box-border); border-radius: 8px; padding: 14px; margin-bottom: 20px; }
+      .fee-box h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--p-brand); margin-bottom: 10px; }
       .fee-row { display: flex; justify-content: space-between; font-size: 12px; padding: 3px 0; }
-      .fee-row.total { border-top: 2px solid var(--color-primary); margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
+      .fee-row.total { border-top: 2px solid var(--p-brand); margin-top: 6px; padding-top: 8px; font-weight: bold; font-size: 14px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
-      th { background: var(--color-secondary); color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
-      td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+      th { background: var(--p-head-fill); color: var(--p-head-ink); border-bottom: 2px solid var(--p-head-edge); padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }
+      td { padding: 8px 10px; border-bottom: 1px solid var(--p-row-rule); }
       tr:last-child td { border-bottom: none; }
       .balance-box { margin-top: 20px; padding: 14px; border-radius: 8px; text-align: right; }
-      .balance-box.paid { background: #ecfdf5; border: 2px solid #10b981; }
-      .balance-box.due  { background: #fffbeb; border: 2px solid #f59e0b; }
-      .balance-label { font-size: 12px; color: #555; }
+      .balance-box.paid { background: var(--p-paid-bg); border: 2px solid var(--p-paid-border); }
+      .balance-box.due  { background: var(--p-due-bg); border: 2px solid var(--p-due-border); }
+      .balance-label { font-size: 12px; color: var(--p-muted); }
       .balance-amt { font-size: 22px; font-weight: bold; }
-      .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #888; border-top: 1px solid #ddd; padding-top: 12px; }
+      .footer { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: var(--p-faint); border-top: 1px solid var(--p-rule); padding-top: 12px; }
       .sig-line { text-align: center; width: 180px; }
-      .sig-line .line { border-top: 1px solid #333; margin-bottom: 4px; padding-top: 8px; margin-top: 40px; }
+      .sig-line .line { border-top: 1px solid var(--p-ink); margin-bottom: 4px; padding-top: 8px; margin-top: 40px; }
       @media print { body { padding: 16px; } }
     </style></head><body>
     <div class="header">
       <div class="school-name">${schoolName}</div>
       <div class="soa-title">Statement of Account</div>
-      <div style="font-size:12px;color:#555">School Year ${schoolYear} · ${campusName}</div>
+      <div style="font-size:12px;color:var(--p-muted)">School Year ${schoolYear} · ${campusName}</div>
     </div>
 
     <div class="info-grid">
       <div class="info-row"><span class="info-label">Student Name:</span><span class="info-value">${p.studentName}</span></div>
-      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:var(--color-primary)">${p.studentId}</span></div>
+      <div class="info-row"><span class="info-label">Reference #:</span><span class="info-value" style="color:var(--p-brand)">${p.studentId}</span></div>
       <div class="info-row"><span class="info-label">Grade/Program:</span><span class="info-value">${p.gradeLevel}</span></div>
       <div class="info-row"><span class="info-label">Student Type:</span><span class="info-value">${p.studentType||'—'}</span></div>
       ${p.semester ? `<div class="info-row"><span class="info-label">Semester:</span><span class="info-value">${p.semester}</span></div>` : ''}
@@ -1124,28 +1107,28 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
     <div class="fee-box">
       <h3>Fee Assessment</h3>
       ${fb.originalTuition > 0 ? `<div class="fee-row"><span>Original Tuition</span><span>${php(fb.originalTuition)}</span></div>` : ''}
-      ${(fb.totalDiscount||0) > 0 ? `<div class="fee-row" style="color:#dc2626"><span>Discount Applied</span><span>- ${php(fb.totalDiscount)}</span></div>` : ''}
+      ${(fb.totalDiscount||0) > 0 ? `<div class="fee-row" style="color:var(--p-discount)"><span>Discount Applied</span><span>- ${php(fb.totalDiscount)}</span></div>` : ''}
       ${fb.misc > 0 ? `<div class="fee-row"><span>Misc Fee</span><span>${php(fb.misc)}</span></div>` : ''}
       ${fb.lab > 0 ? `<div class="fee-row"><span>Lab Fee</span><span>${php(fb.lab)}</span></div>` : ''}
       ${fb.books > 0 ? `<div class="fee-row"><span>Books</span><span>${php(fb.books)}</span></div>` : ''}
       ${fb.other > 0 ? `<div class="fee-row"><span>Other Fees</span><span>${php(fb.other)}</span></div>` : ''}
-      <div class="fee-row total"><span>Grand Total</span><span style="color:var(--color-primary)">${php(p.totalFee)}</span></div>
+      <div class="fee-row total"><span>Grand Total</span><span style="color:var(--p-brand)">${php(p.totalFee)}</span></div>
     </div>
 
-    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--color-secondary);margin-bottom:10px">Payment History</h3>
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--p-ink);margin-bottom:10px">Payment History</h3>
     <table>
       <thead><tr><th>OR Number</th><th>Date</th><th>Method</th><th>Payment For</th><th>Notes</th><th style="text-align:right">Amount</th><th style="text-align:right">Running Balance</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:#888;padding:20px">No payments recorded yet</td></tr>'}</tbody>
+      <tbody>${rows || '<tr><td colspan="7" style="text-align:center;color:var(--p-faint);padding:20px">No payments recorded yet</td></tr>'}</tbody>
     </table>
 
     <div class="balance-box ${p.balance<=0?'paid':'due'}">
       <div class="balance-label">${p.balance<=0 ? '✓ Account Fully Settled' : 'Remaining Balance'}</div>
-      <div class="balance-amt" style="color:${p.balance<=0?'#059669':'#d97706'}">${php(p.balance)}</div>
+      <div class="balance-amt" style="color:${p.balance<=0?'var(--p-paid-text)':'var(--p-due-text)'}">${php(p.balance)}</div>
     </div>
 
     <div class="footer">
       <div class="sig-line"><div class="line"></div><div>${cashierName||'Accounting Officer'}</div><div>Accounting / Cashier</div></div>
-      <div style="text-align:right;font-size:10px;color:#aaa">This SOA is computer-generated.<br/>For concerns, contact the Accounting Office.</div>
+      <div style="text-align:right;font-size:10px;color:var(--p-faint)">This SOA is computer-generated.<br/>For concerns, contact the Accounting Office.</div>
     </div>
 
     <script>window.onload = () => { window.print() }<\/script>
@@ -1184,8 +1167,12 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
             <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Search name or ref #..."
+              placeholder="Search name or student ID..."
+              aria-label="Search student by name or student ID"
               className="w-full pl-8 pr-3 py-2 text-xs border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:border-[var(--color-primary-readable)] transition"/>
+          </div>
+          <div className="mt-2">
+            <GroupedSelect value={levelFilter} onChange={setLevelFilter} allLabel="All grade levels" groups={levelGroups} />
           </div>
         </div>
         <div className="divide-y divide-[var(--color-border)] max-h-[500px] overflow-y-auto">
@@ -1193,7 +1180,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
             <button key={i} onClick={()=>setSelected(p)}
               className={`w-full text-left px-4 py-3 transition flex items-start gap-3 ${selectedStudent?.studentId===p.studentId
                 ? 'bg-primary/5 dark:bg-primary/10 border-l-2 border-[var(--color-primary-readable)]'
-                : 'hover:bg-[var(--color-bg-subtle)]/30'}`}>
+                : 'row-hover'}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-[var(--color-text-inverse)]
                 ${p.balance<=0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-warning)]'}`}>
                 {p.studentName.charAt(0)}
@@ -1305,7 +1292,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                             runBal -= (h.amount||0)
                             const bal = Math.max(0, runBal)
                             return (
-                              <tr key={idx} className="hover:bg-[var(--color-bg-subtle)]/30 transition">
+                              <tr key={idx} className="row-hover transition">
                                 <td className="px-3 py-2.5 text-xs font-mono text-[var(--color-primary-readable)]">{h.orNumber||'—'}</td>
                                 <td className="px-3 py-2.5 text-xs text-[var(--color-text-muted)]">
                                   {h.date ? new Date(h.date).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '—'}
@@ -1348,7 +1335,7 @@ function SOATab({ payments, cashierName, schoolYear, campusName, exportToExcel, 
                 {/* Actions */}
                 <div className="flex gap-3 pt-1">
                   <button onClick={handlePrint}
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
                     <Printer className="w-4 h-4"/> Print SOA
                   </button>
                   <ExportButton onClick={handleExportSOA} label="Export Excel" className="flex-1 py-2.5 rounded-xl font-semibold shadow-sm" />
@@ -1490,7 +1477,7 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
         <div className="modal-footer gap-3">
           <button onClick={onClose} className="btn-cancel">Cancel</button>
           <button onClick={handleSave}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm">
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm">
             <Calendar className="w-4 h-4" /> Save New Due Date
           </button>
         </div>
@@ -1657,8 +1644,8 @@ export default function Payments() {
   const { user } = useAuth()
   const { activeCampuses, getSchoolYearLabel, getSchoolYearsForCampusName, campusProgramsMap, isBasicGrade, isCollegeGrade, basicEdGroups: configBasicEdGroups, getProgramYearLevels: configProgramYears } = useAppConfig()
 
-  const isAccountingLocked = user?.role === 'accounting' && user?.campus !== 'all'
-  const accountingCampus   = isAccountingLocked ? user.campus : null
+  // Locked to the campus on the user's own account (any role); everyone else uses the header filter
+  const { locked: isCampusLocked, campusName: lockedCampus } = getCampusScope(user)
 
   const cashierName = (() => {
     try {
@@ -1712,8 +1699,8 @@ export default function Payments() {
   const [loading, setLoading]                       = useState(true)
   const { toasts, addToast, removeToast }           = useToast()
 
-  const baseCampusFilter = isAccountingLocked
-    ? accountingCampus
+  const baseCampusFilter = isCampusLocked
+    ? lockedCampus
     : (campusFilter !== 'all' ? activeCampuses.find(c => c.key === campusFilter)?.name : null)
 
   useEffect(() => {
@@ -1786,6 +1773,15 @@ export default function Payments() {
       window.removeEventListener('storage', handleStorage)
     }
   }, [baseCampusFilter, getSchoolYearsForCampusName, isCollegeGrade])
+  // The open drawer and modals hold a copy of the row. Whenever the list reloads from storage,
+  // swap in the fresh row so they never show numbers from before a payment or a due-date change.
+  useEffect(() => {
+    setSelectedPayment(prev => {
+      if (!prev) return prev
+      const fresh = payments.find(p => p.studentId === prev.studentId)
+      return fresh || prev
+    })
+  }, [payments])
   useEffect(() => {
     setLoading(true); setGradeLevelFilter('all')
     const t = setTimeout(() => setLoading(false), 100)
@@ -1806,6 +1802,8 @@ export default function Payments() {
       return
     }
 
+    // Who recorded this payment: printed on the receipt, kept with the payment for every reprint
+    const recordedBy = user?.name || cashierName
     const newEntry = {
       id:         Date.now(),
       amount:     transaction.amount,
@@ -1813,9 +1811,15 @@ export default function Payments() {
       date:       transaction.date,
       orNumber:   transaction.orNumber,
       notes:      transaction.notes,
-      paymentFor: transaction.paymentFor || ['tuition']
+      paymentFor: transaction.paymentFor || ['tuition'],
+      recordedBy,
+      recordedById: user?.id ?? null,
     }
 
+    // The saved record is the only place the payment is written. The event below makes this
+    // page reload its list from storage, so the payment is never added to the list by hand too
+    // (doing both counted every payment twice).
+    let saved = false
     try {
       const subs = JSON.parse(localStorage.getItem('almirene_submissions') || '[]')
       const idx  = subs.findIndex(s => s.referenceNumber === selectedPayment.studentId)
@@ -1835,37 +1839,20 @@ export default function Payments() {
           paymentHistory:  [...(sub.paymentHistory || []), newEntry]
         }
         localStorage.setItem('almirene_submissions', JSON.stringify(subs))
-        localStorage.setItem('almirene_status_update', JSON.stringify({ ts: Date.now() }))
+        saved = true
         window.dispatchEvent(new Event('almirene_enrollment_updated'))
       }
     } catch (e) {
       console.error('Failed to persist payment to localStorage:', e)
     }
 
-    setPayments(prev => prev.map(p => {
-      if (p.studentId !== selectedPayment.studentId) return p
-      const newAmountPaid = p.amountPaid + transaction.amount
-      const newBalance    = Math.max(0, p.totalFee - newAmountPaid)
-      return {
-        ...p,
-        amountPaid:      newAmountPaid,
-        balance:         newBalance,
-        status:          derivePaymentStatus(newBalance, p.dueDate),
-        paymentMethod:   transaction.method,
-        lastPaymentDate: transaction.date,
-        paymentHistory:  [...(p.paymentHistory || []), newEntry]
-      }
-    }))
-    setSelectedPayment(prev => {
-      const newBalance = Math.max(0, prev.totalFee - prev.amountPaid - transaction.amount)
-      return {
-        ...prev,
-        amountPaid: prev.amountPaid + transaction.amount,
-        balance:    newBalance,
-        status:     derivePaymentStatus(newBalance, prev.dueDate),
-      }
-    })
-    setPendingTransaction(transaction)
+    if (!saved) {
+      addToast('The payment could not be saved. Please try again.', 'error')
+      return
+    }
+
+    // The receipt needs the balance as it was BEFORE this payment: keep that copy of the row
+    setPendingTransaction({ ...transaction, recordedBy, before: selectedPayment })
     setShowRecordModal(false)
     setShowReceiptModal(true)
   }
@@ -1945,7 +1932,6 @@ export default function Payments() {
           campusFilter={campusFilter}
           activeCampuses={activeCampuses}
           addToast={addToast}
-          onRecordPayment={handleRecordPayment}
         />
         <ToastContainer toasts={toasts} onRemove={removeToast} />
       </>
@@ -2004,7 +1990,6 @@ export default function Payments() {
     paid:        filtered.filter(p => p.status === 'paid').length,
     overdue:     filtered.filter(p => p.status === 'overdue').length
   }
-  const collectionRate = stats.totalFee > 0 ? Math.round((stats.revenue / stats.totalFee) * 100) : 0
 
   const handleExport = () => {
     const data = filtered.map(p => ({
@@ -2031,7 +2016,7 @@ export default function Payments() {
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold text-[var(--color-text-primary)]">Payments</h1>
         <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          {isAccountingLocked ? `${accountingCampus} · Payment management` : 'Track and manage student payment records'}
+          {isCampusLocked ? `${lockedCampus} · Payment management` : 'Track and manage student payment records'}
         </p>
       </div>
 
@@ -2139,7 +2124,7 @@ export default function Payments() {
             {filtered.length === 0 ? <EmptyState type="search" /> : (
               <PaymentsListTable
                 items={filtered}
-                showCampus={!isAccountingLocked}
+                showCampus={!isCampusLocked}
                 resetKey={[searchQuery, deptFilter, yearFilter, statusFilter, baseCampusFilter, gradeLevelFilter].join('|')}
                 onView={p => { setSelectedPayment(p); setShowModal(true) }}
                 onPay={handleRecordPayment}
@@ -2312,7 +2297,7 @@ export default function Payments() {
           payments={filtered}
           cashierName={cashierName}
           schoolYear={getSchoolYearLabel(baseCampusFilter || 'all')}
-          campusName={isAccountingLocked ? accountingCampus : 'All Campuses'}
+          campusName={isCampusLocked ? lockedCampus : 'All Campuses'}
           exportToExcel={exportToExcel}
           addToast={addToast}
         />
@@ -2326,8 +2311,7 @@ export default function Payments() {
           payment={selectedPayment}
           onClose={() => setShowRecordModal(false)}
           onSave={handleSavePayment}
-          cashierName={cashierName}
-          schoolYear={selectedPayment?.schoolYear || getSchoolYearLabel(baseCampusFilter || 'all')}
+          recordedBy={user?.name || cashierName}
         />
       )}
 
@@ -2343,13 +2327,14 @@ export default function Payments() {
       {/* Receipt Preview Modal */}
       {showReceiptModal && selectedPayment && pendingTransaction && (
         <ReceiptPreview
-          payment={selectedPayment}
+          payment={pendingTransaction.before || selectedPayment}
           newTransaction={pendingTransaction}
           schoolName={getSchoolBrand().name}
           cashierName={cashierName}
           schoolYear={selectedPayment?.schoolYear || getSchoolYearLabel(baseCampusFilter || 'all')}
           onClose={() => { setShowReceiptModal(false); setPendingTransaction(null); addToast('Payment recorded successfully!', 'success') }}
           onPrint={() => addToast('Receipt sent to printer!', 'success')}
+          onPopupBlocked={() => addToast('Allow pop-ups for this site to print the receipt.', 'error')}
         />
       )}
 

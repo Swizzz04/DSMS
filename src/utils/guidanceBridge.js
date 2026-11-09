@@ -33,21 +33,31 @@
  *     "open") or DECLINE gives a reason from a list (status "declined", final). The teacher sees
  *     only their own reports, the result (Sent / Accepted / Declined) and the decline reason,
  *     and may withdraw a report that is still "reported".
+ *   - Declining a referral REQUEST closes it and marks it declined. Choosing a reason from
+ *     GUIDANCE_REFERRAL_DECLINE_REASONS is optional. The teacher sees "Declined" and the reason, if any.
+ *   - A teacher is told when Guidance has answered a request or report: getMyGuidanceUpdateCount()
+ *     drives a dot on the Guidance menu item, and markMyGuidanceUpdatesSeen() clears it when they
+ *     open the page. What the teacher has already seen is kept per account in almirene_guidance_seen
+ *     (record id and the status they saw, nothing else).
  *   - Every create / edit / status change / delete is written to an append-only audit list
  *     (who, when, what, which student). The audit never holds record content.
- *   - The only thing other modules may ask is hasOpenCase(): a yes/no and a count, no details.
+ *   - The only thing other modules may ask is getOpenCaseCounts() / hasOpenCase(): a count per
+ *     student, no details, and ONLY for the Guidance in-charge of that campus (the account that
+ *     can edit Guidance records). Everyone else gets nothing, so Clearance never shows another
+ *     department that a student has a case.
  */
 
 import {
   getGuidanceAccess, todayYMD,
   GUIDANCE_REFERRAL_SOURCES, GUIDANCE_REFERRAL_REASONS, GUIDANCE_REFERRAL_STATUSES,
   GUIDANCE_INCIDENT_CATEGORIES, GUIDANCE_SANCTIONS, GUIDANCE_INCIDENT_STATUSES,
-  GUIDANCE_REPORT_DECLINE_REASONS,
+  GUIDANCE_REPORT_DECLINE_REASONS, GUIDANCE_REFERRAL_DECLINE_REASONS,
   GUIDANCE_TESTS, GUIDANCE_TEST_TRACKS, GUIDANCE_CASE_NO_PATTERN,
 } from '../config/appConfig'
 
 const STORAGE_KEY  = 'almirene_guidance_records'
 const STUDENTS_KEY = 'almirene_students'
+const SEEN_KEY     = 'almirene_guidance_seen'
 const EVENT        = 'almirene_guidance_updated'
 const AUDIT_LIMIT  = 5000
 
@@ -287,19 +297,38 @@ export function isFollowUpDue(referral) {
 }
 
 /**
- * Status only, for other modules (the Guidance clearance slot). No permission needed on
- * purpose: it returns a yes/no and a count, never who, why or what.
+ * Open-case counts per student, for the Guidance marker on the Clearance page.
+ * Status only: a number per student, never who, why or what. Only the Guidance in-charge of the
+ * campus (an account that may EDIT Guidance records there) gets an answer; every other account,
+ * including the Technical Admin, gets an empty object.
  * An open case is a referral that is accepted and not closed, or an incident that is open.
- * A teacher's request or report still waiting for Guidance, and a declined report, are not
- * cases.
+ * A teacher's request or report still waiting for Guidance, and a declined report, are not cases.
+ *
+ * Backend later: GET /api/guidance/open-cases  (authorised for the Guidance in-charge only)
+ *   -> { [studentId]: openCount }
+ *
+ * @param {object} user
+ * @param {string} [campusKey]  defaults to the account's own campus
+ * @returns {Object<string, number>}  { [String(studentId)]: openCount }, only students with a case
+ */
+export function getOpenCaseCounts(user, campusKey) {
+  const ctx = user ? writeContext(user, campusKey || user.campusKey) : null
+  if (!ctx) return {}
+  const b = campusBucket(readAll(), ctx.campusKey)
+  const counts = {}
+  const add = (r) => { const k = String(r.studentId); counts[k] = (counts[k] || 0) + 1 }
+  b.referrals.filter(r => r.status !== 'closed' && r.status !== 'requested').forEach(add)
+  b.incidents.filter(r => r.status === 'open').forEach(add)
+  return counts
+}
+
+/**
+ * One student: does this account see an open case? Same rule as getOpenCaseCounts.
  * @returns {{hasOpenCase:boolean, openCount:number}}
  */
-export function hasOpenCase(studentId, campusKey) {
-  if (studentId == null || !campusKey) return { hasOpenCase: false, openCount: 0 }
-  const b = campusBucket(readAll(), campusKey)
-  const openCount =
-    b.referrals.filter(r => sameId(r.studentId, studentId) && r.status !== 'closed' && r.status !== 'requested').length +
-    b.incidents.filter(r => sameId(r.studentId, studentId) && r.status === 'open').length
+export function hasOpenCase(user, studentId, campusKey) {
+  if (studentId == null) return { hasOpenCase: false, openCount: 0 }
+  const openCount = getOpenCaseCounts(user, campusKey)[String(studentId)] || 0
   return { hasOpenCase: openCount > 0, openCount }
 }
 
@@ -327,6 +356,7 @@ export function describeGuidanceRecord(kind, r) {
     source: labelOf(GUIDANCE_REFERRAL_SOURCES, r.source),
     reason: labelOf(GUIDANCE_REFERRAL_REASONS, r.reason),
     status: labelOf(GUIDANCE_REFERRAL_STATUSES, r.status),
+    declineReason: r.declined ? labelOf(GUIDANCE_REFERRAL_DECLINE_REASONS, r.declineReason) : '',
   }
   if (kind === 'incident') return {
     category: labelOf(GUIDANCE_INCIDENT_CATEGORIES, r.category),
@@ -434,6 +464,9 @@ export function setGuidanceStatus(user, kind, id, status, campusKey) {
   if (!inList(def.statuses, status)) return fail('Unknown status.')
   if (status === 'requested' || status === 'reported') return fail('Only a teacher can send a request or a report.')
   if (status === 'declined') return fail('Decline a report with a reason instead.')
+  if (kind === 'referral' && record.status === 'requested' && status === 'closed') {
+    return fail('Decline the request instead. You can choose a reason.')
+  }
   if (kind === 'incident' && (record.status === 'reported' || record.status === 'declined')) {
     return fail('Accept or decline the report instead.')
   }
@@ -441,6 +474,8 @@ export function setGuidanceStatus(user, kind, id, status, campusKey) {
 
   record.status = status
   record.closedAt = status === def.closed ? new Date().toISOString() : null
+  // Reopening a declined request makes it an ordinary case again
+  if (kind === 'referral' && status !== def.closed) { delete record.declined; delete record.declineReason }
   record.updatedAt = new Date().toISOString()
   pushAudit(bucket, auditEntry(user, 'status', kind, record, { status }))
   save(all, ctx.campusKey, bucket)
@@ -516,6 +551,29 @@ export function declineIncidentReport(user, id, reason, campusKey) {
   return { ok: true, record }
 }
 
+/**
+ * DECLINE a teacher's referral request. The reason is OPTIONAL: pass '' to decline without one.
+ * The request is closed and marked declined; the teacher sees "Declined" and the reason, if any.
+ * Reopening it later makes it an ordinary case.
+ */
+export function declineReferralRequest(user, id, reason = '', campusKey) {
+  const found = locate(user, 'referral', id, campusKey)
+  if (found.error) return found.error
+  const { ctx, all, bucket, record } = found
+  if (record.status !== 'requested') return fail('This request has already been answered.')
+  if (reason && !inList(GUIDANCE_REFERRAL_DECLINE_REASONS, reason)) return fail('Choose a reason from the list.', { reason: 'Choose a reason from the list.' })
+
+  const now = new Date().toISOString()
+  record.status = 'closed'
+  record.closedAt = now
+  record.declined = true
+  record.declineReason = reason || ''
+  record.updatedAt = now
+  pushAudit(bucket, auditEntry(user, 'status', 'referral', record, { status: 'declined' }))
+  save(all, ctx.campusKey, bucket)
+  return { ok: true, record }
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // TEACHER REFERRAL REQUESTS AND INCIDENT REPORTS
 // A teacher who is not a Guidance editor can send a request or a report and follow its
@@ -528,6 +586,78 @@ export const TEACHER_REQUEST_STATUS = {
   open:        { id: 'received', label: 'Received' },
   in_progress: { id: 'received', label: 'Received' },
   closed:      { id: 'closed',   label: 'Closed'   },
+}
+
+/** What the teacher sees of a request: its simple status (a declined request shows "Declined"). */
+function shownReferral(r) {
+  if (r.status === 'closed' && r.declined) return { id: 'declined', label: 'Declined' }
+  return TEACHER_REQUEST_STATUS[r.status] || TEACHER_REQUEST_STATUS.open
+}
+
+// What the teacher has already seen: { [userId]: { [recordId]: "<status they saw>|<decline reason>" } }
+function readSeen(userId) {
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}')
+    return (v && typeof v === 'object' && v[String(userId)]) || {}
+  } catch { return {} }
+}
+function writeSeen(userId, map) {
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY) || '{}') || {}
+    v[String(userId)] = map
+    localStorage.setItem(SEEN_KEY, JSON.stringify(v))
+  } catch { /* storage blocked: the dot just stays */ }
+}
+const seenSignature = (shown, r) => `${shown.id}|${r.declineReason || ''}`
+
+/**
+ * This teacher's answered requests and reports: the ones Guidance has responded to
+ * (anything past "Sent"), each with the signature of what the teacher can see.
+ */
+function myAnsweredRecords(user, campusKey) {
+  const b = campusBucket(readAll(), campusKey)
+  const out = []
+  b.referrals.filter(r => sameId(r.createdBy, user.id)).forEach(r => {
+    const shown = shownReferral(r)
+    if (shown.id !== 'sent') out.push({ id: r.id, year: r.schoolYear, sig: seenSignature(shown, r) })
+  })
+  b.incidents.filter(r => r.fromReport === true && sameId(r.createdBy, user.id)).forEach(r => {
+    const shown = TEACHER_REPORT_STATUS[r.status] || TEACHER_REPORT_STATUS.reported
+    if (shown.id !== 'sent') out.push({ id: r.id, year: r.schoolYear, sig: seenSignature(shown, r) })
+  })
+  return out
+}
+
+/**
+ * How many of this teacher's requests / reports Guidance has answered since the teacher last
+ * opened the Guidance page. Drives the dot on the menu item. Everyone who is not a teacher
+ * sending requests gets 0. A count only, never what the answer was.
+ * Backend later: GET /api/guidance/my-updates/count  and  POST /api/guidance/my-updates/seen
+ */
+export function getMyGuidanceUpdateCount(user, schoolYear) {
+  const ctx = user ? referContext(user) : null
+  if (!ctx) return 0
+  const seen = readSeen(user.id)
+  return myAnsweredRecords(user, ctx.campusKey)
+    .filter(x => (!schoolYear || x.year === schoolYear) && seen[x.id] !== x.sig).length
+}
+
+/** The teacher has opened the Guidance page: everything answered so far counts as seen. */
+export function markMyGuidanceUpdatesSeen(user) {
+  const ctx = user ? referContext(user) : null
+  if (!ctx) return
+  const seen = readSeen(user.id)
+  let changed = false
+  const next = {}
+  myAnsweredRecords(user, ctx.campusKey).forEach(x => {
+    next[x.id] = x.sig
+    if (seen[x.id] !== x.sig) changed = true
+  })
+  // Records that no longer exist (withdrawn) drop out of the seen list
+  if (Object.keys(seen).length !== Object.keys(next).length) changed = true
+  if (!changed) return
+  writeSeen(user.id, next)
+  window.dispatchEvent(new CustomEvent(EVENT))
 }
 
 function referContext(user) {
@@ -592,19 +722,20 @@ export function createReferralRequest(user, input = {}) {
 /**
  * The requests this teacher sent, newest first, with only what they need: the student, the
  * date, the reason they chose and the simple status. Nothing Guidance adds later is exposed.
- * @returns {{id, studentId, studentName, gradeLevel, date, reason, reasonLabel, status, statusLabel, canWithdraw}[]}
+ * @returns {{id, studentId, studentName, gradeLevel, date, reason, reasonLabel, status, statusLabel, declineReasonLabel, isNew, canWithdraw}[]}
  */
 export function getMyReferralRequests(user, { schoolYear } = {}) {
   const ctx = referContext(user)
   if (!ctx) return []
   const students = readStudents()
+  const seen = readSeen(user.id)
   return campusBucket(readAll(), ctx.campusKey).referrals
     .filter(r => sameId(r.createdBy, user.id))
     .filter(r => !schoolYear || r.schoolYear === schoolYear)
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
     .map(r => {
       const s = students.find(x => sameId(x.id, r.studentId))
-      const shown = TEACHER_REQUEST_STATUS[r.status] || TEACHER_REQUEST_STATUS.open
+      const shown = shownReferral(r)
       return {
         id: r.id,
         studentId: r.studentId,
@@ -615,6 +746,8 @@ export function getMyReferralRequests(user, { schoolYear } = {}) {
         reasonLabel: labelOf(GUIDANCE_REFERRAL_REASONS, r.reason),
         status: shown.id,
         statusLabel: shown.label,
+        declineReasonLabel: r.declined ? labelOf(GUIDANCE_REFERRAL_DECLINE_REASONS, r.declineReason) : '',
+        isNew: shown.id !== 'sent' && seen[r.id] !== seenSignature(shown, r),
         canWithdraw: r.status === 'requested',
       }
     })
@@ -693,12 +826,13 @@ export function createIncidentReport(user, input = {}) {
  * The incident reports this teacher sent, newest first, with only what they need: the student,
  * the date, the category they chose, the result, and the decline reason when declined. The
  * sanction, case number and everything Guidance adds later are never exposed.
- * @returns {{id, studentId, studentName, gradeLevel, date, category, categoryLabel, status, statusLabel, declineReasonLabel, canWithdraw}[]}
+ * @returns {{id, studentId, studentName, gradeLevel, date, category, categoryLabel, status, statusLabel, declineReasonLabel, isNew, canWithdraw}[]}
  */
 export function getMyIncidentReports(user, { schoolYear } = {}) {
   const ctx = referContext(user)
   if (!ctx) return []
   const students = readStudents()
+  const seen = readSeen(user.id)
   return campusBucket(readAll(), ctx.campusKey).incidents
     .filter(r => r.fromReport === true && sameId(r.createdBy, user.id))
     .filter(r => !schoolYear || r.schoolYear === schoolYear)
@@ -717,6 +851,7 @@ export function getMyIncidentReports(user, { schoolYear } = {}) {
         status: shown.id,
         statusLabel: shown.label,
         declineReasonLabel: r.status === 'declined' ? labelOf(GUIDANCE_REPORT_DECLINE_REASONS, r.declineReason) : '',
+        isNew: shown.id !== 'sent' && seen[r.id] !== seenSignature(shown, r),
         canWithdraw: r.status === 'reported',
       }
     })

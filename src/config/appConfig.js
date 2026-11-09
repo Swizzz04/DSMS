@@ -32,8 +32,8 @@ export const SCHOOL_INFO = {
   dateFormat:    'MM/DD/YYYY',
   academicStart: 'August',
   academicEnd:   'May',
-  primaryColor:  '#F4FAFC',
-  secondaryColor:'#212121',
+  primaryColor:  '#F3F2EE',
+  secondaryColor:'#0B0B0C',
 }
 
 // Generic defaults for the School Info / Website Content settings tab —
@@ -57,8 +57,8 @@ export const DEFAULT_WEBSITE_CONTENT = {
   // keep those two in sync with this default the same way DEFAULT_WEBSITE_CONTENT
   // itself is deliberately mirrored in public/site_data.js's DEFAULTS.
   referenceNumberPrefix: 'ALMIRENE',
-  primaryColor:   '#F4FAFC',
-  secondaryColor: '#212121',
+  primaryColor:   '#F3F2EE',
+  secondaryColor: '#0B0B0C',
   portalLabel:  'School Management Portal',
   supportLabel: 'Contact IT Support',
   mission: 'To enhance virtue, develop competence, promote excellence, and inspire service in all academic levels of the institution.',
