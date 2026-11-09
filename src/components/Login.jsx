@@ -35,7 +35,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
     <div style={{
       position: 'fixed', inset: 0,
       display: 'flex', overflow: 'hidden',
-      background: 'var(--color-secondary)',
+      background: 'var(--color-primary)',
       fontFamily: 'Inter, -apple-system, sans-serif',
     }}>
 
@@ -49,7 +49,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           alignItems: 'center',
           padding: '3rem',
           flex: '0 0 42%',
-          background: 'var(--color-secondary)',
+          background: 'var(--color-primary)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -58,21 +58,21 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
         <div style={{
           position: 'absolute', top: -80, left: -80,
           width: 420, height: 420, borderRadius: '50%',
-          border: '60px solid var(--color-primary-muted)',
+          border: '60px solid rgb(var(--color-primary-contrast-rgb) / 0.08)',
           pointerEvents: 'none',
         }} />
         <div style={{
           position: 'absolute', bottom: -60, right: -60,
           width: 300, height: 300, borderRadius: '50%',
-          border: '40px solid var(--color-primary-muted)',
+          border: '40px solid rgb(var(--color-primary-contrast-rgb) / 0.08)',
           pointerEvents: 'none',
         }} />
 
-        {/* Red accent bar */}
+        {/* Accent bar in the school's secondary colour */}
         <div style={{
           position: 'absolute', top: 0, left: 0,
           width: 4, height: '100%',
-          background: 'var(--color-primary-on-secondary)',
+          background: 'var(--color-secondary-on-primary)',
         }} />
 
         {/* Logo + school name — centered */}
@@ -80,7 +80,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           <div style={{
             width: 200, height: 200, borderRadius: '50%',
             background: 'var(--color-bg-card)',
-            border: '3px solid var(--color-primary-readable)',
+            border: '3px solid var(--color-secondary-on-primary)',
             overflow: 'hidden', flexShrink: 0,
           }}>
             <SchoolLogo src={school.logo} alt="School Logo"
@@ -89,14 +89,14 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           <div>
             <div style={{
               fontSize: 'clamp(1.05rem, 1.8vw, 1.35rem)',
-              fontWeight: 700, color: 'var(--color-primary-on-secondary)',
+              fontWeight: 700, color: 'var(--color-primary-contrast)',
               lineHeight: 1.25, letterSpacing: '0.01em',
             }}>
               {school.name}
             </div>
             <div style={{
               fontSize: '0.78rem', fontWeight: 500,
-              color: 'rgb(var(--color-secondary-contrast-rgb) / 0.7)',
+              color: 'rgb(var(--color-primary-contrast-rgb) / 0.7)',
               fontStyle: 'italic',
               marginTop: '0.5rem',
               lineHeight: 1.4,
@@ -105,7 +105,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             </div>
             <div style={{
               fontSize: '0.65rem', fontWeight: 600,
-              color: 'var(--color-primary-on-secondary)',
+              color: 'var(--color-primary-contrast)',
               letterSpacing: '0.15em', textTransform: 'uppercase',
               marginTop: '0.75rem',
             }}>
@@ -114,7 +114,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           </div>
         </div>
 
-        <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgb(var(--color-secondary-contrast-rgb) / 0.22)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
+        <div style={{ position: 'absolute', bottom: '2rem', left: 0, right: 0, textAlign: 'center', fontSize: '0.66rem', color: 'rgb(var(--color-primary-contrast-rgb) / 0.45)', letterSpacing: '0.04em', animation: 'loginFadeUp 0.7s 0.25s ease both' }}>
           {'\u00A9'} {new Date().getFullYear()} {school.name}
         </div>
       </aside>
@@ -122,39 +122,43 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
       {/* ── Right Panel ── */}
       <main style={{
         flex: 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        // Centring is done with margin:auto on the content below (not align-items:center), so on a
+        // short screen the top of the logo is never pushed out of reach — it scrolls instead.
+        display: 'flex',
         padding: '2rem 1.5rem',
         overflowY: 'auto',
-        background: 'var(--color-bg-page)',
+        // The school's secondary colour; the form card keeps the normal theme surface on top of it
+        background: 'var(--color-secondary)',
         position: 'relative',
       }}>
         {/* Dot grid texture */}
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(circle, var(--color-secondary-muted) 1px, transparent 1px)',
+          // Dots in the school's primary colour so they stand out on the secondary background
+          backgroundImage: 'radial-gradient(circle, rgb(var(--color-primary-rgb) / 0.38) 1.5px, transparent 1.5px)',
           backgroundSize: '24px 24px',
         }} />
 
-        <div style={{ width: '100%', maxWidth: 400, position: 'relative', animation: 'loginFadeUp 0.65s 0.1s ease both' }}>
+        <div style={{ width: '100%', maxWidth: 400, margin: 'auto', position: 'relative', animation: 'loginFadeUp 0.65s 0.1s ease both' }}>
 
           {/* Mobile-only branding */}
           <div className="login-mobile-brand" style={{ textAlign: 'center', marginBottom: '2rem' }}>
             <div style={{
               width: 72, height: 72, borderRadius: '50%',
               background: 'var(--color-bg-card)',
-              border: '3px solid var(--color-primary-readable)',
+              border: '3px solid var(--color-primary-on-secondary)',
               boxShadow: 'var(--shadow-md)', overflow: 'hidden',
               margin: '0 auto 0.75rem',
             }}>
               <SchoolLogo src={school.logo} alt="School Logo" size="sm"
                 style={{ width: 62, height: 62, objectFit: 'contain', padding: 4 }} />
             </div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary-readable)', display: 'block' }}>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-secondary-contrast)', display: 'block' }}>
               {school.name}
             </div>
             <div style={{
               fontSize: '0.68rem', fontWeight: 600,
-              color: 'var(--color-primary-readable)',
+              color: 'rgb(var(--color-secondary-contrast-rgb) / 0.75)',
               letterSpacing: '0.12em', textTransform: 'uppercase',
             }}>
               {school.portalLabel}
@@ -167,8 +171,8 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
             borderRadius: '20px',
             background: 'var(--color-bg-card)',
             border: '1px solid var(--color-border)',
-            borderTop: '3px solid var(--color-secondary)',
-            boxShadow: '0 4px 6px var(--color-secondary-muted), 0 20px 60px var(--color-secondary-muted)',
+            borderTop: '3px solid var(--color-primary-on-secondary)',
+            boxShadow: 'var(--shadow-lg)',
           }}>
             {/* Eyebrow + heading */}
             <div style={{ marginBottom: '1.75rem' }}>
@@ -367,7 +371,7 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
           {/* Page copyright */}
           <p style={{
             textAlign: 'center', fontSize: '0.68rem',
-            color: 'var(--color-text-muted)', marginTop: '1.5rem',
+            color: 'rgb(var(--color-secondary-contrast-rgb) / 0.7)', marginTop: '1.5rem',
           }}>
             {'\u00A9'} {new Date().getFullYear()} {school.name}. All rights reserved.
           </p>
