@@ -79,7 +79,7 @@ function chartTheme() {
     infoClr:       v('--color-info', '#2563eb'),
     warningClr:    v('--color-warning', '#d97706'),
     errorClr:      v('--color-error', '#dc2626'),
-    primaryClr:    v('--color-primary', '#F4FAFC'),
+    primaryClr:    v('--color-primary', '#F3F2EE'),
   }
 }
 
@@ -510,8 +510,8 @@ export default function Dashboard() {
   }
   if (user?.role === 'admin') {
     // Use primary color for all campus indicators
-    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F4FAFC'
-    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#212121'
+    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F3F2EE'
+    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#0B0B0C'
     // Contrast-safe variant for border/text usage (see themeInitializer.js) — the
     // raw primaryColor above is a fill color and can be too pale to see as a border.
     const primaryReadable = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-readable').trim() || primaryColor

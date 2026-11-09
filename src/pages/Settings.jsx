@@ -169,7 +169,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
             </p>
           </div>
           <button onClick={() => setShowAdd(v => !v)}
-            className="self-start flex items-center gap-2 px-4 py-2 bg-primary text-[var(--color-primary-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-primary-hover)] transition shadow-sm">
+            className="self-start flex items-center gap-2 px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-action-hover)] transition shadow-sm">
             <Plus className="w-4 h-4"/> Add Custom Discount
           </button>
         </div>
@@ -657,7 +657,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
             {/* Save button */}
             {hasChanges && (
               <button onClick={handleSave}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-[var(--color-primary-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-primary-hover)] transition shadow-sm">
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] text-sm font-semibold rounded-xl hover:bg-[var(--color-action-hover)] transition shadow-sm">
                 {saved ? <><Check className="w-4 h-4"/>Saved!</> : <><Save className="w-4 h-4"/>Save Changes</>}
               </button>
             )}
@@ -1071,7 +1071,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
           disabled={!hasChanges}
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition shadow-sm
             ${hasChanges
-              ? 'bg-primary text-[var(--color-primary-contrast)] hover:bg-[var(--color-primary-hover)]'
+              ? 'bg-[var(--color-action)] text-[var(--color-action-contrast)] hover:bg-[var(--color-action-hover)]'
               : 'bg-[var(--color-bg-subtle)] text-gray-400 cursor-not-allowed'
             }`}>
           {saved && !hasChanges ? <><Check className="w-4 h-4"/>Up to date</> : <><Save className="w-4 h-4"/>Save All Changes</>}
@@ -1191,9 +1191,18 @@ export default function Settings() {
   const [showAddStep, setShowAddStep] = useState(false)
 
   const saveWebsiteContent = () => {
-    localStorage.setItem('almirene_website_content', JSON.stringify(websiteContent))
+    // The pickers show the default colour while a colour is unset. If the school set only one of the two,
+    // save the other one explicitly too, so both colours are stored and nothing falls back later.
+    const chosen = !!(websiteContent.primaryColor || websiteContent.secondaryColor)
+    const toSave = chosen
+      ? { ...websiteContent,
+          primaryColor:   websiteContent.primaryColor   || DEFAULT_WEBSITE_CONTENT.primaryColor,
+          secondaryColor: websiteContent.secondaryColor || DEFAULT_WEBSITE_CONTENT.secondaryColor }
+      : websiteContent
+    if (toSave !== websiteContent) setWebsiteContent(toSave)
+    localStorage.setItem('almirene_website_content', JSON.stringify(toSave))
     // Apply brand colors immediately — no refresh needed
-    applyTheme({ primaryColor: websiteContent.primaryColor, secondaryColor: websiteContent.secondaryColor })
+    applyTheme({ primaryColor: toSave.primaryColor, secondaryColor: toSave.secondaryColor })
     addToast('Website content saved! Changes applied to the system.', 'success')
   }
 
@@ -1858,7 +1867,7 @@ export default function Settings() {
                   setFrameworksSaved(true)
                   setTimeout(() => setFrameworksSaved(false), 2000)
                   addToast('Grading frameworks saved', 'success')
-                }} className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
+                }} className="px-5 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
                   {frameworksSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                   {frameworksSaved ? 'Saved!' : 'Save Changes'}
                 </button>
@@ -2026,7 +2035,7 @@ export default function Settings() {
                   setCollegeFrameworksSaved(true)
                   setTimeout(() => setCollegeFrameworksSaved(false), 2000)
                   addToast('College grading frameworks saved', 'success')
-                }} className="px-5 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
+                }} className="px-5 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">
                   {collegeFrameworksSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                   {collegeFrameworksSaved ? 'Saved!' : 'Save Changes'}
                 </button>
@@ -2287,7 +2296,7 @@ export default function Settings() {
                     <div><label className="form-label">Phone</label><input type="text" value={websiteContent.phone} onChange={e => setWebsiteContent({ ...websiteContent, phone: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                     <div><label className="form-label">Website</label><input type="text" value={websiteContent.website} onChange={e => setWebsiteContent({ ...websiteContent, website: e.target.value })} className="w-full px-3 py-2.5 text-sm border border-[var(--color-border)] rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" /></div>
                   </div>
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2320,7 +2329,7 @@ export default function Settings() {
                     <p className="text-xs text-[var(--color-text-muted)] mb-3">These colors are used throughout the system and the school website.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#F4FAFC'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} compareValue={websiteContent.secondaryColor || '#212121'} compareLabel="Secondary" />
+                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#F3F2EE'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} compareValue={websiteContent.secondaryColor || '#0B0B0C'} compareLabel="Secondary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar active navigation</p>
@@ -2334,7 +2343,7 @@ export default function Settings() {
                         </div>
                       </div>
                       <div>
-                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#212121'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} compareValue={websiteContent.primaryColor || '#F4FAFC'} compareLabel="Primary" />
+                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#0B0B0C'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} compareValue={websiteContent.primaryColor || '#F3F2EE'} compareLabel="Primary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar background</p>
@@ -2350,7 +2359,7 @@ export default function Settings() {
 
                   <p className="text-xs text-[var(--color-text-muted)] mt-3 flex items-center gap-1.5"><Info className="w-3.5 h-3.5 shrink-0" /> Click Save Changes to apply these colors to the system. They are stored on this device until the backend is connected.</p>
 
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2402,7 +2411,7 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2450,7 +2459,7 @@ export default function Settings() {
                       <button onClick={() => { if (newValue.trim()) { setWebsiteContent({ ...websiteContent, coreValues: [...websiteContent.coreValues, newValue.trim()] }); setNewValue('') } }} disabled={!newValue.trim()} className="btn-action" style={{ flex: 'none', padding: '0.625rem 1rem' }}><Plus className="w-4 h-4" /></button>
                     </div>
                   </div>
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Changes</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2514,7 +2523,7 @@ export default function Settings() {
                       }} className="btn-action text-xs flex items-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Add Question</button>
                     </div>
                   </div>
-                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save All FAQs</button></div>
+                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save All FAQs</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2601,7 +2610,7 @@ export default function Settings() {
                   ) : (
                     <button onClick={() => setShowAddProgram(true)} className="w-full py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-xs text-[var(--color-text-muted)] font-medium hover:border-[var(--color-primary-readable)] hover:text-[var(--color-primary-readable)] transition flex items-center justify-center gap-1.5"><Plus className="w-3.5 h-3.5" /> Add New Program</button>
                   )}
-                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Programs</button></div>
+                  <div className="flex justify-end mt-4"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Programs</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2691,7 +2700,7 @@ export default function Settings() {
                     )}
                   </div>
 
-                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Admission Info</button></div>
+                  <div className="flex justify-end"><button onClick={saveWebsiteContent} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold"><Save className="w-4 h-4" /> Save Admission Info</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -2741,7 +2750,7 @@ export default function Settings() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 flex items-center justify-end"><button onClick={() => saveSection('campuses', editCampuses)} className="px-4 py-2 bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">{savedSection === 'campuses' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}{savedSection === 'campuses' ? 'Saved!' : 'Save Campuses'}</button></div>
+                  <div className="mt-4 flex items-center justify-end"><button onClick={() => saveSection('campuses', editCampuses)} className="px-4 py-2 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition-colors flex items-center gap-2 text-sm font-semibold">{savedSection === 'campuses' ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}{savedSection === 'campuses' ? 'Saved!' : 'Save Campuses'}</button></div>
                 </div>
               </AccordionBody>
             </div>
@@ -3113,7 +3122,7 @@ export default function Settings() {
                 <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Form Templates</h2>
                 <p className="text-xs text-[var(--color-text-muted)] mt-1">Upload your school's Excel templates. When teachers export forms, the system will use these templates to produce files in your exact format.</p>
               </div>
-              <button onClick={() => setShowAddForm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-primary text-[var(--color-primary-contrast)] rounded-lg hover:bg-[var(--color-primary-hover)] transition">
+              <button onClick={() => setShowAddForm(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition">
                 <Plus className="w-4 h-4" /> Add Form
               </button>
             </div>
@@ -3647,7 +3656,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
           {userTabView === 'staff' && (
             <button
               onClick={handleAdd}
-              className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition text-sm font-semibold shadow-sm"
+              className="self-start sm:self-auto flex items-center gap-2 px-4 py-2.5 bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition text-sm font-semibold shadow-sm"
             >
               <Plus className="w-4 h-4" /> Add Staff
             </button>
@@ -4256,7 +4265,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-primary text-[var(--color-primary-contrast)] rounded-xl hover:bg-[var(--color-primary-hover)] transition font-semibold shadow-sm disabled:opacity-60"
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-xl hover:bg-[var(--color-action-hover)] transition font-semibold shadow-sm disabled:opacity-60"
               >
                 {saving
                   ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Saving…</>

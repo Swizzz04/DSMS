@@ -163,7 +163,7 @@ function readableForeground(hex, isDarkMode) {
  * text on a dark page. Derived from the school's SECONDARY colour, pushed far
  * enough toward black (light mode) or white (dark mode) that it always stands
  * out from the card surface, so it works for any colour a school configures.
- * With the default palette this gives #212121 (light) and #F4FAFC (dark).
+ * With the default palette this gives #0B0B0C (light) and #F3F2EE (dark).
  */
 function selectedFill(hex, isDarkMode) {
   let { r, g, b } = hexToRgb(hex)
@@ -286,7 +286,7 @@ function cardSurfaceHex(root, isDarkMode) {
  * whichever end increases contrast against bgHex, until it clears WCAG AA
  * (4.5:1) or gives up after a bounded number of steps.
  */
-function readableAgainst(fgHex, bgHex, targetRatio = 4.5) {
+export function readableAgainst(fgHex, bgHex, targetRatio = 4.5) {
   let { r, g, b } = hexToRgb(fgHex)
   const goDarker = relativeLuminance(bgHex) > 0.5 // light bg → darken fg toward black
   let tries = 0
@@ -303,10 +303,26 @@ function readableAgainst(fgHex, bgHex, targetRatio = 4.5) {
 // brand color shouldn't visually change identity between light/dark — only
 // these neutral, brand-less defaults swap roles for a polished out-of-box
 // dark mode. See applyTheme() below.
-const DEFAULT_PRIMARY_LIGHT   = '#F4FAFC'
-const DEFAULT_SECONDARY_LIGHT = '#212121'
-const DEFAULT_PRIMARY_DARK    = '#1A1A1A'
-const DEFAULT_SECONDARY_DARK  = '#F4FAFC'
+const DEFAULT_PRIMARY_LIGHT   = '#F3F2EE'
+const DEFAULT_SECONDARY_LIGHT = '#0B0B0C'
+const DEFAULT_PRIMARY_DARK    = '#0B0B0C'
+const DEFAULT_SECONDARY_DARK  = '#F3F2EE'
+
+/**
+ * The primary/secondary pair to use, given what the school saved (either may be empty).
+ *  - Nothing saved: the neutral defaults, which swap roles in dark mode for a polished out-of-box look.
+ *  - Anything saved: the school has chosen a brand. Its colours never swap with the theme, and a colour
+ *    it left empty takes the LIGHT default, so saving only a secondary colour does not leave the primary
+ *    flipping between off-white and black depending on dark/light mode.
+ */
+export function resolveBrandColors(primary, secondary, isDarkMode) {
+  const hasCustom = !!(primary || secondary)
+  const useDark = isDarkMode && !hasCustom
+  return {
+    primary:   primary   || (useDark ? DEFAULT_PRIMARY_DARK   : DEFAULT_PRIMARY_LIGHT),
+    secondary: secondary || (useDark ? DEFAULT_SECONDARY_DARK : DEFAULT_SECONDARY_LIGHT),
+  }
+}
 
 export function applyTheme(config) {
   const root = document.documentElement
@@ -326,11 +342,7 @@ export function applyTheme(config) {
     } catch (e) { /* use defaults */ }
   }
 
-  // No custom color configured — use the mode-appropriate default. A custom
-  // color (truthy above) is left exactly as the school set it, unchanged
-  // across modes; only its derived contrast/readable variants adapt per mode.
-  if (!primary) primary = isDarkMode ? DEFAULT_PRIMARY_DARK : DEFAULT_PRIMARY_LIGHT
-  if (!secondary) secondary = isDarkMode ? DEFAULT_SECONDARY_DARK : DEFAULT_SECONDARY_LIGHT
+  ;({ primary, secondary } = resolveBrandColors(primary, secondary, isDarkMode))
 
   root.style.setProperty('--color-primary', primary)
   root.style.setProperty('--color-primary-rgb', hexToRgbTriplet(primary))
