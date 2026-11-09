@@ -59,12 +59,13 @@ describe('status tokens in index.css', () => {
   })
 })
 
-// Files whose 4.3 round is finished. Add SchoolComponents, Dashboard, Enrollments, Settings later.
+// Files whose 4.3 round is finished. Add Dashboard, Enrollments, Settings later.
 const CLEAN_FILES = [
   'components/UIComponents.jsx',
   'components/dashboard/ProfileModal.jsx',
   'components/dashboard/Header.jsx',
   'components/dashboard/NotificationPanel.jsx',
+  'components/SchoolComponents.jsx',
 ]
 
 const PALETTES =
