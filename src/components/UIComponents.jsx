@@ -363,8 +363,8 @@ const EMPTY_CONFIG = {
   reports: {
     icon: BarChart3,
     title: 'No data available',
-    iconColor: '#7c3aed',
-    bgStyle: { backgroundColor: 'rgba(124, 58, 237, 0.08)' },
+    iconColor: 'var(--color-cat-purple-text)',
+    bgStyle: { backgroundColor: 'var(--color-cat-purple-bg)' },
   },
   search: {
     icon: Search,
@@ -537,7 +537,7 @@ export function ConfirmDialog({
       {/* Backdrop — no backdrop-blur */}
       <div
         className="absolute inset-0"
-        style={{ backgroundColor: 'rgba(0,0,0,0.50)' }}
+        style={{ backgroundColor: 'var(--color-overlay)' }}
         onClick={onCancel}
       />
       {/* Panel */}
@@ -586,7 +586,7 @@ export function ConfirmDialog({
             disabled={loading}
             className={`flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors flex items-center justify-center gap-2
               ${danger
-                ? 'text-white bg-[var(--color-error)] hover:bg-red-700 disabled:opacity-50'
+                ? 'text-[var(--color-error-contrast)] bg-[var(--color-error)] hover:bg-[var(--color-error-hover)] disabled:opacity-50'
                 : 'text-[var(--color-action-contrast)] bg-[var(--color-action)] hover:bg-[var(--color-action-hover)] disabled:opacity-50'
               }`}
           >
@@ -643,7 +643,7 @@ export function TypeToConfirmDialog({
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 animate-fade-in">
       <div
         className="absolute inset-0"
-        style={{ backgroundColor: 'rgba(0,0,0,0.50)' }}
+        style={{ backgroundColor: 'var(--color-overlay)' }}
         onClick={onCancel}
       />
       <div
@@ -704,7 +704,7 @@ export function TypeToConfirmDialog({
             onClick={onConfirm}
             data-modal-primary
             disabled={loading || !isMatch}
-            className="flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors flex items-center justify-center gap-2 text-white bg-[var(--color-error)] hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2.5 rounded-[var(--radius-md)] text-sm font-semibold transition-colors flex items-center justify-center gap-2 text-[var(--color-error-contrast)] bg-[var(--color-error)] hover:bg-[var(--color-error-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {loading && (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">

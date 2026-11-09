@@ -20,7 +20,6 @@
  *   <CampusMiniCard campusStat />     — compact per-campus strip card
  *
  * ── Section Layout ──────────────────────────────────────────────
- *   <CampusBanner user />                    — campus-locked role banner (inside pages)
  *   <CampusChip    user />                    — campus pill shown in the top Header bar
  *   <SectionPanel title icon colorCls pills>  — titled collapsible section
  *
@@ -44,11 +43,11 @@
 
 import { useState } from 'react'
 import {
-  Clock, CheckCircle, XCircle, AlertCircle, DollarSign, Building2,
+  Clock, CheckCircle, XCircle, AlertCircle, DollarSign,
   BookOpen, GraduationCap, ChevronDown, ChevronUp,
   MapPin, FileText
 } from 'lucide-react'
-import { isCampusLockedRole, getAllRoleDefinitions } from '../config/appConfig'
+import { isCampusLockedRole } from '../config/appConfig'
 import { useAppConfig } from '../context/AppConfigContext'
 
 // ────────────────────────────────────────────────────────────────
@@ -59,20 +58,22 @@ import { useAppConfig } from '../context/AppConfigContext'
 export const php = (v) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 0 }).format(v ?? 0)
 
-/** Department color styles keyed by label */
+/** Department color styles keyed by label.
+ *  Every value is a CSS-variable class, so it follows light/dark mode and the school's brand.
+ *  `icon` = text colour for an icon drawn on the solid `bg` square. */
 export const DEPT_STYLES = {
-  'Pre-Elementary':    { bg: 'bg-emerald-600', lightBg: 'bg-emerald-50 dark:bg-emerald-900/20', light: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-700', text: 'text-emerald-700 dark:text-emerald-300' },
-  'Elementary':        { bg: 'bg-blue-600',    lightBg: 'bg-blue-50 dark:bg-blue-900/20',       light: 'bg-blue-50 dark:bg-blue-900/20',       border: 'border-blue-200 dark:border-blue-700',       text: 'text-blue-700 dark:text-blue-300'       },
-  'Junior High School':{ bg: 'bg-indigo-700',  lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',   light: 'bg-indigo-50 dark:bg-indigo-900/20',   border: 'border-indigo-200 dark:border-indigo-700',   text: 'text-indigo-700 dark:text-indigo-300'   },
-  'Senior High School':{ bg: 'bg-primary',     lightBg: 'bg-red-50 dark:bg-red-900/20',         light: 'bg-red-50 dark:bg-red-900/20',         border: 'border-red-200 dark:border-red-700',         text: 'text-[var(--color-primary-readable)]'         },
+  'Pre-Elementary':     { bg: 'bg-[var(--color-cat-teal-solid)]', lightBg: 'bg-[var(--color-cat-teal-bg)]', light: 'bg-[var(--color-cat-teal-bg)]', border: 'border-[var(--color-cat-teal-border)]', text: 'text-[var(--color-cat-teal-text)]', icon: 'text-[var(--color-text-inverse)]' },
+  'Elementary':         { bg: 'bg-[var(--color-info)]', lightBg: 'bg-[var(--color-info-light)]', light: 'bg-[var(--color-info-light)]', border: 'border-[var(--color-info-border)]', text: 'text-[var(--color-info-text)]', icon: 'text-[var(--color-info-contrast)]' },
+  'Junior High School': { bg: 'bg-[var(--color-cat-indigo-solid)]', lightBg: 'bg-[var(--color-cat-indigo-bg)]', light: 'bg-[var(--color-cat-indigo-bg)]', border: 'border-[var(--color-cat-indigo-border)]', text: 'text-[var(--color-cat-indigo-text)]', icon: 'text-[var(--color-text-inverse)]' },
+  'Senior High School': { bg: 'bg-primary', lightBg: 'bg-[var(--color-bg-subtle)]', light: 'bg-[var(--color-bg-subtle)]', border: 'border-[var(--color-border-strong)]', text: 'text-[var(--color-primary-readable)]', icon: 'text-[var(--color-primary-contrast)]' },
 }
 
-/** College program color palette */
+/** College program color palette (same shape as DEPT_STYLES) */
 export const PROG_COLORS = [
-  { bg: 'bg-primary',         lightBg: 'bg-red-50 dark:bg-red-900/20',        light: 'bg-red-50 dark:bg-red-900/20',        border: 'border-red-200 dark:border-red-700',       text: 'text-[var(--color-primary-readable)]'        },
-  { bg: 'bg-secondary',       lightBg: 'bg-indigo-50 dark:bg-indigo-900/20',  light: 'bg-indigo-50 dark:bg-indigo-900/20',  border: 'border-indigo-200 dark:border-indigo-700', text: 'text-indigo-700 dark:text-indigo-300'  },
-  { bg: 'bg-light-secondary', lightBg: 'bg-blue-50 dark:bg-blue-900/20',      light: 'bg-blue-50 dark:bg-blue-900/20',      border: 'border-blue-200 dark:border-blue-700',     text: 'text-blue-700 dark:text-blue-300'      },
-  { bg: 'bg-violet-600',      lightBg: 'bg-violet-50 dark:bg-violet-900/20',  light: 'bg-violet-50 dark:bg-violet-900/20',  border: 'border-violet-200 dark:border-violet-700', text: 'text-violet-700 dark:text-violet-300'  },
+  { bg: 'bg-primary', lightBg: 'bg-[var(--color-bg-subtle)]', light: 'bg-[var(--color-bg-subtle)]', border: 'border-[var(--color-border-strong)]', text: 'text-[var(--color-primary-readable)]', icon: 'text-[var(--color-primary-contrast)]' },
+  { bg: 'bg-secondary', lightBg: 'bg-[var(--color-cat-indigo-bg)]', light: 'bg-[var(--color-cat-indigo-bg)]', border: 'border-[var(--color-cat-indigo-border)]', text: 'text-[var(--color-cat-indigo-text)]', icon: 'text-[var(--color-secondary-contrast)]' },
+  { bg: 'bg-light-secondary', lightBg: 'bg-[var(--color-info-light)]', light: 'bg-[var(--color-info-light)]', border: 'border-[var(--color-info-border)]', text: 'text-[var(--color-info-text)]', icon: 'text-[var(--color-secondary-contrast)]' },
+  { bg: 'bg-[var(--color-cat-violet-solid)]', lightBg: 'bg-[var(--color-cat-violet-bg)]', light: 'bg-[var(--color-cat-violet-bg)]', border: 'border-[var(--color-cat-violet-border)]', text: 'text-[var(--color-cat-violet-text)]', icon: 'text-[var(--color-text-inverse)]' },
 ]
 
 // ────────────────────────────────────────────────────────────────
@@ -85,10 +86,10 @@ export const PROG_COLORS = [
  */
 export function EnrollmentStatusPill({ status }) {
   const map = {
-    pending:           { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',   icon: <Clock className="w-3 h-3" />,        label: 'Awaiting Payment'   },
-    payment_received:  { cls: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',           icon: <DollarSign className="w-3 h-3" />,   label: 'Payment Received'   },
-    approved:          { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',       icon: <CheckCircle className="w-3 h-3" />,  label: 'Approved'           },
-    rejected:          { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',               icon: <XCircle className="w-3 h-3" />,      label: 'Rejected'           },
+    pending:           { cls: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]',   icon: <Clock className="w-3 h-3" />,        label: 'Awaiting Payment'   },
+    payment_received:  { cls: 'bg-[var(--color-payment-bg)] text-[var(--color-payment-text)]',           icon: <DollarSign className="w-3 h-3" />,   label: 'Payment Received'   },
+    approved:          { cls: 'bg-[var(--color-approved-bg)] text-[var(--color-approved-text)]',       icon: <CheckCircle className="w-3 h-3" />,  label: 'Approved'           },
+    rejected:          { cls: 'bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)]',               icon: <XCircle className="w-3 h-3" />,      label: 'Rejected'           },
   }
   const cfg = map[status] || map.pending
   return (
@@ -104,9 +105,9 @@ export function EnrollmentStatusPill({ status }) {
  */
 export function PaymentStatusBadge({ status }) {
   const map = {
-    paid:    { cls: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',     Icon: CheckCircle },
-    partial: { cls: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400', Icon: Clock       },
-    overdue: { cls: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',             Icon: AlertCircle },
+    paid:    { cls: 'bg-[var(--color-approved-bg)] text-[var(--color-approved-text)]',     Icon: CheckCircle },
+    partial: { cls: 'bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]', Icon: Clock       },
+    overdue: { cls: 'bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)]',             Icon: AlertCircle },
     pending: { cls: 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]',            Icon: XCircle     },
   }
   const { cls, Icon } = map[status] || map.pending
@@ -126,8 +127,8 @@ export function PaymentStatusBadge({ status }) {
  * Usage:
  *   <StatCard
  *     label="Total Students" value="1,234"
- *     sub="All campuses" border="border-blue-500"
- *     icon={<Users className="w-5 h-5 text-blue-500"/>}
+ *     sub="All campuses" border="border-[var(--color-info)]"
+ *     icon={<Users className="w-5 h-5 text-[var(--color-info-text)]"/>}
  *   />
  */
 export function StatCard({ label, value, sub, border, icon, highlight }) {
@@ -160,22 +161,22 @@ export function CampusMiniCard({ campusStat: c }) {
       <div className="grid grid-cols-3 gap-2 text-center">
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.students}</p>
-          <p className="text-xs text-gray-400">Students</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Students</p>
         </div>
         <div>
           <p className="text-lg font-bold text-[var(--color-text-primary)]">{c.enrollments}</p>
-          <p className="text-xs text-gray-400">Enrolled</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Enrolled</p>
         </div>
         <div>
-          <p className="text-lg font-bold text-green-600 dark:text-green-400">
+          <p className="text-lg font-bold text-[var(--color-success-text)]">
             {c.collectionRate != null ? `${c.collectionRate}%` : '—'}
           </p>
-          <p className="text-xs text-gray-400">Collected</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
         </div>
       </div>
       {c.collectionRate != null && (
         <div className="mt-3 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden">
-          <div className="h-full bg-green-500 rounded-full transition-all duration-700"
+          <div className="h-full bg-[var(--color-success)] rounded-full transition-all duration-700"
             style={{ width: `${c.collectionRate}%` }} />
         </div>
       )}
@@ -188,56 +189,6 @@ export function CampusMiniCard({ campusStat: c }) {
 // CAMPUS BANNER
 // ────────────────────────────────────────────────────────────────
 
-/**
- * Campus-locked banner shown to users who are scoped to a specific campus.
- * Automatically picks the right color and message based on the user's role.
- *
- * Usage: <CampusBanner user={user} />
- *
- * Shows for any user whose account is tied to one campus (campus !== 'all').
- * Hidden for users with campus === 'all' (Owner, Technical Admin).
- */
-export function CampusBanner({ user }) {
-  if (!user) return null
-
-  const isLocked = isCampusLockedRole(user)
-
-  if (!isLocked) return null
-
-  const roleLabels = {
-    registrar_basic:   'Basic Education Registrar',
-    registrar_college: 'College Registrar',
-    accounting:        'Accounting Officer',
-    principal_basic:   'Basic Ed Principal',
-    program_head:      'Program Head (College)',
-    system_admin:      'System Admin',
-    teacher:           'Teacher',
-  }
-
-  // Campus-based colors — uniform across all roles per campus
-  const label = roleLabels[user.role] || getAllRoleDefinitions()[user.role]?.label || user.role?.replace(/_/g, ' ')
-
-  return (
-    <div className="rounded-xl px-5 py-3.5 flex items-center gap-3 border bg-[var(--color-primary-light)] border-primary/20">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 bg-primary">
-        <MapPin className="w-4 h-4 text-[var(--color-primary-contrast)]" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-          {user.campus}
-          <span className="font-normal opacity-70"> — {label}</span>
-        </p>
-        <p className="text-xs mt-0.5 text-[var(--color-text-muted)]">You are only authorized to view and manage data for this campus</p>
-      </div>
-      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10">
-        <Building2 className="w-3.5 h-3.5 text-[var(--color-primary-readable)]" />
-        <span className="text-xs font-semibold text-[var(--color-primary-readable)]">Campus Locked</span>
-      </div>
-    </div>
-  )
-}
-
-
 // ────────────────────────────────────────────────────────────────
 // CAMPUS CHIP  (Header top bar indicator)
 // ────────────────────────────────────────────────────────────────
@@ -245,8 +196,6 @@ export function CampusBanner({ user }) {
 /**
  * Compact campus pill shown in the Header navigation bar.
  * Replaces the campus picker for users locked to a single campus.
- *
- * Each role gets its own accent color so it's immediately clear who is logged in.
  *
  * Usage: <CampusChip user={user} />
  *
@@ -260,26 +209,15 @@ export function CampusChip({ user }) {
 
   if (!isLocked) return null
 
-  // Use system primary color for all campuses
+  // Action colour: stays readable in dark mode and with any school brand colour
+  // (primary on the card can be near-invisible, e.g. the default #0B0B0C in dark).
   return (
     <div
-      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-[var(--color-primary-contrast)] border bg-primary border-primary"
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border bg-[var(--color-action)] text-[var(--color-action-contrast)] border-[var(--color-action)]"
     >
       <MapPin className="w-3 h-3" />
       <span className="hidden sm:inline">{user.campus}</span>
       <span className="sm:hidden">{user.campusKey || user.campus?.replace(' City Campus', '').replace(' Campus', '') || ''}</span>
-    </div>
-  )
-
-  // Shorten campus name to fit the chip
-  const shortName = user.campus
-    .replace(' City Campus', '')
-    .replace(' Campus', '')
-
-  return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg border ${cls} flex-shrink-0`}>
-      <MapPin className="w-4 h-4 flex-shrink-0" />
-      <span className="text-xs font-semibold max-w-[110px] truncate">{shortName}</span>
     </div>
   )
 }
@@ -296,7 +234,7 @@ export function CampusChip({ user }) {
  *   <SectionPanel
  *     title="Enrollments Summary"
  *     icon={<FileText className="w-4 h-4" />}
- *     colorCls="text-[var(--color-primary-readable)] bg-red-50 dark:bg-red-900/10"
+ *     colorCls="text-[var(--color-primary-readable)] bg-[var(--color-rejected-bg)]"
  *     pills={['24 total', '5 pending']}
  *   >
  *     ...content...
@@ -330,8 +268,8 @@ export function SectionPanel({ title, icon, colorCls, pills, children }) {
  * Usage: <CollectionRateBar rate={71} collected={957500} expected={1345000} />
  */
 export function CollectionRateBar({ rate, collected, expected }) {
-  const color = rate >= 75 ? 'bg-green-500' : rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-  const textColor = rate >= 75 ? 'text-green-600 dark:text-green-400' : rate >= 50 ? 'text-yellow-600' : 'text-red-500'
+  const color = rate >= 75 ? 'bg-[var(--color-success)]' : rate >= 50 ? 'bg-[var(--color-progress-high)]' : 'bg-[var(--color-error)]'
+  const textColor = rate >= 75 ? 'text-[var(--color-success-text)]' : rate >= 50 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-error-text)]'
   return (
     <div className="bg-[var(--color-bg-subtle)] rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
@@ -341,7 +279,7 @@ export function CollectionRateBar({ rate, collected, expected }) {
       <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all duration-700 ${color}`} style={{ width: `${rate}%` }} />
       </div>
-      <div className="flex justify-between text-xs text-gray-400 mt-1.5">
+      <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1.5">
         <span>Collected: {php(collected)}</span>
         <span>Expected: {php(expected)}</span>
       </div>
@@ -391,7 +329,7 @@ export function DeptEnrollmentCard({ group, enrollments }) {
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
+            <BookOpen className={`w-4 h-4 ${style.icon}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
@@ -405,11 +343,11 @@ export function DeptEnrollmentCard({ group, enrollments }) {
             <span className="text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] px-2.5 py-1 rounded-full shadow-sm">
               {deptTotal} total
             </span>
-            {deptPending  > 0 && <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">{deptPending} pending</span>}
-            {deptApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{deptApproved} approved</span>}
+            {deptPending  > 0 && <span className="text-xs font-semibold text-[var(--color-pending-text)] bg-[var(--color-pending-bg)] px-2 py-1 rounded-full">{deptPending} pending</span>}
+            {deptApproved > 0 && <span className="text-xs font-semibold text-[var(--color-approved-text)] bg-[var(--color-approved-bg)] px-2 py-1 rounded-full">{deptApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{deptTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -425,9 +363,9 @@ export function DeptEnrollmentCard({ group, enrollments }) {
                 <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2 overflow-hidden">
                   {row.total > 0 ? (
                     <div className="h-full flex rounded-full overflow-hidden">
-                      <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
-                      <div className="bg-yellow-400 h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
-                      <div className="bg-red-400 h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-success)] h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-progress-high)] h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-error)] h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
                     </div>
                   ) : (
                     <div className="h-full bg-[var(--color-border)] rounded-full w-full" />
@@ -443,9 +381,9 @@ export function DeptEnrollmentCard({ group, enrollments }) {
                       <span className="text-xs text-[var(--color-text-muted)]">Total</span>
                       <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] text-xs font-bold rounded-full">{row.total}</span>
                     </div>
-                    {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full">{row.pending}</span>}
-                    {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">{row.approved}</span>}
-                    {row.rejected > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold rounded-full">{row.rejected}</span>}
+                    {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-pending-bg)] text-[var(--color-pending-text)] text-xs font-bold rounded-full">{row.pending}</span>}
+                    {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-approved-bg)] text-[var(--color-approved-text)] text-xs font-bold rounded-full">{row.approved}</span>}
+                    {row.rejected > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)] text-xs font-bold rounded-full">{row.rejected}</span>}
                   </>
                 )}
               </div>
@@ -457,9 +395,9 @@ export function DeptEnrollmentCard({ group, enrollments }) {
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-[var(--color-text-primary)]">{deptTotal}</span>
               <div className="flex items-center gap-1.5 text-xs">
-                {deptPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{deptPending} pending</span>}
-                {deptApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{deptApproved} approved</span>}
-                {deptRejected > 0 && <span className="text-red-500 dark:text-red-400 font-semibold">{deptRejected} rejected</span>}
+                {deptPending  > 0 && <span className="text-[var(--color-warning-text)] font-semibold">{deptPending} pending</span>}
+                {deptApproved > 0 && <span className="text-[var(--color-success-text)] font-semibold">{deptApproved} approved</span>}
+                {deptRejected > 0 && <span className="text-[var(--color-error-text)] font-semibold">{deptRejected} rejected</span>}
               </div>
             </div>
           </div>
@@ -507,7 +445,7 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
         className={`${style.lightBg} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
+            <GraduationCap className={`w-4 h-4 ${style.icon}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
@@ -519,11 +457,11 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
             <span className="text-xs font-bold text-[var(--color-text-primary)] bg-[var(--color-bg-subtle)] px-2.5 py-1 rounded-full shadow-sm">
               {progTotal} total
             </span>
-            {progPending  > 0 && <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/40 px-2 py-1 rounded-full">{progPending} pending</span>}
-            {progApproved > 0 && <span className="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-1 rounded-full">{progApproved} approved</span>}
+            {progPending  > 0 && <span className="text-xs font-semibold text-[var(--color-pending-text)] bg-[var(--color-pending-bg)] px-2 py-1 rounded-full">{progPending} pending</span>}
+            {progApproved > 0 && <span className="text-xs font-semibold text-[var(--color-approved-text)] bg-[var(--color-approved-bg)] px-2 py-1 rounded-full">{progApproved} approved</span>}
           </div>
           <span className={`sm:hidden text-sm font-bold ${style.text}`}>{progTotal}</span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -539,9 +477,9 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
                 <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2 overflow-hidden">
                   {row.total > 0 ? (
                     <div className="h-full flex rounded-full overflow-hidden">
-                      <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
-                      <div className="bg-yellow-400 h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
-                      <div className="bg-red-400 h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-success)] h-full transition-all duration-500" style={{ width: `${(row.approved / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-progress-high)] h-full transition-all duration-500" style={{ width: `${(row.pending / maxCount) * 100}%` }} />
+                      <div className="bg-[var(--color-error)] h-full transition-all duration-500"   style={{ width: `${(row.rejected / maxCount) * 100}%` }} />
                     </div>
                   ) : (
                     <div className="h-full bg-[var(--color-border)] rounded-full w-full" />
@@ -557,9 +495,9 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
                       <span className="text-xs text-[var(--color-text-muted)]">Total</span>
                       <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] text-xs font-bold rounded-full">{row.total}</span>
                     </div>
-                    {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-xs font-bold rounded-full">{row.pending}</span>}
-                    {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">{row.approved}</span>}
-                    {row.rejected > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-xs font-bold rounded-full">{row.rejected}</span>}
+                    {row.pending  > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-pending-bg)] text-[var(--color-pending-text)] text-xs font-bold rounded-full">{row.pending}</span>}
+                    {row.approved > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-approved-bg)] text-[var(--color-approved-text)] text-xs font-bold rounded-full">{row.approved}</span>}
+                    {row.rejected > 0 && <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)] text-xs font-bold rounded-full">{row.rejected}</span>}
                   </>
                 )}
               </div>
@@ -571,9 +509,9 @@ export function ProgramEnrollmentCard({ program, colorIdx, enrollments }) {
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold text-[var(--color-text-primary)]">{progTotal}</span>
               <div className="flex items-center gap-1.5 text-xs">
-                {progPending  > 0 && <span className="text-yellow-600 dark:text-yellow-400 font-semibold">{progPending} pending</span>}
-                {progApproved > 0 && <span className="text-green-600 dark:text-green-400 font-semibold">{progApproved} approved</span>}
-                {progRejected > 0 && <span className="text-red-500 dark:text-red-400 font-semibold">{progRejected} rejected</span>}
+                {progPending  > 0 && <span className="text-[var(--color-warning-text)] font-semibold">{progPending} pending</span>}
+                {progApproved > 0 && <span className="text-[var(--color-success-text)] font-semibold">{progApproved} approved</span>}
+                {progRejected > 0 && <span className="text-[var(--color-error-text)] font-semibold">{progRejected} rejected</span>}
               </div>
             </div>
           </div>
@@ -608,34 +546,34 @@ function PaymentGradeRow({ label, payments }) {
           <div className="flex-1 bg-[var(--color-bg-subtle)] rounded-full h-2.5 overflow-hidden">
             {totalFee > 0 ? (
               <div className="h-full flex rounded-full overflow-hidden">
-                <div className="bg-green-500 h-full transition-all duration-500" style={{ width: `${(revenue / totalFee) * 100}%` }} />
+                <div className="bg-[var(--color-success)] h-full transition-all duration-500" style={{ width: `${(revenue / totalFee) * 100}%` }} />
                 <div className="bg-[var(--color-border-strong)] h-full transition-all duration-500" style={{ width: `${(outstanding / totalFee) * 100}%` }} />
               </div>
             ) : (
               <div className="h-full w-full bg-[var(--color-border)] rounded-full" />
             )}
           </div>
-          <span className="text-xs text-gray-400 w-10 text-right flex-shrink-0">
+          <span className="text-xs text-[var(--color-text-muted)] w-10 text-right flex-shrink-0">
             {totalFee > 0 ? Math.round((revenue / totalFee) * 100) : 0}%
           </span>
         </div>
       </div>
       <div className="flex items-center gap-4 flex-shrink-0 sm:w-64 justify-between">
         <div className="text-right">
-          <p className="text-xs text-gray-400">Collected</p>
-          <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(revenue)}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+          <p className="text-sm font-bold text-[var(--color-success-text)]">{php(revenue)}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-gray-400">Outstanding</p>
-          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400'}`}>
+          <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+          <p className={`text-sm font-bold ${outstanding > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}`}>
             {outstanding > 0 ? php(outstanding) : '—'}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
-        {paid    > 0 && <span className="text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">{paid} paid</span>}
-        {partial > 0 && <span className="text-xs font-semibold bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full">{partial} partial</span>}
-        {overdue > 0 && <span className="text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 px-1.5 py-0.5 rounded-full">{overdue} overdue</span>}
+        {paid    > 0 && <span className="text-xs font-semibold bg-[var(--color-approved-bg)] text-[var(--color-approved-text)] px-1.5 py-0.5 rounded-full">{paid} paid</span>}
+        {partial > 0 && <span className="text-xs font-semibold bg-[var(--color-pending-bg)] text-[var(--color-pending-text)] px-1.5 py-0.5 rounded-full">{partial} partial</span>}
+        {overdue > 0 && <span className="text-xs font-semibold bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)] px-1.5 py-0.5 rounded-full">{overdue} overdue</span>}
         {pending > 0 && <span className="text-xs font-semibold bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)] px-1.5 py-0.5 rounded-full">{pending} unpaid</span>}
       </div>
     </div>
@@ -671,7 +609,7 @@ export function DeptPaymentCard({ group, payments }) {
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <BookOpen className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
+            <BookOpen className={`w-4 h-4 ${style.icon}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text}`}>{group.label}</p>
@@ -680,16 +618,16 @@ export function DeptPaymentCard({ group, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
-            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+            <p className="text-sm font-bold text-[var(--color-success-text)]">{php(deptRevenue)}</p>
           </div>
           {deptOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
-              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(deptOutstanding)}</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+              <p className="text-sm font-bold text-[var(--color-error-text)]">{php(deptOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -704,9 +642,9 @@ export function DeptPaymentCard({ group, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{group.label} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(deptRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(deptTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-[var(--color-success-text)]">{php(deptRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${deptOutstanding > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}`}>{deptOutstanding > 0 ? php(deptOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -743,7 +681,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
         className={`${style.light} px-5 py-4 flex items-center justify-between gap-4 cursor-pointer select-none hover:opacity-90 transition`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className={`w-9 h-9 ${style.bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-            <GraduationCap className={`w-4 h-4 ${style.bg === "bg-primary" ? "text-[var(--color-primary-contrast)]" : style.bg === "bg-secondary" ? "text-[var(--color-secondary-contrast)]" : "text-white"}`} />
+            <GraduationCap className={`w-4 h-4 ${style.icon}`} />
           </div>
           <div className="text-left min-w-0">
             <p className={`text-sm font-bold ${style.text} truncate`}>{program}</p>
@@ -752,16 +690,16 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="hidden sm:block text-right">
-            <p className="text-xs text-gray-400">Collected</p>
-            <p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Collected</p>
+            <p className="text-sm font-bold text-[var(--color-success-text)]">{php(progRevenue)}</p>
           </div>
           {progOutstanding > 0 && (
             <div className="hidden sm:block text-right">
-              <p className="text-xs text-gray-400">Outstanding</p>
-              <p className="text-sm font-bold text-red-500 dark:text-red-400">{php(progOutstanding)}</p>
+              <p className="text-xs text-[var(--color-text-muted)]">Outstanding</p>
+              <p className="text-sm font-bold text-[var(--color-error-text)]">{php(progOutstanding)}</p>
             </div>
           )}
-          {expanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]" />}
         </div>
       </div>
 
@@ -777,9 +715,9 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
           <div className={`px-5 py-3 ${style.light} flex flex-wrap items-center justify-between gap-2`}>
             <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">{program} Total</span>
             <div className="flex items-center gap-4">
-              <div className="text-right"><p className="text-xs text-gray-400">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Collected</p><p className="text-sm font-bold text-green-600 dark:text-green-400">{php(progRevenue)}</p></div>
-              <div className="text-right"><p className="text-xs text-gray-400">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-300'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Total Fees</p><p className="text-sm font-bold text-[var(--color-text-primary)]">{php(progTotalFee)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Collected</p><p className="text-sm font-bold text-[var(--color-success-text)]">{php(progRevenue)}</p></div>
+              <div className="text-right"><p className="text-xs text-[var(--color-text-muted)]">Outstanding</p><p className={`text-sm font-bold ${progOutstanding > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}`}>{progOutstanding > 0 ? php(progOutstanding) : '—'}</p></div>
             </div>
           </div>
         </div>
@@ -799,7 +737,7 @@ export function ProgramPaymentCard({ program, colorIdx, payments }) {
 export function EnrollmentTable({ enrollments, limit = 10, accentColor = 'text-[var(--color-primary-readable)]' }) {
   const rows = limit ? enrollments.slice(0, limit) : enrollments
   if (rows.length === 0) return (
-    <p className="px-5 py-10 text-center text-sm text-gray-400">No enrollment data found.</p>
+    <p className="px-5 py-10 text-center text-sm text-[var(--color-text-muted)]">No enrollment data found.</p>
   )
   return (
     <div className="min-w-0 -mx-1">
@@ -855,14 +793,14 @@ export function CampusEnrollmentTable({ campusStats }) {
               <tr key={c.name} className="row-hover">
                 <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
                 <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.enrollments}</td>
-                <td className="px-4 py-3 text-yellow-600 dark:text-yellow-400 font-semibold">{c.pending}</td>
-                <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-semibold">{paymentReceived}</td>
-                <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{c.approved}</td>
-                <td className="px-4 py-3 text-red-500 dark:text-red-400 font-semibold">{c.rejected}</td>
+                <td className="px-4 py-3 text-[var(--color-warning-text)] font-semibold">{c.pending}</td>
+                <td className="px-4 py-3 text-[var(--color-info-text)] font-semibold">{paymentReceived}</td>
+                <td className="px-4 py-3 text-[var(--color-success-text)] font-semibold">{c.approved}</td>
+                <td className="px-4 py-3 text-[var(--color-error-text)] font-semibold">{c.rejected}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
-                      <div className="h-full bg-green-500 rounded-full" style={{ width: `${rate}%` }} />
+                      <div className="h-full bg-[var(--color-success)] rounded-full" style={{ width: `${rate}%` }} />
                     </div>
                     <span className="text-xs font-semibold text-[var(--color-text-secondary)] w-9">{rate}%</span>
                   </div>
@@ -899,12 +837,12 @@ export function CampusStudentTable({ campusStats, stuTotal }) {
               <tr key={c.name} className="row-hover">
                 <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
                 <td className="px-4 py-3 font-bold text-[var(--color-text-primary)]">{c.students}</td>
-                <td className="px-4 py-3 text-emerald-600 dark:text-emerald-400">{c.basicStu}</td>
-                <td className="px-4 py-3 text-blue-600 dark:text-blue-400">{c.collegeStu}</td>
+                <td className="px-4 py-3 text-[var(--color-success-text)]">{c.basicStu}</td>
+                <td className="px-4 py-3 text-[var(--color-info-text)]">{c.collegeStu}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
-                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${share}%` }} />
+                      <div className="h-full bg-[var(--color-info)] rounded-full" style={{ width: `${share}%` }} />
                     </div>
                     <span className="text-xs font-semibold text-[var(--color-text-muted)] w-9">{share}%</span>
                   </div>
@@ -939,12 +877,12 @@ export function CampusPaymentTable({ campusStats }) {
             <tr key={c.name} className="row-hover">
               <td className="px-4 py-3 font-medium text-[var(--color-text-primary)] whitespace-nowrap">{c.name}</td>
               <td className="px-4 py-3 text-[var(--color-text-secondary)] whitespace-nowrap">{php(c.totalFee)}</td>
-              <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold whitespace-nowrap">{php(c.revenue)}</td>
-              <td className="px-4 py-3 text-red-500 dark:text-red-400 whitespace-nowrap">{php(c.outstanding)}</td>
+              <td className="px-4 py-3 text-[var(--color-success-text)] font-semibold whitespace-nowrap">{php(c.revenue)}</td>
+              <td className="px-4 py-3 text-[var(--color-error-text)] whitespace-nowrap">{php(c.outstanding)}</td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1.5 bg-[var(--color-bg-subtle)] rounded-full overflow-hidden min-w-[60px]">
-                    <div className={`h-full rounded-full ${c.collectionRate >= 75 ? 'bg-green-500' : c.collectionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                    <div className={`h-full rounded-full ${c.collectionRate >= 75 ? 'bg-[var(--color-success)]' : c.collectionRate >= 50 ? 'bg-[var(--color-progress-high)]' : 'bg-[var(--color-error)]'}`}
                       style={{ width: `${c.collectionRate}%` }} />
                   </div>
                   <span className="text-xs font-semibold text-[var(--color-text-secondary)] w-9">{c.collectionRate}%</span>
@@ -952,7 +890,7 @@ export function CampusPaymentTable({ campusStats }) {
               </td>
               <td className="px-4 py-3">
                 {c.overdue > 0
-                  ? <span className="text-xs font-semibold text-red-500">{c.overdue} accts</span>
+                  ? <span className="text-xs font-semibold text-[var(--color-error-text)]">{c.overdue} accts</span>
                   : <span className="text-xs text-[var(--color-text-muted)] opacity-50">—</span>}
               </td>
             </tr>

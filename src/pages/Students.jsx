@@ -900,9 +900,6 @@ export default function Students() {
     addToast(`Exported ${data.length} student records!`, 'success')
   }
 
-  const bannerTone = isBasicRole
-    ? { box: 'bg-[var(--color-success-light)] border-[var(--color-success-border)]', text: 'text-[var(--color-success-text)]' }
-    : { box: 'bg-[var(--color-cat-purple-bg)] border-[var(--color-cat-purple-border)]', text: 'text-[var(--color-cat-purple-text)]' }
   const hasFilters = searchQuery || statusFilter !== 'all' || gradeLevelFilter !== 'all'
   const clearFilters = () => { setSearchQuery(''); setStatusFilter('all'); setGradeLevelFilter('all') }
   const campusKeyForGradeSelect = isCampusLocked ? (activeCampuses.find(c => c.name === user.campus)?.key || 'all') : effectiveCampusFilter
@@ -1002,22 +999,6 @@ export default function Students() {
             : 'View and manage enrolled students'}
         </p>
       </div>
-
-      {isCampusLocked && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${bannerTone.box}`}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--color-bg-card)]">
-            <MapPin className={`w-4 h-4 ${bannerTone.text}`} />
-          </div>
-          <div>
-            <p className={`text-sm font-semibold ${bannerTone.text}`}>
-              Viewing: {user.campus} — {isBasicRole ? 'Basic Education Department' : 'College Department'}
-            </p>
-            <p className={`text-xs ${bannerTone.text}`}>
-              Showing {isBasicRole ? 'basic education' : 'college'} students from your assigned campus only
-            </p>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[

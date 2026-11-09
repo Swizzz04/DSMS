@@ -38,7 +38,7 @@ const ROLE_COLORS = {
   admin:              { bg: 'var(--color-secondary-muted)', text: 'var(--color-secondary)' },
   technical_admin:    { bg: 'var(--color-secondary-muted)', text: 'var(--color-secondary)' },
   registrar_basic:    { bg: 'var(--color-info-light)',      text: 'var(--color-info)' },
-  registrar_college:  { bg: 'rgba(124,58,237,0.08)',        text: '#7c3aed' },
+  registrar_college:  { bg: 'var(--color-cat-purple-bg)',     text: 'var(--color-cat-purple-text)' },
   accounting:         { bg: 'var(--color-success-light)',   text: 'var(--color-success)' },
   principal_basic:    { bg: 'var(--color-warning-light)',   text: 'var(--color-warning)' },
   program_head:       { bg: 'var(--color-info-light)',      text: 'var(--color-info)' },
@@ -93,17 +93,17 @@ const PrimaryBtn = ({ onClick, loading, disabled, children, danger }) => (
     className="w-full py-2.5 rounded-[var(--radius-md)] font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     style={{
       backgroundColor: danger ? 'var(--color-error)' : 'var(--color-primary)',
-      color: danger ? '#ffffff' : 'var(--color-primary-contrast)',
+      color: danger ? 'var(--color-error-contrast)' : 'var(--color-primary-contrast)',
     }}
     onMouseEnter={e => {
-      if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? '#b91c1c' : 'var(--color-primary-hover)'
+      if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? 'var(--color-error-hover)' : 'var(--color-primary-hover)'
     }}
     onMouseLeave={e => {
       if (!loading && !disabled) e.currentTarget.style.backgroundColor = danger ? 'var(--color-error)' : 'var(--color-primary)'
     }}
   >
     {loading ? (
-      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
     ) : children}
   </button>
 )
@@ -692,7 +692,7 @@ export default function ProfileModal({ onClose }) {
       {/* Backdrop — no backdrop-blur */}
       <div
         className="fixed inset-0 z-[9998]"
-        style={{ backgroundColor: 'rgba(0,0,0,0.40)' }}
+        style={{ backgroundColor: 'var(--color-overlay)' }}
         onClick={onClose}
       />
 

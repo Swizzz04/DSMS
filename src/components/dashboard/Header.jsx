@@ -104,7 +104,7 @@ export default function Header({ toggleSidebar }) {
                 className="flex items-center gap-1.5 rounded-[var(--radius-md)] border transition-all px-2.5 py-2"
                 style={
                   campusFilter !== 'all'
-                    ? { backgroundColor: 'var(--color-primary)', color: 'var(--color-primary-contrast)', borderColor: 'var(--color-primary)' }
+                    ? { backgroundColor: 'var(--color-action)', color: 'var(--color-action-contrast)', borderColor: 'var(--color-action)' }
                     : { backgroundColor: 'var(--color-bg-subtle)', color: 'var(--color-text-secondary)', borderColor: 'transparent' }
                 }
               >

@@ -121,7 +121,7 @@ function AdminEnrollmentOverview({ enrollments, campusFilter, activeCampuses, ad
                 <button onClick={() => toggle(`${campus.key}-basic`)}
                   className="w-full flex items-center justify-between p-4 row-hover transition text-left">
                   <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-emerald-600" />
+                    <BookOpen className="w-4 h-4 text-[var(--color-success-text)]" />
                     <h3 className="text-sm font-bold text-[var(--color-text-primary)]">Basic Education</h3>
                     <span className="text-xs text-[var(--color-text-muted)]">· {basicEnr.length} enrolled</span>
                   </div>
@@ -233,11 +233,11 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
   const receiptPaper = (
     <div className="receipt-paper receipt-copy border border-[var(--color-border-strong)] rounded-xl p-5" style={{ fontFamily: 'Georgia, serif', fontSize: '13px' }}>
       {/* Header */}
-      <div className="text-center mb-3 pb-3 border-b-2 border-double border-gray-400">
+      <div className="text-center mb-3 pb-3 border-b-2 border-double border-[var(--color-border-strong)]">
         <p className="font-bold text-sm uppercase tracking-wide" style={{ color: 'var(--color-primary)' }}>{schoolName || 'School Name'}</p>
-        <p className="text-xs text-gray-500">{campus}</p>
-        <p className="text-xs text-gray-500">School Year {schoolYear}</p>
-        <div className="mt-2 inline-block border border-gray-400 px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-gray-700">
+        <p className="text-xs text-[var(--color-text-muted)]">{campus}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">School Year {schoolYear}</p>
+        <div className="mt-2 inline-block border border-[var(--color-border-strong)] px-3 py-0.5 rounded text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
           Official Receipt
         </div>
       </div>
@@ -245,29 +245,29 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
       {/* OR + Date row */}
       <div className="flex justify-between text-xs mb-3">
         <div>
-          <span className="text-gray-500">OR No.: </span>
+          <span className="text-[var(--color-text-muted)]">OR No.: </span>
           <span className="font-bold font-mono">{paymentData.orNumber}</span>
         </div>
         <div className="text-right">
-          <div><span className="text-gray-500">Date: </span><span className="font-semibold">{dateStr}</span></div>
-          <div><span className="text-gray-500">Time: </span><span className="font-semibold">{timeStr}</span></div>
+          <div><span className="text-[var(--color-text-muted)]">Date: </span><span className="font-semibold">{dateStr}</span></div>
+          <div><span className="text-[var(--color-text-muted)]">Time: </span><span className="font-semibold">{timeStr}</span></div>
         </div>
       </div>
 
       {/* Student info */}
       <div className="bg-[var(--color-bg-subtle)] border border-[var(--color-border)] rounded-lg p-3 mb-3 text-xs space-y-1">
-        <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Student:</span><span className="font-bold">{studentName}</span></div>
-        <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Ref. No.:</span><span className="font-mono">{enrollment.referenceNumber}</span></div>
-        <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Program:</span><span>{gradeLevel}</span></div>
-        <div className="flex gap-2"><span className="text-gray-500 w-20 flex-shrink-0">Type:</span><span>{enrollment.enrollment.studentType}</span></div>
+        <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Student:</span><span className="font-bold">{studentName}</span></div>
+        <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Ref. No.:</span><span className="font-mono">{enrollment.referenceNumber}</span></div>
+        <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Program:</span><span>{gradeLevel}</span></div>
+        <div className="flex gap-2"><span className="text-[var(--color-text-muted)] w-20 flex-shrink-0">Type:</span><span>{enrollment.enrollment.studentType}</span></div>
       </div>
 
       {/* Fee breakdown */}
       <table className="w-full text-xs mb-3">
         <thead>
-          <tr className="border-b border-gray-300">
-            <th className="text-left py-1 text-gray-500 font-normal">Description</th>
-            <th className="text-right py-1 text-gray-500 font-normal">Amount</th>
+          <tr className="border-b border-[var(--color-border)]">
+            <th className="text-left py-1 text-[var(--color-text-muted)] font-normal">Description</th>
+            <th className="text-right py-1 text-[var(--color-text-muted)] font-normal">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -278,19 +278,19 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
                 <td className="py-1 text-right font-mono">{php(bill.tuitionAfterDiscount ?? bill.originalTuition ?? 0)}</td>
               </tr>
               {(bill.lab || 0) > 0 && (
-                <tr><td className="py-1 text-gray-600">Lab Fee</td><td className="py-1 text-right font-mono">{php(bill.lab)}</td></tr>
+                <tr><td className="py-1 text-[var(--color-text-secondary)]">Lab Fee</td><td className="py-1 text-right font-mono">{php(bill.lab)}</td></tr>
               )}
               {(bill.misc || 0) > 0 && (
-                <tr><td className="py-1 text-gray-600">Misc Fee</td><td className="py-1 text-right font-mono">{php(bill.misc)}</td></tr>
+                <tr><td className="py-1 text-[var(--color-text-secondary)]">Misc Fee</td><td className="py-1 text-right font-mono">{php(bill.misc)}</td></tr>
               )}
               {(bill.books || 0) > 0 && (
-                <tr><td className="py-1 text-gray-600">Books</td><td className="py-1 text-right font-mono">{php(bill.books)}</td></tr>
+                <tr><td className="py-1 text-[var(--color-text-secondary)]">Books</td><td className="py-1 text-right font-mono">{php(bill.books)}</td></tr>
               )}
               {(bill.other || 0) > 0 && (
-                <tr><td className="py-1 text-gray-600">Other Fees</td><td className="py-1 text-right font-mono">{php(bill.other)}</td></tr>
+                <tr><td className="py-1 text-[var(--color-text-secondary)]">Other Fees</td><td className="py-1 text-right font-mono">{php(bill.other)}</td></tr>
               )}
               {bill.totalDiscount > 0 && (
-                <tr className="text-green-700">
+                <tr className="text-[var(--color-success-text)]">
                   <td className="py-1 italic">Discount ({paymentData.discountsApplied?.map(d => d.name).join(', ')})</td>
                   <td className="py-1 text-right font-mono">-{php(bill.totalDiscount)}</td>
                 </tr>
@@ -304,48 +304,48 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
             </tr>
           )}
           <tr>
-            <td className="py-1 text-gray-500">Payment Method</td>
+            <td className="py-1 text-[var(--color-text-muted)]">Payment Method</td>
             <td className="py-1 text-right">{paymentData.paymentMethod}</td>
           </tr>
           {paymentData.notes && (
             <tr>
-              <td className="py-1 text-gray-500">Notes</td>
-              <td className="py-1 text-right text-gray-600">{paymentData.notes}</td>
+              <td className="py-1 text-[var(--color-text-muted)]">Notes</td>
+              <td className="py-1 text-right text-[var(--color-text-secondary)]">{paymentData.notes}</td>
             </tr>
           )}
         </tbody>
       </table>
 
       {/* Totals */}
-      <div className="border-t border-gray-300 pt-2 mb-3 space-y-1 text-xs">
+      <div className="border-t border-[var(--color-border)] pt-2 mb-3 space-y-1 text-xs">
         <div className="flex justify-between">
-          <span className="text-gray-500">Total Assessment:</span>
+          <span className="text-[var(--color-text-muted)]">Total Assessment:</span>
           <span className="font-mono">{php(totalFee)}</span>
         </div>
-        <div className="flex justify-between font-bold text-sm border-t border-gray-300 pt-1 mt-1">
+        <div className="flex justify-between font-bold text-sm border-t border-[var(--color-border)] pt-1 mt-1">
           <span style={{ color: 'var(--color-primary)' }}>Amount Received:</span>
           <span className="font-mono" style={{ color: 'var(--color-primary)' }}>{php(amtPaid)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">Remaining Balance:</span>
-          <span className={`font-mono font-semibold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>
+          <span className="text-[var(--color-text-muted)]">Remaining Balance:</span>
+          <span className={`font-mono font-semibold ${balance > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success-text)]'}`}>
             {balance > 0 ? php(balance) : '₱0.00 — Fully Paid ✓'}
           </span>
         </div>
       </div>
 
       {/* Footer / Signatures */}
-      <div className="border-t border-dashed border-gray-300 pt-3 text-xs text-center text-gray-500">
+      <div className="border-t border-dashed border-[var(--color-border)] pt-3 text-xs text-center text-[var(--color-text-muted)]">
         <div className="flex justify-between items-end mt-4">
           <div className="text-center">
-            <div className="border-t border-gray-400 pt-1 w-32">
-              <p className="font-semibold text-gray-700">{cashierName}</p>
+            <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+              <p className="font-semibold text-[var(--color-text-secondary)]">{cashierName}</p>
               <p>Cashier / Accounting</p>
             </div>
           </div>
           <div className="text-center">
-            <div className="border-t border-gray-400 pt-1 w-32">
-              <p className="italic text-gray-400">Received by</p>
+            <div className="border-t border-[var(--color-border-strong)] pt-1 w-32">
+              <p className="italic text-[var(--color-text-muted)]">Received by</p>
               <p>Student / Parent</p>
             </div>
           </div>
@@ -353,7 +353,7 @@ function ReceiptModal({ enrollment, paymentData, cashierName, schoolYear, onClos
         {paymentData.recordedBy && paymentData.recordedBy !== cashierName && (
           <p className="mt-2 text-[10px] text-[var(--color-text-muted)]">Recorded by: {paymentData.recordedBy}</p>
         )}
-        <p className="mt-3 text-gray-400 text-[10px]">Thank you for your payment!</p>
+        <p className="mt-3 text-[var(--color-text-muted)] text-[10px]">Thank you for your payment!</p>
       </div>
     </div>
   )
@@ -509,8 +509,8 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
 
             {/* Fee Breakdown — only if assessment was done */}
             {hasFee && (
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
-                <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-1.5 mb-3">
+              <div className="bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl p-4">
+                <h3 className="text-xs font-semibold text-[var(--color-info-text)] uppercase tracking-wide flex items-center gap-1.5 mb-3">
                   <ClipboardList className="w-3.5 h-3.5"/> Fee Assessment
                 </h3>
                 <div className="space-y-1.5 text-xs">
@@ -519,7 +519,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                     <span className="font-mono">{php(e.feeBreakdown.originalTuition || 0)}</span>
                   </div>
                   {(e.feeBreakdown.totalDiscount || 0) > 0 && (
-                    <div className="flex justify-between text-green-600 dark:text-green-400">
+                    <div className="flex justify-between text-[var(--color-success-text)]">
                       <span>Discount applied</span>
                       <span className="font-mono">– {php(e.feeBreakdown.totalDiscount)}</span>
                     </div>
@@ -540,21 +540,21 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                     </div>
                   )}
                   {(e.feeBreakdown.enrollment || 0) > 0 && (
-                    <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                    <div className="flex justify-between text-[var(--color-warning-text)]">
                       <span>Enrollment fee (min. payment)</span>
                       <span className="font-mono">{php(e.feeBreakdown.enrollment)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-[var(--color-text-primary)] border-t border-blue-200 dark:border-blue-700 pt-2 mt-1 text-sm">
+                  <div className="flex justify-between font-bold text-[var(--color-text-primary)] border-t border-[var(--color-info-border)] pt-2 mt-1 text-sm">
                     <span>Grand Total</span>
                     <span className="font-mono text-[var(--color-primary-readable)]">{php(e.feeBreakdown.grandTotal || e.totalFee || 0)}</span>
                   </div>
                 </div>
                 {/* Discounts applied tags */}
                 {e.discountsApplied?.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                  <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-[var(--color-info-border)]">
                     {e.discountsApplied.map((d, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-[10px] font-medium">
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--color-approved-bg)] text-[var(--color-approved-text)] rounded-full text-[10px] font-medium">
                         <Tag className="w-2.5 h-2.5"/> {d.name} ({d.type === 'fixed' ? php(d.rate) : `${d.rate}%`})
                       </span>
                     ))}
@@ -579,7 +579,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                       </div>
                       <div className="h-2 bg-[var(--color-border)] rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${(e.balance || 0) <= 0 ? 'bg-green-500' : 'bg-blue-500'}`}
+                          className={`h-full rounded-full transition-all ${(e.balance || 0) <= 0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-info)]'}`}
                           style={{ width: `${Math.min(100, Math.round(((e.amountPaid || 0) / e.totalFee) * 100))}%` }}
                         />
                       </div>
@@ -590,13 +590,13 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                       <p className="text-[var(--color-text-muted)]">Total Fee</p>
                       <p className="font-semibold font-mono text-[var(--color-text-primary)] text-sm">{php(e.totalFee || 0)}</p>
                     </div>
-                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2">
-                      <p className="text-green-500">Paid</p>
-                      <p className="font-semibold font-mono text-green-700 dark:text-green-300 text-sm">{php(e.amountPaid || 0)}</p>
+                    <div className="bg-[var(--color-success-light)] rounded-lg p-2">
+                      <p className="text-[var(--color-success-text)]">Paid</p>
+                      <p className="font-semibold font-mono text-[var(--color-success-text)] text-sm">{php(e.amountPaid || 0)}</p>
                     </div>
-                    <div className={`rounded-lg p-2 ${(e.balance || 0) > 0 ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
-                      <p className={(e.balance || 0) > 0 ? 'text-amber-500' : 'text-green-500'}>Balance</p>
-                      <p className={`font-semibold font-mono text-sm ${(e.balance || 0) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-green-700 dark:text-green-300'}`}>
+                    <div className={`rounded-lg p-2 ${(e.balance || 0) > 0 ? 'bg-[var(--color-warning-light)]' : 'bg-[var(--color-success-light)]'}`}>
+                      <p className={(e.balance || 0) > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-success-text)]'}>Balance</p>
+                      <p className={`font-semibold font-mono text-sm ${(e.balance || 0) > 0 ? 'text-[var(--color-warning-text)]' : 'text-[var(--color-success-text)]'}`}>
                         {(e.balance || 0) > 0 ? php(e.balance) : 'Paid ✓'}
                       </p>
                     </div>
@@ -614,8 +614,8 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
                 <div className="space-y-2">
                   {e.paymentHistory.map((h, i) => (
                     <div key={i} className="flex items-start gap-3 bg-[var(--color-bg-subtle)] rounded-xl p-3">
-                      <div className="w-7 h-7 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <CircleDollarSign className="w-3.5 h-3.5 text-green-600 dark:text-green-400"/>
+                      <div className="w-7 h-7 bg-[var(--color-approved-bg)] rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <CircleDollarSign className="w-3.5 h-3.5 text-[var(--color-success-text)]"/>
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
@@ -640,7 +640,7 @@ function AccountingDetailDrawer({ enrollment, onClose, onPrintReceipt, cashierNa
 
             {/* Status note if still pending */}
             {e.status === 'payment_received' && (
-              <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3 text-xs text-blue-700 dark:text-blue-300">
+              <div className="flex items-center gap-2 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl px-4 py-3 text-xs text-[var(--color-info-text)]">
                 <ArrowRight className="w-3.5 h-3.5 flex-shrink-0"/>
                 Payment recorded. This enrollment is now with the Registrar for approval.
               </div>
@@ -1759,15 +1759,15 @@ export default function Enrollments() {
             <p className="text-2xl font-bold font-mono">{php(todayCollected)}</p>
             <p className="text-xs opacity-70 mt-1">{todayCount} payment{todayCount !== 1 ? 's' : ''} processed today</p>
           </div>
-          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 border-yellow-500 shadow-sm">
+          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 border-[var(--color-warning)] shadow-sm">
             <p className="text-xs text-[var(--color-text-muted)] mb-1">Awaiting Payment</p>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stats.pending}</p>
-            <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium mt-1">Needs recording</p>
+            <p className="text-xs text-[var(--color-warning-text)] font-medium mt-1">Needs recording</p>
           </div>
-          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 border-blue-500 shadow-sm">
+          <div className="bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 border-[var(--color-info)] shadow-sm">
             <p className="text-xs text-[var(--color-text-muted)] mb-1">Payment Recorded</p>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stats.payment_received}</p>
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">With registrar</p>
+            <p className="text-xs text-[var(--color-info-text)] font-medium mt-1">With registrar</p>
           </div>
         </div>
       )}
@@ -1777,9 +1777,9 @@ export default function Enrollments() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {[
             { label:'Total Enrollments',  value:stats.total,            border:'border-[var(--color-primary-readable)]',    sub:'All submissions',     cls:'text-[var(--color-text-muted)]' },
-            { label:'Awaiting Payment',   value:stats.pending,          border:'border-yellow-500', sub:'Pending payment at Accounting', cls:'text-yellow-600 dark:text-yellow-400' },
-            { label:'Payment Received',   value:stats.payment_received, border:'border-blue-500',   sub:'Ready for registrar review', cls:'text-blue-600 dark:text-blue-400' },
-            { label:'Approved',           value:stats.approved,         border:'border-green-500',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-green-600 dark:text-green-400' },
+            { label:'Awaiting Payment',   value:stats.pending,          border:'border-[var(--color-warning)]', sub:'Pending payment at Accounting', cls:'text-[var(--color-warning-text)]' },
+            { label:'Payment Received',   value:stats.payment_received, border:'border-[var(--color-info)]',   sub:'Ready for registrar review', cls:'text-[var(--color-info-text)]' },
+            { label:'Approved',           value:stats.approved,         border:'border-[var(--color-success)]',  sub:stats.total>0?`${Math.round(stats.approved/stats.total*100)}% approval rate`:'—', cls:'text-[var(--color-success-text)]' },
           ].map(({ label, value, border, sub, cls }) => (
             <div key={label} className={`bg-[var(--color-bg-card)] rounded-xl p-4 border-l-4 ${border} shadow-sm`}>
               <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -1794,30 +1794,30 @@ export default function Enrollments() {
       {websiteCount > 0 && (() => {
         const isRegistrar = user?.role === 'registrar_basic' || user?.role === 'registrar_college'
         if (isRegistrar) return (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-5 py-3.5 flex items-center gap-3">
-            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-4 h-4 text-white" />
+          <div className="bg-[var(--color-success-light)] border border-[var(--color-success-border)] rounded-xl px-5 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-[var(--color-success)] rounded-lg flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-4 h-4 text-[var(--color-success-contrast)]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+              <p className="text-sm font-semibold text-[var(--color-success-text)]">
                 {websiteCount} enrollment{websiteCount !== 1 ? 's' : ''} paid and ready for your approval
               </p>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+              <p className="text-xs text-[var(--color-success-text)] mt-0.5">
                 Payment has been confirmed by Accounting — please review and approve
               </p>
             </div>
           </div>
         )
         return (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-5 py-3.5 flex items-center gap-3">
-            <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
-              <DollarSign className="w-4 h-4 text-white" />
+          <div className="bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl px-5 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-[var(--color-warning)] rounded-lg flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-4 h-4 text-[var(--color-warning-contrast)]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+              <p className="text-sm font-semibold text-[var(--color-warning-text)]">
                 {websiteCount} enrollment{websiteCount !== 1 ? 's' : ''} awaiting payment recording
               </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+              <p className="text-xs text-[var(--color-warning-text)] mt-0.5">
                 These students submitted online and are waiting — click <strong>Record Payment</strong> to process
               </p>
             </div>
@@ -1912,7 +1912,7 @@ export default function Enrollments() {
                       <p className="text-xs font-mono font-semibold text-[var(--color-success-text)]">ID {selectedEnrollment.studentId}</p>
                     )}
                     {selectedEnrollment.source === 'website' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--color-payment-bg)] text-[var(--color-payment-text)]">
                         <Globe className="w-3 h-3" /> Submitted Online
                       </span>
                     )}
@@ -1966,33 +1966,33 @@ export default function Enrollments() {
               <div className="flex gap-2">
                 {canMarkPayment(selectedEnrollment) && (
                   <button onClick={() => handleMarkPayment(selectedEnrollment.id)}
-                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium">
+                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-[var(--color-info)] text-[var(--color-info-contrast)] rounded-xl hover:bg-[var(--color-info-hover)] transition flex items-center justify-center gap-2 font-medium">
                     <CreditCard className="w-4 h-4" /> Record Payment
                   </button>
                 )}
                 {canApproveReject(selectedEnrollment) && (
                   <button onClick={() => handleApprove(selectedEnrollment.id)}
-                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-green-600 text-white rounded-xl hover:bg-green-700 transition flex items-center justify-center gap-2 font-medium">
+                    className="flex-1 sm:flex-none px-5 py-2.5 text-sm bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-xl hover:bg-[var(--color-success-hover)] transition flex items-center justify-center gap-2 font-medium">
                     <CheckCircle className="w-4 h-4" /> Approve Enrollment
                   </button>
                 )}
                 {selectedEnrollment.status === 'approved' && (
-                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-[var(--color-approved-bg)] text-[var(--color-approved-text)]">
                     <CheckCircle className="w-4 h-4" /> Enrollment Approved
                   </div>
                 )}
                 {selectedEnrollment.status === 'rejected' && (
-                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-[var(--color-rejected-bg)] text-[var(--color-rejected-text)]">
                     <XCircle className="w-4 h-4" /> Enrollment Rejected
                   </div>
                 )}
                 {selectedEnrollment.status === 'payment_received' && !canApproveReject(selectedEnrollment) && (
-                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-[var(--color-payment-bg)] text-[var(--color-payment-text)]">
                     <DollarSign className="w-4 h-4" /> Payment Received — Awaiting Registrar
                   </div>
                 )}
                 {selectedEnrollment.status === 'pending' && !canMarkPayment(selectedEnrollment) && !canApproveReject(selectedEnrollment) && (
-                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
+                  <div className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 bg-[var(--color-pending-bg)] text-[var(--color-pending-text)]">
                     <Clock className="w-4 h-4" /> Awaiting Payment at Accounting
                   </div>
                 )}
@@ -2007,7 +2007,7 @@ export default function Enrollments() {
         title={confirm.type === 'approve' ? 'Approve Enrollment' : confirm.type === 'mark_payment' ? 'Record Payment' : 'Reject Enrollment'}
         message={confirm.type === 'approve' ? 'Are you sure you want to approve this enrollment?' : 'Are you sure you want to reject this enrollment?'}
         confirmLabel={confirm.type === 'approve' ? 'Approve' : confirm.type === 'mark_payment' ? 'Record Payment' : 'Reject'}
-        confirmClass={confirm.type === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+        danger={confirm.type !== 'approve' && confirm.type !== 'mark_payment'}
         loading={actionLoading} onConfirm={confirmAction}
         onCancel={() => setConfirm({ open: false, type: null, id: null })} />
 
@@ -2058,7 +2058,7 @@ export default function Enrollments() {
 // ── Shared sub-components ──────────────────────────────────────────
 function Pill({ label, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 dark:text-red-300 text-xs font-medium rounded-full">
+    <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 text-xs font-medium rounded-full">
       {label}<button onClick={onRemove} className="hover:text-[var(--color-primary-hover)] transition"><X className="w-3 h-3" /></button>
     </span>
   )
