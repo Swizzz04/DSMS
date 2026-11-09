@@ -14,6 +14,7 @@ import { DeptToggle } from '../components/SchoolComponents'
 import GroupedSelect from '../components/GroupedSelect'
 import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
+import { Pager, useTablePaging } from '../components/DataTable'
 import { getRequests } from '../utils/documentBridge'
 import { getCampusScope } from '../config/appConfig'
 
@@ -32,6 +33,7 @@ const CHIP_ACTIVE = 'is-selected shadow-sm'
 
 // A transaction's date lives under different keys depending on how it was recorded.
 const txDateOf = tx => tx.date || tx.paymentDate || tx.lastPaymentDate || tx.submittedDate
+const txTime   = tx => new Date(txDateOf(tx) || 0).getTime() || 0
 // Never prints "Invalid Date" — a missing or unparseable date shows a dash.
 const fmtDate = (d, opts = { month: 'short', day: 'numeric', year: 'numeric' }) => {
   const x = d ? new Date(d) : null
@@ -706,6 +708,23 @@ export default function Reports() {
     return txs
   }, [allTransactions, period, customStart, customEnd, feeTypeFilter])
 
+  // Individual Transactions table: search, then newest first, then paged (shared Pager).
+  // The footer total covers every match, not only the visible page.
+  const searchedTxs = useMemo(() => {
+    const q = txSearch.trim().toLowerCase()
+    if (!q) return filteredTxs
+    return filteredTxs.filter(tx =>
+      (tx.studentName || '').toLowerCase().includes(q) ||
+      (tx.orNumber || '').toLowerCase().includes(q)
+    )
+  }, [filteredTxs, txSearch])
+  const searchedTotal = useMemo(() => searchedTxs.reduce((s, tx) => s + (tx.amount || 0), 0), [searchedTxs])
+  const txPaging = useTablePaging(searchedTxs, {
+    sorters: { date: (a, b) => txTime(a) - txTime(b) },
+    defaultSort: { key: 'date', dir: 'desc' },
+    resetOn: [txSearch, period, customStart, customEnd, feeTypeFilter],
+  })
+
   // Stats for the filtered period
   const totalCollected  = filteredTxs.reduce((s, tx) => s + (tx.amount || 0), 0)
   const uniqueStudents  = new Set(filteredTxs.map(tx => tx.refNum)).size
@@ -1132,17 +1151,7 @@ export default function Reports() {
             </p>
           )}
         </div>
-        {(() => {
-          const q = txSearch.toLowerCase()
-          const displayTxs = [...filteredTxs]
-            .sort((a, b) => new Date(b.date || b.paymentDate || 0) - new Date(a.date || a.paymentDate || 0))
-            .filter(tx =>
-              !q ||
-              (tx.studentName || '').toLowerCase().includes(q) ||
-              (tx.orNumber || '').toLowerCase().includes(q)
-            )
-          const displayTotal = displayTxs.reduce((s, tx) => s + (tx.amount || 0), 0)
-          return displayTxs.length === 0 ? (
+        {searchedTxs.length === 0 ? (
           <div className="py-12 text-center">
             <BarChart2 className="w-10 h-10 text-[var(--color-text-muted)] opacity-50 mx-auto mb-3"/>
             <p className="text-sm text-[var(--color-text-muted)]">No transactions found for this period</p>
@@ -1150,35 +1159,41 @@ export default function Reports() {
           </div>
         ) : (
           <div className="min-w-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px]">
-              <thead className="bg-[var(--color-bg-subtle)]">
-                <tr>
-                  {['OR Number', 'Student Name', 'Grade / Program', 'Payment Covers', 'Method', 'Date', 'Amount', 'Actions'].map(h => (
-                    <th key={h} className={`px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide ${h === 'Amount' ? 'text-right' : 'text-left'}`}>
-                      {h}
-                    </th>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px]">
+                <thead className="bg-[var(--color-bg-subtle)]">
+                  <tr>
+                    {['OR Number', 'Student Name', 'Grade / Program', 'Payment Covers', 'Method', 'Date', 'Amount', 'Actions'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide ${h === 'Amount' ? 'text-right' : 'text-left'}`}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)]">
+                  {txPaging.rows.map((tx, i) => (
+                    <TxRow key={(txPaging.page - 1) * txPaging.pageSize + i} tx={tx} onView={t => setSelectedTx(t)} onPrint={t => setReceiptTx(t)}/>
                   ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
-                {displayTxs.map((tx, i) => <TxRow key={i} tx={tx} onView={t => setSelectedTx(t)} onPrint={t => setReceiptTx(t)}/>)}
-              </tbody>
-              <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
-                <tr>
-                  <td colSpan={7} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">
-                    {txSearch ? `Showing ${displayTxs.length} of ${filteredTxs.length} transactions` : 'Total for period'}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">
-                    {php(displayTotal)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+                </tbody>
+                <tfoot className="bg-[var(--color-bg-subtle)] border-t-2 border-[var(--color-border)]">
+                  <tr>
+                    <td colSpan={7} className="px-4 py-3 text-sm font-bold text-[var(--color-text-primary)]">
+                      {txSearch ? `${searchedTxs.length} of ${filteredTxs.length} transactions match · total` : 'Total for period'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-bold text-[var(--color-success-text)] text-right font-mono">
+                      {php(searchedTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <Pager
+              page={txPaging.page} pageCount={txPaging.pageCount} total={txPaging.total}
+              onPage={txPaging.setPage} noun="transaction"
+              pageSize={txPaging.pageSize} onPageSize={txPaging.setPageSize}
+            />
           </div>
-          </div>
-        )
-        })()}
+        )}
       </div>
 
       {/* Transaction Detail Modal */}
