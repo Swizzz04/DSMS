@@ -74,6 +74,11 @@ const CLEAN_FILES = [
   'pages/Dashboard.jsx',
   'pages/Enrollments.jsx',
   'pages/Settings.jsx',
+  'pages/NotFound.jsx',
+  'components/StatusPage.jsx',
+  'components/OfflineState.jsx',
+  'components/OfflineBanner.jsx',
+  'components/ErrorBoundary.jsx',
 ]
 
 const PALETTES =

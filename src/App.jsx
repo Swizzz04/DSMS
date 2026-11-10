@@ -19,6 +19,8 @@ import DashboardLayout  from './components/dashboard/DashboardLayout'
 import ProtectedRoute   from './components/ProtectedRoute'
 import ErrorBoundary    from './components/ErrorBoundary'
 import LoginPage        from './pages/LoginPage'
+import NotFound         from './pages/NotFound'
+import OfflineBanner    from './components/OfflineBanner'
 import { PageSkeleton }  from './components/UIComponents'
 
 const Dashboard            = lazy(() => import('./pages/Dashboard'))
@@ -60,9 +62,19 @@ function RootRedirect() {
     : <Navigate to="/login"     replace />
 }
 
+// Unknown URL: keep the sidebar/header when logged in, plain page otherwise.
+// (No permission gate — a 404 must show for every role.)
+function NotFoundRoute() {
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated
+    ? <DashboardLayout><NotFound /></DashboardLayout>
+    : <NotFound standalone />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <OfflineBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/"      element={<RootRedirect />} />
@@ -83,7 +95,7 @@ export default function App() {
         <Route path="/attendance"            element={<Page page="attendance">            <Attendance           /></Page>} />
         <Route path="/settings"              element={<Page page="settings">              <Settings             /></Page>} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundRoute />} />
       </Routes>
     </BrowserRouter>
   )
