@@ -28,6 +28,7 @@ const SHARED_TOKENS = [
   '--color-error-hover',
   '--color-success-hover',
   '--color-info-hover',
+  '--color-warning-hover',
   '--color-cat-teal-solid',
   '--color-cat-indigo-solid',
   '--color-cat-violet-solid',
@@ -63,7 +64,7 @@ describe('status tokens in index.css', () => {
   })
 })
 
-// Files whose 4.3 round is finished. Add Settings later.
+// Files whose 4.3 round is finished. All 4.3 files are covered.
 const CLEAN_FILES = [
   'components/UIComponents.jsx',
   'components/dashboard/ProfileModal.jsx',
@@ -72,6 +73,7 @@ const CLEAN_FILES = [
   'components/SchoolComponents.jsx',
   'pages/Dashboard.jsx',
   'pages/Enrollments.jsx',
+  'pages/Settings.jsx',
 ]
 
 const PALETTES =

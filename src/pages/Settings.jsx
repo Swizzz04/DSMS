@@ -163,7 +163,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                 </span>
               )}
             </h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
               Discounts for <strong>{userCampus && userCampus !== 'all' ? userCampus : 'this campus'}</strong> only.
               Changes here do not affect other campuses. Applied to tuition fee only, cascading order.
             </p>
@@ -175,9 +175,9 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
         </div>
 
         {/* Info box */}
-        <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl px-4 py-3">
-          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5"/>
-          <div className="text-xs text-blue-700 dark:text-blue-300 space-y-0.5">
+        <div className="flex items-start gap-2 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl px-4 py-3">
+          <Info className="w-4 h-4 text-[var(--color-info-text)] flex-shrink-0 mt-0.5"/>
+          <div className="text-xs text-[var(--color-info-text)] space-y-0.5">
             <p><strong>Cascading discounts:</strong> each percentage is applied to the amount remaining after the previous discount.</p>
             <p>Example: ₱15,000 tuition → 35% off = ₱9,750 → then 15% off ₱9,750 = <strong>₱8,287.50 final</strong></p>
           </div>
@@ -194,21 +194,21 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
             {/* Discount Name */}
             <div>
               <label className="form-label">
-                Discount Name <span className="text-red-500">*</span>
+                Discount Name <span className="text-[var(--color-error-text)]">*</span>
               </label>
               <input type="text" value={newDiscount.name}
                 onChange={e => setNewDiscount(p => ({ ...p, name: e.target.value }))}
                 placeholder="e.g. ESC, Sports Award..."
                 className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                  ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                  ${errors.name ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
               />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              {errors.name && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.name}</p>}
             </div>
 
             {/* Discount Type toggle + Value */}
             <div>
               <label className="form-label">
-                Discount Type &amp; Value <span className="text-red-500">*</span>
+                Discount Type &amp; Value <span className="text-[var(--color-error-text)]">*</span>
               </label>
               {/* Type toggle */}
               <div className="flex rounded-xl overflow-hidden border border-[var(--color-border)] mb-2">
@@ -235,23 +235,23 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                         onChange={e => setNewDiscount(p => ({ ...p, defaultRate: Number(e.target.value) }))}
                         placeholder="e.g. 15"
                         className={`w-full px-3 py-2.5 pr-8 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                          ${errors.rate ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                       />
-                      <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400"/>
+                      <Percent className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]"/>
                     </>
                   : <>
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">₱</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-muted)] font-medium">₱</span>
                       <input type="number" min="1" value={newDiscount.defaultRate}
                         onChange={e => setNewDiscount(p => ({ ...p, defaultRate: Number(e.target.value) }))}
                         placeholder="e.g. 9000"
                         className={`w-full pl-7 pr-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                          ${errors.rate ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                          ${errors.rate ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                       />
                     </>
                 }
               </div>
-              {errors.rate && <p className="text-xs text-red-500 mt-1">{errors.rate}</p>}
-              <p className="text-xs text-gray-400 mt-1">
+              {errors.rate && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.rate}</p>}
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">
                 {newDiscount.discountType === 'percentage'
                   ? 'Percentage deducted from tuition (1–100%)'
                   : 'Fixed amount deducted directly from tuition fee'
@@ -285,7 +285,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
       {/* Discount list */}
       <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] divide-y divide-[var(--color-border)] overflow-hidden">
         {discounts.length === 0 && (
-          <div className="py-12 text-center text-gray-400">
+          <div className="py-12 text-center text-[var(--color-text-muted)]">
             <Tag className="w-8 h-8 mx-auto mb-2 opacity-30"/>
             <p className="text-sm">No discounts configured yet</p>
           </div>
@@ -299,14 +299,14 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">{d.name}</p>
                   {d.isCustom && (
-                    <span className="text-[10px] px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full font-medium">Custom</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-[var(--color-cat-purple-bg)] text-[var(--color-cat-purple-text)] rounded-full font-medium">Custom</span>
                   )}
                   {!d.isActive && (
-                    <span className="text-[10px] px-2 py-0.5 bg-[var(--color-bg-subtle)] text-gray-500 rounded-full">Disabled</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] rounded-full">Disabled</span>
                   )}
                 </div>
-                {d.description && <p className="text-xs text-gray-400 mt-0.5">{d.description}</p>}
-                <p className="text-xs text-gray-400 mt-0.5">Applies to: <span className="font-medium text-[var(--color-text-secondary)]">tuition fee only</span></p>
+                {d.description && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{d.description}</p>}
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Applies to: <span className="font-medium text-[var(--color-text-secondary)]">tuition fee only</span></p>
               </div>
 
               {/* Rate editor */}
@@ -319,14 +319,14 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                         onChange={e => handleRateChange(d.id, e.target.value)}
                         className="w-20 px-2 py-1.5 pr-6 text-sm font-mono border border-[var(--color-primary-readable)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none text-right"
                       />
-                      <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400"/>
+                      <Percent className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--color-text-muted)]"/>
                     </div>
                     <button onClick={() => handleRateSave(d.id)}
-                      className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                      className="p-1.5 bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-lg hover:bg-[var(--color-success-hover)] transition">
                       <Check className="w-3.5 h-3.5"/>
                     </button>
                     <button onClick={() => setEditingId(null)}
-                      className="p-1.5 text-gray-400 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                      className="p-1.5 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                       <X className="w-3.5 h-3.5"/>
                     </button>
                   </div>
@@ -338,11 +338,11 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                         : <><span className="text-lg font-bold font-mono leading-none">{d.defaultRate}</span><Percent className="w-3.5 h-3.5"/></>
                       }
                     </div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${d.type === 'fixed' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'}`}>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${d.type === 'fixed' ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)]' : 'bg-[var(--color-info-light)] text-[var(--color-info-text)]'}`}>
                       {d.type === 'fixed' ? 'Fixed' : '%'}
                     </span>
                     <button onClick={() => setEditingId(d.id)}
-                      className="p-1.5 text-gray-400 hover:text-[var(--color-primary-readable)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary-readable)] hover:bg-primary/5 transition"
+                      className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary-readable)] border border-[var(--color-border)] rounded-lg hover:border-[var(--color-primary-readable)] hover:bg-primary/5 transition"
                       title="Edit rate">
                       <Edit className="w-3.5 h-3.5"/>
                     </button>
@@ -351,15 +351,15 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
 
                 {/* Toggle active */}
                 <button onClick={() => handleToggle(d.id)}
-                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${d.isActive ? 'bg-green-500' : 'bg-[var(--color-border-strong)]'}`}
+                  className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${d.isActive ? 'bg-[var(--color-success)]' : 'bg-[var(--color-border-strong)]'}`}
                   title={d.isActive ? 'Click to disable' : 'Click to enable'}>
-                  <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${d.isActive ? 'translate-x-5' : 'translate-x-0'}`}/>
+                  <span className={`absolute top-1 left-1 w-4 h-4 bg-[var(--color-text-inverse)] rounded-full shadow transition-transform ${d.isActive ? 'translate-x-5' : 'translate-x-0'}`}/>
                 </button>
 
                 {/* Delete — custom only */}
                 {d.isCustom && (
                   <button onClick={() => handleDelete(d.id)}
-                    className="p-1.5 text-red-400 hover:text-red-600 border border-[var(--color-border)] hover:border-red-400 rounded-lg transition"
+                    className="p-1.5 text-[var(--color-error-text)] border border-[var(--color-border)] hover:border-[var(--color-error)] rounded-lg transition"
                     title="Delete discount">
                     <Trash2 className="w-3.5 h-3.5"/>
                   </button>
@@ -379,14 +379,14 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
             <h3 className="text-sm font-semibold text-[var(--color-text-primary)] mb-1 flex items-center gap-2">
               <Percent className="w-4 h-4 text-[var(--color-primary-readable)]"/> Cascading Discount Preview
             </h3>
-            <p className="text-xs text-gray-400 mb-3">
+            <p className="text-xs text-[var(--color-text-muted)] mb-3">
               Sample: tuition ₱{SAMPLE_TUITION.toLocaleString()} + enrollment ₱{SAMPLE_ENROLLMENT.toLocaleString()} + misc ₱{SAMPLE_MISC.toLocaleString()}.
               Discounts apply to <strong className="text-[var(--color-primary-readable)]">tuition only</strong> — enrollment &amp; misc are fixed charges.
             </p>
             <div className="space-y-1.5">
               {/* Base tuition */}
               <div className="flex justify-between text-xs pb-2 border-b border-[var(--color-border)]">
-                <span className="text-gray-500">Base tuition</span>
+                <span className="text-[var(--color-text-muted)]">Base tuition</span>
                 <span className="font-mono font-semibold text-[var(--color-text-primary)]">{php(SAMPLE_TUITION)}</span>
               </div>
               {/* Discount steps */}
@@ -394,11 +394,11 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                 <div key={i} className="flex justify-between text-xs">
                   <span className="text-[var(--color-text-secondary)]">
                     {i + 1}. {b.name}{' '}
-                    <span className="text-gray-400">
+                    <span className="text-[var(--color-text-muted)]">
                       ({b.type === 'fixed' ? `₱${b.rate.toLocaleString()} fixed` : `${b.rate}% off`})
                     </span>
                   </span>
-                  <span className="font-mono text-red-500 dark:text-red-400">- {php(b.deduction)}</span>
+                  <span className="font-mono text-[var(--color-error-text)]">- {php(b.deduction)}</span>
                 </div>
               ))}
               {/* Tuition after discounts */}
@@ -407,22 +407,22 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
                 <span className="font-mono text-[var(--color-primary-readable)]">{php(previewResult.finalAmount)}</span>
               </div>
               {/* Fixed fees — unaffected */}
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1">
                 <span>+ Enrollment fee <span className="italic">(fixed)</span></span>
                 <span className="font-mono">{php(SAMPLE_ENROLLMENT)}</span>
               </div>
-              <div className="flex justify-between text-xs text-gray-400">
+              <div className="flex justify-between text-xs text-[var(--color-text-muted)]">
                 <span>+ Misc fee <span className="italic">(fixed)</span></span>
                 <span className="font-mono">{php(SAMPLE_MISC)}</span>
               </div>
               {/* Grand total */}
               <div className="flex justify-between text-sm font-bold pt-2 border-t-2 border-[var(--color-border)] mt-1">
                 <span className="text-[var(--color-text-primary)]">Grand Total</span>
-                <span className="font-mono text-green-600 dark:text-green-400">
+                <span className="font-mono text-[var(--color-success-text)]">
                   {php(previewResult.finalAmount + SAMPLE_ENROLLMENT + SAMPLE_MISC)}
                 </span>
               </div>
-              <p className="text-[10px] text-gray-400 pt-1">
+              <p className="text-[10px] text-[var(--color-text-muted)] pt-1">
                 Total saved: {php(previewResult.totalDeducted)} off tuition
                 {' '}({Math.round(previewResult.totalDeducted / SAMPLE_TUITION * 100)}% of original tuition)
               </p>
@@ -442,7 +442,7 @@ function DiscountsTab({ discounts, setDiscounts, userCampus, userRole }) {
 function FeeInput({ value, onChange, disabled, noPrefix }) {
   return (
     <div className="relative">
-      {!noPrefix && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">₱</span>}
+      {!noPrefix && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)] font-medium">₱</span>}
       <input
         type="number" min="0" step={noPrefix ? 1 : 100}
         value={value} onChange={e => onChange(Number(e.target.value))}
@@ -450,11 +450,11 @@ function FeeInput({ value, onChange, disabled, noPrefix }) {
         className={`w-full ${noPrefix ? 'px-2' : 'pl-6 pr-2'} py-1.5 text-sm border rounded-lg text-right font-mono
           bg-[var(--color-bg-card)] text-[var(--color-text-primary)] outline-none transition
           ${disabled
-            ? 'border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-gray-400 cursor-not-allowed'
+            ? 'border-[var(--color-border)] bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] cursor-not-allowed'
             : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'
           }`}
       />
-      {noPrefix && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400">u</span>}
+      {noPrefix && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--color-text-muted)]">u</span>}
     </div>
   )
 }
@@ -616,13 +616,13 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
 
   // Small line under a grade level. In campus view: say when a row is still the shared fee.
   const feeTag = (fee) => {
-    if (fee.__new) return <p className="text-xs text-gray-400">No fee set yet</p>
+    if (fee.__new) return <p className="text-xs text-[var(--color-text-muted)]">No fee set yet</p>
     if (lockedCampus) {
       return fee.campus === 'all'
-        ? <p className="text-xs text-gray-400">Shared fee</p>
+        ? <p className="text-xs text-[var(--color-text-muted)]">Shared fee</p>
         : null
     }
-    return fee.campus !== 'all' ? <p className="text-xs text-gray-400">{fee.campus}</p> : null
+    return fee.campus !== 'all' ? <p className="text-xs text-[var(--color-text-muted)]">{fee.campus}</p> : null
   }
 
   return (
@@ -632,7 +632,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Fee Structure</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
               {lockedCampus ? `Fees for ${lockedCampus} only` : 'Manage fees across all campuses'}
             </p>
           </div>
@@ -662,7 +662,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
               </button>
             )}
             {!hasChanges && saved && (
-              <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400 font-medium">
+              <span className="flex items-center gap-1.5 text-sm text-[var(--color-success-text)] font-medium">
                 <Check className="w-4 h-4"/> Up to date
               </span>
             )}
@@ -670,9 +670,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
         </div>
 
         {/* Info banner */}
-        <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3">
-          <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5"/>
-          <p className="text-xs text-amber-700 dark:text-amber-300">
+        <div className="flex items-start gap-2 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl px-4 py-3">
+          <Info className="w-4 h-4 text-[var(--color-warning-text)] flex-shrink-0 mt-0.5"/>
+          <p className="text-xs text-[var(--color-warning-text)]">
             Fee changes apply to <strong>new enrollments only</strong>.
             Existing student balances are not affected. Click Edit on any row to update fees.{lockedCampus && ' Rows marked "Shared fee" are used by every campus until you edit them here; editing makes a copy for this campus only.'}
           </p>
@@ -695,13 +695,13 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
               <div className="flex items-center gap-3">
                 <div className="w-2 h-2 rounded-full bg-primary"/>
                 <span className="font-semibold text-sm text-[var(--color-text-primary)]">{group.label}</span>
-                <span className="text-xs text-gray-400 bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
+                <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">
                   {groupFees.length} level{groupFees.length !== 1 ? 's' : ''}
                 </span>
               </div>
               {isExpanded
-                ? <ChevronUp className="w-4 h-4 text-gray-400"/>
-                : <ChevronDown className="w-4 h-4 text-gray-400"/>
+                ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]"/>
+                : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]"/>
               }
             </button>
 
@@ -727,9 +727,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                           ) : (
                             <div className="flex gap-2">
                               <button onClick={() => commitEdit(fee.id)}
-                                className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">Save</button>
+                                className="text-xs px-3 py-1.5 bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-lg hover:bg-[var(--color-success-hover)] transition font-medium">Save</button>
                               <button onClick={cancelEdit}
-                                className="text-xs px-2 py-1.5 text-gray-400 border border-[var(--color-border)] rounded-lg transition">
+                                className="text-xs px-2 py-1.5 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg transition">
                                 <X className="w-3 h-3"/></button>
                             </div>
                           )}
@@ -737,7 +737,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                         <div className="grid grid-cols-2 gap-2">
                           {cols.map(({ label, key }) => (
                             <div key={key}>
-                              <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">{label}</p>
+                              <p className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1">{label}</p>
                               {isEditing
                                 ? <FeeInput value={editBuffer[key] || 0} onChange={v => setEditBuffer(b => ({ ...b, [key]: v }))}/>
                                 : <p className="text-sm font-mono text-[var(--color-text-primary)]">{php(fee[key] || 0)}</p>
@@ -746,7 +746,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                           ))}
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t border-[var(--color-border)]">
-                          <span className="text-xs text-gray-400">Total</span>
+                          <span className="text-xs text-[var(--color-text-muted)]">Total</span>
                           <span className="text-sm font-bold text-[var(--color-primary-readable)]">
                             {isEditing ? php(bufferTotal(cols)) : php(feeTotal(fee))}
                           </span>
@@ -792,7 +792,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                               </td>
                             ))}
                             <td className="px-4 py-3">
-                              <span className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-[var(--color-primary-readable)]'}`}>
+                              <span className={`text-sm font-bold ${isEditing ? 'text-[var(--color-success-text)]' : 'text-[var(--color-primary-readable)]'}`}>
                                 {isEditing ? php(bufferTotal(BASIC_FEE_COLS)) : php(feeTotal(fee))}
                               </span>
                             </td>
@@ -805,11 +805,11 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                               ) : (
                                 <div className="flex items-center gap-2 justify-end">
                                   <button onClick={() => commitEdit(fee.id)}
-                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium">
+                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-lg hover:bg-[var(--color-success-hover)] transition font-medium">
                                     <Check className="w-3 h-3"/> Save row
                                   </button>
                                   <button onClick={cancelEdit}
-                                    className="p-1.5 text-gray-400 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
+                                    className="p-1.5 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition">
                                     <X className="w-3.5 h-3.5"/>
                                   </button>
                                 </div>
@@ -838,22 +838,22 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
             <div className="flex items-center gap-3 flex-wrap">
               <div className="w-2 h-2 rounded-full bg-secondary flex-shrink-0"/>
               <span className="font-semibold text-sm text-[var(--color-text-primary)]">{program}</span>
-              <span className="text-xs text-gray-400 bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">College · Unit-based</span>
-              <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+              <span className="text-xs text-[var(--color-text-muted)] bg-[var(--color-bg-subtle)] px-2 py-0.5 rounded-full">College · Unit-based</span>
+              <span className="text-xs bg-[var(--color-info-light)] text-[var(--color-info-text)] px-2 py-0.5 rounded-full">
                 Tuition = Rate/Unit × Actual Units
               </span>
             </div>
             {openKey === program
-              ? <ChevronUp className="w-4 h-4 text-gray-400"/>
-              : <ChevronDown className="w-4 h-4 text-gray-400"/>
+              ? <ChevronUp className="w-4 h-4 text-[var(--color-text-muted)]"/>
+              : <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)]"/>
             }
           </button>
 
           <AccordionBody open={openKey === program}>
-            <div className="mx-5 mb-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+            <div className="mx-5 mb-3 p-3 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl text-xs text-[var(--color-info-text)]">
               <strong>Unit-based billing:</strong> Tuition = Rate/Unit × units enrolled · Lab = Lab Rate/Unit × lab units enrolled · Enrollment &amp; Misc are fixed.
               <br/>
-              <span className="text-blue-600 dark:text-blue-400">
+              <span className="text-[var(--color-info-text)]">
                 Regular students use <em>Typical Units</em> as their load. Transferees may be <strong>underload</strong> (fewer units) or <strong>overload</strong> (more units) — same rate applies either way.
               </span>
             </div>
@@ -894,15 +894,15 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                               {!isEditing
                                 ? <button onClick={() => startEdit(sem)} className="text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium flex items-center gap-1"><Edit className="w-3 h-3"/>Edit</button>
                                 : <div className="flex gap-2">
-                                    <button onClick={() => commitEdit(sem.id)} className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg">Save</button>
-                                    <button onClick={cancelEdit} className="text-xs px-2 py-1.5 border border-[var(--color-border)] rounded-lg text-gray-400"><X className="w-3 h-3"/></button>
+                                    <button onClick={() => commitEdit(sem.id)} className="text-xs px-3 py-1.5 bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-lg">Save</button>
+                                    <button onClick={cancelEdit} className="text-xs px-2 py-1.5 border border-[var(--color-border)] rounded-lg text-[var(--color-text-muted)]"><X className="w-3 h-3"/></button>
                                   </div>
                               }
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                               {COLLEGE_RATE_COLS.map(({label:l, key, type}) => (
                                 <div key={key}>
-                                  <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">{l}</p>
+                                  <p className="text-[10px] text-[var(--color-text-muted)] uppercase tracking-wide mb-1">{l}</p>
                                   {isEditing
                                     ? <FeeInput value={editBuffer[key]||0} onChange={v => setEditBuffer(b=>({...b,[key]:v}))} prefix={type==='units'?'':undefined}/>
                                     : <p className="text-sm font-mono text-[var(--color-text-primary)]">
@@ -914,15 +914,15 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                             </div>
                             {/* Computed preview */}
                             <div className="bg-[var(--color-bg-subtle)] rounded-lg p-3 space-y-1">
-                              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Estimated sem total (typical units)</p>
+                              <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">Estimated sem total (typical units)</p>
                               <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-                                <span className="text-gray-500">Tuition ({(isEditing?editBuffer.typicalUnits:sem.typicalUnits)||0} units)</span>
+                                <span className="text-[var(--color-text-muted)]">Tuition ({(isEditing?editBuffer.typicalUnits:sem.typicalUnits)||0} units)</span>
                                 <span className="font-mono text-right">{php(preview.tuition)}</span>
-                                <span className="text-gray-500">Lab ({(isEditing?editBuffer.typicalLabUnits:sem.typicalLabUnits)||0} units)</span>
+                                <span className="text-[var(--color-text-muted)]">Lab ({(isEditing?editBuffer.typicalLabUnits:sem.typicalLabUnits)||0} units)</span>
                                 <span className="font-mono text-right">{php(preview.lab)}</span>
-                                <span className="text-gray-500">Enrollment</span>
+                                <span className="text-[var(--color-text-muted)]">Enrollment</span>
                                 <span className="font-mono text-right">{php(preview.enrollment)}</span>
-                                <span className="text-gray-500">Misc</span>
+                                <span className="text-[var(--color-text-muted)]">Misc</span>
                                 <span className="font-mono text-right">{php(preview.misc)}</span>
                               </div>
                               <div className="flex justify-between font-bold text-sm pt-1 border-t border-[var(--color-border)]">
@@ -930,7 +930,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                                 <span className="font-mono text-[var(--color-secondary-readable)]">{php(preview.semTotal ?? preview.total)}</span>
                               </div>
                               {preview.enrollment > 0 && (
-                                <div className="flex justify-between text-xs text-amber-500 dark:text-amber-400">
+                                <div className="flex justify-between text-xs text-[var(--color-warning-text)]">
                                   <span>+ Enrollment fee (separate)</span>
                                   <span className="font-mono">{php(preview.enrollment)}</span>
                                 </div>
@@ -945,11 +945,11 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                         return (
                           <div className="px-4 py-2.5 bg-[var(--color-bg-subtle)]">
                             <div className="flex justify-between">
-                              <span className="text-xs text-gray-500 font-medium">Est. annual sem total ({yr})</span>
+                              <span className="text-xs text-[var(--color-text-muted)] font-medium">Est. annual sem total ({yr})</span>
                               <span className="text-sm font-bold text-[var(--color-primary-readable)]">{php(annualSem)}</span>
                             </div>
                             {(p1.enrollment + p2.enrollment) > 0 && (
-                              <div className="flex justify-between text-[10px] text-amber-500 dark:text-amber-400 mt-0.5">
+                              <div className="flex justify-between text-[10px] text-[var(--color-warning-text)] mt-0.5">
                                 <span>+ Enrollment fees (both sems)</span>
                                 <span className="font-mono">{php(p1.enrollment + p2.enrollment)}</span>
                               </div>
@@ -964,11 +964,11 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                       <table className="w-full">
                         <thead className="bg-[var(--color-bg-subtle)]">
                           <tr>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase">Semester</th>
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase">Semester</th>
                             {COLLEGE_RATE_COLS.map(c => (
-                              <th key={c.key} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase whitespace-nowrap">{c.label}</th>
+                              <th key={c.key} className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase whitespace-nowrap">{c.label}</th>
                             ))}
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase whitespace-nowrap">Est. Sem Total</th>
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase whitespace-nowrap">Est. Sem Total</th>
                             <th className="px-4 py-2.5"></th>
                           </tr>
                         </thead>
@@ -981,7 +981,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                               <tr key={sem.id} className={`transition ${isEditing ? 'bg-primary/5 dark:bg-primary/10' : 'row-hover'}`}>
                                 <td className="px-4 py-3">
                                   <span className="text-xs font-semibold text-[var(--color-secondary-readable)]">{label}</span>
-                                  {sem.campus && <p className="text-xs text-gray-400">{sem.campus}</p>}
+                                  {sem.campus && <p className="text-xs text-[var(--color-text-muted)]">{sem.campus}</p>}
                                 </td>
                                 {COLLEGE_RATE_COLS.map(col => (
                                   <td key={col.key} className="px-4 py-3">
@@ -993,7 +993,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                                         />
                                       : <span className="text-sm font-mono text-[var(--color-text-secondary)]">
                                           {col.type === 'units'
-                                            ? <span className="text-gray-500">{sem[col.key] ?? 0} <span className="text-xs">units</span></span>
+                                            ? <span className="text-[var(--color-text-muted)]">{sem[col.key] ?? 0} <span className="text-xs">units</span></span>
                                             : php(sem[col.key] ?? 0)
                                           }
                                         </span>
@@ -1002,15 +1002,15 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                                 ))}
                                 {/* Estimated sem total — tuition + lab + misc only, enrollment fee excluded */}
                                 <td className="px-4 py-3">
-                                  <div className={`text-sm font-bold ${isEditing ? 'text-green-600 dark:text-green-400' : 'text-[var(--color-secondary-readable)]'}`}>
+                                  <div className={`text-sm font-bold ${isEditing ? 'text-[var(--color-success-text)]' : 'text-[var(--color-secondary-readable)]'}`}>
                                     {php(preview.semTotal ?? preview.total)}
                                   </div>
-                                  <div className="text-[10px] text-gray-400 mt-0.5 space-y-0.5">
+                                  <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5 space-y-0.5">
                                     <div>T: {php(preview.tuition)}</div>
                                     <div>L: {php(preview.lab)}</div>
                                     <div>M: {php(preview.misc)}</div>
                                     {preview.enrollment > 0 && (
-                                      <div className="text-amber-500 dark:text-amber-400">+Enroll: {php(preview.enrollment)}</div>
+                                      <div className="text-[var(--color-warning-text)]">+Enroll: {php(preview.enrollment)}</div>
                                     )}
                                   </div>
                                 </td>
@@ -1018,8 +1018,8 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                                   {!isEditing
                                     ? <button onClick={() => startEdit(sem)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary/10 text-[var(--color-primary-readable)] dark:bg-primary/20 rounded-lg hover:bg-primary hover:text-[var(--color-primary-contrast)] transition font-medium"><Edit className="w-3 h-3"/>Edit</button>
                                     : <div className="flex items-center gap-2 justify-end">
-                                        <button onClick={() => commitEdit(sem.id)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"><Check className="w-3 h-3"/>Save row</button>
-                                        <button onClick={cancelEdit} className="p-1.5 text-gray-400 border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-3.5 h-3.5"/></button>
+                                        <button onClick={() => commitEdit(sem.id)} className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-[var(--color-success)] text-[var(--color-success-contrast)] rounded-lg hover:bg-[var(--color-success-hover)] transition font-medium"><Check className="w-3 h-3"/>Save row</button>
+                                        <button onClick={cancelEdit} className="p-1.5 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition"><X className="w-3.5 h-3.5"/></button>
                                       </div>
                                   }
                                 </td>
@@ -1035,12 +1035,12 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
                             return (
                               <tr className="bg-[var(--color-bg-subtle)]">
                                 <td className="px-4 py-2.5 text-xs font-bold text-[var(--color-text-secondary)]" colSpan={COLLEGE_RATE_COLS.length + 1}>
-                                  Est. Annual Sem Total ({yr}) <span className="font-normal text-gray-400">— tuition + lab + misc only</span>
+                                  Est. Annual Sem Total ({yr}) <span className="font-normal text-[var(--color-text-muted)]">— tuition + lab + misc only</span>
                                 </td>
                                 <td className="px-4 py-2.5">
                                   <div className="text-sm font-bold text-[var(--color-primary-readable)]">{php(annualSem)}</div>
                                   {annualEnroll > 0 && (
-                                    <div className="text-[10px] text-amber-500 dark:text-amber-400">+{php(annualEnroll)} enrollment fee</div>
+                                    <div className="text-[10px] text-[var(--color-warning-text)]">+{php(annualEnroll)} enrollment fee</div>
                                   )}
                                 </td>
                                 <td/>
@@ -1060,9 +1060,9 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
 
       {/* Save footer */}
       <div className="bg-[var(--color-bg-card)] rounded-2xl shadow-sm border border-[var(--color-border)] px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-[var(--color-text-muted)]">
           {hasChanges
-            ? <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400"><AlertCircle className="w-3.5 h-3.5"/> You have unsaved changes</span>
+            ? <span className="flex items-center gap-1.5 text-[var(--color-warning-text)]"><AlertCircle className="w-3.5 h-3.5"/> You have unsaved changes</span>
             : 'All fees saved — changes apply to new enrollments only'
           }
         </p>
@@ -1072,7 +1072,7 @@ function FeeStructureTab({ fees, setFees, campuses, userCampus, userRole, campus
           className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition shadow-sm
             ${hasChanges
               ? 'bg-[var(--color-action)] text-[var(--color-action-contrast)] hover:bg-[var(--color-action-hover)]'
-              : 'bg-[var(--color-bg-subtle)] text-gray-400 cursor-not-allowed'
+              : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] cursor-not-allowed'
             }`}>
           {saved && !hasChanges ? <><Check className="w-4 h-4"/>Up to date</> : <><Save className="w-4 h-4"/>Save All Changes</>}
         </button>
@@ -1124,7 +1124,7 @@ export default function Settings() {
   const [showAddCampus, setShowAddCampus] = useState(false)
   const [editCampusId, setEditCampusId] = useState(null)       // campus id being edited
   const [campusForm, setCampusForm] = useState({               // shared form for add/edit
-    name: '', key: '', address: '', contactNumber: '', email: '', color: '#6b7280',
+    name: '', key: '', address: '', contactNumber: '', email: '',
     hasBasicEd: true, hasCollege: false, collegePrograms: [], newProgram: '',
   })
   // Collapsible sections for School Info tab
@@ -1723,7 +1723,7 @@ export default function Settings() {
                       setEditFrameworks(prev => prev.filter(f => f.id !== activeFramework.id))
                       setActiveFrameworkId(editFrameworks.find(f => f.id !== activeFramework.id)?.id)
                     },
-                  })} className="icon-btn-ghost text-red-500" title="Delete framework">
+                  })} className="icon-btn-ghost text-[var(--color-error-text)]" title="Delete framework">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
@@ -1772,7 +1772,7 @@ export default function Settings() {
                                 className="w-16 px-2 py-1 text-sm text-center border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary" />
                             </td>
                           ))}
-                          <td className={`px-3 py-1.5 text-center text-xs font-mono ${sumOff ? 'text-red-500 font-bold' : 'text-[var(--color-text-muted)]'}`}>
+                          <td className={`px-3 py-1.5 text-center text-xs font-mono ${sumOff ? 'text-[var(--color-error-text)] font-bold' : 'text-[var(--color-text-muted)]'}`}>
                             {Math.round(sum * 100)}%
                           </td>
                         </tr>
@@ -1793,7 +1793,7 @@ export default function Settings() {
                 </label>
 
                 {activeFramework.useTransmutation === false ? (
-                  <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+                  <div className="flex items-start gap-2 p-3 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl text-xs text-[var(--color-info-text)]">
                     <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     Zero-based grading — the computed Initial Grade IS the Final Grade, rounded to the
                     nearest whole number. No lookup table used. This is DepEd's stated direction for a
@@ -1801,7 +1801,7 @@ export default function Settings() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-start gap-2 p-3 mb-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-300">
+                    <div className="flex items-start gap-2 p-3 mb-3 bg-[var(--color-warning-light)] border border-[var(--color-warning-border)] rounded-xl text-xs text-[var(--color-warning-text)]">
                       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                       <span>
                         Empty uses the verified DepEd 8, s.2015 default table. If this framework's DepEd
@@ -1928,7 +1928,7 @@ export default function Settings() {
                         setConfirmDialog(null)
                       },
                     })
-                  }} className="icon-btn-ghost text-red-500" title="Delete this framework">
+                  }} className="icon-btn-ghost text-[var(--color-error-text)]" title="Delete this framework">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
@@ -1952,7 +1952,7 @@ export default function Settings() {
                     </div>
                     {activeCollegeFramework.components.length > 1 && (
                       <button onClick={() => setEditCollegeFrameworks(prev => prev.map(f => f.id === activeCollegeFramework.id
-                        ? { ...f, components: f.components.filter((_, xi) => xi !== idx) } : f))} className="icon-btn-ghost text-red-500" title="Remove component">
+                        ? { ...f, components: f.components.filter((_, xi) => xi !== idx) } : f))} className="icon-btn-ghost text-[var(--color-error-text)]" title="Remove component">
                         <X className="w-4 h-4" />
                       </button>
                     )}
@@ -2073,7 +2073,7 @@ export default function Settings() {
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--color-text-muted)]">%</span>
                           </div>
                           {newCfComponents.length > 1 && (
-                            <button onClick={() => setNewCfComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove component">
+                            <button onClick={() => setNewCfComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-[var(--color-error-text)]" title="Remove component">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -2150,7 +2150,7 @@ export default function Settings() {
                             placeholder="Component name"
                             className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
                           {newFwComponents.length > 1 && (
-                            <button onClick={() => setNewFwComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove component">
+                            <button onClick={() => setNewFwComponents(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-[var(--color-error-text)]" title="Remove component">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -2173,7 +2173,7 @@ export default function Settings() {
                             placeholder="Subject group name"
                             className="flex-1 px-3 py-2 text-sm border border-[var(--color-border)] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none focus:ring-2 focus:ring-primary transition" />
                           {newFwGroups.length > 1 && (
-                            <button onClick={() => setNewFwGroups(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-red-500" title="Remove subject group">
+                            <button onClick={() => setNewFwGroups(prev => prev.filter((_, xi) => xi !== i))} className="icon-btn-ghost text-[var(--color-error-text)]" title="Remove subject group">
                               <X className="w-4 h-4" />
                             </button>
                           )}
@@ -2329,13 +2329,12 @@ export default function Settings() {
                     <p className="text-xs text-[var(--color-text-muted)] mb-3">These colors are used throughout the system and the school website.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || '#F3F2EE'} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} compareValue={websiteContent.secondaryColor || '#0B0B0C'} compareLabel="Secondary" />
+                        <ColorPicker label="Primary Color" value={websiteContent.primaryColor || DEFAULT_WEBSITE_CONTENT.primaryColor} onChange={v => setWebsiteContent({ ...websiteContent, primaryColor: v })} compareValue={websiteContent.secondaryColor || DEFAULT_WEBSITE_CONTENT.secondaryColor} compareLabel="Secondary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar active navigation</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Buttons (login, save, submit, approve)</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Campus chip badge on the header</p>
-                          <p className="text-[10px] text-[var(--color-text-muted)]">• Campus locked banner strip</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Card left-border accents (stat cards)</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Page headings and section titles</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Active tab indicators</p>
@@ -2343,14 +2342,13 @@ export default function Settings() {
                         </div>
                       </div>
                       <div>
-                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || '#0B0B0C'} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} compareValue={websiteContent.primaryColor || '#F3F2EE'} compareLabel="Primary" />
+                        <ColorPicker label="Secondary Color" value={websiteContent.secondaryColor || DEFAULT_WEBSITE_CONTENT.secondaryColor} onChange={v => setWebsiteContent({ ...websiteContent, secondaryColor: v })} compareValue={websiteContent.primaryColor || DEFAULT_WEBSITE_CONTENT.primaryColor} compareLabel="Primary" />
                         <div className="mt-2 space-y-1">
                           <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Applied to:</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Sidebar background</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Secondary buttons and links</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Input focus ring color</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Secondary headings and subtext</p>
-                          <p className="text-[10px] text-[var(--color-text-muted)]">• Chart colors (bar charts, doughnut)</p>
                           <p className="text-[10px] text-[var(--color-text-muted)]">• Website navigation and section headers</p>
                         </div>
                       </div>
@@ -2393,7 +2391,7 @@ export default function Settings() {
                     <label className="form-label mb-1.5">Preview</label>
                     <div className="border border-[var(--color-border)] rounded-xl overflow-hidden">
                       <div className="bg-secondary p-4 text-center">
-                        <div className="w-12 h-12 rounded-full bg-white border-2 border-[var(--color-primary-readable)] mx-auto mb-2 flex items-center justify-center overflow-hidden">
+                        <div className="w-12 h-12 rounded-full bg-[var(--color-text-inverse)] border-2 border-[var(--color-primary-readable)] mx-auto mb-2 flex items-center justify-center overflow-hidden">
                           <SchoolLogo src={websiteContent.logoUrl} alt="Logo" size="sm" className="w-10 h-10 object-contain" />
                         </div>
                         <p className="text-[var(--color-secondary-contrast)] text-xs font-bold">{websiteContent.schoolName || 'School Name'}</p>
@@ -2437,7 +2435,7 @@ export default function Settings() {
                         <div key={idx} className="flex items-start gap-2 p-2.5 bg-[var(--color-bg-subtle)] rounded-lg">
                           <span className="text-xs font-bold text-[var(--color-text-muted)] mt-0.5 w-5 flex-shrink-0">{idx + 1}.</span>
                           <p className="text-sm text-[var(--color-text-primary)] flex-1">{goal}</p>
-                          <button onClick={() => setWebsiteContent({ ...websiteContent, goals: websiteContent.goals.filter((_, i) => i !== idx) })} className="icon-btn-ghost flex-shrink-0 hover:!text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setWebsiteContent({ ...websiteContent, goals: websiteContent.goals.filter((_, i) => i !== idx) })} className="icon-btn-ghost flex-shrink-0 hover:!text-[var(--color-error-text)]"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       ))}
                     </div>
@@ -2451,7 +2449,7 @@ export default function Settings() {
                     <label className="form-label mb-2">Core Values</label>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {websiteContent.coreValues.map((val, idx) => (
-                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-primary/10 text-[var(--color-primary-readable)] rounded-lg">{val}<button onClick={() => setWebsiteContent({ ...websiteContent, coreValues: websiteContent.coreValues.filter((_, i) => i !== idx) })} className="hover:text-red-500 transition ml-0.5"><X className="w-3 h-3" /></button></span>
+                        <span key={idx} className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-primary/10 text-[var(--color-primary-readable)] rounded-lg">{val}<button onClick={() => setWebsiteContent({ ...websiteContent, coreValues: websiteContent.coreValues.filter((_, i) => i !== idx) })} className="hover:text-[var(--color-error-text)] transition ml-0.5"><X className="w-3 h-3" /></button></span>
                       ))}
                     </div>
                     <div className="flex gap-2">
@@ -2501,7 +2499,7 @@ export default function Settings() {
                               <h4 className="text-sm font-semibold text-[var(--color-text-primary)]">{item.q}</h4>
                               <div className="flex items-center gap-1 flex-shrink-0">
                                 <button onClick={() => setEditFaqId(item.id)} className="icon-btn-ghost" title="Edit"><Edit className="w-3.5 h-3.5" /></button>
-                                <button onClick={() => { setWebsiteContent({ ...websiteContent, faq: websiteContent.faq.filter(f => f.id !== item.id) }); addToast('FAQ removed', 'success') }} className="icon-btn-ghost hover:!text-red-500" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => { setWebsiteContent({ ...websiteContent, faq: websiteContent.faq.filter(f => f.id !== item.id) }); addToast('FAQ removed', 'success') }} className="icon-btn-ghost hover:!text-[var(--color-error-text)]" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                             </div>
                             <p className="text-xs text-[var(--color-text-muted)] leading-relaxed">{item.a}</p>
@@ -2571,14 +2569,14 @@ export default function Settings() {
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="text-sm font-bold text-[var(--color-text-primary)]">{prog.title}</h4>
                                 <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-primary/10 text-[var(--color-primary-readable)]">{prog.age}</span>
-                                {prog.highlight && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">Featured</span>}
+                                {prog.highlight && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-[var(--color-warning-light)] text-[var(--color-warning-text)]">Featured</span>}
                               </div>
                               <p className="text-xs text-[var(--color-text-muted)] mb-2">{prog.description}</p>
                               <div className="flex flex-wrap gap-1">{prog.features.map(f => <span key={f} className="px-2 py-0.5 text-[9px] rounded bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{f}</span>)}</div>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <button onClick={() => setEditProgramId(prog.id)} className="icon-btn-ghost" title="Edit"><Edit className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => { setWebsiteContent({ ...websiteContent, programs: websiteContent.programs.filter(p => p.id !== prog.id) }); addToast('Program removed', 'success') }} className="icon-btn-ghost hover:!text-red-500" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => { setWebsiteContent({ ...websiteContent, programs: websiteContent.programs.filter(p => p.id !== prog.id) }); addToast('Program removed', 'success') }} className="icon-btn-ghost hover:!text-[var(--color-error-text)]" title="Remove"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </div>
                         )}
@@ -2637,7 +2635,7 @@ export default function Settings() {
                             <p className="text-sm font-medium text-[var(--color-text-primary)]">{req.title}</p>
                             <p className="text-xs text-[var(--color-text-muted)]">{req.desc}</p>
                           </div>
-                          <button onClick={() => { setWebsiteContent({ ...websiteContent, requirements: websiteContent.requirements.filter(r => r.id !== req.id) }); addToast('Requirement removed', 'success') }} className="icon-btn-ghost flex-shrink-0 hover:!text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { setWebsiteContent({ ...websiteContent, requirements: websiteContent.requirements.filter(r => r.id !== req.id) }); addToast('Requirement removed', 'success') }} className="icon-btn-ghost flex-shrink-0 hover:!text-[var(--color-error-text)]"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       ))}
                     </div>
@@ -2676,7 +2674,7 @@ export default function Settings() {
                             <p className="text-sm font-medium text-[var(--color-text-primary)]">{step.title}</p>
                             <p className="text-xs text-[var(--color-text-muted)]">{step.desc}</p>
                           </div>
-                          <button onClick={() => { setWebsiteContent({ ...websiteContent, steps: websiteContent.steps.filter(s => s.id !== step.id) }); addToast('Step removed', 'success') }} className="icon-btn-ghost flex-shrink-0 hover:!text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => { setWebsiteContent({ ...websiteContent, steps: websiteContent.steps.filter(s => s.id !== step.id) }); addToast('Step removed', 'success') }} className="icon-btn-ghost flex-shrink-0 hover:!text-[var(--color-error-text)]"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       ))}
                     </div>
@@ -2731,7 +2729,7 @@ export default function Settings() {
                           <div>
                             <div className="flex items-center gap-2 mb-1">
                               <h4 className="text-sm font-bold text-[var(--color-text-primary)]">{campus.name}</h4>
-                              <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider ${campus.isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>{campus.isActive ? 'Active' : 'Inactive'}</span>
+                              <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider ${campus.isActive ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>{campus.isActive ? 'Active' : 'Inactive'}</span>
                             </div>
                             <p className="text-xs text-[var(--color-text-muted)] font-mono">Key: {campus.key}</p>
                           </div>
@@ -2742,11 +2740,11 @@ export default function Settings() {
                         {campus.address && <p className="text-xs text-[var(--color-text-secondary)] flex items-center gap-1.5 mb-1"><MapPin className="w-3 h-3 text-[var(--color-text-muted)]" /> {campus.address}</p>}
                         {campus.contactNumber && <p className="text-xs text-[var(--color-text-muted)] mb-2">{campus.contactNumber} · {campus.email}</p>}
                         <div className="flex flex-wrap gap-1.5 mt-2">
-                          {campus.hasBasicEd !== false && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 flex items-center gap-1"><BookOpen className="w-2.5 h-2.5" /> Basic Ed</span>}
-                          {campus.hasCollege && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 flex items-center gap-1"><GraduationCap className="w-2.5 h-2.5" /> College</span>}
+                          {campus.hasBasicEd !== false && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-lg bg-[var(--color-success-light)] text-[var(--color-success-text)] flex items-center gap-1"><BookOpen className="w-2.5 h-2.5" /> Basic Ed</span>}
+                          {campus.hasCollege && <span className="px-2 py-0.5 text-[9px] font-semibold rounded-lg bg-[var(--color-info-light)] text-[var(--color-info-text)] flex items-center gap-1"><GraduationCap className="w-2.5 h-2.5" /> College</span>}
                           {(campus.collegePrograms || []).map(prog => <span key={prog} className="px-2 py-0.5 text-[9px] rounded-lg bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]">{prog}</span>)}
                         </div>
-                        {campus.workflowConfirmed === false && <p className="text-[9px] text-yellow-600 dark:text-yellow-400 mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Workflow not yet confirmed</p>}
+                        {campus.workflowConfirmed === false && <p className="text-[9px] text-[var(--color-warning-text)] mt-2 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Workflow not yet confirmed</p>}
                       </div>
                     ))}
                   </div>
@@ -2801,8 +2799,8 @@ export default function Settings() {
                     {campusForm.collegePrograms.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-3">
                         {campusForm.collegePrograms.map(prog => (
-                          <span key={prog} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg">
-                            {prog}<button onClick={() => setCampusForm({ ...campusForm, collegePrograms: campusForm.collegePrograms.filter(p => p !== prog) })} className="hover:text-red-500 transition ml-0.5"><X className="w-3 h-3" /></button>
+                          <span key={prog} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-[var(--color-info-light)] text-[var(--color-info-text)] rounded-lg">
+                            {prog}<button onClick={() => setCampusForm({ ...campusForm, collegePrograms: campusForm.collegePrograms.filter(p => p !== prog) })} className="hover:text-[var(--color-error-text)] transition ml-0.5"><X className="w-3 h-3" /></button>
                           </span>
                         ))}
                       </div>
@@ -3048,28 +3046,28 @@ export default function Settings() {
 
               {/* Receipt preview */}
               <div className="border border-dashed border-[var(--color-border)] rounded-xl p-5">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
                   <Receipt className="w-3.5 h-3.5" /> Receipt Preview
                 </p>
                 <div className="text-xs space-y-1.5 text-[var(--color-text-secondary)]">
                   <p className="font-bold text-sm text-[var(--color-text-primary)] text-center">{websiteContent.schoolName || 'School Name'}</p>
-                  <p className="text-center text-gray-400">{settingsCampusName || 'Campus'}</p>
+                  <p className="text-center text-[var(--color-text-muted)]">{settingsCampusName || 'Campus'}</p>
                   <div className="border-t border-[var(--color-border)] mt-2 pt-2">
-                    <div className="flex justify-between"><span className="text-gray-400">OR No.:</span><span className="font-mono">OR-2526-XXXX</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-gray-400">Student:</span><span>Juan Dela Cruz</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-gray-400">Amount:</span><span className="font-bold text-green-600">₱5,000.00</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--color-text-muted)]">OR No.:</span><span className="font-mono">OR-2526-XXXX</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-[var(--color-text-muted)]">Student:</span><span>Juan Dela Cruz</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-[var(--color-text-muted)]">Amount:</span><span className="font-bold text-[var(--color-success-text)]">₱5,000.00</span></div>
                   </div>
                   <div className="border-t border-dashed border-[var(--color-border)] pt-2 mt-2 flex justify-between">
                     <div className="text-center">
-                      <div className="border-t border-gray-300 pt-1 w-28">
+                      <div className="border-t border-[var(--color-border)] pt-1 w-28">
                         <p className="font-semibold text-[var(--color-text-primary)]">{cashierName || '— not set —'}</p>
-                        <p className="text-gray-400">Cashier</p>
+                        <p className="text-[var(--color-text-muted)]">Cashier</p>
                       </div>
                     </div>
                     <div className="text-center">
-                      <div className="border-t border-gray-300 pt-1 w-28">
-                        <p className="text-gray-400 italic">Received by</p>
-                        <p className="text-gray-400">Student/Parent</p>
+                      <div className="border-t border-[var(--color-border)] pt-1 w-28">
+                        <p className="text-[var(--color-text-muted)] italic">Received by</p>
+                        <p className="text-[var(--color-text-muted)]">Student/Parent</p>
                       </div>
                     </div>
                   </div>
@@ -3078,7 +3076,7 @@ export default function Settings() {
 
               {/* Save */}
               <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-4">
-                <p className="text-xs text-gray-400">Changes apply to all receipts printed from this account</p>
+                <p className="text-xs text-[var(--color-text-muted)]">Changes apply to all receipts printed from this account</p>
                 <button
                   onClick={() => {
                     try {
@@ -3127,7 +3125,7 @@ export default function Settings() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-blue-700 dark:text-blue-300">
+            <div className="flex items-center gap-2 p-3 bg-[var(--color-info-light)] border border-[var(--color-info-border)] rounded-xl text-xs text-[var(--color-info-text)]">
               <Info className="w-4 h-4 flex-shrink-0" />
               Templates are stored locally for now. When the backend is connected, they will be stored on the server and used automatically for all exports. Right now an uploaded template is filled in for SF2 and SF5; the other forms still export in the automatic format.
             </div>
@@ -3147,16 +3145,16 @@ export default function Settings() {
                           <h3 className="text-sm font-bold text-[var(--color-text-primary)]">{tmpl.label}</h3>
                           {tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] uppercase tracking-wider">Default</span>}
                           {existingShared && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] uppercase tracking-wider">Shared template</span>}
-                          {!tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 uppercase tracking-wider">Custom</span>}
+                          {!tmpl.isDefault && <span className="px-1.5 py-0.5 text-[8px] font-semibold rounded-full bg-[var(--color-info-light)] text-[var(--color-info-text)] uppercase tracking-wider">Custom</span>}
                         </div>
                         <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{tmpl.description}</p>
 
                         {existing ? (
-                          <div className="mt-3 flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
-                            <FileText className="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <div className="mt-3 flex items-center gap-3 p-3 bg-[var(--color-success-light)] border border-[var(--color-success-border)] rounded-lg">
+                            <FileText className="w-4 h-4 text-[var(--color-success-text)] flex-shrink-0" />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-green-700 dark:text-green-300 truncate">{existing.fileName}</p>
-                              <p className="text-[10px] text-green-600/70 dark:text-green-400/60">
+                              <p className="text-xs font-medium text-[var(--color-success-text)] truncate">{existing.fileName}</p>
+                              <p className="text-[10px] text-[var(--color-success-text)] opacity-70">
                                 {(existing.fileSize / 1024).toFixed(1)} KB · Uploaded {new Date(existing.uploadedAt).toLocaleDateString()} by {existing.uploadedBy}
                               </p>
                             </div>
@@ -3166,7 +3164,7 @@ export default function Settings() {
                                 <input type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleTemplateUpload(tmpl.id, e.target.files?.[0])} />
                               </label>
                               {!existingShared && (
-                                <button onClick={() => removeTemplate(tmpl.id)} className="px-2.5 py-1 text-[10px] font-medium rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                <button onClick={() => removeTemplate(tmpl.id)} className="px-2.5 py-1 text-[10px] font-medium rounded-lg text-[var(--color-error-text)] hover:bg-[var(--color-error-light)] transition">
                                   Remove
                                 </button>
                               )}
@@ -3184,7 +3182,7 @@ export default function Settings() {
                       </div>
                       {/* Delete button for custom forms only */}
                       {!tmpl.isDefault && !isSharedRow(tmpl) && (
-                        <button onClick={() => removeCustomFormType(tmpl.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-[var(--color-text-muted)] hover:text-red-500 transition" title="Remove this form type">
+                        <button onClick={() => removeCustomFormType(tmpl.id)} className="p-1.5 rounded-lg hover:bg-[var(--color-error-light)] text-[var(--color-text-muted)] hover:text-[var(--color-error-text)] transition" title="Remove this form type">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -3774,8 +3772,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                           <span className="text-[var(--color-text-secondary)]">{s.campus}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-success)]" />
                             Active
                           </span>
                         </td>
@@ -3798,7 +3796,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                           <span className="text-xs text-[var(--color-text-muted)]">{s.campus}</span>
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 flex-shrink-0">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--color-success-light)] text-[var(--color-success-text)] flex-shrink-0">
                         Active
                       </span>
                     </div>
@@ -3832,7 +3830,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                       {u.name}
                     </p>
                     {u.status !== 'active' && (
-                      <span className="text-xs px-1.5 py-0.5 bg-[var(--color-bg-subtle)] text-gray-500 rounded-full flex-shrink-0">Inactive</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)] rounded-full flex-shrink-0">Inactive</span>
                     )}
                   </div>
                   <p className="text-xs text-[var(--color-text-muted)] truncate mb-1.5">{u.email}</p>
@@ -3852,7 +3850,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
             </li>
           ))}
           {filtered.length === 0 && (
-            <li className="px-4 py-10 text-center text-sm text-gray-400">No users match your search.</li>
+            <li className="px-4 py-10 text-center text-sm text-[var(--color-text-muted)]">No users match your search.</li>
           )}
         </ul>
 
@@ -3879,7 +3877,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         u.status === 'active'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          ? 'bg-[var(--color-success-light)] text-[var(--color-success-text)]'
                           : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]'
                       }`}>
                         {u.status === 'active' ? 'Active' : 'Inactive'}
@@ -3894,7 +3892,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">No users match your search.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-[var(--color-text-muted)]">No users match your search.</td></tr>
                 )}
               </tbody>
             </table>
@@ -3933,7 +3931,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {/* Name */}
               <div>
                 <label className="form-label">
-                  Full Name <span className="text-red-500">*</span>
+                  Full Name <span className="text-[var(--color-error-text)]">*</span>
                 </label>
                 <input
                   type="text"
@@ -3941,15 +3939,15 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Maria Santos"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.name ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.name ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
-                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+                {errors.name && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.name}</p>}
               </div>
 
               {/* Email */}
               <div>
                 <label className="form-label">
-                  Email Address <span className="text-red-500">*</span>
+                  Email Address <span className="text-[var(--color-error-text)]">*</span>
                 </label>
                 <input
                   type="email"
@@ -3957,15 +3955,15 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   placeholder="e.g. registrar@school.edu.ph"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.email ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.email ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
-                {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+                {errors.email && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.email}</p>}
               </div>
 
               {/* Role */}
               <div>
                 <label className="form-label">
-                  Role <span className="text-red-500">*</span>
+                  Role <span className="text-[var(--color-error-text)]">*</span>
                 </label>
                 <GroupedSelect
                   value={form.role}
@@ -3981,7 +3979,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   allLabel="Select role…"
                   options={assignableRoles}
                 />
-                {errors.role && <p className="text-xs text-red-500 mt-1">{errors.role}</p>}
+                {errors.role && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.role}</p>}
                 {form.role && roleDefs[form.role] && (
                   <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
                     {roleDefs[form.role].description}
@@ -3993,7 +3991,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {needsCampus && (
                 <div>
                   <label className="form-label">
-                    Campus <span className="text-red-500">*</span>
+                    Campus <span className="text-[var(--color-error-text)]">*</span>
                   </label>
                   <GroupedSelect
                     value={form.campus}
@@ -4004,7 +4002,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                     allLabel="Select campus…"
                     options={activeCampusOptions}
                   />
-                  {errors.campus && <p className="text-xs text-red-500 mt-1">{errors.campus}</p>}
+                  {errors.campus && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.campus}</p>}
                 </div>
               )}
 
@@ -4012,7 +4010,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {canHaveClearanceDuties && (
                 <div>
                   <label className="form-label">
-                    Clearance sign-off duties <span className="text-gray-400 font-normal">(optional)</span>
+                    Clearance sign-off duties <span className="text-[var(--color-text-muted)] font-normal">(optional)</span>
                   </label>
                   <p className="text-xs text-[var(--color-text-muted)] mb-2">
                     One person, one account. Tick an item if this person also signs it on top of their role, for example a teacher who is also the guidance in-charge.
@@ -4073,7 +4071,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {canHaveModuleDuties && MODULE_DUTY_OPTIONS.length > 0 && (
                 <div>
                   <label className="form-label">
-                    Extra modules <span className="text-gray-400 font-normal">(optional)</span>
+                    Extra modules <span className="text-[var(--color-text-muted)] font-normal">(optional)</span>
                   </label>
                   <p className="text-xs text-[var(--color-text-muted)] mb-2">
                     One person, one account. Tick a module to give this person its page on top of their role, for example a teacher who is also the guidance in-charge.
@@ -4115,8 +4113,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
               {/* Password */}
               <div>
                 <label className="form-label">
-                  {editingUser ? 'New Password' : 'Password'} {!editingUser && <span className="text-red-500">*</span>}
-                  {editingUser && <span className="text-gray-400 font-normal"> (leave blank to keep current)</span>}
+                  {editingUser ? 'New Password' : 'Password'} {!editingUser && <span className="text-[var(--color-error-text)]">*</span>}
+                  {editingUser && <span className="text-[var(--color-text-muted)] font-normal"> (leave blank to keep current)</span>}
                 </label>
                 <input
                   type="password"
@@ -4124,16 +4122,16 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
                   placeholder="Minimum 6 characters"
                   className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                    ${errors.password ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                    ${errors.password ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                 />
-                {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
+                {errors.password && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.password}</p>}
               </div>
 
               {/* Confirm Password */}
               {(form.password || !editingUser) && (
                 <div>
                   <label className="form-label">
-                    Confirm Password {!editingUser && <span className="text-red-500">*</span>}
+                    Confirm Password {!editingUser && <span className="text-[var(--color-error-text)]">*</span>}
                   </label>
                   <input
                     type="password"
@@ -4141,9 +4139,9 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                     onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
                     placeholder="Re-enter password"
                     className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition
-                      ${errors.confirmPassword ? 'border-red-400' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
+                      ${errors.confirmPassword ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:border-[var(--color-primary-readable)] focus:ring-2 focus:ring-primary/20'}`}
                   />
-                  {errors.confirmPassword && <p className="text-xs text-red-500 mt-1">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.confirmPassword}</p>}
                 </div>
               )}
 
@@ -4153,7 +4151,7 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
 
                   {/* Deactivate / Reactivate — only when editing existing user */}
                   {editingUser && (
-                    <div className={`mb-4 p-3 rounded-xl border ${editingUser.status === 'active' ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10' : 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10'}`}>
+                    <div className={`mb-4 p-3 rounded-xl border ${editingUser.status === 'active' ? 'border-[var(--color-warning-border)] bg-[var(--color-warning-light)]' : 'border-[var(--color-success-border)] bg-[var(--color-success-light)]'}`}>
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm font-medium text-[var(--color-text-primary)]">Account Status</p>
@@ -4165,8 +4163,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                           onClick={() => { setShowModal(false); setShowDeactivateId(editingUser.id) }}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                             editingUser.status === 'active'
-                              ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200'
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200'
+                              ? 'bg-[var(--color-warning-light)] text-[var(--color-warning-text)] hover:bg-[var(--color-warning-border)]'
+                              : 'bg-[var(--color-success-light)] text-[var(--color-success-text)] hover:bg-[var(--color-success-border)]'
                           }`}
                         >
                           {editingUser.status === 'active' ? 'Deactivate Account' : 'Reactivate Account'}
@@ -4304,8 +4302,8 @@ function UsersTab({ users, setUsers, campuses, onSave, saved, currentUser, campu
                 </button>
                 <button
                   onClick={() => handleToggleStatus(showDeactivateId)}
-                  className={`flex-1 py-2.5 text-sm text-white rounded-xl transition font-semibold ${
-                    isActive ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'
+                  className={`flex-1 py-2.5 text-sm text-[var(--color-success-contrast)] rounded-xl transition font-semibold ${
+                    isActive ? 'bg-[var(--color-warning)] hover:bg-[var(--color-warning-hover)]' : 'bg-[var(--color-success)] hover:bg-[var(--color-success-hover)]'
                   }`}
                 >
                   {isActive ? 'Yes, Deactivate' : 'Yes, Reactivate'}
