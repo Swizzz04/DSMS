@@ -63,7 +63,31 @@ function getPeriodIdsForSchoolYear(schoolYear, campusKey) {
   return periods.map(p => p.id)
 }
 
-function normaliseStudent(s) {
+/**
+ * 'Male' / 'female' / 'M' / 'f' → 'M' or 'F' (the DepEd forms use the letter). '' when unknown.
+ * Enrollment records store the field as `gender`, the forms call it `sex`.
+ */
+export function normaliseSex(value) {
+  const t = String(value ?? '').trim().toLowerCase()
+  if (t === 'm' || t === 'male')   return 'M'
+  if (t === 'f' || t === 'female') return 'F'
+  return ''
+}
+
+/** Any stored birth date → 'YYYY-MM-DD' when it starts with one, otherwise the text as it is. */
+function normaliseBirthdate(value) {
+  const t = String(value ?? '').trim()
+  return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : t
+}
+
+/**
+ * One student shape for every form, whichever store the record came from:
+ *   - an enrollment submission (student.gender, student.birthDate, father.name ...)
+ *   - a record in the students store (gender, birthDate at the top level)
+ *   - an older flat record (sex, birthdate)
+ * Both spellings of each field are read, so a form never prints a blank for data that exists.
+ */
+export function normaliseStudent(s) {
   const first  = s.student?.firstName  || s.firstName  || ''
   const middle = s.student?.middleName || s.middleName || ''
   const last   = s.student?.lastName   || s.lastName   || ''
@@ -75,8 +99,13 @@ function normaliseStudent(s) {
     name:      full.trim(),
     firstName: first,
     lastName:  last,
-    sex:       s.student?.sex || s.sex || '',
-    birthdate: s.student?.birthdate || s.birthdate || '',
+    sex:       normaliseSex(s.student?.sex || s.student?.gender || s.sex || s.gender),
+    birthdate: normaliseBirthdate(s.student?.birthDate || s.student?.birthdate || s.birthDate || s.birthdate),
+    religion:  s.student?.religion || s.religion || '',
+    address:   s.student?.address  || s.address  || '',
+    contactNumber: s.student?.contactNumber || s.contactNumber || s.contact || '',
+    fatherName: s.father?.name || s.fatherName || '',
+    motherName: s.mother?.name || s.motherName || '',
     gradeLevel: s.academic?.gradeLevel || s.enrollment?.gradeLevel || s.gradeLevel || '',
     section:   s.academic?.section || s.enrollment?.section || s.section || '',
   }
