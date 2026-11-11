@@ -22,6 +22,7 @@ import { SortTh, Pager, useTablePaging } from '../components/DataTable'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { getSubjectLoadData } from '../utils/subjectLoadBridge'
 import { ensureStudentIds } from '../utils/enrollmentBridge'
+import { useChartTheme } from '../hooks/useChartTheme'
 
 // Lazy-loaded chart wrapper — only loads chart.js when stats section renders
 const LazyBar = lazy(() =>
@@ -51,7 +52,7 @@ const ChartFallback = () => <div className="flex items-center justify-center h-4
 const GROUP_STYLES = [
   { bg: 'bg-[var(--color-success)]', onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-success-light)]',   text: 'text-[var(--color-success-text)]',    chartKey: 'success'   },
   { bg: 'bg-[var(--color-info)]',    onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-info-light)]',      text: 'text-[var(--color-info-text)]',       chartKey: 'info'      },
-  { bg: 'bg-secondary',              onColor: 'text-[var(--color-secondary-contrast)]', light: 'bg-[var(--color-cat-indigo-bg)]', text: 'text-[var(--color-cat-indigo-text)]', chartKey: 'secondary' },
+  { bg: 'bg-secondary',              onColor: 'text-[var(--color-secondary-contrast)]', light: 'bg-[var(--color-cat-indigo-bg)]', text: 'text-[var(--color-cat-indigo-text)]', chartKey: 'violet'    },
   { bg: 'bg-[var(--color-warning)]', onColor: 'text-[var(--color-text-inverse)]', light: 'bg-[var(--color-cat-orange-bg)]',   text: 'text-[var(--color-cat-orange-text)]', chartKey: 'warning'   },
 ]
 
@@ -86,38 +87,7 @@ function buildBasicGroups(basicEdGroups) {
   }))
 }
 
-// Chart.js draws on a <canvas>, which cannot resolve CSS var() strings — it
-// needs real colour values. Read the live tokens from :root and re-read them
-// whenever the theme (class) or the brand colours (inline style) change.
-function readChartColors() {
-  const css = getComputedStyle(document.documentElement)
-  const v = (name) => css.getPropertyValue(name).trim() || 'currentColor'
-  return {
-    grid:      v('--color-border'),
-    tick:      v('--color-text-muted'),
-    primary:   v('--color-primary'),
-    secondary: v('--color-secondary'),
-    secondaryLight: v('--color-secondary-light'),
-    success:   v('--color-success'),
-    warning:   v('--color-warning'),
-    error:     v('--color-error'),
-    info:      v('--color-info'),
-  }
-}
-function useChartColors() {
-  const [colors, setColors] = useState(readChartColors)
-  useEffect(() => {
-    const refresh = () => setColors(prev => {
-      const next = readChartColors()
-      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next
-    })
-    const obs = new MutationObserver(refresh)
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
-    refresh()
-    return () => obs.disconnect()
-  }, [])
-  return colors
-}
+// Chart colours come from the shared chart theme (fixed palette, re-read on theme change).
 const makeChartOpts = (c) => ({
   responsive: true, maintainAspectRatio: false,
   plugins: { legend: { labels: { color: c.tick, font: { size: 11 } } } },
@@ -154,7 +124,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
   const gradeCount = BASIC_GROUPS.reduce((n, g) => n + g.grades.length, 0)
   const allGrades  = BASIC_GROUPS.flatMap(g => g.grades)
   const gradeRange = allGrades.length ? `${allGrades[0]} → ${allGrades[allGrades.length - 1]}` : ''
-  const chart = useChartColors()
+  const chart = useChartTheme()
   const chartOpts = makeChartOpts(chart)
   const pieOpts = makePieOpts(chart)
   const campusStudents    = allStudents.filter(s => s.academic.campus === campus.name && isBasicGrade(s.academic.gradeLevel))
@@ -182,7 +152,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
   }
   const enrollStatusData = {
     labels: ['Approved','Pending','Rejected'],
-    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderWidth: 0 }],
+    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderColor: chart.surface, borderWidth: 2 }],
   }
 
   return (
@@ -349,7 +319,7 @@ function CampusBasicEdBlock({ campus, allStudents, allEnrollments, currentSchool
 // ── Per-campus College block (mirrors registrar_college dashboard) ────
 function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchoolYear }) {
   const { isCollegeGrade, collegeYearLevels: YEAR_LEVELS } = useAppConfig()
-  const chart = useChartColors()
+  const chart = useChartTheme()
   const chartOpts = makeChartOpts(chart)
   const pieOpts = makePieOpts(chart)
   const programs          = campus.collegePrograms || []
@@ -384,11 +354,11 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
     // bg-light-secondary is a fixed neutral that is mid-gray in light mode and
     // near-white in dark mode, so its text must flip: card colour does exactly that.
     'bg-light-secondary': 'text-[var(--color-bg-card)]',
-    'bg-violet-600':      'text-[var(--color-text-inverse)]',
+    'bg-[var(--color-cat-violet-solid)]': 'text-[var(--color-text-inverse)]',
   }
   const progColors = PROG_COLORS.map(c => c.bg)
 
-  const yearColors = [chart.primary, chart.secondary, chart.secondaryLight, chart.info]
+  const yearColors = chart.series.slice(0, 4)
   const programBarData = {
     labels: programs,
     datasets: YEAR_LEVELS.map((yr, i) => ({
@@ -399,7 +369,7 @@ function CampusCollegeBlock({ campus, allStudents, allEnrollments, currentSchool
   }
   const enrollStatusData = {
     labels: ['Approved','Pending','Rejected'],
-    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderWidth: 0 }],
+    datasets: [{ data: [enrollStats.approved, enrollStats.pending, enrollStats.rejected], backgroundColor: [chart.success, chart.warning, chart.error], borderColor: chart.surface, borderWidth: 2 }],
   }
 
   if (programs.length === 0) return null

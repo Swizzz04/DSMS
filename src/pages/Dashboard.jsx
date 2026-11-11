@@ -38,6 +38,8 @@ import { useAuth } from '../context/AuthContext'
 import { useCampusFilter } from '../context/CampusFilterContext'
 import { useAppConfig } from '../context/AppConfigContext'
 import { exportMultipleSheets } from '../utils/exportToExcel'
+import { useChartTheme } from '../hooks/useChartTheme'
+import { CHART_SLOTS, seriesColor, campusColor } from '../utils/chartTheme'
 import { SkeletonDashboard, useToast, ToastContainer } from '../components/UIComponents'
 import {
   StatCard, CampusMiniCard, SectionPanel, CollectionRateBar,
@@ -54,33 +56,6 @@ ChartJS.register(
 // ── Load real data from localStorage bridge ──────────────────────
 function loadSubmissions() {
   try { return JSON.parse(localStorage.getItem('almirene_submissions') || '[]') } catch { return [] }
-}
-
-// ── Chart theme tokens ────────────────────────────────────────────
-// Reads the live CSS variables instead of hardcoding hex duplicates —
-// hardcoded mirrors of --color-border/--color-text-muted/etc. drift
-// silently whenever index.css's theme values change (this had already
-// happened: --color-text-muted and dark mode's --color-bg-card had
-// moved on without these being updated). Chart.js needs resolved
-// color strings, not CSS var() references, so we resolve them once
-// per render via getComputedStyle — same approach already used below
-// for primaryColor/secondaryColor.
-function chartTheme() {
-  const css = getComputedStyle(document.documentElement)
-  const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback
-  return {
-    gridClr:       v('--color-border', '#e8e8e4'),
-    tickClr:       v('--color-text-muted', '#8a8a8a'),
-    tooltipBg:     v('--color-bg-card', '#ffffff'),
-    tooltipBorder: v('--color-border', '#e8e8e4'),
-    tooltipTitle:  v('--color-text-primary', '#1a1a1a'),
-    tooltipBody:   v('--color-text-secondary', '#4a4a4a'),
-    successClr:    v('--color-success', '#16a34a'),
-    infoClr:       v('--color-info', '#2563eb'),
-    warningClr:    v('--color-warning', '#d97706'),
-    errorClr:      v('--color-error', '#dc2626'),
-    primaryClr:    v('--color-primary', '#F3F2EE'),
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -237,7 +212,9 @@ export default function Dashboard() {
   })
 
   // ── Chart config ──────────────────────────────────────────────
-  const { gridClr, tickClr, successClr, infoClr, warningClr, errorClr, primaryClr } = chartTheme()
+  // Fixed chart palette (not the school's brand colours); re-reads on theme change.
+  const chartClr = useChartTheme()
+  const { grid: gridClr, tick: tickClr, success: successClr, info: infoClr, warning: warningClr, error: errorClr, surface: surfaceClr } = chartClr
 
   const baseOpts = {
     responsive: true,
@@ -293,7 +270,8 @@ export default function Dashboard() {
     datasets: [{
       data: [enrApproved, enrPaymentReceived, enrPending, enrRejected],
       backgroundColor: [successClr, infoClr, warningClr, errorClr],
-      borderWidth: 0,
+      borderColor: surfaceClr,
+      borderWidth: 2,
       hoverOffset: 6
     }]
   }
@@ -301,8 +279,8 @@ export default function Dashboard() {
   const campusBarData = {
     labels: campusStats.map(c => campusShortName(c.name)),
     datasets: [
-      { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: infoClr, borderRadius: 4 },
-      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: primaryClr, borderRadius: 4 },
+      { label: 'Students',    data: campusStats.map(c => c.students),    backgroundColor: seriesColor(chartClr, CHART_SLOTS.basic), borderRadius: 4 },
+      { label: 'Enrollments', data: campusStats.map(c => c.enrollments), backgroundColor: seriesColor(chartClr, CHART_SLOTS.college), borderRadius: 4 },
     ]
   }
 
@@ -397,10 +375,10 @@ export default function Dashboard() {
 
           <div className="stat-card border-[var(--color-border)] animate-fade-in">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-green-500/10 rounded-lg flex items-center justify-center"><Shield className="w-5 h-5 text-green-600" /></div>
+              <div className="w-10 h-10 bg-[var(--color-success-light)] rounded-lg flex items-center justify-center"><Shield className="w-5 h-5 text-[var(--color-success-text)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">System Status</p>
-                <p className="text-xs text-green-600 font-medium">All systems operational</p>
+                <p className="text-xs text-[var(--color-success-text)] font-medium">All systems operational</p>
               </div>
             </div>
           </div>
@@ -462,7 +440,7 @@ export default function Dashboard() {
 
           <button onClick={() => window.location.href = '/e-class-record'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center"><ClipboardList className="w-5 h-5 text-amber-500" /></div>
+              <div className="w-10 h-10 bg-[var(--color-warning-light)] rounded-lg flex items-center justify-center"><ClipboardList className="w-5 h-5 text-[var(--color-warning-text)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">e-Class Record</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Enter and submit student grades</p>
@@ -472,7 +450,7 @@ export default function Dashboard() {
 
           <button onClick={() => window.location.href = '/teacher-forms'} className="stat-card text-left animate-fade-in hover:shadow-md transition">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-violet-500/10 rounded-lg flex items-center justify-center"><FileText className="w-5 h-5 text-violet-500" /></div>
+              <div className="w-10 h-10 bg-[var(--color-cat-violet-bg)] rounded-lg flex items-center justify-center"><FileText className="w-5 h-5 text-[var(--color-cat-violet-text)]" /></div>
               <div>
                 <p className="text-sm font-bold text-[var(--color-text-primary)]">Teacher Forms</p>
                 <p className="text-xs text-[var(--color-text-muted)]">Attendance, reports, and other forms</p>
@@ -509,12 +487,8 @@ export default function Dashboard() {
     )
   }
   if (user?.role === 'admin') {
-    // Use primary color for all campus indicators
-    const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#F3F2EE'
-    const secondaryColor = getComputedStyle(document.documentElement).getPropertyValue('--color-secondary').trim() || '#0B0B0C'
-    // Contrast-safe variant for border/text usage (see themeInitializer.js) — the
-    // raw primaryColor above is a fill color and can be too pale to see as a border.
-    const primaryReadable = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-readable').trim() || primaryColor
+    // Contrast-safe brand colour for the campus card accent border (UI chrome, not a chart colour).
+    const primaryReadable = getComputedStyle(document.documentElement).getPropertyValue('--color-primary-readable').trim()
 
     // Chart.js data — Students per campus (bar)
     const studentBarData = {
@@ -523,13 +497,13 @@ export default function Dashboard() {
         {
           label: 'Basic Ed',
           data: campusStats.map(c => c.basicStu),
-          backgroundColor: primaryColor,
+          backgroundColor: seriesColor(chartClr, CHART_SLOTS.basic),
           borderRadius: 6
         },
         {
           label: 'College',
           data: campusStats.map(c => c.collegeStu),
-          backgroundColor: secondaryColor,
+          backgroundColor: seriesColor(chartClr, CHART_SLOTS.college),
           borderRadius: 6
         },
       ]
@@ -540,8 +514,9 @@ export default function Dashboard() {
       labels: campusStats.map(c => c.name.replace(' City Campus', '').replace(' Campus', '')),
       datasets: [{
         data: campusStats.map(c => c.revenue),
-        backgroundColor: campusStats.map(c => primaryColor),
-        borderWidth: 0,
+        backgroundColor: campusStats.map(c => campusColor(chartClr, c.key, activeCampuses)),
+        borderColor: surfaceClr,
+        borderWidth: 2,
         hoverOffset: 8
       }]
     }
@@ -552,24 +527,22 @@ export default function Dashboard() {
       datasets: [{
         label: 'Enrollments',
         data: campusStats.map(c => c.enrollments),
-        backgroundColor: campusStats.map(c => primaryColor),
+        backgroundColor: campusStats.map(c => campusColor(chartClr, c.key, activeCampuses)),
         borderRadius: 6
       }]
     }
 
+    // Themed like the other dashboards: tick / legend / grid colours follow light and dark.
     const barOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11 } } } },
-      scales: { y: { beginAtZero: true, ticks: { font: { size: 11 } }, grid: { color: 'rgba(0,0,0,.04)' } }, x: { ticks: { font: { size: 11 } }, grid: { display: false } } }
+      ...baseOpts,
+      plugins: {
+        ...baseOpts.plugins,
+        legend: { position: 'bottom', labels: { ...baseOpts.plugins.legend.labels, usePointStyle: true, padding: 16 } },
+      },
+      scales: { ...baseOpts.scales, x: { ...baseOpts.scales.x, grid: { display: false } } },
     }
 
-    const doughnutOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11 } } } },
-      cutout: '65%'
-    }
+    const doughnutOptions = { ...pieOpts, cutout: '65%' }
 
     return (
       <div className="page-enter space-y-5">
@@ -586,7 +559,7 @@ export default function Dashboard() {
           <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-info)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Students</span>
-              <Users className="w-5 h-5 text-blue-500" />
+              <Users className="w-5 h-5 text-[var(--color-info-text)]" />
             </div>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stuTotal}</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Across {campusStats.length} campuses</p>
@@ -595,7 +568,7 @@ export default function Dashboard() {
           <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-success)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Total Income</span>
-              <DollarSign className="w-5 h-5 text-green-500" />
+              <DollarSign className="w-5 h-5 text-[var(--color-success-text)]" />
             </div>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{php(payRevenue)}</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Collection rate: {collectionRate}%</p>
@@ -613,7 +586,7 @@ export default function Dashboard() {
           <div className="stat-card animate-fade-in" style={{ borderLeftColor: 'var(--color-secondary-readable)' }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-[var(--color-text-muted)]">Outstanding Balance</span>
-              <AlertCircle className="w-5 h-5 text-amber-500" />
+              <AlertCircle className="w-5 h-5 text-[var(--color-warning-text)]" />
             </div>
             <p className="text-2xl font-bold text-[var(--color-text-primary)]">{php(payOutstanding)}</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-1">Uncollected</p>
@@ -630,8 +603,8 @@ export default function Dashboard() {
                 <div><span className="text-[var(--color-text-muted)]">Enrollments</span><p className="font-bold text-[var(--color-text-primary)] text-base">{c.enrollments}</p></div>
                 <div><span className="text-[var(--color-text-muted)]">Basic Ed</span><p className="font-semibold text-[var(--color-text-primary)]">{c.basicStu}</p></div>
                 <div><span className="text-[var(--color-text-muted)]">College</span><p className="font-semibold text-[var(--color-text-primary)]">{c.collegeStu}</p></div>
-                <div><span className="text-[var(--color-text-muted)]">Income</span><p className="font-semibold text-green-600">{php(c.revenue)}</p></div>
-                <div><span className="text-[var(--color-text-muted)]">Balance</span><p className="font-semibold text-amber-600">{php(c.outstanding)}</p></div>
+                <div><span className="text-[var(--color-text-muted)]">Income</span><p className="font-semibold text-[var(--color-success-text)]">{php(c.revenue)}</p></div>
+                <div><span className="text-[var(--color-text-muted)]">Balance</span><p className="font-semibold text-[var(--color-warning-text)]">{php(c.outstanding)}</p></div>
               </div>
             </div>
           ))}
@@ -714,7 +687,7 @@ export default function Dashboard() {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Total Students
             </p>
-            <Users className="w-4 h-4 text-blue-500 opacity-80" />
+            <Users className="w-4 h-4 text-[var(--color-info-text)] opacity-80" />
           </div>
           <p className="text-2xl font-bold text-[var(--color-text-primary)]">
             {stuTotal.toLocaleString()}
@@ -745,9 +718,9 @@ export default function Dashboard() {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Total Revenue
             </p>
-            <TrendingUp className="w-4 h-4 text-[var(--color-success)] opacity-80" />
+            <TrendingUp className="w-4 h-4 text-[var(--color-success-text)] opacity-80" />
           </div>
-          <p className="text-2xl font-bold text-[var(--color-success)]">
+          <p className="text-2xl font-bold text-[var(--color-success-text)]">
             {php(payRevenue)}
           </p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">
@@ -764,9 +737,9 @@ export default function Dashboard() {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Outstanding
             </p>
-            <AlertCircle className={`w-4 h-4 opacity-80 ${payOverdue > 0 ? 'text-[var(--color-error)]' : 'text-[var(--color-text-muted)]'}`} />
+            <AlertCircle className={`w-4 h-4 opacity-80 ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-muted)]'}`} />
           </div>
-          <p className={`text-2xl font-bold ${payOutstanding > 0 ? 'text-[var(--color-error)]' : 'text-[var(--color-text-primary)]'}`}>
+          <p className={`text-2xl font-bold ${payOutstanding > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-primary)]'}`}>
             {php(payOutstanding)}
           </p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">
@@ -785,7 +758,7 @@ export default function Dashboard() {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Overdue Accounts
             </p>
-            <Clock className={`w-4 h-4 opacity-80 ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success)]'}`} />
+            <Clock className={`w-4 h-4 opacity-80 ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-success-text)]'}`} />
           </div>
           <p className={`text-2xl font-bold ${payOverdue > 0 ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-primary)]'}`}>
             {payOverdue.toLocaleString()}
@@ -836,7 +809,7 @@ export default function Dashboard() {
         {!isAccounting ? (
           <div className="card p-5 lg:col-span-2">
             <div className="flex items-center gap-2 mb-1">
-              <Users className="w-4 h-4 text-blue-500" />
+              <Users className="w-4 h-4 text-[var(--color-info-text)]" />
               <h3 className="text-subheading text-[var(--color-text-primary)]">
                 Students &amp; Enrollments by Campus
               </h3>
@@ -849,7 +822,7 @@ export default function Dashboard() {
         ) : (
           <div className="card p-5 lg:col-span-2">
             <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-[var(--color-success)]" />
+              <DollarSign className="w-4 h-4 text-[var(--color-success-text)]" />
               <h3 className="text-subheading text-[var(--color-text-primary)]">
                 Revenue vs Outstanding
               </h3>
@@ -897,25 +870,25 @@ export default function Dashboard() {
                 label: 'Total',
                 val:   enrTotal,
                 color: 'text-[var(--color-text-primary)]',
-                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]'
+                bg:    'bg-[var(--color-bg-subtle)]'
               },
               {
                 label: 'Awaiting Payment',
                 val:   enrPending,
-                color: 'text-[var(--color-warning)]',
-                bg:    'bg-[var(--color-warning-light)] dark:bg-yellow-900/20'
+                color: 'text-[var(--color-warning-text)]',
+                bg:    'bg-[var(--color-warning-light)]'
               },
               {
                 label: 'Payment Received',
                 val:   enrPaymentReceived,
-                color: 'text-[var(--color-info)]',
-                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20'
+                color: 'text-[var(--color-info-text)]',
+                bg:    'bg-[var(--color-info-light)]'
               },
               {
                 label: 'Approved',
                 val:   enrApproved,
-                color: 'text-[var(--color-success)]',
-                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20'
+                color: 'text-[var(--color-success-text)]',
+                bg:    'bg-[var(--color-success-light)]'
               },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-[var(--radius-lg)] p-3 text-center`}>
@@ -930,18 +903,18 @@ export default function Dashboard() {
             {[
               {
                 label: 'Basic Education',
-                icon:  <BookOpen className="w-4 h-4 text-[var(--color-success)]" />,
+                icon:  <BookOpen className="w-4 h-4 text-[var(--color-success-text)]" />,
                 enr:   basicEnr
               },
               {
                 label: 'College',
-                icon:  <GraduationCap className="w-4 h-4 text-[var(--color-info)]" />,
+                icon:  <GraduationCap className="w-4 h-4 text-[var(--color-info-text)]" />,
                 enr:   collegeEnr
               },
             ].map(d => (
               <div
                 key={d.label}
-                className="bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4"
+                className="bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4"
               >
                 <div className="flex items-center gap-2 mb-3">
                   {d.icon}
@@ -953,9 +926,9 @@ export default function Dashboard() {
                   </span>
                 </div>
                 {[
-                  { label: 'Pending',  val: d.enr.filter(e => e.status === 'pending').length,  cls: 'text-[var(--color-warning)]' },
-                  { label: 'Approved', val: d.enr.filter(e => e.status === 'approved').length, cls: 'text-[var(--color-success)]' },
-                  { label: 'Rejected', val: d.enr.filter(e => e.status === 'rejected').length, cls: 'text-[var(--color-error)]'   },
+                  { label: 'Pending',  val: d.enr.filter(e => e.status === 'pending').length,  cls: 'text-[var(--color-warning-text)]' },
+                  { label: 'Approved', val: d.enr.filter(e => e.status === 'approved').length, cls: 'text-[var(--color-success-text)]' },
+                  { label: 'Rejected', val: d.enr.filter(e => e.status === 'rejected').length, cls: 'text-[var(--color-error-text)]'   },
                 ].map(r => (
                   <div key={r.label} className="flex items-center justify-between text-xs py-0.5">
                     <span className="text-[var(--color-text-muted)]">{r.label}</span>
@@ -984,21 +957,21 @@ export default function Dashboard() {
         <SectionPanel
           title="Students Summary"
           icon={<Users className="w-4 h-4" />}
-          colorCls="text-[var(--color-info)] dark:text-blue-400 bg-[var(--color-info-light)] dark:bg-blue-900/10"
+          colorCls="text-[var(--color-info-text)] bg-[var(--color-info-light)]"
           pills={[`${stuTotal} total`]}
         >
           {/* Overview tiles */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            <div className="bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4 text-center">
+            <div className="bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4 text-center">
               <p className="text-3xl font-bold text-[var(--color-text-primary)]">{stuTotal}</p>
               <p className="text-caption text-[var(--color-text-muted)] mt-1">Total Students</p>
             </div>
-            <div className="bg-[var(--color-success-light)] dark:bg-emerald-900/20 rounded-[var(--radius-lg)] p-4 text-center">
-              <p className="text-3xl font-bold text-[var(--color-success)]">{basicStu.length}</p>
+            <div className="bg-[var(--color-success-light)] rounded-[var(--radius-lg)] p-4 text-center">
+              <p className="text-3xl font-bold text-[var(--color-success-text)]">{basicStu.length}</p>
               <p className="text-caption text-[var(--color-text-muted)] mt-1">Basic Education</p>
             </div>
-            <div className="bg-[var(--color-info-light)] dark:bg-blue-900/20 rounded-[var(--radius-lg)] p-4 text-center">
-              <p className="text-3xl font-bold text-[var(--color-info)]">{collegeStu.length}</p>
+            <div className="bg-[var(--color-info-light)] rounded-[var(--radius-lg)] p-4 text-center">
+              <p className="text-3xl font-bold text-[var(--color-info-text)]">{collegeStu.length}</p>
               <p className="text-caption text-[var(--color-text-muted)] mt-1">College</p>
             </div>
           </div>
@@ -1012,7 +985,7 @@ export default function Dashboard() {
         <SectionPanel
           title="Payments Summary"
           icon={<DollarSign className="w-4 h-4" />}
-          colorCls="text-[var(--color-success)] dark:text-green-400 bg-[var(--color-success-light)] dark:bg-green-900/10"
+          colorCls="text-[var(--color-success-text)] bg-[var(--color-success-light)]"
           pills={[
             `${collectionRate}% collected`,
             payOverdue > 0 && `${payOverdue} overdue`,
@@ -1025,25 +998,25 @@ export default function Dashboard() {
                 label: 'Expected',
                 val:   php(payTotalFee),
                 color: 'text-[var(--color-text-primary)]',
-                bg:    'bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)]'
+                bg:    'bg-[var(--color-bg-subtle)]'
               },
               {
                 label: 'Collected',
                 val:   php(payRevenue),
-                color: 'text-[var(--color-success)]',
-                bg:    'bg-[var(--color-success-light)] dark:bg-green-900/20'
+                color: 'text-[var(--color-success-text)]',
+                bg:    'bg-[var(--color-success-light)]'
               },
               {
                 label: 'Outstanding',
                 val:   php(payOutstanding),
-                color: 'text-[var(--color-error)]',
-                bg:    'bg-[var(--color-error-light)] dark:bg-red-900/20'
+                color: 'text-[var(--color-error-text)]',
+                bg:    'bg-[var(--color-error-light)]'
               },
               {
                 label: 'Fully Paid',
                 val:   `${payPaid}`,
-                color: 'text-[var(--color-info)]',
-                bg:    'bg-[var(--color-info-light)] dark:bg-blue-900/20'
+                color: 'text-[var(--color-info-text)]',
+                bg:    'bg-[var(--color-info-light)]'
               },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-[var(--radius-lg)] p-3 text-center`}>
@@ -1060,7 +1033,7 @@ export default function Dashboard() {
           />
 
           {/* Revenue chart */}
-          <div className="bg-[var(--color-bg-subtle)] dark:bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4 mt-4">
+          <div className="bg-[var(--color-bg-subtle)] rounded-[var(--radius-lg)] p-4 mt-4">
             <p className="text-small font-semibold text-[var(--color-text-primary)] mb-3">
               Revenue by Campus
             </p>
@@ -1145,7 +1118,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
   const pct = (n) => stats.total > 0 ? Math.round((n / stats.total) * 100) : 0
 
   // Brand accents per registrar type
-  const accentText   = isBasicReg ? 'text-[var(--color-success)]' : 'text-[var(--color-primary-readable)]'
+  const accentText   = isBasicReg ? 'text-[var(--color-success-text)]' : 'text-[var(--color-primary-readable)]'
   const borderLeft   = isBasicReg ? 'var(--color-success)' : 'var(--color-primary-readable)'
 
   return (
@@ -1180,7 +1153,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Awaiting Payment
             </p>
-            <Clock className="w-4 h-4 text-[var(--color-warning)] opacity-80" />
+            <Clock className="w-4 h-4 text-[var(--color-warning-text)] opacity-80" />
           </div>
           <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stats.pending}</p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">{pct(stats.pending)}% of total</p>
@@ -1191,7 +1164,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Payment Received
             </p>
-            <DollarSign className="w-4 h-4 text-[var(--color-info)] opacity-80" />
+            <DollarSign className="w-4 h-4 text-[var(--color-info-text)] opacity-80" />
           </div>
           <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stats.payment_received}</p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">Ready for approval</p>
@@ -1202,7 +1175,7 @@ function RegistrarDashboard({ user, currentSchoolYear, isBasicReg }) {
             <p className="text-caption font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
               Approved
             </p>
-            <CheckCircle className="w-4 h-4 text-[var(--color-success)] opacity-80" />
+            <CheckCircle className="w-4 h-4 text-[var(--color-success-text)] opacity-80" />
           </div>
           <p className="text-2xl font-bold text-[var(--color-text-primary)]">{stats.approved}</p>
           <p className="text-caption text-[var(--color-text-muted)] mt-1">{pct(stats.approved)}% approval rate</p>
