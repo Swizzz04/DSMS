@@ -149,6 +149,7 @@ button, a, [role="button"] {
   --color-error-hover:      #b91c1c;
   --color-success-hover:    #15803d;
   --color-info-hover:       #1d4ed8;
+  --color-warning-hover:    #b45309;
 
   /* ── Modal scrim (dark mode raises it, see .dark) ─────────────── */
   --color-overlay:          rgba(0, 0, 0, 0.5);

@@ -17,6 +17,15 @@
  */
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import OfflineState from './OfflineState'
+
+// A page chunk that could not be fetched (network down, or a new deploy removed
+// the old file). Message wording differs per browser.
+const CHUNK_ERROR =
+  /Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed|ChunkLoadError|Load failed/i
+
+const isLoadFailure = (error) =>
+  CHUNK_ERROR.test(String(error?.message || error || ''))
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -43,6 +52,11 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (!this.state.error) return this.props.children
+
+    // Could not download the page because the device is offline
+    if (isLoadFailure(this.state.error) && !navigator.onLine) {
+      return <OfflineState />
+    }
 
     return (
       <div className="page-enter flex items-center justify-center py-10 px-4">

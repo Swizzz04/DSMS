@@ -3,7 +3,7 @@ import {
   BarChart2, TrendingUp, Download, Calendar, DollarSign,
   Users, CheckCircle, Clock, ChevronDown, BookOpen,
   GraduationCap, ArrowUpRight, FileText, Filter, Search,
-  Eye, Printer, X, Receipt, Tag, CreditCard, History
+  Eye, Printer, X, Receipt, Tag, CreditCard, History, AlertCircle
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -16,7 +16,8 @@ import { printReceiptHtml } from '../utils/printReceipt'
 import DatePicker from '../components/DatePicker'
 import { Pager, useTablePaging } from '../components/DataTable'
 import { getRequests } from '../utils/documentBridge'
-import { getCampusScope } from '../config/appConfig'
+import { getCampusScope, getSubmissionDueDate, todayYMD } from '../config/appConfig'
+import { summarizePaid, summarizeOverdue, buildAccounts, gradeBreakdown, collectedByMethod } from '../utils/reportStats'
 
 // ─────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -490,10 +491,10 @@ function GradeBreakdownTable({ rows }) {
   return (
     <div className="min-w-0">
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[400px]">
+      <table className="w-full min-w-[480px]">
         <thead className="bg-[var(--color-bg-subtle)]">
           <tr>
-            {['Grade / Program', 'Students', 'Fully Paid', 'Partial', 'Collected'].map(h => (
+            {['Grade / Program', 'Students', 'Fully Paid', 'Partial', 'Overdue', 'Collected'].map(h => (
               <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wide">
                 {h}
               </th>
@@ -507,6 +508,7 @@ function GradeBreakdownTable({ rows }) {
               <td className="px-4 py-3 text-sm text-[var(--color-text-secondary)]">{r.students}</td>
               <td className="px-4 py-3 text-sm text-[var(--color-success-text)] font-medium">{r.paid}</td>
               <td className="px-4 py-3 text-sm text-[var(--color-warning-text)]">{r.partial}</td>
+              <td className="px-4 py-3 text-sm text-[var(--color-error-text)]">{r.overdue}</td>
               <td className="px-4 py-3 text-sm font-semibold text-[var(--color-success-text)]">{php(r.collected)}</td>
             </tr>
           ))}
@@ -516,6 +518,7 @@ function GradeBreakdownTable({ rows }) {
             <td className="px-4 py-3 text-sm text-[var(--color-text-primary)]">{rows.reduce((s,r)=>s+r.students,0)}</td>
             <td className="px-4 py-3 text-sm text-[var(--color-success-text)]">{rows.reduce((s,r)=>s+r.paid,0)}</td>
             <td className="px-4 py-3 text-sm text-[var(--color-warning-text)]">{rows.reduce((s,r)=>s+r.partial,0)}</td>
+            <td className="px-4 py-3 text-sm text-[var(--color-error-text)]">{rows.reduce((s,r)=>s+r.overdue,0)}</td>
             <td className="px-4 py-3 text-sm text-[var(--color-success-text)]">{php(rows.reduce((s,r)=>s+r.collected,0))}</td>
           </tr>
         </tbody>
@@ -579,7 +582,7 @@ function MethodBreakdown({ transactions }) {
 // ─────────────────────────────────────────────────────────────────────
 export default function Reports() {
   const { user } = useAuth()
-  const { activeCampuses, getSchoolYearLabel, feeStructure, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels } = useAppConfig()
+  const { activeCampuses, getSchoolYearLabel, feeStructure, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels, getSchoolYearsForCampusName } = useAppConfig()
   const schoolName = getSchoolName()
 
   // Cashier name — campus-scoped (from accounting's settings)
@@ -725,17 +728,26 @@ export default function Reports() {
     resetOn: [txSearch, period, customStart, customEnd, feeTypeFilter],
   })
 
-  // Stats for the filtered period
+  // Stats for the filtered period. Every card and the grade table below use the same
+  // basis ("students who paid in the period"), see utils/reportStats.js.
   const totalCollected  = filteredTxs.reduce((s, tx) => s + (tx.amount || 0), 0)
-  const uniqueStudents  = new Set(filteredTxs.map(tx => tx.refNum)).size
-  // Fully paid = students in THIS filtered set whose balance is cleared, so
-  // paid + partial always adds up to the students shown (it used to ignore the fee filter).
-  const fullyPaid       = new Set(
-    filteredTxs.filter(tx => tx.totalFee > 0 && tx.balance <= 0).map(tx => tx.refNum)
-  ).size
-  const partialPaid     = uniqueStudents - fullyPaid
-  const cashTotal       = filteredTxs.filter(t => t.method === 'Cash').reduce((s,t)=>s+(t.amount||0),0)
-  const bankTotal       = filteredTxs.filter(t => t.method !== 'Cash' && t.method).reduce((s,t)=>s+(t.amount||0),0)
+  const paidStats       = summarizePaid(filteredTxs)
+  const uniqueStudents  = paidStats.students
+  const fullyPaid       = paidStats.fullyPaid
+  const partialPaid     = paidStats.partial
+  // One row per payment method actually used (Cash first), never a fixed "Bank Transfer" bucket
+  const methodTotals    = collectedByMethod(filteredTxs)
+
+  // Overdue accounts do not depend on the period: balance left and due date passed
+  const accounts = useMemo(
+    () => buildAccounts(
+      allPayments,
+      sub => getSubmissionDueDate(sub, { getSchoolYearsFor: getSchoolYearsForCampusName, isCollegeGrade }),
+      todayYMD()
+    ),
+    [allPayments, getSchoolYearsForCampusName, isCollegeGrade]
+  )
+  const overdueStats = summarizeOverdue(accounts)
 
   // Document fees in the selected period
   const docTxs   = useMemo(() => filterByPeriod(docPayments, period, customStart, customEnd), [docPayments, period, customStart, customEnd])
@@ -780,33 +792,13 @@ export default function Reports() {
     setGradeFilter('all')
   }
 
-  // Grade level breakdown — respects dept + grade filters
-  const gradeRows = useMemo(() => {
-    const map = {}
-    allPayments.forEach(sub => {
-      const grade = sub.enrollment?.gradeLevel || 'Unknown'
-      // Dept filter
-      if (deptFilter === 'basic_ed' && !isBasicGrade(grade)) return
-      if (deptFilter === 'college'  && !isCollegeGrade(grade)) return
-      // Grade filter
-      if (gradeFilter !== 'all' && grade !== gradeFilter) return
-
-      if (!map[grade]) map[grade] = { students: 0, paid: 0, partial: 0, collected: 0, outstanding: 0 }
-      const r = map[grade]
-      r.students++
-      const paidInPeriod = filterByPeriod(
-        sub.paymentHistory || (sub.amountPaid > 0 ? [{ amount: sub.amountPaid, date: sub.lastPaymentDate || sub.submittedDate }] : []),
-        period, customStart, customEnd
-      ).reduce((s, h) => s + (h.amount || 0), 0)
-      r.collected   += paidInPeriod
-      r.outstanding += sub.balance || 0
-      if (sub.balance <= 0) r.paid++; else r.partial++
-    })
-    return Object.entries(map)
-      .map(([label, d]) => ({ label, ...d }))
-      .filter(r => r.collected > 0 || r.outstanding > 0)
-      .sort((a, b) => b.collected - a.collected)
-  }, [allPayments, period, customStart, customEnd, deptFilter, gradeFilter, isBasicGrade, isCollegeGrade])
+  // Grade level breakdown: same transactions as the cards, plus the dept + grade filters
+  const gradeRows = useMemo(() => gradeBreakdown(filteredTxs, accounts, grade => {
+    if (deptFilter === 'basic_ed' && !isBasicGrade(grade)) return false
+    if (deptFilter === 'college'  && !isCollegeGrade(grade)) return false
+    if (gradeFilter !== 'all' && grade !== gradeFilter) return false
+    return true
+  }), [filteredTxs, accounts, deptFilter, gradeFilter, isBasicGrade, isCollegeGrade])
 
   // Export
   const handleExport = () => {
@@ -818,8 +810,10 @@ export default function Reports() {
       'Students':          uniqueStudents,
       'Fully Paid':        fullyPaid,
       'Partial':           partialPaid,
-      'Cash':              cashTotal,
-      'Bank Transfer':     bankTotal,
+      // One column per payment method actually used in the period
+      ...Object.fromEntries(methodTotals.map(m => [`${m.method} collected`, m.total])),
+      'Overdue Accounts':  overdueStats.count,
+      'Overdue Balance':   overdueStats.outstanding,
       'Document Fees (separate)': docTotal
     }]
 
@@ -847,15 +841,29 @@ export default function Reports() {
       'Students':      r.students,
       'Fully Paid':    r.paid,
       'Partial':       r.partial,
+      'Overdue':       r.overdue,
       'Collected':     r.collected
 
     }))
+
+    const overdueData = accounts
+      .filter(a => a.status === 'overdue')
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+      .map(a => ({
+        'Student Name':  a.name,
+        'Grade/Program': a.grade,
+        'Campus':        a.campus,
+        'Balance':       a.balance,
+        'Due Date':      fmtDate(a.dueDate),
+        'Days Overdue':  a.daysOverdue,
+      }))
 
     exportMultipleSheets([
       { data: summaryData,   sheetName: 'Summary'     },
       { data: breakdownData, sheetName: 'By Grade'    },
       { data: txData,        sheetName: 'Transactions' },
       { data: docData,       sheetName: 'Document Fees' },
+      ...(overdueData.length ? [{ data: overdueData, sheetName: 'Overdue Accounts' }] : []),
     ], `ALMIRENE_Income_Report_${period}_${new Date().toISOString().split('T')[0]}`)
     addToast('Income report exported!', 'success')
   }
@@ -929,7 +937,7 @@ export default function Reports() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <StatCard label="Total Collected" value={php(totalCollected)}
           sub={`${filteredTxs.length} transaction${filteredTxs.length !== 1 ? 's' : ''}`}
           icon={<TrendingUp className="w-5 h-5 text-[var(--color-success-text)]"/>}
@@ -946,6 +954,15 @@ export default function Reports() {
           sub="balance still due"
           icon={<Clock className="w-5 h-5 text-[var(--color-warning-text)]"/>}
           border="border-[var(--color-warning)]" cls="text-[var(--color-warning-text)]"/>
+        {/* Not tied to the period: balance left and due date passed (same rule as Payments) */}
+        <div className="col-span-2 lg:col-span-1">
+          <StatCard label="Overdue Accounts" value={overdueStats.count}
+            sub={overdueStats.count > 0
+              ? `${php(overdueStats.outstanding)} owed · oldest ${overdueStats.oldestDays}d`
+              : 'none past due date'}
+            icon={<AlertCircle className="w-5 h-5 text-[var(--color-error-text)]"/>}
+            border="border-[var(--color-error)]" cls="text-[var(--color-error-text)]"/>
+        </div>
       </div>
 
       {/* Document fees — separate from enrollment income */}
@@ -1083,9 +1100,12 @@ export default function Reports() {
             </div>
             <div className="space-y-3">
               {[
-                { label: 'Cash collected',         val: php(cashTotal),    cls: 'text-[var(--color-success-text)]' },
-                { label: 'Bank Transfer collected', val: php(bankTotal),   cls: 'text-[var(--color-info-text)]' },
-                { label: 'Total collected',         val: php(totalCollected), cls: 'text-[var(--color-text-primary)] font-bold text-base' },
+                ...methodTotals.map(m => ({
+                  label: `${m.method} collected`,
+                  val:   php(m.total),
+                  cls:   m.method === 'Cash' ? 'text-[var(--color-success-text)]' : 'text-[var(--color-info-text)]',
+                })),
+                { label: 'Total collected', val: php(totalCollected), cls: 'text-[var(--color-text-primary)] font-bold text-base' },
               ].map(({ label, val, cls }) => (
                 <div key={label} className="flex justify-between items-center">
                   <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
