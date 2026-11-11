@@ -1659,7 +1659,7 @@ export default function DocumentRequests() {
               <Filter size={14} />
               Filters
               {activeFilterCount > 0 && (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-alert)] text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-alert)] text-[var(--color-alert-contrast)] text-[10px] font-bold flex items-center justify-center">
                   {activeFilterCount}
                 </span>
               )}

@@ -239,7 +239,7 @@ function SignoffRow({ slot, Icon, nested, canSign, waitText, signLabel, onSign, 
     >
       {!nested && (
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
-          ${cleared ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+          ${cleared ? 'bg-[var(--color-success)] text-[var(--color-success-contrast)]' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
           <Icon size={15} />
         </div>
       )}
@@ -471,7 +471,7 @@ function ClearanceDrawer({ clearance, campusName, currentUser, openCaseCount = 0
                         : 'bg-[var(--color-bg-page)] border-[var(--color-border)]'}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
-                          ${done ? 'bg-[var(--color-success)] text-white' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
+                          ${done ? 'bg-[var(--color-success)] text-[var(--color-success-contrast)]' : 'bg-[var(--color-bg-subtle)] text-[var(--color-text-muted)]'}`}>
                           <Icon size={15} />
                         </div>
                         <p className={`flex-1 text-sm font-semibold ${done ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
