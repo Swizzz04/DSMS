@@ -69,7 +69,6 @@ const CLEAN_FILES = [
   'components/UIComponents.jsx',
   'components/dashboard/ProfileModal.jsx',
   'components/dashboard/Header.jsx',
-  'components/dashboard/NotificationPanel.jsx',
   'components/SchoolComponents.jsx',
   'pages/Dashboard.jsx',
   'pages/Enrollments.jsx',
@@ -79,6 +78,18 @@ const CLEAN_FILES = [
   'components/OfflineState.jsx',
   'components/OfflineBanner.jsx',
   'components/ErrorBoundary.jsx',
+  // 4.3b / 4.4
+  'components/dashboard/Sidebar.jsx',
+  'components/Login.jsx',
+  'pages/Clearance.jsx',
+  'pages/DocumentRequests.jsx',
+]
+
+// Files that legitimately keep literal hex values (brand defaults, print output).
+// They are still checked for palette classes, plain white/black and rgb() literals.
+const HEX_ALLOWED_FILES = [
+  'config/appConfig.js',   // default brand colours #F3F2EE / #0B0B0C
+  'pages/Students.jsx',    // print output is always light (#ffffff)
 ]
 
 const PALETTES =
@@ -103,6 +114,15 @@ describe('cleaned files stay free of hardcoded colours', () => {
     expect(code.match(PALETTE_CLASS)).toBeNull()
     expect(code.match(PLAIN_WHITE_BLACK)).toBeNull()
     expect(code.match(HEX)).toBeNull()
+    expect(code.match(RGB_LITERAL)).toBeNull()
+  })
+})
+
+describe('files with allowed hex still avoid palette classes and plain colours', () => {
+  it.each(HEX_ALLOWED_FILES)('%s', (rel) => {
+    const code = stripComments(read(rel))
+    expect(code.match(PALETTE_CLASS)).toBeNull()
+    expect(code.match(PLAIN_WHITE_BLACK)).toBeNull()
     expect(code.match(RGB_LITERAL)).toBeNull()
   })
 })

@@ -210,7 +210,13 @@ export function actionFill(primaryHex, selectedHex, cardHex) {
  * only 3.7:1 although dark text reaches 4.7:1.)
  */
 export function bestTextOn(hex) {
-  return contrastRatio(hex, '#1a1a1a') >= contrastRatio(hex, '#ffffff') ? '#1a1a1a' : '#ffffff'
+  const dark  = contrastRatio(hex, '#1a1a1a')
+  const light = contrastRatio(hex, '#ffffff')
+  const best  = dark >= light ? { c: '#1a1a1a', r: dark } : { c: '#ffffff', r: light }
+  // Mid-tone fills (e.g. pure red) can fall just under 4.5:1 with soft near-black
+  // or white. Pure black always clears it there, so use it as the last resort.
+  if (best.r < 4.5 && contrastRatio(hex, '#000000') > best.r) return '#000000'
+  return best.c
 }
 
 // ── Alert colour (notification counters, "needs attention" badges) ──────
@@ -379,11 +385,10 @@ export function applyTheme(config) {
   root.style.setProperty('--color-action-hover', darken(action, 20))
   root.style.setProperty('--color-action-contrast', bestTextOn(action))
 
-  // Notification counters: red unless it clashes with the school's colours or is
-  // not visible on the sidebar / active pill (see alertFill()).
-  const alert = alertFill([primary, secondary], [cardSurfaceHex(root, isDarkMode)])
-  root.style.setProperty('--color-alert', alert)
-  root.style.setProperty('--color-alert-contrast', bestTextOn(alert))
+  // Notification counters are one fixed red (--color-alert in index.css), whatever the
+  // school's colours. Clear any value an older version of this function wrote inline.
+  root.style.removeProperty('--color-alert')
+  root.style.removeProperty('--color-alert-contrast')
 
   // For text sitting on the SCHOOL'S OTHER custom color rather than the page
   // (e.g. primary-colored brand text on the login screen's secondary-colored
