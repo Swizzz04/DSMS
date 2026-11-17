@@ -50,6 +50,7 @@ import {
   computeStudentBill,
   computeCollegeFee,
   getLoadStatus,
+  getConfiguredCapacity,
 } from '../config/appConfig'
 import { getGradingFramework, getSubjectAreaOptions, DEFAULT_GRADING_FRAMEWORKS } from '../engines/gradingEngine'
 import {
@@ -899,18 +900,21 @@ export async function packLoads() {
     const programs = collegeProgramsOf(campus)
 
     // 1. sections (the app builds them from approved enrollments)
-    let data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs)
+    // Same seat rule as the app (Settings → Grade Levels wins); the split below only applies where none is set
+    const cfgLevels = (read(APP_CONFIG_KEY, {}) || {}).campusGradeLevels
+    const cfgCap = (level) => getConfiguredCapacity(key, level, cfgLevels)
+    let data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs, undefined, undefined, cfgCap)
     // Section ids must be the same on every read, or advisers and college loads lose their link
     const idsOf = d => JSON.stringify([d.basicEdSections, d.collegeSections])
-    if (idsOf(data) !== idsOf(bridge.getSubjectLoadData(key, schoolYear, campus.name, programs))) {
+    if (idsOf(data) !== idsOf(bridge.getSubjectLoadData(key, schoolYear, campus.name, programs, undefined, undefined, cfgCap))) {
       warnings.push(`${key}: Subject Load sections are not saved between reads, so advisers and college loads will not stay linked. Apply the subjectLoadBridge.js fix, then run packLoads again.`)
     }
     const prevMax = data._seedMeta?.prevMaxPerSection ?? data.maxPerSection
     if (SPLIT_SECTIONS[key]) {
-      bridge.setMaxPerSection(key, schoolYear, campus.name, programs, SPLIT_SECTIONS[key])
-      data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs)
+      bridge.setMaxPerSection(key, schoolYear, campus.name, programs, SPLIT_SECTIONS[key], undefined, undefined, cfgCap)
+      data = bridge.getSubjectLoadData(key, schoolYear, campus.name, programs, undefined, undefined, cfgCap)
     }
-    const max = data.maxPerSection || 40
+    const maxFor = (g) => cfgCap(g.college ? `${g.s0.program} - ${g.s0.yearLevel}` : g.s0.gradeLevel) || data.maxPerSection || 40
 
     // 2. place students in sections, in id order, filling one section before the next
     const groups = new Map()
@@ -926,7 +930,7 @@ export async function packLoads() {
         : data.basicEdSections?.[g.s0.gradeLevel] || []
       if (!sections.length) { warnings.push(`${key}: no sections for ${g.college ? `${g.s0.program} ${g.s0.yearLevel}` : g.s0.gradeLevel}`); return }
       g.list.sort((a, b) => String(a.id).localeCompare(String(b.id))).forEach((s, i) => {
-        const sec = sections[Math.min(Math.floor(i / max), sections.length - 1)]
+        const sec = sections[Math.min(Math.floor(i / maxFor(g)), sections.length - 1)]
         s.sectionId = sec.id
         s.section   = sec.displayName
         placed++

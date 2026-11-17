@@ -1364,8 +1364,11 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
   const submittedRef = useRef(false)
 
   const current = payment.dueDate || ''
+  // The extension starts from the later of the current due date and today. The quick
+  // buttons, the caption and the "longer than usual" warning all count from this same date,
+  // so an account that is already overdue is not charged for the days it has been late.
   const minDate = current && current > todayYMD() ? current : todayYMD()
-  const extDays = newDate ? daysPast(current || todayYMD(), newDate) : 0
+  const extDays = newDate ? daysPast(minDate, newDate) : 0
 
   const validate = () => {
     const e = {}
@@ -1434,7 +1437,7 @@ function ExtendDueDateModal({ payment, onClose, onSave }) {
             {errors.date && <p className="text-xs text-[var(--color-error-text)] mt-1">{errors.date}</p>}
             {!errors.date && extDays > 0 && (
               <p className={`text-xs mt-1 ${extDays > DEFAULT_MAX_EXTENSION_DAYS ? 'text-[var(--color-warning-text)] font-semibold' : 'text-[var(--color-text-muted)]'}`}>
-                +{extDays} day{extDays !== 1 ? 's' : ''}{extDays > DEFAULT_MAX_EXTENSION_DAYS ? ` — longer than the usual ${DEFAULT_MAX_EXTENSION_DAYS} days; make sure the promissory note covers it` : ''}
+                +{extDays} day{extDays !== 1 ? 's' : ''} from {minDate === todayYMD() ? 'today' : fmtShortDate(minDate)}{extDays > DEFAULT_MAX_EXTENSION_DAYS ? ` — longer than the usual ${DEFAULT_MAX_EXTENSION_DAYS} days; make sure the promissory note covers it` : ''}
               </p>
             )}
           </div>

@@ -3,7 +3,7 @@ import AccordionBody from '../components/AccordionBody'
 import {
   BookOpen, GraduationCap, User, Plus, X, ChevronDown, ChevronUp,
   Check, Search, AlertCircle, Download, Pencil, Users,
-  Settings2, ChevronRight, School
+  ChevronRight, School
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useAppConfig } from '../context/AppConfigContext'
@@ -11,7 +11,7 @@ import { useCampusFilter } from '../context/CampusFilterContext'
 import { useToast, ToastContainer, PageSkeleton, ModalPortal } from '../components/UIComponents'
 import { exportToExcel } from '../utils/exportToExcel'
 import {
-  getSubjectLoadData, setMaxPerSection,
+  getSubjectLoadData,
   renameSection,
   addBasicEdSubject, removeBasicEdSubject,
   addCollegeSubject, removeCollegeSubject,
@@ -684,55 +684,11 @@ function CollegeTab({ data, teachers, campusKey, schoolYear, collegePrograms, on
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SETTINGS PANEL — max per section
-// ─────────────────────────────────────────────────────────────────
-function SettingsPanel({ maxPerSection, campusKey, schoolYear, campusName, collegePrograms, yearLevels, sectionNamesFor, onDataChange, addToast, onClose }) {
-  const [value, setValue] = useState(String(maxPerSection))
-  const n = parseInt(value, 10)
-  const valid = !isNaN(n) && n >= 1 && n <= 100
-
-  return (
-    <ModalPortal>
-    <div className="modal-backdrop-center">
-      <div className="modal-panel modal-panel-sm p-5">
-        <h3 className="text-base font-bold text-[var(--color-text-primary)] mb-1">Section Settings</h3>
-        <p className="text-xs text-[var(--color-text-muted)] mb-5">Sections are auto-calculated based on approved enrollments.</p>
-
-        <label className="block text-sm font-semibold text-[var(--color-text-secondary)] mb-2">
-          Max Students per Section
-        </label>
-        <input type="number" min="1" max="100" value={value}
-          onChange={e => setValue(e.target.value)}
-          className={`w-full px-3 py-2.5 text-sm border rounded-xl bg-[var(--color-bg-subtle)] text-[var(--color-text-primary)] outline-none transition mb-1
-            ${!valid && value ? 'border-[var(--color-error)]' : 'border-[var(--color-border)] focus:ring-2 focus:ring-primary'}`} />
-        {!valid && value && <p className="text-xs text-[var(--color-error-text)] mb-2">Enter a number between 10 and 100.</p>}
-        <p className="text-xs text-[var(--color-text-muted)] mb-4">
-          Example: 40 students → 2 sections if max is 25, 1 section if max is 40.
-        </p>
-
-        <div className="action-row">
-          <button onClick={onClose} className="btn-cancel">Cancel</button>
-          <button disabled={!valid} onClick={() => {
-            setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, n, yearLevels, sectionNamesFor)
-            onDataChange()
-            addToast(`Max per section updated to ${n}`, 'success')
-            onClose()
-          }} className="btn-submit">
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-    </ModalPortal>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────────
 export default function SubjectLoad() {
   const { user }    = useAuth()
-  const { activeCampuses, currentSchoolYear, systemUsers, schoolYears, getProgramYearLevels, getSectionNames } = useAppConfig()
+  const { activeCampuses, currentSchoolYear, systemUsers, schoolYears, getProgramYearLevels, getSectionNames, getConfiguredSectionCapacity } = useAppConfig()
   const { toasts, addToast, removeToast } = useToast()
 
   const role     = user?.role
@@ -752,6 +708,9 @@ export default function SubjectLoad() {
   const campusYearLevels = useCallback((prog) => getProgramYearLevels(campusKey, prog), [getProgramYearLevels, campusKey])
   // (level) => section names this campus configured in Settings → Grade Levels
   const sectionNamesFor = useCallback((level) => getSectionNames(campusKey, level), [getSectionNames, campusKey])
+  // (level) => seats per section from Settings → Grade Levels (null = none set, the old saved max applies).
+  // Sections are generated from these numbers: a level with 90 students and 40 seats gets 3 sections.
+  const capacityFor = useCallback((level) => getConfiguredSectionCapacity(campusKey, level), [getConfiguredSectionCapacity, campusKey])
 
   // Subject Area choices come from this school year's grading framework (school-wide), the same list
   // the e-Class Record offers. See getSubjectAreaOptions() in gradingEngine.js.
@@ -764,7 +723,6 @@ export default function SubjectLoad() {
   const [activeTab,    setActiveTab]     = useState((role === 'program_head' || role === 'registrar_college') ? 'college' : 'basicEd')
   const [loading,       setLoading]       = useState(true)
   const [data,          setData]          = useState(null)
-  const [showSettings,  setShowSettings]  = useState(false)
 
   // Teachers pool — same campus, all teaching-eligible roles
   // Includes principal_basic so they can be assigned to college minor subjects
@@ -778,12 +736,9 @@ export default function SubjectLoad() {
   const reload = useCallback(() => {
     // No campus chosen yet: read nothing and create nothing (an empty key would write junk to storage)
     if (!campusKey) { setData(null); return }
-    const d = getSubjectLoadData(campusKey, currentSchoolYear, campusName, collegePrograms, campusYearLevels, sectionNamesFor)
+    const d = getSubjectLoadData(campusKey, currentSchoolYear, campusName, collegePrograms, campusYearLevels, sectionNamesFor, capacityFor)
     setData(d)
-  }, [campusKey, currentSchoolYear, campusName, campusYearLevels, sectionNamesFor])
-
-  // Switching campus closes anything open for the campus we are leaving
-  useEffect(() => { setShowSettings(false) }, [campusKey])
+  }, [campusKey, currentSchoolYear, campusName, campusYearLevels, sectionNamesFor, capacityFor])
 
   useEffect(() => {
     reload()
@@ -913,10 +868,6 @@ export default function SubjectLoad() {
           </p>
         </div>
         <div className="flex items-center gap-2 self-start">
-          <button onClick={() => setShowSettings(true)}
-            className="p-2 text-[var(--color-text-muted)] border border-[var(--color-border)] rounded-lg hover:bg-[var(--color-bg-subtle)] transition" title="Section settings">
-            <Settings2 className="w-4 h-4" />
-          </button>
           <button onClick={handleExport}
             className="flex items-center gap-1.5 px-4 py-2 text-sm bg-[var(--color-action)] text-[var(--color-action-contrast)] rounded-lg hover:bg-[var(--color-action-hover)] transition font-medium">
             <Download className="w-4 h-4" /> Export
@@ -954,17 +905,6 @@ export default function SubjectLoad() {
         <CollegeTab key={campusKey} data={data} teachers={teachers} campusKey={campusKey}
           schoolYear={currentSchoolYear} collegePrograms={collegePrograms}
           onDataChange={reload} addToast={addToast} />
-      )}
-
-      {/* Settings modal */}
-      {showSettings && (
-        <SettingsPanel
-          maxPerSection={data.maxPerSection || 40}
-          campusKey={campusKey} schoolYear={currentSchoolYear}
-          campusName={campusName} collegePrograms={collegePrograms} yearLevels={campusYearLevels} sectionNamesFor={sectionNamesFor}
-          onDataChange={reload} addToast={addToast}
-          onClose={() => setShowSettings(false)}
-        />
       )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />

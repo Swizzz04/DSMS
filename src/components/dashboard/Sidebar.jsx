@@ -5,7 +5,6 @@ import {
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 import { useAppConfig } from '../../context/AppConfigContext'
 import { getUserPermissions, getAllRoleDefinitions } from '../../config/appConfig'
 import { getPendingGuidanceCount, getMyGuidanceUpdateCount } from '../../utils/guidanceBridge'
@@ -77,9 +76,7 @@ function computeBadges(user, { isBasicGrade, isCollegeGrade, currentSchoolYear }
 }
 
 // ── Badge pill ────────────────────────────────────────────────────
-// Always the alert colour (red by default) so a counter is noticed at a glance.
-// themeInitializer.js alertFill() swaps it for a clearly different hue when the
-// school's own brand colour is red or near red.
+// Always the same fixed red (--color-alert in index.css), whatever the school's colours.
 function NavBadge({ count }) {
   if (!count || count <= 0) return null
   return (
@@ -128,7 +125,6 @@ function NavDot({ label }) {
 export default function Sidebar({ isOpen, toggleSidebar }) {
   const location = useLocation()
   const { user }  = useAuth()
-  const { theme } = useTheme()
   const { isBasicGrade, isCollegeGrade, currentSchoolYear } = useAppConfig()
   const school    = getSchoolConfig()
   const [badges, setBadges] = useState({})
@@ -257,7 +253,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
       {/* Mobile overlay — uses CSS transition via overlay-backdrop class */}
       <div
         className={`overlay-backdrop fixed inset-0 z-[60] lg:hidden ${isOpen ? 'visible' : 'hidden'}`}
-        style={{ backgroundColor: 'rgba(0,0,0,0.55)' }}
+        style={{ backgroundColor: 'var(--color-overlay)' }}
         onClick={toggleSidebar}
       />
 
@@ -295,7 +291,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
               overflow:     'hidden',
               flexShrink:   0,
               border:       '2px solid var(--color-primary-readable)',
-              backgroundColor: '#fff',
+              backgroundColor: 'var(--color-text-inverse)',   // logo sits on white in both themes
               boxShadow:    '0 0 0 3px var(--color-primary-muted)',
             }}>
               <SchoolLogo src={school.logo} alt={school.shortName} size="sm" surface="light" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
@@ -387,26 +383,20 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                   textDecoration: 'none',
                   position:       'relative',
                   transition:     `background-color var(--t-base), color var(--t-base)`,
-                  backgroundColor: active
-                    ? (theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'var(--color-secondary)')
-                    : 'transparent',
-                  color:          active ? (theme === 'dark' ? '#fff' : 'var(--color-secondary-contrast)') : 'var(--color-text-secondary)',
-                  // Active left-edge accent — uses the readable/on-secondary variants
-                  // (see themeInitializer.js) instead of raw --color-primary, which
-                  // is a fill color meant for buttons and can be too pale/dark to
-                  // read as a thin border. In light mode the pill's own background
-                  // is --color-secondary, so the border needs the variant computed
-                  // specifically for "primary-colored element sitting on secondary" —
-                  // plain --color-primary-readable (contrast vs. the page) isn't
-                  // enough here since the pill itself isn't the page background.
-                  borderLeft:     active
-                    ? (theme === 'dark' ? '3px solid var(--color-text-inverse)' : '3px solid var(--color-primary-on-secondary)')
-                    : '3px solid transparent',
+                  // Active item = the action colour (same fill as the main buttons),
+                  // with its own contrast text. --color-action-contrast is picked by
+                  // bestTextOn(), so the 4.5:1 rule holds for any school colour in
+                  // both themes. No light/dark branching needed.
+                  backgroundColor: active ? 'var(--color-action)' : 'transparent',
+                  color:          active ? 'var(--color-action-contrast)' : 'var(--color-text-secondary)',
+                  // Active left-edge accent: contrast colour of the pill, so it is
+                  // always visible against the pill itself.
+                  borderLeft:     active ? '3px solid var(--color-action-contrast)' : '3px solid transparent',
                 }}
                 onMouseEnter={e => {
                   if (!active) {
-                    e.currentTarget.style.backgroundColor = theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--color-secondary-muted)'
-                    e.currentTarget.style.color           = theme === 'dark' ? '#fff' : 'var(--color-text-secondary)'
+                    e.currentTarget.style.backgroundColor = 'var(--color-secondary-muted)'
+                    e.currentTarget.style.color           = 'var(--color-text-primary)'
                   }
                 }}
                 onMouseLeave={e => {
@@ -421,7 +411,7 @@ export default function Sidebar({ isOpen, toggleSidebar }) {
                   size={16}
                   style={{
                     flexShrink: 0,
-                    color:      active ? '#fff' : 'var(--color-text-muted)',
+                    color:      active ? 'var(--color-action-contrast)' : 'var(--color-text-muted)',
                     transition: 'color var(--t-base)',
                   }}
                 />

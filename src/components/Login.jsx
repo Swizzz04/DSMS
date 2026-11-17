@@ -318,12 +318,12 @@ export default function Login({ onLoginSuccess, error, loading = false }) {
                   width: '100%', padding: '0.875rem',
                   borderRadius: 'var(--radius-xl)',
                   fontSize: '0.9rem', letterSpacing: '0.02em',
-                  boxShadow: '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 rgba(255,255,255,0.08)',
+                  boxShadow: '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 color-mix(in srgb, var(--color-action-contrast) 8%, transparent)',
                   position: 'relative', overflow: 'hidden',
                   transition: 'transform var(--t-fast), box-shadow var(--t-base), background-color var(--t-base)',
                 }}
                 onMouseEnter={e => { if (!loading) e.currentTarget.style.boxShadow = '0 8px 22px rgb(var(--color-secondary-rgb) / 0.32)' }}
-                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 14px rgb(var(--color-secondary-rgb) / 0.25), inset 0 1px 0 color-mix(in srgb, var(--color-action-contrast) 8%, transparent)' }}
               >
                 {/* Red shimmer accent at bottom of button */}
                 <div style={{
