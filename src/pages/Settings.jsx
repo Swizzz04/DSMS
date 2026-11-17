@@ -1101,7 +1101,7 @@ export default function Settings() {
     schoolYears, getCampusSchoolYears, schoolWideSchoolYears, campusSchoolYears, currentYearsByCampus, updateCampusSchoolYears, resetCampusSchoolYears,
     campuses, feeStructure, systemUsers, basicEdGroups,
     schoolBasicEdGroups, getCampusBasicEdGroups, campusGradeLevels, schoolCollegeYearLevels, getProgramYearLevels, getSectionNames,
-    updateConfig, resetSection, activeCampuses, currentSchoolYear
+    updateConfig, resetSection, activeCampuses, currentSchoolYear, getCampusCurrentSchoolYear
   } = useAppConfig()
 
   // Campus being configured. A Technical Admin works across every campus, so they pick one first
@@ -1326,10 +1326,11 @@ export default function Settings() {
   // Saves this campus's Basic Ed levels and the year levels of the programs edited. Year levels are per
   // program. A new year level gets empty fee rows (both semesters) for that program only, so its fees
   // can be set in Fee Structure. `editedYears` / `previousYears`: { [program]: [years] }.
-  const saveGradeLevels = (groups, editedYears = {}, previousYears = {}, sections = {}) => {
+  const saveGradeLevels = (groups, editedYears = {}, previousYears = {}, sections = {}, capacity = {}, defaultCapacity = null) => {
     const entry = campusGradeLevels?.[settingsCampusKey] || {}
     updateConfig('campusGradeLevels', { ...campusGradeLevels, [settingsCampusKey]: {
       ...entry, basicEdGroups: groups, programYears: { ...(entry.programYears || {}), ...editedYears }, sections,
+      capacity, defaultCapacity: defaultCapacity ?? undefined,   // seats per section, per level and the campus default
     } })
     const have = (f, program, yearLevel, semester) =>
       f.program === program && f.yearLevel === yearLevel && f.semester === semester && f.campus === settingsCampusName
@@ -2858,6 +2859,9 @@ export default function Settings() {
               hasOwnList={!!campusGradeLevels?.[settingsCampusKey]?.basicEdGroups}
               getProgramYears={(prog) => getProgramYearLevels(settingsCampusKey, prog)}
               getSectionNames={(level) => getSectionNames(settingsCampusKey, level)}
+              getCapacity={(level) => campusGradeLevels?.[settingsCampusKey]?.capacity?.[level] ?? null}
+              defaultCapacity={campusGradeLevels?.[settingsCampusKey]?.defaultCapacity ?? null}
+              schoolYear={getCampusCurrentSchoolYear(settingsCampusKey)}
               schoolYearLevels={schoolCollegeYearLevels}
               programs={(campuses.find(c => c.key === settingsCampusKey)?.college?.programs ?? campuses.find(c => c.key === settingsCampusKey)?.collegePrograms ?? [])}
               onAddProgram={addCollegeProgram}

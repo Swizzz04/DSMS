@@ -1447,6 +1447,35 @@ export function getCampusCollegeGrades(campusKey, override, yearsFor) {
 }
 
 /**
+ * Section capacity (seats per section), set per level in Settings → Grade Levels.
+ * Saved shape: { [campusKey]: { capacity: { [level]: n }, defaultCapacity: n } }
+ * A level without its own number uses the campus default, then DEFAULT_SECTION_CAPACITY.
+ * A "level" is a Basic Ed level ("Grade 7") or "<Program> - <Year>" for college.
+ */
+export const DEFAULT_SECTION_CAPACITY = 40
+export const MIN_SECTION_CAPACITY = 1
+export const MAX_SECTION_CAPACITY = 200
+
+/** A whole number from MIN to MAX (a number or typed text), else null. */
+export function normalizeCapacity(value) {
+  const t = typeof value === 'number' ? String(value) : String(value ?? '').trim()
+  if (!/^\d+$/.test(t)) return null
+  const n = parseInt(t, 10)
+  return n >= MIN_SECTION_CAPACITY && n <= MAX_SECTION_CAPACITY ? n : null
+}
+
+/** The number Settings holds for a level: its own, else the campus default, else null (nothing set). */
+export function getConfiguredCapacity(campusKey, level, campusGradeLevels) {
+  const entry = campusKey ? campusGradeLevels?.[campusKey] : null
+  return normalizeCapacity(entry?.capacity?.[level]) ?? normalizeCapacity(entry?.defaultCapacity)
+}
+
+/** Seats per section for one level at one campus (40 when nothing is set). */
+export function getSectionCapacity(campusKey, level, campusGradeLevels) {
+  return getConfiguredCapacity(campusKey, level, campusGradeLevels) ?? DEFAULT_SECTION_CAPACITY
+}
+
+/**
  * College year levels are kept per program (Settings → Grade Levels), because one program may run
  * five years and another four. Saved shape: { [campusKey]: { programYears: { [program]: [years] } } }.
  * A program with no list of its own uses its campus's default list (older saves kept one), then the

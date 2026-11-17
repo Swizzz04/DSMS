@@ -36,6 +36,8 @@ import {
   getCurrentSchoolYear,
   getCampusSchoolYears,
   getCampusCurrentSchoolYear,
+  getSectionCapacity as getSectionCapacityFor,
+  getConfiguredCapacity as getConfiguredCapacityFor,
   getCurrentYearsByCampus,
   summarizeCurrentYears,
   getTotalFee,
@@ -279,6 +281,15 @@ export function AppConfigProvider({ children }) {
     const names = campusKey ? config.campusGradeLevels?.[campusKey]?.sections?.[level] : null
     return Array.isArray(names) ? names : []
   }, [config.campusGradeLevels])
+  // Seats per section for a level at a campus (the level's own number, the campus default, then 40)
+  const getSectionCapacity = useCallback(
+    (campusKey, level) => getSectionCapacityFor(campusKey, level, config.campusGradeLevels),
+    [config.campusGradeLevels])
+  // Same, but null when Settings holds no number for the level or the campus. Subject Load uses this so a
+  // campus that was never given one keeps the "max per section" it saved before seats moved to Settings.
+  const getConfiguredSectionCapacity = useCallback(
+    (campusKey, level) => getConfiguredCapacityFor(campusKey, level, config.campusGradeLevels),
+    [config.campusGradeLevels])
   // One program's year levels at one campus. With no campus: every campus's years for that program, merged.
   const getProgramYears = useCallback((campusKey, program) => {
     if (campusKey) return getProgramYearLevels(campusKey, program, config.collegeYearLevels, config.campusGradeLevels)
@@ -358,6 +369,8 @@ export function AppConfigProvider({ children }) {
     schoolCollegeYearLevels: config.collegeYearLevels,
     getCampusYearLevels: getCampusYears,
     getSectionNames,         // (campusKey, level) => configured section names ([] = automatic A, B, C)
+    getSectionCapacity,      // (campusKey, level) => seats per section (own number, campus default, then 40)
+    getConfiguredSectionCapacity,   // (campusKey, level) => own number or campus default, null when none is set
     getProgramYearLevels: getProgramYears,   // (campusKey, program) => that program's year levels
     schoolBasicEdGroups: config.basicEdGroups,   // the school-wide list a campus starts from
     getCampusBasicEdGroups: getCampusGroups,     // (campusKey) => that campus's levels

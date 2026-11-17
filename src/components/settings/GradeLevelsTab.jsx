@@ -14,6 +14,8 @@
 import { useMemo, useState } from 'react'
 import { Plus, X, ChevronUp, ChevronDown, Lock, RotateCcw, Save, Info, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '../UIComponents'
+import { normalizeCapacity, DEFAULT_SECTION_CAPACITY, MIN_SECTION_CAPACITY, MAX_SECTION_CAPACITY } from '../../config/appConfig'
+import { toSectionRecords, countBySection, overCapacity } from '../../utils/sectionCapacity'
 
 const MAX_NAME = 40
 
@@ -45,13 +47,28 @@ function countEnrolled(campusName, campusKey) {
 }
 
 /** Inline editor for the section names of one level. */
-function SectionNames({ label, names, newName, setNewName, error, onAdd, onChange, onCopyAll, inputCls, btnPrimary, btnOutline, iconBtn }) {
+function SectionNames({ label, names, newName, setNewName, error, onAdd, onChange, onCopyAll, inputCls, btnPrimary, btnOutline, iconBtn,
+  capacityText, capacityError, effectiveDefault, onCapacityChange, over }) {
   return (
     <div className="basis-full w-full mt-2 p-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-subtle)]">
       <p className="text-xs text-[var(--color-text-secondary)] mb-2">
         Sections of <strong className="text-[var(--color-text-primary)]">{label}</strong> are created from enrollment. The first section
         takes the first name below, the second takes the second, and so on. Extra sections are named {label}-A, {label}-B… Leave this empty to use that for all.
       </p>
+      {/* Seats per section: enforced in Students (a full section cannot be chosen) */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <label htmlFor={`cap-${label}`} className="text-xs font-semibold text-[var(--color-text-secondary)]">Seats per section</label>
+        <input id={`cap-${label}`} type="number" inputMode="numeric" min={MIN_SECTION_CAPACITY} max={MAX_SECTION_CAPACITY}
+          value={capacityText} onChange={e => onCapacityChange(e.target.value)} placeholder={String(effectiveDefault)}
+          className={`${inputCls} !w-24`} aria-label={`Seats per section for ${label}`} />
+        <span className="text-xs text-[var(--color-text-muted)]">Empty uses the campus default ({effectiveDefault}).</span>
+      </div>
+      {capacityError && <p role="alert" className="-mt-2 mb-2 text-sm font-medium" style={{ color: 'var(--color-error-text, var(--color-alert))' }}>{capacityError}</p>}
+      {over.length > 0 && (
+        <p className="mb-3 text-xs font-medium" style={{ color: 'var(--color-warning-text)' }}>
+          Over the limit: {over.map(o => `${o.name} (${o.count} of ${o.capacity})`).join(', ')}. Nobody is removed, but no more students can be added to {over.length === 1 ? 'it' : 'them'} until the count drops or the limit is raised.
+        </p>
+      )}
       {names.length > 0 && (
         <ol className="flex flex-wrap gap-2 mb-2">
           {names.map((n, i) => (
@@ -83,6 +100,7 @@ export default function GradeLevelsTab({
   campusKey, campusName,
   effectiveGroups, schoolGroups, hasOwnList, schoolYearLevels,
   programs, getProgramYears, getSectionNames, onAddProgram, onRemoveProgram,
+  getCapacity, defaultCapacity, schoolYear,
   onSave, onReset, addToast,
 }) {
   const [draft, setDraft] = useState(() => clone(effectiveGroups))
@@ -100,7 +118,32 @@ export default function GradeLevelsTab({
   const [openSections, setOpenSections] = useState(null)   // levelKey whose editor is open
   const [newSection, setNewSection] = useState('')
   const [sectionError, setSectionError] = useState('')
+  // Seats per section: the typed text per level (kept as text while typing), and the campus default.
+  const [draftCap, setDraftCap] = useState({})
+  const [savedCap, setSavedCap] = useState(null)             // null until this tab saves; then the saved { level: n }
+  const [draftDefault, setDraftDefault] = useState(null)     // typed text; null = untouched
+  const [savedDefaultState, setSavedDefaultState] = useState(undefined)
+  const savedCapOf = (key) => (savedCap ? savedCap[key] : getCapacity?.(key)) ?? null
+  const savedDefault = savedDefaultState !== undefined ? savedDefaultState : (defaultCapacity ?? null)
+  const capTextOf = (key) => (key in draftCap ? draftCap[key] : (savedCapOf(key) != null ? String(savedCapOf(key)) : ''))
+  const defaultText = draftDefault !== null ? draftDefault : (savedDefault != null ? String(savedDefault) : '')
+  const effectiveDefault = normalizeCapacity(defaultText) ?? DEFAULT_SECTION_CAPACITY
+  const capacityFor = (key) => normalizeCapacity(capTextOf(key)) ?? effectiveDefault
+  const capErrorOf = (key) => (capTextOf(key).trim() !== '' && normalizeCapacity(capTextOf(key)) === null)
+    ? `Enter a whole number from ${MIN_SECTION_CAPACITY} to ${MAX_SECTION_CAPACITY}, or leave it empty to use the default.` : ''
+  const sectionRecords = useMemo(() => {
+    try { return toSectionRecords(JSON.parse(localStorage.getItem('almirene_submissions') || '[]')) } catch { return [] }
+  }, [campusName])
   const sectionsOf = (key) => draftSections[key] || savedSections[key] || getSectionNames(key) || []
+  const overOf = (key) => overCapacity(
+    sectionsOf(key),
+    countBySection(sectionRecords, { campus: campusName, level: key, schoolYear }),
+    capacityFor(key)
+  )
+  const capacityProps = (key) => ({
+    capacityText: capTextOf(key), capacityError: capErrorOf(key), effectiveDefault,
+    onCapacityChange: (t) => setDraftCap(d => ({ ...d, [key]: t })), over: overOf(key),
+  })
   const savedSectionsOf = (key) => savedSections[key] || getSectionNames(key) || []
   const yearsOf = (prog) => draftYears[prog] || savedYears[prog] || getProgramYears(prog)
   const savedYearsOf = (prog) => savedYears[prog] || getProgramYears(prog)
@@ -117,6 +160,8 @@ export default function GradeLevelsTab({
   const dirty = !sameLists(draft, saved)
     || Object.keys(draftYears).some(p => !sameLists(draftYears[p], savedYearsOf(p)))
     || Object.keys(draftSections).some(k => !sameLists(draftSections[k], savedSectionsOf(k)))
+    || Object.keys(draftCap).some(k => (normalizeCapacity(draftCap[k]) ?? null) !== (savedCapOf(k) ?? null))
+    || (draftDefault !== null && (normalizeCapacity(draftDefault) ?? null) !== (savedDefault ?? null))
   const savedLevels = useMemo(() => new Set(saved.flatMap(g => g.options)), [saved])
 
   const lockedCount = (level) => (savedLevels.has(level) ? (enrolled[level] || 0) : 0)
@@ -190,6 +235,7 @@ export default function GradeLevelsTab({
   // A renamed level keeps its section names
   const moveSectionKey = (from, to) => {
     if (from === to) return
+    if (capTextOf(from) !== '') setDraftCap(d => ({ ...d, [to]: capTextOf(from), [from]: '' }))   // a renamed level keeps its seats
     const list = sectionsOf(from)
     if (!list.length) return
     setDraftSections(d => ({ ...d, [to]: list, [from]: [] }))
@@ -282,9 +328,20 @@ export default function GradeLevelsTab({
     const keep = (key) => { const list = sectionsOf(key); if (list.length) sections[key] = list }
     cleaned.forEach(g => g.options.forEach(keep))
     ;(programs || []).forEach(prog => yearsOf(prog).forEach(y => keep(`${prog} - ${y}`)))
-    onSave(cleaned, draftYears, previous, sections)
+    // Seats per section: every typed value must be valid; empty means "use the campus default"
+    const badCap = Object.keys(draftCap).find(k => draftCap[k].trim() !== '' && normalizeCapacity(draftCap[k]) === null)
+    if (badCap) return fail(`Seats per section for ${badCap} must be a whole number from ${MIN_SECTION_CAPACITY} to ${MAX_SECTION_CAPACITY}, or empty.`)
+    if (defaultText.trim() !== '' && normalizeCapacity(defaultText) === null)
+      return fail(`The default seats per section must be a whole number from ${MIN_SECTION_CAPACITY} to ${MAX_SECTION_CAPACITY}, or empty.`)
+    const capacity = {}
+    const keepCap = (key) => { const n = normalizeCapacity(capTextOf(key)); if (n != null) capacity[key] = n }
+    cleaned.forEach(g => g.options.forEach(keepCap))
+    ;(programs || []).forEach(prog => yearsOf(prog).forEach(y => keepCap(`${prog} - ${y}`)))
+    const nextDefault = normalizeCapacity(defaultText)
+    onSave(cleaned, draftYears, previous, sections, capacity, nextDefault)
     setDraft(clone(cleaned)); setSaved(clone(cleaned)); setSavedYears(y => ({ ...y, ...draftYears })); setDraftYears({})
     setSavedSections(sections); setDraftSections({}); setError('')
+    setSavedCap(capacity); setDraftCap({}); setSavedDefaultState(nextDefault); setDraftDefault(null)
     addToast?.(`Grade levels saved for ${campusName}.`, 'success')
   }
 
@@ -311,7 +368,7 @@ export default function GradeLevelsTab({
                 <RotateCcw className="w-3.5 h-3.5" /> School-wide list
               </button>
             )}
-            <button onClick={() => { setDraft(clone(saved)); setDraftYears({}); setDraftSections({}); setSectionError(''); setError(''); setYearError({}); setRenaming(null); setRenamingYear(null) }} disabled={!dirty} className={btnOutline}>
+            <button onClick={() => { setDraft(clone(saved)); setDraftYears({}); setDraftSections({}); setDraftCap({}); setDraftDefault(null); setSectionError(''); setError(''); setYearError({}); setRenaming(null); setRenamingYear(null) }} disabled={!dirty} className={btnOutline}>
               Discard
             </button>
             <button onClick={save} disabled={!dirty} className={btnPrimary}>
@@ -326,6 +383,16 @@ export default function GradeLevelsTab({
             Fees are set per level in Fee Structure: a new or renamed level starts at ₱0 there until you set it.
             Levels with enrolled students are locked. Changes apply to this campus only.
           </p>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label htmlFor="cap-default" className="text-sm font-semibold text-[var(--color-text-secondary)]">Default seats per section</label>
+          <input id="cap-default" type="number" inputMode="numeric" min={MIN_SECTION_CAPACITY} max={MAX_SECTION_CAPACITY}
+            value={defaultText} onChange={e => setDraftDefault(e.target.value)} placeholder={String(DEFAULT_SECTION_CAPACITY)}
+            className={`${inputCls} !w-24`} aria-label="Default seats per section for this campus" />
+          <span className="text-xs text-[var(--color-text-muted)]">
+            Used by every level without its own number. Set one under a level's Sections button. A full section cannot be chosen in Students.
+          </span>
         </div>
 
         {error && (
@@ -404,7 +471,8 @@ export default function GradeLevelsTab({
                       error={sectionError} onAdd={() => addSectionName(level)}
                       onChange={(list) => setSectionList(level, list)}
                       onCopyAll={() => setDraftSections(d => ({ ...d, ...Object.fromEntries(group.options.map(o => [o, sectionsOf(level)])) }))}
-                      inputCls={inputCls} btnPrimary={btnPrimary} btnOutline={btnOutline} iconBtn={iconBtn} />
+                      inputCls={inputCls} btnPrimary={btnPrimary} btnOutline={btnOutline} iconBtn={iconBtn}
+                      {...capacityProps(level)} />
                   )}
                 </li>
               )
@@ -501,7 +569,8 @@ export default function GradeLevelsTab({
                               error={sectionError} onAdd={() => addSectionName(`${prog} - ${year}`)}
                               onChange={(list) => setSectionList(`${prog} - ${year}`, list)}
                               onCopyAll={() => setDraftSections(d => ({ ...d, ...Object.fromEntries(years.map(y => [`${prog} - ${y}`, sectionsOf(`${prog} - ${year}`)])) }))}
-                              inputCls={inputCls} btnPrimary={btnPrimary} btnOutline={btnOutline} iconBtn={iconBtn} />
+                              inputCls={inputCls} btnPrimary={btnPrimary} btnOutline={btnOutline} iconBtn={iconBtn}
+                              {...capacityProps(`${prog} - ${year}`)} />
                           )}
                         </li>
                       )
