@@ -4,7 +4,7 @@
  * STORAGE KEY: almirene_subject_loads
  * Shape per campusKey+schoolYear:
  * {
- *   maxPerSection:    number
+ *   maxPerSection:    number   (legacy: used only for a level with no seats set in Settings → Grade Levels)
  *   basicEdSubjects:  { [grade]: string[] }
  *   basicEdLoads:     BasicEdLoad[]      — per grade+subject (shared across sections)
  *   basicEdAdvisers:  AdviserLoad[]      — per section
@@ -84,8 +84,10 @@ function getCollegeEnrolledCount(campusName, program, yearLevel) {
   } catch { return 0 }
 }
 
-function rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor) {
-  const max = data.maxPerSection || DEFAULT_MAX
+// `capacityFor(level)`: seats per section from Settings → Grade Levels (own number or campus default), or null.
+// A level with none keeps the old per-year `maxPerSection`, then 40, so nothing changes until a campus sets seats.
+function rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor, capacityFor) {
+  const maxFor = (level) => (capacityFor && capacityFor(level)) || data.maxPerSection || DEFAULT_MAX
   // `yearLevels`: a list, or (program) => list. Programs can run different numbers of years.
   const DEFAULT_YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
   const yearsFor = (prog) => {
@@ -98,7 +100,7 @@ function rebuildSections(data, campusName, collegePrograms, yearLevels, sectionN
     const count = getEnrolledCount(campusName, grade)
     const existing = data.basicEdSections?.[grade] || []
     if (!data.basicEdSections) data.basicEdSections = {}
-    data.basicEdSections[grade] = buildSections(count, max, grade, existing, false, sectionNamesFor?.(grade) || [])
+    data.basicEdSections[grade] = buildSections(count, maxFor(grade), grade, existing, false, sectionNamesFor?.(grade) || [])
   })
 
   // College
@@ -110,7 +112,7 @@ function rebuildSections(data, campusName, collegePrograms, yearLevels, sectionN
       const shortProg = prog.replace('BS ', '')
       const prefix = `${shortProg} ${yr.replace(' Year','')}`
       const existing = data.collegeSections[prog]?.[yr] || []
-      data.collegeSections[prog][yr] = buildSections(count, max, prefix, existing, true, sectionNamesFor?.(`${prog} - ${yr}`) || [])
+      data.collegeSections[prog][yr] = buildSections(count, maxFor(`${prog} - ${yr}`), prefix, existing, true, sectionNamesFor?.(`${prog} - ${yr}`) || [])
     })
   })
 
@@ -125,7 +127,6 @@ function initCY(campusKey, schoolYear, campusName, collegePrograms = []) {
     if (DEFAULT_COLLEGE_SUBJECTS[prog]) collegeSubjects[prog] = DEFAULT_COLLEGE_SUBJECTS[prog]
   })
   const fresh = {
-    maxPerSection: DEFAULT_MAX,
     basicEdSubjects: { ...DEFAULT_BASIC_ED_SUBJECTS },
     basicEdLoads: [], basicEdAdvisers: [], basicEdSections: {},
     collegeSubjects, collegeLoads: [], collegeSections: {},
@@ -136,10 +137,10 @@ function initCY(campusKey, schoolYear, campusName, collegePrograms = []) {
 
 // ═══════════════════════════════ PUBLIC API ═══════════════════════
 
-export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePrograms = [], yearLevels, sectionNamesFor) {
+export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePrograms = [], yearLevels, sectionNamesFor, capacityFor) {
   let data = initCY(campusKey, schoolYear, campusName, collegePrograms)
   const sectionsBefore = JSON.stringify([data.basicEdSections, data.collegeSections])
-  data = rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor)
+  data = rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor, capacityFor)
 
   // Section ids must survive a reload: advisers and college loads point at them by id. Sections are
   // generated here, so save them whenever they changed (new section, new count). Saved quietly (no
@@ -153,10 +154,11 @@ export function getSubjectLoadData(campusKey, schoolYear, campusName, collegePro
   return data
 }
 
-export function setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, max, yearLevels, sectionNamesFor) {
+// Legacy: the page no longer calls this (seats are set in Settings → Grade Levels). The dev seed still uses it.
+export function setMaxPerSection(campusKey, schoolYear, campusName, collegePrograms, max, yearLevels, sectionNamesFor, capacityFor) {
   const data = getCY(campusKey, schoolYear) || initCY(campusKey, schoolYear, campusName, collegePrograms)
   data.maxPerSection = Math.max(1, parseInt(max, 10) || DEFAULT_MAX)
-  setCY(campusKey, schoolYear, rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor))
+  setCY(campusKey, schoolYear, rebuildSections(data, campusName, collegePrograms, yearLevels, sectionNamesFor, capacityFor))
 }
 
 export function renameSection(campusKey, schoolYear, gradeLevel, sectionId, newName) {

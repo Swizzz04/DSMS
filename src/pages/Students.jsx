@@ -622,7 +622,7 @@ const STUDENT_SORTERS = {
 
 export default function Students() {
   const { user } = useAuth()
-  const { activeCampuses, getCampusCurrentSchoolYear, getSchoolYearLabel, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS, getSectionNames, getProgramYearLevels } = useAppConfig()
+  const { activeCampuses, getCampusCurrentSchoolYear, getSchoolYearLabel, isBasicGrade, isCollegeGrade, basicEdGroups, collegeYearLevels: YEAR_LEVELS, getSectionNames, getProgramYearLevels, getConfiguredSectionCapacity } = useAppConfig()
   const BASIC_GROUPS = useMemo(() => buildBasicGroups(basicEdGroups), [basicEdGroups])
   const allBasicGrades = BASIC_GROUPS.flatMap(g => g.grades)
   const location = useLocation()
@@ -680,7 +680,7 @@ export default function Students() {
     const names = [...(getSectionNames(camp.key, gradeLevel) || [])]
     try {
       const progs = camp.college?.programs ?? camp.collegePrograms ?? []
-      const data = getSubjectLoadData(camp.key, schoolYear || getCampusCurrentSchoolYear(camp.key), camp.name, progs, (p) => getProgramYearLevels(camp.key, p), (lv) => getSectionNames(camp.key, lv))
+      const data = getSubjectLoadData(camp.key, schoolYear || getCampusCurrentSchoolYear(camp.key), camp.name, progs, (p) => getProgramYearLevels(camp.key, p), (lv) => getSectionNames(camp.key, lv), (lv) => getConfiguredSectionCapacity(camp.key, lv))
       let generated = []
       if (isCollegeGrade(gradeLevel)) {
         const [prog, yr] = gradeLevel.split(' - ')
